@@ -6,7 +6,7 @@ import { generateId } from '../lib/id';
 export async function syncDriveAccount(
   drive: DriveAccount,
   db: D1Database,
-  kv: KVNamespace,
+  _kv: KVNamespace,
   driveService: GoogleDriveService
 ): Promise<void> {
   // Skip drives without root folder
@@ -36,9 +36,7 @@ export async function syncDriveAccount(
       changeToken = await driveService.getStartPageToken(drive.id);
     } else {
       // Incremental sync via Changes API
-      await performIncrementalSync(drive, db, changeToken, driveService);
-      // Get the latest token after processing all changes
-      changeToken = await getLatestChangeToken(drive, changeToken, driveService);
+      changeToken = await performIncrementalSync(drive, db, changeToken, driveService);
     }
 
     // Update sync state
@@ -98,7 +96,7 @@ async function performIncrementalSync(
   db: D1Database,
   pageToken: string,
   driveService: GoogleDriveService
-): Promise<void> {
+): Promise<string> {
   console.log(`Incremental sync for ${drive.email} from token ${pageToken}`);
 
   let currentToken = pageToken;
@@ -146,36 +144,21 @@ async function performIncrementalSync(
       });
     }
 
-    if (response.nextPageToken) {
-      currentToken = response.nextPageToken;
-    } else {
-      hasMore = false;
-    }
-  }
-}
-
-async function getLatestChangeToken(
-  drive: DriveAccount,
-  startToken: string,
-  driveService: GoogleDriveService
-): Promise<string> {
-  let currentToken = startToken;
-  let hasMore = true;
-
-  while (hasMore) {
-    const response = await driveService.listChanges(drive.id, currentToken);
     if (response.newStartPageToken) {
       return response.newStartPageToken;
     }
+
     if (response.nextPageToken) {
       currentToken = response.nextPageToken;
     } else {
       hasMore = false;
     }
   }
-
+  
   return currentToken;
 }
+
+
 
 async function upsertFile(
   db: D1Database,
@@ -250,11 +233,9 @@ export async function runScheduledSync(env: { DB: D1Database; KV: KVNamespace; G
 
   console.log(`Syncing ${driveAccounts.length} drive accounts`);
 
-  for (const drive of driveAccounts) {
-    try {
-      await syncDriveAccount(drive, env.DB, env.KV, driveService);
-    } catch (err) {
+  await Promise.allSettled(driveAccounts.map(drive => 
+    syncDriveAccount(drive, env.DB, env.KV, driveService).catch(err => {
       console.error(`Sync error for ${drive.email}:`, err);
-    }
-  }
+    })
+  ));
 }

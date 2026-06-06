@@ -1,7 +1,7 @@
-import { HardDrive, RefreshCw, Trash2, AlertCircle } from 'lucide-react';
+import { HardDrive, RefreshCw, Trash2 } from 'lucide-react';
 import type { DriveAccount } from '../types';
 import { QuotaBar } from './QuotaBar';
-import { formatFileSize, getDriveColor, formatRelativeTime } from '../lib/utils';
+import { formatFileSize, getDriveColor } from '../lib/utils';
 import { useState } from 'react';
 
 interface DriveAccountCardProps {

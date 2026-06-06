@@ -10,18 +10,27 @@ export const foldersRouter = new Hono<AppContext>();
 foldersRouter.use('*', authGuard);
 
 // Helper to build breadcrumb recursively up to root
-async function buildBreadcrumb(db: any, folderId: string | null): Promise<BreadcrumbItem[]> {
+async function buildBreadcrumb(db: any, userId: string, folderId: string | null): Promise<BreadcrumbItem[]> {
   const path: BreadcrumbItem[] = [];
-  let currentId = folderId;
-
-  while (currentId) {
-    const f = await db.prepare('SELECT id, name, parent_id FROM virtual_folders WHERE id = ?')
-      .bind(currentId).first();
-    if (!f) break;
-    path.unshift({ id: f.id as string, name: f.name as string });
-    currentId = f.parent_id as string | null;
-  }
   
+  if (folderId) {
+    const query = `
+      WITH RECURSIVE breadcrumb_path(id, name, parent_id, lvl) AS (
+        SELECT id, name, parent_id, 0 as lvl FROM virtual_folders WHERE id = ? AND user_id = ?
+        UNION ALL
+        SELECT v.id, v.name, v.parent_id, bp.lvl + 1 
+        FROM virtual_folders v
+        JOIN breadcrumb_path bp ON v.id = bp.parent_id
+        WHERE v.user_id = ?
+      )
+      SELECT id, name FROM breadcrumb_path ORDER BY lvl DESC
+    `;
+    const { results } = await db.prepare(query).bind(folderId, userId, userId).all();
+    for (const row of results) {
+      path.push({ id: row.id as string, name: row.name as string });
+    }
+  }
+
   // Always start with Root
   path.unshift({ id: null, name: 'Home' });
   return path;
@@ -71,7 +80,7 @@ foldersRouter.get('/:id?', async (c) => {
     driveEmail: r.driveEmail,
   }));
 
-  const breadcrumb = await buildBreadcrumb(db, folderId);
+  const breadcrumb = await buildBreadcrumb(db, userId, folderId);
 
   return c.json({
     folder: currentFolder,

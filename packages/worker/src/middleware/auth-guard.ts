@@ -1,4 +1,5 @@
 import { createMiddleware } from 'hono/factory';
+import { getCookie } from 'hono/cookie';
 import type { AppContext, SessionData } from '../types/env';
 import { AppError } from './error-handler';
 
@@ -25,16 +26,4 @@ export const authGuard = createMiddleware<AppContext>(async (c, next) => {
   await next();
 });
 
-function getCookie(c: { req: { header: (name: string) => string | undefined } }, name: string): string | undefined {
-  const cookieHeader = c.req.header('cookie');
-  if (!cookieHeader) return undefined;
 
-  const cookies = cookieHeader.split(';').map((c) => c.trim());
-  for (const cookie of cookies) {
-    const [key, ...valueParts] = cookie.split('=');
-    if (key === name) {
-      return valueParts.join('=');
-    }
-  }
-  return undefined;
-}

@@ -9,7 +9,7 @@ import { FileCard } from '../components/FileCard';
 import { DropZone } from '../components/DropZone';
 import { UploadModal } from '../components/UploadModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
-import { Upload, FolderPlus, Search, X } from 'lucide-react';
+import { Upload, FolderPlus, X } from 'lucide-react';
 import { getDriveColor } from '../lib/utils';
 import { useToastStore } from '../stores/toastStore';
 import type { FileEntry } from '../types';

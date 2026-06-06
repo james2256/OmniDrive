@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { setCookie, deleteCookie } from 'hono/cookie';
+import { setCookie, deleteCookie, getCookie } from 'hono/cookie';
 import type { AppContext, SessionData } from '../types/env';
 import { AuthService } from '../services/auth.service';
 import { AppError } from '../middleware/error-handler';
@@ -20,6 +20,10 @@ authRouter.get('/google', (c) => {
   authUrl.searchParams.append('scope', scope);
   authUrl.searchParams.append('access_type', 'offline');
   authUrl.searchParams.append('prompt', 'consent'); // Force refresh token for demo
+  
+  const state = crypto.randomUUID();
+  setCookie(c, 'oauth_state', state, { path: '/', httpOnly: true, secure: true, maxAge: 60 * 5 });
+  authUrl.searchParams.append('state', state);
 
   return c.redirect(authUrl.toString());
 });
@@ -27,6 +31,13 @@ authRouter.get('/google', (c) => {
 authRouter.get('/callback', async (c) => {
   const code = c.req.query('code');
   if (!code) throw new AppError(400, 'Authorization code missing');
+
+  const state = c.req.query('state');
+  const savedState = getCookie(c, 'oauth_state');
+  if (!state || state !== savedState) {
+    throw new AppError(400, 'Invalid state parameter');
+  }
+  deleteCookie(c, 'oauth_state', { path: '/' });
 
   const env = c.env;
   const redirectUri = `${env.WORKER_URL}/api/auth/callback`;
@@ -49,6 +60,17 @@ authRouter.get('/callback', async (c) => {
     ).bind(userId, googleUser.id, googleUser.email, googleUser.name, googleUser.picture).run();
     user = { id: userId };
   }
+
+  // 3b. Upsert drive account and save tokens
+  let drive = await db.prepare('SELECT id FROM drive_accounts WHERE google_account_id = ?').bind(googleUser.id).first<{ id: string }>();
+  if (!drive) {
+    const driveId = generateId();
+    await db.prepare(
+      'INSERT INTO drive_accounts (id, user_id, google_account_id, email, name, type, is_primary) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).bind(driveId, user.id, googleUser.id, googleUser.email, googleUser.name, 'oauth', 1).run();
+    drive = { id: driveId };
+  }
+  await env.KV.put(`tokens:${drive.id}`, JSON.stringify(tokens));
 
   // 4. Create session
   const sessionId = generateId();
@@ -83,9 +105,7 @@ authRouter.get('/me', (c) => {
 });
 
 authRouter.post('/logout', async (c) => {
-  const cookie = c.req.header('cookie');
-  // Simple extraction for logout cleanup
-  const sid = cookie?.split('omnidrive_sid=')[1]?.split(';')[0];
+  const sid = getCookie(c, 'omnidrive_sid');
   if (sid) {
     await c.env.KV.delete(`session:${sid}`);
   }

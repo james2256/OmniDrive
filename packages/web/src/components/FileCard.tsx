@@ -1,4 +1,4 @@
-import { MoreVertical, Download, Trash2, FolderInput, Pencil } from 'lucide-react';
+import { MoreVertical, Download, Trash2, Pencil } from 'lucide-react';
 import { getFileIcon, formatFileSize, formatRelativeTime } from '../lib/utils';
 import type { FileEntry } from '../types';
 import { useState } from 'react';

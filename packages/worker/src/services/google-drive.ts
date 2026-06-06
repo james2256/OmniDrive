@@ -278,7 +278,7 @@ export class GoogleDriveService {
       'nextPageToken,newStartPageToken,changes(fileId,removed,file(id,name,mimeType,size,parents,trashed,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime))';
 
     const response = await fetch(
-      `${DRIVE_API}/changes?pageToken=${pageToken}&fields=${fields}&spaces=drive&includeRemoved=true`,
+      `${DRIVE_API}/changes?pageToken=${encodeURIComponent(pageToken)}&fields=${fields}&spaces=drive&includeRemoved=true`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
 
@@ -313,7 +313,7 @@ export class GoogleDriveService {
     let pageToken: string | undefined;
 
     do {
-      const url = `${DRIVE_API}/files?q=${q}&fields=nextPageToken,${fields}${pageToken ? \`&pageToken=\${pageToken}\` : ''}`;
+      const url = `${DRIVE_API}/files?q=${q}&fields=nextPageToken,${fields}${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
       const response = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
       });
