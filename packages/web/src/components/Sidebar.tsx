@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FolderOpen, Settings, Plus, HardDrive } from 'lucide-react';
+import { LayoutDashboard, FolderOpen, Settings, Plus } from 'lucide-react';
 import { useDriveStore } from '../stores/driveStore';
 import { useAuthStore } from '../stores/authStore';
 import { QuotaBar } from './QuotaBar';
