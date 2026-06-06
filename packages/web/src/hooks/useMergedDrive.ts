@@ -5,15 +5,15 @@ import { useToastStore } from '../stores/toastStore';
 import type { DriveFolder, FileEntry } from '../types';
 
 export function useMergedDrive(folderId: string, driveIdParam: string | null) {
-  const { drives } = useDriveStore();
-  const { addToast } = useToastStore();
+  const drives = useDriveStore(state => state.drives);
+  const addToast = useToastStore(state => state.addToast);
   
   const [subfolders, setSubfolders] = useState<DriveFolder[]>([]);
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorDrives, setErrorDrives] = useState<Set<string>>(new Set());
 
-  const fetchContents = useCallback(async () => {
+  const fetchContents = useCallback(async (abortSignal?: AbortSignal) => {
     if (drives.length === 0) {
       setSubfolders([]);
       setFiles([]);
@@ -23,6 +23,7 @@ export function useMergedDrive(folderId: string, driveIdParam: string | null) {
     setIsLoading(true);
     setSubfolders([]);
     setFiles([]);
+    setErrorDrives(new Set());
 
     try {
       if (folderId === 'root' || !driveIdParam) {
@@ -37,28 +38,37 @@ export function useMergedDrive(folderId: string, driveIdParam: string | null) {
         );
         
         const results = await Promise.all(promises);
+        if (abortSignal?.aborted) return;
         
         const mergedFolders = results.flatMap(r => r.subfolders);
-        const mergedFiles = results.flatMap(r => r.files as FileEntry[]);
+        const mergedFiles = results.flatMap(r => r.files);
         
         setSubfolders(mergedFolders);
         setFiles(mergedFiles);
       } else {
         // Fetch specific sub-folder for a specific drive
         const data = await api.getDriveFolderContents(driveIdParam, folderId);
+        if (abortSignal?.aborted) return;
         setSubfolders(data.subfolders);
-        setFiles(data.files as FileEntry[]);
+        setFiles(data.files);
       }
     } catch (err) {
+      if (abortSignal?.aborted) return;
       addToast('error', 'Failed to load folder contents');
     } finally {
-      setIsLoading(false);
+      if (!abortSignal?.aborted) {
+        setIsLoading(false);
+      }
     }
   }, [folderId, driveIdParam, drives, addToast]);
 
   useEffect(() => {
-    fetchContents();
+    const controller = new AbortController();
+    fetchContents(controller.signal);
+    return () => {
+      controller.abort();
+    };
   }, [fetchContents]);
 
-  return { subfolders, files, isLoading, errorDrives, refresh: fetchContents };
+  return { subfolders, files, isLoading, errorDrives, refresh: () => fetchContents() };
 }
