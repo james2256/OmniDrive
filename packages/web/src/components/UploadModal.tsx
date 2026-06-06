@@ -1,28 +1,28 @@
 import { X, Upload, Check, AlertCircle, Loader } from 'lucide-react';
 import { useUploadStore } from '../stores/uploadStore';
 import { useDriveStore } from '../stores/driveStore';
-import { useFileStore } from '../stores/fileStore';
 import { useToastStore } from '../stores/toastStore';
 import { formatFileSize, getDriveColor } from '../lib/utils';
 import { useState } from 'react';
 
 interface UploadModalProps {
   folderId?: string;
+  driveId?: string; // Optional: prepopulate if in a specific drive
   onClose: () => void;
+  onSuccess: () => void;
 }
 
-export function UploadModal({ folderId, onClose }: UploadModalProps) {
+export function UploadModal({ folderId, driveId, onClose, onSuccess }: UploadModalProps) {
   const { queue, isUploading, removeFile, startUpload, clearQueue } = useUploadStore();
   const { drives } = useDriveStore();
-  const { fetchContents } = useFileStore();
   const { addToast } = useToastStore();
-  const [selectedDriveId, setSelectedDriveId] = useState<string>('');
+  const [selectedDriveId, setSelectedDriveId] = useState<string>(driveId || '');
 
   const handleUpload = async () => {
     try {
       await startUpload(selectedDriveId || undefined, folderId);
       addToast('success', 'Upload completed');
-      fetchContents(folderId);
+      onSuccess();
     } catch {
       addToast('error', 'Upload failed');
     }
