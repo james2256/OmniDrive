@@ -5,6 +5,7 @@ import { errorHandler } from './middleware/error-handler';
 
 import { authRouter } from './routes/auth';
 import { drivesRouter } from './routes/drives';
+import { foldersRouter } from './routes/folders';
 
 const app = new Hono<AppContext>();
 
@@ -14,6 +15,7 @@ app.use('*', errorHandler);
 
 app.route('/api/auth', authRouter);
 app.route('/api/drives', drivesRouter);
+app.route('/api/folders', foldersRouter);
 
 // Health check (public)
 app.get('/api/health', (c) => {
