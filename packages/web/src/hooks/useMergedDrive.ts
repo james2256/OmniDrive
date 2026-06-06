@@ -30,7 +30,7 @@ export function useMergedDrive(folderId: string, driveIdParam: string | null) {
         // Fetch all drives concurrently at root
         const promises = drives.map(drive => 
           api.getDriveFolderContents(drive.id, 'root')
-            .catch(err => {
+            .catch(() => {
               addToast('error', `Failed to load drive: ${drive.email}`);
               setErrorDrives(prev => new Set(prev).add(drive.id));
               return { subfolders: [], files: [] };
