@@ -6,7 +6,7 @@ import { AppError } from '../middleware/error-handler';
 import { generateId } from '../lib/id';
 import { authGuard } from '../middleware/auth-guard';
 
-export const authRouter = new Hono<AppContext>();
+export const authRouter = new Hono<AppContext>({ strict: false });
 
 authRouter.get('/google', (c) => {
   const env = c.env;

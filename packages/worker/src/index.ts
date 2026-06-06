@@ -9,7 +9,7 @@ import { drivesRouter } from './routes/drives';
 import { foldersRouter } from './routes/folders';
 import { filesRouter } from './routes/files';
 
-const app = new Hono<AppContext>();
+const app = new Hono<AppContext>({ strict: false });
 
 // Global middleware
 app.use('*', corsMiddleware());

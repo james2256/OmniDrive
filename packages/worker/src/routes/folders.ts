@@ -5,7 +5,7 @@ import { AppError } from '../middleware/error-handler';
 import { generateId } from '../lib/id';
 import { mapFolderRow, mapFileRow, type BreadcrumbItem } from '../types';
 
-export const foldersRouter = new Hono<AppContext>();
+export const foldersRouter = new Hono<AppContext>({ strict: false });
 
 foldersRouter.use('*', authGuard);
 

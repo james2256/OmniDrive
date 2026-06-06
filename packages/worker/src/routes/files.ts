@@ -5,11 +5,37 @@ import { authGuard } from '../middleware/auth-guard';
 import { AppError } from '../middleware/error-handler';
 import { DriveService } from '../services/drive.service';
 import { UploadRouter } from '../services/upload-router';
-import { mapDriveRow } from '../types';
+import { mapDriveRow, mapFileRow } from '../types';
 
-export const filesRouter = new Hono<AppContext>();
+export const filesRouter = new Hono<AppContext>({ strict: false });
 
 filesRouter.use('*', authGuard);
+
+// GET /api/files/search?q=
+filesRouter.get('/search', async (c) => {
+  const userId = c.get('userId');
+  const query = c.req.query('q');
+
+  if (!query?.trim()) {
+    throw new AppError(400, 'Search query is required');
+  }
+
+  const db = c.env.DB;
+  const { results } = await db.prepare(
+    `SELECT f.*, d.email as driveEmail FROM files f
+     JOIN drive_accounts d ON f.drive_account_id = d.id
+     WHERE f.user_id = ? AND f.name LIKE ? AND f.is_trashed = 0
+     ORDER BY f.updated_at DESC LIMIT 50`
+  ).bind(userId, `%${query.trim()}%`).all();
+
+  return c.json({
+    files: results.map((r: any) => ({
+      ...mapFileRow(r),
+      driveEmail: r.driveEmail,
+    })),
+    query: query.trim(),
+  });
+});
 
 // Move file to trash
 filesRouter.delete('/:id', async (c) => {

@@ -35,7 +35,7 @@ export const api = {
 
   // Drives
   getDrives: () =>
-    request<{ drives: import('../types').DriveAccount[]; aggregate: import('../types').AggregateQuota }>('/api/drives'),
+    request<{ drives: import('../types').DriveAccount[]; aggregate: import('../types').AggregateQuota }>('/api/drives/'),
   disconnectDrive: (id: string) => request<{ success: boolean }>(`/api/drives/${id}`, { method: 'DELETE' }),
   addServiceAccount: (credentials: string, folderId: string) =>
     request<{ success: boolean; driveId: string }>('/api/drives/service-account', {
@@ -45,8 +45,8 @@ export const api = {
   triggerSync: (id: string) => request<{ success: boolean }>(`/api/drives/${id}/sync`, { method: 'POST' }),
 
   // Folders
-  getRootContents: () => request<import('../types').FolderContents>('/api/folders/root/contents'),
-  getFolderContents: (id: string) => request<import('../types').FolderContents>(`/api/folders/${id}/contents`),
+  getRootContents: () => request<import('../types').FolderContents>('/api/folders/'),
+  getFolderContents: (id: string) => request<import('../types').FolderContents>(`/api/folders/${id}`),
   createFolder: (name: string, parentId?: string, icon?: string, color?: string) =>
     request<{ folder: import('../types').VirtualFolder }>('/api/folders', {
       method: 'POST',
@@ -63,12 +63,12 @@ export const api = {
   searchFiles: (query: string) =>
     request<{ files: import('../types').FileEntry[]; query: string }>(`/api/files/search?q=${encodeURIComponent(query)}`),
   initiateUpload: (data: { name: string; mimeType: string; size: number; driveAccountId?: string; virtualFolderId?: string }) =>
-    request<import('../types').UploadInitResponse>('/api/files/upload', {
+    request<import('../types').UploadInitResponse>('/api/files/upload/init', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
   confirmUpload: (data: { googleFileId: string; driveAccountId: string; virtualFolderId?: string }) =>
-    request<{ file: import('../types').FileEntry }>('/api/files/confirm', {
+    request<{ file: import('../types').FileEntry }>('/api/files/upload/finalize', {
       method: 'POST',
       body: JSON.stringify(data),
     }),

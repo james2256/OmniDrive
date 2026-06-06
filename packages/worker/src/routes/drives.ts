@@ -4,7 +4,7 @@ import { authGuard } from '../middleware/auth-guard';
 import { DriveService } from '../services/drive.service';
 import { mapDriveRow } from '../types';
 
-export const drivesRouter = new Hono<AppContext>();
+export const drivesRouter = new Hono<AppContext>({ strict: false });
 
 drivesRouter.use('*', authGuard);
 
