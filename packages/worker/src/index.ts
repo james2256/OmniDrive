@@ -3,11 +3,15 @@ import type { AppContext, Env } from './types/env';
 import { corsMiddleware } from './middleware/cors';
 import { errorHandler } from './middleware/error-handler';
 
+import { authRouter } from './routes/auth';
+
 const app = new Hono<AppContext>();
 
 // Global middleware
 app.use('*', corsMiddleware());
 app.use('*', errorHandler);
+
+app.route('/api/auth', authRouter);
 
 // Health check (public)
 app.get('/api/health', (c) => {

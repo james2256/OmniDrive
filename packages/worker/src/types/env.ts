@@ -21,3 +21,9 @@ export type AppContext = {
     session: SessionData;
   };
 };
+
+export interface OAuthTokens {
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt: number;
+}
