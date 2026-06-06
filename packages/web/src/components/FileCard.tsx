@@ -44,9 +44,9 @@ export function FileCard({ file, driveColor, driveEmail, onDelete, onRename, onP
   };
 
   return (
-    <div className="file-card" onClick={handleClick} style={{ position: 'relative' }}>
+    <div className="file-card" onClick={handleClick}>
       {driveEmail && (
-        <div className="account-badge" style={{ backgroundColor: `${driveColor}40`, color: driveColor, borderColor: `${driveColor}60` }} title={driveEmail}>
+        <div className="account-badge" style={{ backgroundColor: `color-mix(in srgb, ${driveColor} 20%, transparent)`, color: driveColor, borderColor: `color-mix(in srgb, ${driveColor} 40%, transparent)` }} title={driveEmail}>
           {initial}
         </div>
       )}
@@ -98,95 +98,6 @@ export function FileCard({ file, driveColor, driveEmail, onDelete, onRename, onP
           </div>
         )}
       </div>
-
-      <style>{fileCardStyles}</style>
     </div>
   );
 }
-
-const fileCardStyles = `
-  .file-card {
-    display: flex;
-    align-items: center;
-    gap: var(--space-md);
-    padding: var(--space-md);
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    transition: background var(--transition-fast);
-    position: relative;
-  }
-
-  .file-card:hover { background: var(--bg-hover); }
-
-  .file-card-icon { font-size: 1.5rem; flex-shrink: 0; }
-
-  .file-card-info { flex: 1; min-width: 0; }
-
-  .file-card-name {
-    font-size: var(--font-size-base);
-    font-weight: 500;
-  }
-
-  .file-card-meta {
-    display: flex;
-    align-items: center;
-    gap: var(--space-xs);
-    font-size: var(--font-size-xs);
-    color: var(--text-tertiary);
-    margin-top: 2px;
-  }
-
-  .file-card-actions { position: relative; }
-
-  .file-card-menu {
-    position: absolute;
-    right: 0;
-    top: 100%;
-    background: var(--bg-elevated);
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius-md);
-    padding: var(--space-xs);
-    min-width: 150px;
-    box-shadow: var(--shadow-lg);
-    z-index: 10;
-  }
-
-  .file-card-menu-item {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-    padding: var(--space-sm) var(--space-md);
-    border-radius: var(--radius-sm);
-    font-size: var(--font-size-sm);
-    color: var(--text-secondary);
-    width: 100%;
-    text-align: left;
-    cursor: pointer;
-    border: none;
-    background: none;
-    text-decoration: none;
-  }
-
-  .file-card-menu-item:hover { background: var(--bg-hover); color: var(--text-primary); }
-  .file-card-menu-item.danger:hover { background: var(--accent-danger-subtle); color: var(--accent-danger); }
-
-  .account-badge {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    font-weight: 600;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    border: 1px solid;
-    z-index: 2;
-    transition: opacity 0.2s;
-    cursor: help;
-  }
-`;

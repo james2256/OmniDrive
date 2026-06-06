@@ -651,3 +651,127 @@ input:focus, textarea:focus, select:focus {
   font-size: var(--font-size-sm);
 }
 
+/* ─── File Card ─── */
+.file-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  position: relative;
+}
+
+.file-card:hover { background: var(--bg-hover); }
+
+.file-card-icon { font-size: 1.5rem; flex-shrink: 0; }
+
+.file-card-info { flex: 1; min-width: 0; }
+
+.file-card-name {
+  font-size: var(--font-size-base);
+  font-weight: 500;
+}
+
+.file-card-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  margin-top: 2px;
+}
+
+.file-card-actions { position: relative; }
+
+.file-card-menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-xs);
+  min-width: 150px;
+  box-shadow: var(--shadow-lg);
+  z-index: 10;
+}
+
+.file-card-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  border: none;
+  background: none;
+  text-decoration: none;
+}
+
+.file-card-menu-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+.file-card-menu-item.danger:hover { background: var(--accent-danger-subtle); color: var(--accent-danger); }
+
+.file-card .account-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid;
+  z-index: 2;
+  transition: opacity 0.2s;
+  cursor: help;
+}
+
+/* ─── Drive Folder Card ─── */
+.folder-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  text-align: left;
+}
+.folder-card:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+.folder-card.unsynced { background: var(--bg-body); border-style: dashed; }
+.folder-card.error { border-color: var(--accent-warning); }
+.folder-icon { color: var(--text-tertiary); display: flex; }
+.folder-name { font-weight: 500; font-size: var(--font-size-sm); flex: 1; }
+.unsynced-dot { width: 8px; height: 8px; background: var(--accent-primary); border-radius: 50%; }
+
+.folder-card .account-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
