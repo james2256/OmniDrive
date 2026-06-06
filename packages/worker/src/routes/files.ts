@@ -4,6 +4,7 @@ import { generateId } from '../lib/id';
 import { authGuard } from '../middleware/auth-guard';
 import { AppError } from '../middleware/error-handler';
 import { DriveService } from '../services/drive.service';
+import { GoogleDriveService } from '../services/google-drive';
 import { UploadRouter } from '../services/upload-router';
 import { mapDriveRow, mapFileRow } from '../types';
 
@@ -126,30 +127,44 @@ filesRouter.post('/upload/init', async (c) => {
 
 filesRouter.post('/upload/finalize', async (c) => {
   const userId = c.get('userId');
-  const { googleFileId, driveAccountId, name, mimeType, size, folderId } = await c.req.json();
+  const { googleFileId, driveAccountId, virtualFolderId } = await c.req.json();
 
   if (!googleFileId || !driveAccountId) {
-    throw new AppError(400, 'Missing required fields');
+    throw new AppError(400, 'Missing required fields: googleFileId, driveAccountId');
   }
 
-  // Validate that drive belongs to user
+  // Verify drive belongs to user
   const db = c.env.DB;
   const drive = await db.prepare('SELECT id FROM drive_accounts WHERE id = ? AND user_id = ?')
     .bind(driveAccountId, userId).first();
     
-  if (!drive) throw new AppError(404, 'Drive account not found or unauthorized');
+  if (!drive) {
+    throw new AppError(404, 'Drive account not found or unauthorized');
+  }
+
+  // Fetch file metadata from Google Drive
+  const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET);
+  const gFile = await driveService.getFile(driveAccountId, googleFileId);
 
   const id = generateId();
   
   await db.prepare(`
     INSERT INTO files (
       id, user_id, drive_account_id, virtual_folder_id, 
-      google_file_id, name, mime_type, size
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      google_file_id, name, mime_type, size, thumbnail_url, web_view_link, web_content_link,
+      google_created_at, google_modified_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
-    id, userId, driveAccountId, folderId || null,
-    googleFileId, name, mimeType, size
+    id, userId, driveAccountId, virtualFolderId || null,
+    gFile.id, gFile.name, gFile.mimeType, parseInt(gFile.size || '0', 10),
+    gFile.thumbnailLink || null, gFile.webViewLink || null, gFile.webContentLink || null,
+    gFile.createdTime, gFile.modifiedTime
   ).run();
 
-  return c.json({ id, success: true });
+  // Invalidate quota cache
+  await c.env.KV.delete(`quota:${driveAccountId}`);
+
+  const created = await db.prepare('SELECT * FROM files WHERE id = ?').bind(id).first();
+
+  return c.json({ file: mapFileRow(created!), success: true }, 201);
 });
