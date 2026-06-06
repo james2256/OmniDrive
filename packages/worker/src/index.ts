@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { AppContext, Env } from './types/env';
 import { corsMiddleware } from './middleware/cors';
 import { errorHandler } from './middleware/error-handler';
+import { runScheduledSync } from './services/sync';
 
 import { authRouter } from './routes/auth';
 import { drivesRouter } from './routes/drives';
@@ -26,8 +27,9 @@ app.get('/api/health', (c) => {
 
 export default {
   fetch: app.fetch,
-  async scheduled(event: ScheduledController, _env: Env, _ctx: ExecutionContext) {
+  async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext) {
     console.log('Cron triggered:', event.cron);
+    ctx.waitUntil(runScheduledSync(env));
   },
 } satisfies ExportedHandler<Env>;
 
