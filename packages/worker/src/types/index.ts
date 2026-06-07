@@ -83,8 +83,15 @@ export interface SharedLink {
   userId: string;
   targetType: 'file' | 'folder';
   targetId: string;
-  passwordHash: string | null;
-  expiresAt: string | null;
+  passwordHash?: string | null;
+  expiresAt?: string | null;
+  allowDownloads: boolean;
+  allowUploads: boolean;
+  maxDownloads?: number | null;
+  requireEmail: boolean;
+  webhookUrl?: string | null;
+  viewCount: number;
+  downloadCount: number;
   createdAt: string;
 }
 
@@ -213,20 +220,22 @@ export function mapDriveFolderRow(row: Record<string, unknown>): DriveFolder {
   };
 }
 
-export function mapSharedLinkRow(row: Record<string, unknown>): SharedLink {
-  const targetType = row.target_type as string;
-  if (targetType !== 'file' && targetType !== 'folder') {
-    throw new Error(`Invalid target_type: ${targetType}`);
-  }
-
+export function mapSharedLinkRow(row: Record<string, any>): SharedLink {
   return {
-    id: row.id as string,
-    userId: row.user_id as string,
-    targetType: targetType as 'file' | 'folder',
-    targetId: row.target_id as string,
-    passwordHash: (row.password_hash as string | null | undefined) ?? null,
-    expiresAt: (row.expires_at as string | null | undefined) ?? null,
-    createdAt: row.created_at as string,
+    id: row.id,
+    userId: row.user_id,
+    targetType: row.target_type,
+    targetId: row.target_id,
+    passwordHash: row.password_hash,
+    expiresAt: row.expires_at,
+    allowDownloads: Boolean(row.allow_downloads ?? 1),
+    allowUploads: Boolean(row.allow_uploads ?? 0),
+    maxDownloads: row.max_downloads,
+    requireEmail: Boolean(row.require_email ?? 0),
+    webhookUrl: row.webhook_url,
+    viewCount: row.view_count || 0,
+    downloadCount: row.download_count || 0,
+    createdAt: row.created_at,
   };
 }
 
