@@ -140,7 +140,7 @@ export const createSharedLink = async (payload: CreateSharedLinkPayload) => {
 };
 
 export async function updateSharedLink(id: string, payload: Partial<CreateSharedLinkPayload>) {
-  return await request(`/api/shared/${id}`, {
+  return await fetchApi(`/api/shared/${id}`, {
     method: 'PUT',
     body: JSON.stringify(payload),
   });
