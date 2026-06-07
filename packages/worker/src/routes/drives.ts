@@ -6,6 +6,34 @@ import { GoogleDriveService } from '../services/google-drive';
 import { syncDriveAccount } from '../services/sync';
 import { mapDriveRow, mapDriveFolderRow, mapFileRow } from '../types';
 import { generateId } from '../lib/id';
+import type { BreadcrumbItem } from '../types';
+
+export async function buildDriveBreadcrumb(db: any, driveId: string, googleFolderId: string): Promise<BreadcrumbItem[]> {
+  const path: BreadcrumbItem[] = [];
+  
+  if (googleFolderId && googleFolderId !== 'root') {
+    const query = `
+      WITH RECURSIVE breadcrumb_path(id, google_parent_id, name, lvl) AS (
+        SELECT google_folder_id, google_parent_id, name, 0 as lvl 
+        FROM drive_folders 
+        WHERE drive_account_id = ? AND google_folder_id = ?
+        UNION ALL
+        SELECT d.google_folder_id, d.google_parent_id, d.name, bp.lvl + 1 
+        FROM drive_folders d
+        JOIN breadcrumb_path bp ON d.google_folder_id = bp.google_parent_id
+        WHERE d.drive_account_id = ?
+      )
+      SELECT id, name FROM breadcrumb_path ORDER BY lvl DESC
+    `;
+    const { results } = await db.prepare(query).bind(driveId, googleFolderId, driveId).all();
+    for (const row of results) {
+      path.push({ id: row.id as string, name: row.name as string });
+    }
+  }
+  
+  path.unshift({ id: 'root', name: 'All Files' });
+  return path;
+}
 
 export const drivesRouter = new Hono<AppContext>({ strict: false });
 
@@ -118,12 +146,15 @@ drivesRouter.get('/:driveId/folders/:googleFolderId', async (c) => {
     .bind(driveId, googleFolderId)
     .all();
 
+  const breadcrumb = await buildDriveBreadcrumb(c.env.DB, driveId, googleFolderId);
+
   return c.json({
     folder: folder
       ? mapDriveFolderRow(folder as Record<string, unknown>)
       : { googleFolderId: 'root', name: 'My Drive', isSynced: true },
     subfolders: subfolderResult.results.map(r => mapDriveFolderRow(r as Record<string, unknown>)),
     files: filesResult.results.map(r => mapFileRow(r as Record<string, unknown>)),
+    breadcrumb,
   });
 });
 
@@ -177,10 +208,13 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/sync', async (c) => {
       .prepare('SELECT * FROM files WHERE drive_account_id = ? AND google_parent_id = ?')
       .bind(driveId, googleFolderId)
       .all();
+    const breadcrumb = await buildDriveBreadcrumb(c.env.DB, driveId, googleFolderId);
+
     return c.json({
       folder: mapDriveFolderRow(folder as Record<string, unknown>),
       subfolders: subfolders.results.map(r => mapDriveFolderRow(r as Record<string, unknown>)),
       files: files.results.map(r => mapFileRow(r as Record<string, unknown>)),
+      breadcrumb,
     });
   }
 
@@ -270,10 +304,13 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/sync', async (c) => {
     .bind(driveId, googleFolderId)
     .all();
 
+  const breadcrumb = await buildDriveBreadcrumb(c.env.DB, driveId, googleFolderId);
+
   return c.json({
     folder: folder ? mapDriveFolderRow(folder as Record<string, unknown>) : null,
     subfolders: newSubfolders.results.map(r => mapDriveFolderRow(r as Record<string, unknown>)),
     files: newFiles.results.map(r => mapFileRow(r as Record<string, unknown>)),
+    breadcrumb,
   });
 });
 
