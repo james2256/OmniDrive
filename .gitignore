@@ -1,6 +1,26 @@
+# Dependencies
 node_modules/
+
+# Build output
 dist/
+tsconfig.tsbuildinfo
+
+# Cloudflare
 .dev.vars
 .wrangler/
 .mf/
+wrangler.toml
+
+# Environment files
+.env*
+!.env.example
+
+# Local overrides
 *.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
