@@ -9,6 +9,8 @@ import { drivesRouter } from './routes/drives';
 import { foldersRouter } from './routes/folders';
 import { filesRouter } from './routes/files';
 import { sharedRouter } from './routes/shared';
+import { automationsRouter } from './routes/automations';
+import { AutomationEngine } from './services/automation.service';
 
 const app = new Hono<AppContext>({ strict: false });
 
@@ -21,6 +23,7 @@ app.route('/api/drives', drivesRouter);
 app.route('/api/folders', foldersRouter);
 app.route('/api/files', filesRouter);
 app.route('/api/shared', sharedRouter);
+app.route('/api/automations', automationsRouter);
 
 // Health check (public)
 app.get('/api/health', (c) => {
@@ -32,6 +35,8 @@ export default {
   async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext) {
     console.log('Cron triggered:', event.cron);
     ctx.waitUntil(runScheduledSync(env));
+    const engine = new AutomationEngine(env);
+    ctx.waitUntil(engine.processCronTrigger(ctx));
   },
 } satisfies ExportedHandler<Env>;
 
