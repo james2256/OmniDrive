@@ -279,7 +279,31 @@ sharedRouter.get('/:id/download', async (c) => {
   if (!validation.ok) {
     return c.text(validation.error || 'Unauthorized', validation.status as any);
   }
-  
+
+  if (!link.allowDownloads) {
+    return c.text('Downloads are disabled for this link', 403);
+  }
+
+  if (link.maxDownloads !== null && link.downloadCount >= link.maxDownloads) {
+    return c.text('Maximum download limit reached', 403);
+  }
+
+  // Increment download count
+  c.executionCtx.waitUntil(
+    db.prepare('UPDATE shared_links SET download_count = download_count + 1 WHERE id = ?').bind(id).run()
+  );
+
+  // Trigger webhook async if exists
+  if (link.webhookUrl) {
+    c.executionCtx.waitUntil(
+      fetch(link.webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'download', linkId: id })
+      }).catch(() => {}) // Fire and forget
+    );
+  }
+
   if (link.targetType === 'file') {
     const file = await db.prepare('SELECT * FROM files WHERE id = ?').bind(link.targetId).first();
     if (!file) return c.text('File not found', 404);
