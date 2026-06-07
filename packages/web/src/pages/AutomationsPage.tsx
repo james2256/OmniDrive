@@ -1,36 +1,62 @@
 import { useEffect } from 'react';
 import { useAutomationStore } from '../stores/useAutomationStore';
-import { Layout } from '../components/Layout';
 
 export function AutomationsPage() {
-  const { rules, fetchRules, toggleRule } = useAutomationStore();
+  const { rules, fetchRules, toggleRule, isLoading, error } = useAutomationStore();
 
   useEffect(() => {
     fetchRules();
   }, [fetchRules]);
 
   return (
-    <Layout>
-      <div className="p-8">
-        <h1 className="text-2xl font-bold mb-6">Automation Rules</h1>
-        <div className="bg-white rounded-lg shadow">
-          {rules.map(rule => (
-            <div key={rule.id} className="p-4 border-b flex justify-between items-center">
+    <div style={{ padding: 'var(--space-xl)', maxWidth: 800, margin: '0 auto' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-xl)' }}>
+        <h1 style={{ fontSize: 'var(--font-size-2xl)', fontWeight: 700 }}>Automation Rules</h1>
+      </div>
+
+      {error && (
+        <div style={{ padding: 'var(--space-md)', background: 'var(--accent-danger-subtle)', color: 'var(--accent-danger)', borderRadius: 'var(--radius-md)', marginBottom: 'var(--space-md)' }}>
+          {error}
+        </div>
+      )}
+
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        {isLoading ? (
+          <div style={{ padding: 'var(--space-2xl)', textAlign: 'center', color: 'var(--text-tertiary)' }}>
+            <div className="spinner" style={{ margin: '0 auto', marginBottom: 'var(--space-md)' }} />
+            Loading rules...
+          </div>
+        ) : rules.length === 0 ? (
+          <div style={{ padding: 'var(--space-2xl)', textAlign: 'center', color: 'var(--text-tertiary)' }}>
+            No automation rules yet.
+          </div>
+        ) : (
+          rules.map(rule => (
+            <div key={rule.id} style={{ 
+              padding: 'var(--space-md) var(--space-lg)', 
+              borderBottom: '1px solid var(--border-subtle)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
               <div>
-                <h3 className="font-semibold">{rule.name}</h3>
-                <p className="text-sm text-gray-500">Trigger: {rule.trigger_type}</p>
+                <h3 style={{ fontSize: 'var(--font-size-md)', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>
+                  {rule.name}
+                </h3>
+                <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-tertiary)' }}>
+                  Trigger: <span style={{ textTransform: 'capitalize' }}>{rule.triggerType}</span>
+                </p>
               </div>
               <button 
-                onClick={() => toggleRule(rule.id, !rule.is_active)}
-                className={`px-4 py-2 rounded ${rule.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}
+                onClick={() => toggleRule(rule.id, !rule.isActive)}
+                className={`btn ${rule.isActive ? 'btn-primary' : 'btn-secondary'}`}
               >
-                {rule.is_active ? 'Active' : 'Inactive'}
+                {rule.isActive ? 'Active' : 'Inactive'}
               </button>
             </div>
-          ))}
-          {rules.length === 0 && <div className="p-8 text-center text-gray-500">No automation rules yet.</div>}
-        </div>
+          ))
+        )}
       </div>
-    </Layout>
+    </div>
   );
 }
