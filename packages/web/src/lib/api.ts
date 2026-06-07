@@ -95,3 +95,44 @@ export const api = {
 };
 
 export { ApiError };
+
+export interface SharedLink {
+  id: string;
+  userId: string;
+  targetType: 'file' | 'folder';
+  targetId: string;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
+export const createSharedLink = async (targetType: string, targetId: string, password?: string, expiresAt?: string) => {
+  return request<any>('/api/shared', {
+    method: 'POST',
+    body: JSON.stringify({ targetType, targetId, password, expiresAt }),
+  });
+};
+
+export const getSharedLinks = async () => {
+  return request<SharedLink[]>('/api/shared');
+};
+
+export const deleteSharedLink = async (id: string) => {
+  return request<any>(`/api/shared/${id}`, { method: 'DELETE' });
+};
+
+export const getSharedMeta = async (id: string) => {
+  const res = await fetch(`${API_BASE}/api/shared/${id}/meta`, {
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' }
+  });
+  return res;
+};
+
+export const verifySharedPassword = async (id: string, password: string) => {
+  return request<any>(`/api/shared/${id}/verify`, {
+    method: 'POST',
+    body: JSON.stringify({ password }),
+  }).catch(() => {
+    throw new Error('Invalid password');
+  });
+};
