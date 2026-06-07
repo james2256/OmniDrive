@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useDriveStore } from '../stores/driveStore';
 import { DriveAccountCard } from '../components/DriveAccountCard';
 import { useToastStore } from '../stores/toastStore';
-import { Plus, Key } from 'lucide-react';
+import { Plus, Key, X } from 'lucide-react';
 
 export function SettingsPage() {
   const { drives, fetchDrives, removeDrive, triggerSync } = useDriveStore();
@@ -51,67 +51,106 @@ export function SettingsPage() {
   };
 
   return (
-    <div>
-      <h1 style={{ fontSize: 'var(--font-size-2xl)', fontWeight: 700, marginBottom: 'var(--space-xl)' }}>Drive Settings</h1>
+    <div className="p-6 space-y-6 max-w-3xl">
+      <h1 className="text-2xl font-semibold text-gray-800">Settings</h1>
 
-      {/* Drive Cards */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)', marginBottom: 'var(--space-xl)' }}>
-        {drives.map((drive, i) => (
-          <DriveAccountCard
-            key={drive.id}
-            drive={drive}
-            index={i}
-            onSync={handleSync}
-            onDisconnect={handleDisconnect}
-          />
-        ))}
+      {/* Section: Connected Drives */}
+      <div>
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Connected Drives</h2>
+        <div className="space-y-3">
+          {drives.map((drive, i) => (
+            <DriveAccountCard
+              key={drive.id}
+              drive={drive}
+              index={i}
+              onSync={handleSync}
+              onDisconnect={handleDisconnect}
+            />
+          ))}
+          {drives.length === 0 && (
+            <div className="text-center py-8 text-gray-400 border border-dashed border-gray-200 rounded-xl">
+              No drives connected yet
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Add Drive Buttons */}
-      <div style={{ display: 'flex', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
-        <a href={`${import.meta.env.VITE_API_URL ?? ''}/api/drives/connect`} className="btn btn-primary" style={{ textDecoration: 'none' }}>
-          <Plus size={18} /> Add Google Drive
-        </a>
-        <button className="btn btn-secondary" onClick={() => setShowSaForm(!showSaForm)}>
-          <Key size={18} /> Add Service Account
-        </button>
+      {/* Section: Add Drive */}
+      <div>
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Add Drive</h2>
+        <div className="flex gap-3 flex-wrap">
+          <a
+            href={`${import.meta.env.VITE_API_URL ?? ''}/api/drives/connect`}
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium text-sm no-underline"
+            style={{ textDecoration: 'none' }}
+          >
+            <Plus size={18} /> Add Google Drive
+          </a>
+          <button
+            className="flex items-center gap-2 px-4 py-2.5 bg-white text-gray-700 rounded-xl border border-gray-300 hover:bg-gray-50 transition-colors font-medium text-sm"
+            onClick={() => setShowSaForm(!showSaForm)}
+          >
+            <Key size={18} /> Add Service Account
+          </button>
+        </div>
       </div>
 
       {/* Service Account Form */}
       {showSaForm && (
-        <form onSubmit={handleAddServiceAccount} className="card" style={{ marginTop: 'var(--space-lg)', maxWidth: 500 }}>
-          <h3 style={{ fontSize: 'var(--font-size-md)', fontWeight: 600, marginBottom: 'var(--space-md)' }}>Add Service Account</h3>
-          <div style={{ marginBottom: 'var(--space-md)' }}>
-            <label style={{ display: 'block', fontSize: 'var(--font-size-sm)', color: 'var(--text-secondary)', marginBottom: 'var(--space-xs)' }}>
-              Service Account JSON
-            </label>
-            <textarea
-              value={saCredentials}
-              onChange={(e) => setSaCredentials(e.target.value)}
-              placeholder='Paste service account JSON key...'
-              rows={6}
-              style={{ width: '100%', fontFamily: 'monospace', fontSize: 'var(--font-size-xs)' }}
-              required
-            />
+        <div className="bg-white border border-gray-200 rounded-2xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-base font-semibold text-gray-800">Add Service Account</h3>
+            <button
+              onClick={() => setShowSaForm(false)}
+              className="p-1.5 hover:bg-gray-100 rounded-full text-gray-500 transition-colors"
+            >
+              <X size={18} />
+            </button>
           </div>
-          <div style={{ marginBottom: 'var(--space-md)' }}>
-            <label style={{ display: 'block', fontSize: 'var(--font-size-sm)', color: 'var(--text-secondary)', marginBottom: 'var(--space-xs)' }}>
-              Shared Folder ID
-            </label>
-            <input
-              type="text"
-              value={saFolderId}
-              onChange={(e) => setSaFolderId(e.target.value)}
-              placeholder="Google Drive folder ID shared with SA"
-              style={{ width: '100%' }}
-              required
-            />
-          </div>
-          <div style={{ display: 'flex', gap: 'var(--space-sm)', justifyContent: 'flex-end' }}>
-            <button type="button" className="btn btn-secondary" onClick={() => setShowSaForm(false)}>Cancel</button>
-            <button type="submit" className="btn btn-primary">Add Account</button>
-          </div>
-        </form>
+          <form onSubmit={handleAddServiceAccount} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Service Account JSON
+              </label>
+              <textarea
+                value={saCredentials}
+                onChange={(e) => setSaCredentials(e.target.value)}
+                placeholder="Paste service account JSON key..."
+                rows={6}
+                className="w-full font-mono text-xs border border-gray-300 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Shared Folder ID
+              </label>
+              <input
+                type="text"
+                value={saFolderId}
+                onChange={(e) => setSaFolderId(e.target.value)}
+                placeholder="Google Drive folder ID shared with SA"
+                className="w-full border border-gray-300 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+            <div className="flex gap-3 justify-end pt-2">
+              <button
+                type="button"
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors"
+                onClick={() => setShowSaForm(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors"
+              >
+                Add Account
+              </button>
+            </div>
+          </form>
+        </div>
       )}
     </div>
   );

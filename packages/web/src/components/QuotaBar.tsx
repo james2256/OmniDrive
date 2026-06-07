@@ -11,19 +11,26 @@ export function QuotaBar({ used, total, color, showLabel = true }: QuotaBarProps
   const percent = total > 0 ? (used / total) * 100 : 0;
   const level = getQuotaLevel(percent);
 
+  const defaultColor =
+    level === 'danger'  ? '#ef4444' :
+    level === 'warning' ? '#f59e0b' :
+    '#3b82f6';
+
+  const barColor = color ?? defaultColor;
+
   return (
     <div>
-      <div className="quota-bar">
+      <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
         <div
-          className={`quota-bar-fill ${level}`}
+          className="h-full rounded-full transition-all"
           style={{
             width: `${Math.min(percent, 100)}%`,
-            ...(color ? { background: color } : {}),
+            backgroundColor: barColor,
           }}
         />
       </div>
       {showLabel && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 'var(--font-size-xs)', color: 'var(--text-secondary)' }}>
+        <div className="flex justify-between mt-1.5 text-xs text-gray-400">
           <span>{formatFileSize(used)} used</span>
           <span>{formatFileSize(total)} total</span>
         </div>

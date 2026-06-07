@@ -7,7 +7,7 @@ import { MoveDriveModal } from '../components/MoveDriveModal';
 import { formatFileSize, getDriveColor } from '../lib/utils';
 import { api } from '../lib/api';
 import { useSharedStore } from '../stores/sharedStore';
-import { HardDrive, RefreshCw, TrendingUp } from 'lucide-react';
+import { HardDrive, RefreshCw, TrendingUp, Clock } from 'lucide-react';
 import { useToastStore } from '../stores/toastStore';
 import type { FileEntry } from '../types';
 
@@ -21,7 +21,7 @@ export function DashboardPage() {
   const { fetchSharedLinks, isTargetShared } = useSharedStore();
 
   const refreshRecent = useCallback(() => {
-    api.getRecentFiles().then((data) => setRecentFiles(data.files.slice(0, 10))).catch(() => {});
+    api.getRecentFiles().then((data) => setRecentFiles(data.files.slice(0, 12))).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -31,49 +31,83 @@ export function DashboardPage() {
   }, [fetchDrives, fetchSharedLinks, refreshRecent]);
 
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-xl)' }}>
-        <h1 style={{ fontSize: 'var(--font-size-2xl)', fontWeight: 700 }}>Dashboard</h1>
-        <button className="btn btn-secondary btn-sm" onClick={() => fetchDrives()}>
-          <RefreshCw size={14} /> Refresh
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold text-gray-800">Home</h1>
+        <button
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          onClick={() => fetchDrives()}
+        >
+          <RefreshCw size={14} />
+          Refresh
         </button>
       </div>
 
       {/* Aggregate Quota */}
       {aggregate.driveCount > 0 && (
-        <div className="card" style={{ marginBottom: 'var(--space-xl)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: 'var(--space-md)' }}>
-            <TrendingUp size={18} color="var(--accent-primary)" />
-            <span style={{ fontWeight: 600 }}>Total Storage</span>
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <TrendingUp size={18} className="text-blue-600" />
+              <span className="font-semibold text-gray-800">Total Storage</span>
+            </div>
+            <span className="text-sm text-gray-500">
+              {aggregate.driveCount} drive{aggregate.driveCount > 1 ? 's' : ''} connected
+            </span>
           </div>
           <QuotaBar used={aggregate.totalUsed} total={aggregate.totalQuota} />
-          <div style={{ display: 'flex', gap: 'var(--space-xl)', marginTop: 'var(--space-md)', fontSize: 'var(--font-size-sm)', color: 'var(--text-secondary)' }}>
+          <div className="flex gap-4 mt-3 text-sm text-gray-500">
+            <span className="text-blue-700 font-medium">{formatFileSize(aggregate.totalUsed)} used</span>
+            <span>·</span>
             <span>{formatFileSize(aggregate.totalFree)} free</span>
-            <span>{aggregate.driveCount} drive{aggregate.driveCount > 1 ? 's' : ''} connected</span>
+            <span>·</span>
+            <span>{formatFileSize(aggregate.totalQuota)} total</span>
           </div>
         </div>
       )}
 
       {/* Per-Drive Quota */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 'var(--space-md)', marginBottom: 'var(--space-xl)' }}>
-        {drives.map((drive, i) => (
-          <div key={drive.id} className="card">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: 'var(--space-md)' }}>
-              <div className="drive-dot" style={{ backgroundColor: getDriveColor(i), width: 10, height: 10 }} />
-              <HardDrive size={16} />
-              <span className="truncate" style={{ fontWeight: 500, fontSize: 'var(--font-size-sm)' }}>{drive.email}</span>
-              {drive.isPrimary && <span className="badge" style={{ background: 'var(--accent-primary-subtle)', color: 'var(--accent-primary)' }}>Primary</span>}
-            </div>
-            <QuotaBar used={drive.usedQuota} total={drive.totalQuota} color={getDriveColor(i)} />
+      {drives.length > 0 && (
+        <div>
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Connected Drives</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {drives.map((drive, i) => (
+              <div key={drive.id} className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-sm transition-shadow">
+                <div className="flex items-center gap-3 mb-3">
+                  <div
+                    className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                    style={{ backgroundColor: getDriveColor(i) }}
+                  >
+                    <HardDrive size={16} color="white" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-gray-800 truncate">{drive.email}</div>
+                    <div className="text-xs text-gray-400">
+                      {drive.type === 'service_account' ? 'Service Account' : 'OAuth'}
+                      {drive.isPrimary && <span className="ml-1.5 text-blue-600 font-medium">· Primary</span>}
+                    </div>
+                  </div>
+                </div>
+                <QuotaBar used={drive.usedQuota} total={drive.totalQuota} color={getDriveColor(i)} showLabel={false} />
+                <div className="flex justify-between mt-2 text-xs text-gray-400">
+                  <span>{formatFileSize(drive.usedQuota)} used</span>
+                  <span>{drive.usagePercent}%</span>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </div>
+      )}
 
       {/* Recent Files */}
       {recentFiles.length > 0 && (
         <div>
-          <h2 style={{ fontSize: 'var(--font-size-lg)', fontWeight: 600, marginBottom: 'var(--space-md)' }}>Recent Files</h2>
-          <div className="bg-white rounded-lg border shadow-sm p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Clock size={16} className="text-gray-400" />
+            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Recent Files</h2>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <FileGrid
               files={recentFiles}
               subfolders={[]}
@@ -86,14 +120,15 @@ export function DashboardPage() {
               onShare={(id, type) => setShareTarget({ id, type })}
               onMoveDrive={setMoveFileTarget}
               isTargetShared={isTargetShared}
+              viewMode="list"
             />
           </div>
         </div>
       )}
 
       {isLoading && (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: 'var(--space-2xl)' }}>
-          <div className="spinner" />
+        <div className="flex justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
         </div>
       )}
 

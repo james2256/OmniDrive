@@ -9,11 +9,12 @@ import { UploadModal } from '../components/UploadModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
 import { ShareModal } from '../components/ShareModal';
 import { MoveDriveModal } from '../components/MoveDriveModal';
-import { Upload, FolderPlus, X } from 'lucide-react';
+import { Upload, FolderPlus, X, LayoutGrid, List, Info } from 'lucide-react';
 import { useToastStore } from '../stores/toastStore';
 import { useSharedStore } from '../stores/sharedStore';
 import { useMergedDrive } from '../hooks/useMergedDrive';
 import { api } from '../lib/api';
+import { useUIStore } from '../stores/useUIStore';
 import type { FileEntry } from '../types';
 
 export function FilesPage() {
@@ -29,6 +30,7 @@ export function FilesPage() {
   const [shareTarget, setShareTarget] = useState<{ id: string, type: 'file' | 'folder' } | null>(null);
   const [moveFileTarget, setMoveFileTarget] = useState<FileEntry | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const { viewMode, setViewMode, isInfoPanelOpen, toggleInfoPanel } = useUIStore();
 
   const { fetchSharedLinks, isTargetShared } = useSharedStore();
 
@@ -110,6 +112,32 @@ export function FilesPage() {
                 </button>
               )}
             </div>
+            
+            <div className="flex items-center border border-gray-300 rounded-md overflow-hidden bg-white mr-1">
+              <button 
+                onClick={() => setViewMode('list')}
+                className={`p-1.5 ${viewMode === 'list' ? 'bg-[#c2e7ff] text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}
+                title="List layout"
+              >
+                <List size={18} />
+              </button>
+              <button 
+                onClick={() => setViewMode('grid')}
+                className={`p-1.5 ${viewMode === 'grid' ? 'bg-[#c2e7ff] text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}
+                title="Grid layout"
+              >
+                <LayoutGrid size={18} />
+              </button>
+            </div>
+            
+            <button 
+              onClick={toggleInfoPanel}
+              className={`p-1.5 rounded-full mr-1 ${isInfoPanelOpen ? 'bg-[#c2e7ff] text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
+              title="View details"
+            >
+              <Info size={20} />
+            </button>
+
             <button className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50" onClick={handleCreateFolder}>
               <FolderPlus size={16} /> New Folder
             </button>

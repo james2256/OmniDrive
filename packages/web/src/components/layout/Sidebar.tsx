@@ -1,22 +1,106 @@
 import React from 'react';
 import { useUIStore } from '../../stores/useUIStore';
+import { useUploadStore } from '../../stores/uploadStore';
+import { useDriveStore } from '../../stores/driveStore';
+import { NavLink } from 'react-router-dom';
+import {
+  HardDrive,
+  Monitor,
+  Users,
+  Trash2,
+  Plus,
+  Settings,
+  Clock,
+  Star,
+} from 'lucide-react';
+import { formatFileSize } from '../../lib/utils';
 
 export const Sidebar: React.FC = () => {
   const isSidebarOpen = useUIStore((state) => state.isSidebarOpen);
+  const setShowModal = useUploadStore((state) => state.setShowModal);
+  const { aggregate } = useDriveStore();
 
   if (!isSidebarOpen) return null;
 
+  const navLinkClass = ({ isActive }: { isActive: boolean }) =>
+    `flex items-center gap-3 px-4 py-2 rounded-full cursor-pointer transition-colors text-sm ${
+      isActive ? 'bg-[#c2e7ff] text-gray-900 font-medium' : 'hover:bg-gray-100 text-gray-700'
+    }`;
+
+  const pct = aggregate.totalQuota > 0
+    ? Math.min((aggregate.totalUsed / aggregate.totalQuota) * 100, 100)
+    : 0;
+
   return (
-    <aside className="w-64 bg-surface h-full flex flex-col p-4 gap-4">
-      <button className="bg-white text-primary rounded-full px-6 py-4 shadow-sm w-max hover:shadow-md transition-shadow">
-        + New
-      </button>
-      <nav className="flex flex-col gap-1">
-        <div className="px-4 py-2 bg-blue-100 text-primary rounded-full font-medium">My Drive</div>
-        <div className="px-4 py-2 hover:bg-gray-100 rounded-full cursor-pointer">Computers</div>
-        <div className="px-4 py-2 hover:bg-gray-100 rounded-full cursor-pointer">Shared with me</div>
-        <div className="px-4 py-2 hover:bg-gray-100 rounded-full cursor-pointer">Trash</div>
+    <aside className="w-64 bg-surface h-full flex flex-col p-3 gap-1 flex-shrink-0">
+      {/* New button */}
+      <div className="px-1 py-2 mb-1">
+        <button
+          onClick={() => setShowModal(true)}
+          className="flex items-center gap-3 bg-white text-gray-700 rounded-2xl px-5 py-3.5 shadow-sm w-max hover:shadow-md hover:bg-gray-50 transition-all font-medium ml-1 text-sm"
+        >
+          <Plus size={20} className="text-primary" />
+          New
+        </button>
+      </div>
+
+      {/* Navigation */}
+      <nav className="flex flex-col gap-0.5">
+        <NavLink to="/files/root" className={navLinkClass}>
+          <HardDrive size={20} />
+          <span>My Drive</span>
+        </NavLink>
+        <NavLink to="/" end className={navLinkClass}>
+          <Clock size={20} />
+          <span>Recent</span>
+        </NavLink>
+        <div className="flex items-center gap-3 px-4 py-2 hover:bg-gray-100 rounded-full cursor-pointer text-gray-700 text-sm">
+          <Star size={20} />
+          <span>Starred</span>
+        </div>
+        <NavLink to="/shared" className={navLinkClass}>
+          <Users size={20} />
+          <span>Shared with me</span>
+        </NavLink>
+        <div className="flex items-center gap-3 px-4 py-2 hover:bg-gray-100 rounded-full cursor-pointer text-gray-700 text-sm">
+          <Monitor size={20} />
+          <span>Computers</span>
+        </div>
+        <div className="flex items-center gap-3 px-4 py-2 hover:bg-gray-100 rounded-full cursor-pointer text-gray-700 text-sm">
+          <Trash2 size={20} />
+          <span>Trash</span>
+        </div>
       </nav>
+
+      {/* Spacer */}
+      <div className="flex-1" />
+
+      {/* Settings link */}
+      <NavLink to="/settings" className={navLinkClass}>
+        <Settings size={20} />
+        <span>Settings</span>
+      </NavLink>
+
+      {/* Storage quota */}
+      {aggregate.totalQuota > 0 && (
+        <div className="px-4 py-3 mt-1">
+          <div className="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden mb-2">
+            <div
+              className="h-full rounded-full bg-blue-500 transition-all"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+          <p className="text-xs text-gray-500">
+            {formatFileSize(aggregate.totalUsed)} of {formatFileSize(aggregate.totalQuota)} used
+          </p>
+          <NavLink
+            to="/settings"
+            className="text-xs text-blue-600 hover:underline mt-1 block"
+          >
+            Manage storage
+          </NavLink>
+        </div>
+      )}
     </aside>
   );
 };

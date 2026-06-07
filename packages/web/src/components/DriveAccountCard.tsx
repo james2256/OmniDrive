@@ -13,6 +13,7 @@ interface DriveAccountCardProps {
 
 export function DriveAccountCard({ drive, index, onSync, onDisconnect }: DriveAccountCardProps) {
   const [syncing, setSyncing] = useState(false);
+  const color = getDriveColor(index);
 
   const handleSync = async () => {
     setSyncing(true);
@@ -20,45 +21,53 @@ export function DriveAccountCard({ drive, index, onSync, onDisconnect }: DriveAc
   };
 
   return (
-    <div className="card" style={{ position: 'relative' }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 'var(--space-md)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
-          <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', background: getDriveColor(index), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <HardDrive size={20} color="white" />
+    <div className="bg-white border border-gray-200 rounded-2xl p-5 hover:shadow-sm transition-shadow">
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ backgroundColor: color }}
+          >
+            <HardDrive size={18} color="white" />
           </div>
           <div>
-            <div style={{ fontWeight: 600 }}>{drive.email}</div>
-            <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-tertiary)' }}>
-              {drive.type === 'service_account' ? 'Service Account' : 'OAuth'}{drive.isPrimary ? ' · Primary' : ''}
+            <div className="text-sm font-semibold text-gray-800">{drive.email}</div>
+            <div className="text-xs text-gray-400">
+              {drive.type === 'service_account' ? 'Service Account' : 'OAuth'}
+              {drive.isPrimary && <span className="ml-1.5 text-blue-500 font-medium">· Primary</span>}
             </div>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>
-          <button className="btn btn-secondary btn-sm" onClick={handleSync} disabled={syncing}>
-            <RefreshCw size={14} className={syncing ? 'spinning' : ''} /> Sync
+        <div className="flex gap-2">
+          <button
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50"
+            onClick={handleSync}
+            disabled={syncing}
+          >
+            <RefreshCw size={12} className={syncing ? 'animate-spin' : ''} />
+            Sync
           </button>
           {!drive.isPrimary && (
-            <button className="btn btn-danger btn-sm" onClick={() => {
-              if (confirm(`Disconnect ${drive.email}? Files from this drive will be removed from Omnidrive.`)) {
-                onDisconnect(drive.id);
-              }
-            }}>
-              <Trash2 size={14} />
+            <button
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+              onClick={() => {
+                if (confirm(`Disconnect ${drive.email}? Files from this drive will be removed from Omnidrive.`)) {
+                  onDisconnect(drive.id);
+                }
+              }}
+            >
+              <Trash2 size={12} />
+              Disconnect
             </button>
           )}
         </div>
       </div>
 
-      <QuotaBar used={drive.usedQuota} total={drive.totalQuota} color={getDriveColor(index)} />
-
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 'var(--space-sm)', fontSize: 'var(--font-size-xs)', color: 'var(--text-tertiary)' }}>
+      <QuotaBar used={drive.usedQuota} total={drive.totalQuota} color={color} showLabel={false} />
+      <div className="flex justify-between mt-2 text-xs text-gray-400">
         <span>{formatFileSize(drive.freeSpace)} free of {formatFileSize(drive.totalQuota)}</span>
-        <span>{drive.usagePercent}% used</span>
+        <span>{drive.usagePercent}%</span>
       </div>
-
-      <style>{`
-        .spinning { animation: spin 1s linear infinite; }
-      `}</style>
     </div>
   );
 }

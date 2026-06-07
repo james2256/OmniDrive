@@ -6,6 +6,7 @@ import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { FilesPage } from './pages/FilesPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { SharedLinksPage } from './pages/SharedLinksPage';
 import { PublicSharedPage } from './pages/PublicSharedPage';
 import { AutomationsPage } from './pages/AutomationsPage';
 
@@ -28,6 +29,8 @@ export const App = () => {
           <Route path="/files/:folderId" element={<FilesPage />} />
           <Route path="/automations" element={<AutomationsPage />} />
           <Route path="/settings/drives" element={<SettingsPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/shared" element={<SharedLinksPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
