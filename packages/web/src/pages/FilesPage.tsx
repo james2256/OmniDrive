@@ -8,6 +8,7 @@ import { DropZone } from '../components/DropZone';
 import { UploadModal } from '../components/UploadModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
 import { ShareModal } from '../components/ShareModal';
+import { MoveDriveModal } from '../components/MoveDriveModal';
 import { Upload, FolderPlus, X } from 'lucide-react';
 import { useToastStore } from '../stores/toastStore';
 import { useSharedStore } from '../stores/sharedStore';
@@ -26,6 +27,7 @@ export function FilesPage() {
   const { addToast } = useToastStore();
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
   const [shareTarget, setShareTarget] = useState<{ id: string, type: 'file' | 'folder' } | null>(null);
+  const [moveFileTarget, setMoveFileTarget] = useState<FileEntry | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   const { fetchSharedLinks, isTargetShared } = useSharedStore();
@@ -140,6 +142,7 @@ export function FilesPage() {
               onShare={(id, type) => setShareTarget({ id, type })}
               onRenameFile={handleRenameFile}
               onDeleteFile={handleDeleteFile}
+              onMoveDrive={setMoveFileTarget}
               isTargetShared={isTargetShared}
               errorDrives={errorDrives}
             />
@@ -154,6 +157,18 @@ export function FilesPage() {
             targetType={shareTarget.type}
             targetId={shareTarget.id}
             onClose={() => setShareTarget(null)}
+          />
+        )}
+        {moveFileTarget && (
+          <MoveDriveModal
+            file={moveFileTarget}
+            onClose={() => setMoveFileTarget(null)}
+            onSuccess={() => {
+              setMoveFileTarget(null);
+              refresh();
+              addToast('success', 'File moved successfully');
+            }}
+            onError={(msg) => addToast('error', msg)}
           />
         )}
       </div>

@@ -3,23 +3,31 @@ import { useDriveStore } from '../stores/driveStore';
 import { QuotaBar } from '../components/QuotaBar';
 import { FileGrid } from '../components/files/FileGrid';
 import { ShareModal } from '../components/ShareModal';
+import { MoveDriveModal } from '../components/MoveDriveModal';
 import { formatFileSize, getDriveColor } from '../lib/utils';
 import { api } from '../lib/api';
 import { useSharedStore } from '../stores/sharedStore';
 import { HardDrive, RefreshCw, TrendingUp } from 'lucide-react';
+import { useToastStore } from '../stores/toastStore';
 import type { FileEntry } from '../types';
 
 export function DashboardPage() {
   const { drives, aggregate, isLoading, fetchDrives } = useDriveStore();
   const [recentFiles, setRecentFiles] = useState<FileEntry[]>([]);
   const [shareTarget, setShareTarget] = useState<{ id: string, type: 'file' | 'folder' } | null>(null);
+  const [moveFileTarget, setMoveFileTarget] = useState<FileEntry | null>(null);
+  const { addToast } = useToastStore();
   
   const { fetchSharedLinks, isTargetShared } = useSharedStore();
+
+  const refreshRecent = () => {
+    api.getRecentFiles().then((data) => setRecentFiles(data.files.slice(0, 10))).catch(() => {});
+  };
 
   useEffect(() => {
     fetchDrives();
     fetchSharedLinks();
-    api.getRecentFiles().then((data) => setRecentFiles(data.files.slice(0, 10))).catch(() => {});
+    refreshRecent();
   }, [fetchDrives, fetchSharedLinks]);
 
   return (
@@ -76,6 +84,7 @@ export function DashboardPage() {
                 return { drive: drives[index], index };
               }}
               onShare={(id, type) => setShareTarget({ id, type })}
+              onMoveDrive={setMoveFileTarget}
               isTargetShared={isTargetShared}
             />
           </div>
@@ -93,6 +102,19 @@ export function DashboardPage() {
           targetType={shareTarget.type}
           targetId={shareTarget.id}
           onClose={() => setShareTarget(null)}
+        />
+      )}
+
+      {moveFileTarget && (
+        <MoveDriveModal
+          file={moveFileTarget}
+          onClose={() => setMoveFileTarget(null)}
+          onSuccess={() => {
+            setMoveFileTarget(null);
+            refreshRecent();
+            addToast('success', 'File moved successfully');
+          }}
+          onError={(msg) => addToast('error', msg)}
         />
       )}
     </div>
