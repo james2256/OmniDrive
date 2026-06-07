@@ -1,15 +1,35 @@
-import { Header } from './components/layout/Header';
-import { Sidebar } from './components/layout/Sidebar';
-import { MainContent } from './components/layout/MainContent';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { AuthGuard } from './components/AuthGuard';
+import { AppLayout } from './components/layout/AppLayout';
+import { ToastContainer } from './components/Toast';
+import { LoginPage } from './pages/LoginPage';
+import { DashboardPage } from './pages/DashboardPage';
+import { FilesPage } from './pages/FilesPage';
+import { SettingsPage } from './pages/SettingsPage';
+import { PublicSharedPage } from './pages/PublicSharedPage';
+import { AutomationsPage } from './pages/AutomationsPage';
 
 export const App = () => {
   return (
-    <div className="h-screen w-screen flex flex-col overflow-hidden bg-surface">
-      <Header />
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar />
-        <MainContent />
-      </div>
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/shared/:id" element={<PublicSharedPage />} />
+        <Route
+          element={
+            <AuthGuard>
+              <AppLayout />
+              <ToastContainer />
+            </AuthGuard>
+          }
+        >
+          <Route path="/" element={<DashboardPage />} />
+          <Route path="/files" element={<FilesPage />} />
+          <Route path="/files/:folderId" element={<FilesPage />} />
+          <Route path="/automations" element={<AutomationsPage />} />
+          <Route path="/settings/drives" element={<SettingsPage />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
   );
 };
