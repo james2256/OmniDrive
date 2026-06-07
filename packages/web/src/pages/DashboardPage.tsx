@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useDriveStore } from '../stores/driveStore';
 import { QuotaBar } from '../components/QuotaBar';
 import { FileGrid } from '../components/files/FileGrid';
@@ -20,15 +20,15 @@ export function DashboardPage() {
   
   const { fetchSharedLinks, isTargetShared } = useSharedStore();
 
-  const refreshRecent = () => {
+  const refreshRecent = useCallback(() => {
     api.getRecentFiles().then((data) => setRecentFiles(data.files.slice(0, 10))).catch(() => {});
-  };
+  }, []);
 
   useEffect(() => {
     fetchDrives();
     fetchSharedLinks();
     refreshRecent();
-  }, [fetchDrives, fetchSharedLinks]);
+  }, [fetchDrives, fetchSharedLinks, refreshRecent]);
 
   return (
     <div>
