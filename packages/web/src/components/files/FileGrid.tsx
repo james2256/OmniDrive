@@ -18,13 +18,13 @@ export interface FileGridProps {
   files: FileEntry[];
   subfolders: DriveFolder[];
   getDriveInfo: (driveAccountId?: string) => { drive: any, index: number };
-  onNavigateFolder: (folderId: string, driveId: string) => void;
-  onPreviewFile: (file: FileEntry) => void;
-  onShare: (id: string, type: 'file' | 'folder') => void;
-  onRenameFile: (id: string, name: string) => void;
-  onDeleteFile: (id: string) => void;
-  isTargetShared: (id: string, type: 'file' | 'folder') => boolean;
-  errorDrives: Set<string>;
+  onNavigateFolder?: (folderId: string, driveId: string) => void;
+  onPreviewFile?: (file: FileEntry) => void;
+  onShare?: (id: string, type: 'file' | 'folder') => void;
+  onRenameFile?: (id: string, name: string) => void;
+  onDeleteFile?: (id: string) => void;
+  isTargetShared?: (id: string, type: 'file' | 'folder') => boolean;
+  errorDrives?: Set<string>;
 }
 
 export const FileGrid: React.FC<FileGridProps> = ({
@@ -54,8 +54,8 @@ export const FileGrid: React.FC<FileGridProps> = ({
       {/* Render Folders */}
       {subfolders.map((folder) => {
         const { drive } = getDriveInfo(folder.driveAccountId);
-        const hasError = drive ? errorDrives.has(drive.id) : false;
-        const shared = folder.id ? isTargetShared(folder.id, 'folder') : false;
+        const hasError = drive ? errorDrives?.has(drive.id) : false;
+        const shared = folder.id ? isTargetShared?.(folder.id, 'folder') : false;
 
         return (
           <ContextMenu key={folder.googleFolderId}>
@@ -63,7 +63,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
               <div
                 onClick={() => {
                   if (folder.driveAccountId) {
-                    onNavigateFolder(folder.googleFolderId, folder.driveAccountId);
+                    onNavigateFolder?.(folder.googleFolderId, folder.driveAccountId);
                   }
                 }}
                 className={`p-4 border rounded-xl cursor-pointer hover:bg-gray-50 flex items-center gap-3 transition-colors ${hasError ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-white'}`}
@@ -76,7 +76,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
               </div>
             </ContextMenuTrigger>
             <ContextMenuContent>
-              {folder.id && (
+              {folder.id && onShare && (
                 <ContextMenuItem onClick={() => onShare(folder.id!, 'folder')}>
                   <Share2 className="mr-2 h-4 w-4" /> Share
                 </ContextMenuItem>
@@ -91,7 +91,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
         const { index } = getDriveInfo(file.driveAccountId);
         const driveColor = getDriveColor(index);
         const native = isGoogleNative(file.mimeType);
-        const shared = isTargetShared(file.id, 'file');
+        const shared = file.id ? isTargetShared?.(file.id, 'file') : false;
 
         return (
           <ContextMenu key={file.id}>
@@ -101,7 +101,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
                   if (native && file.webViewLink) {
                     window.open(file.webViewLink, '_blank', 'noopener,noreferrer');
                   } else {
-                    onPreviewFile(file);
+                    onPreviewFile?.(file);
                   }
                 }}
                 className="p-4 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 bg-white flex flex-col justify-between h-40 transition-colors"
@@ -134,19 +134,27 @@ export const FileGrid: React.FC<FileGridProps> = ({
                   <Download className="mr-2 h-4 w-4" /> Download
                 </ContextMenuItem>
               )}
-              <ContextMenuItem onClick={() => onShare(file.id, 'file')}>
-                <Share2 className="mr-2 h-4 w-4" /> Share
-              </ContextMenuItem>
-              <ContextMenuItem onClick={() => {
-                const newName = prompt('Rename file:', file.name);
-                if (newName && newName !== file.name) onRenameFile(file.id, newName);
-              }}>
-                <Pencil className="mr-2 h-4 w-4" /> Rename
-              </ContextMenuItem>
-              <ContextMenuSeparator />
-              <ContextMenuItem className="text-red-600" onClick={() => onDeleteFile(file.id)}>
-                <Trash2 className="mr-2 h-4 w-4" /> Delete
-              </ContextMenuItem>
+              {onShare && (
+                <ContextMenuItem onClick={() => onShare(file.id, 'file')}>
+                  <Share2 className="mr-2 h-4 w-4" /> Share
+                </ContextMenuItem>
+              )}
+              {onRenameFile && (
+                <ContextMenuItem onClick={() => {
+                  const newName = prompt('Rename file:', file.name);
+                  if (newName && newName !== file.name) onRenameFile(file.id, newName);
+                }}>
+                  <Pencil className="mr-2 h-4 w-4" /> Rename
+                </ContextMenuItem>
+              )}
+              {onDeleteFile && (
+                <>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem className="text-red-600" onClick={() => onDeleteFile(file.id)}>
+                    <Trash2 className="mr-2 h-4 w-4" /> Delete
+                  </ContextMenuItem>
+                </>
+              )}
             </ContextMenuContent>
           </ContextMenu>
         );

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Folder, ChevronRight, Loader2, AlertTriangle } from 'lucide-react';
+import { ChevronRight, Loader2 } from 'lucide-react';
 import { api } from '../lib/api';
-import { FileCard } from './FileCard';
+import { FileGrid } from './files/FileGrid';
 import { getDriveColor } from '../lib/utils';
 import { useToastStore } from '../stores/toastStore';
 import { useDriveStore } from '../stores/driveStore';
@@ -111,53 +111,25 @@ export function DriveFolderBrowser({ driveId, driveEmail, driveIndex }: DriveFol
 
       {!isLoading && (
         <>
-          {/* Subfolders */}
-          {subfolders.length > 0 && (
-            <div className="dfb-folder-grid">
-              {subfolders.map(folder => (
-                <button
-                  key={folder.googleFolderId}
-                  className={`dfb-folder-card${!folder.isSynced ? ' unsynced' : ''}${errorFolders.has(folder.googleFolderId) ? ' error' : ''}`}
-                  onClick={() => handleOpenFolder(folder)}
-                  title={!folder.isSynced ? 'Click to load folder contents' : folder.name}
-                >
-                  <span className="dfb-folder-icon">
-                    {errorFolders.has(folder.googleFolderId) ? (
-                      <AlertTriangle size={20} color="var(--accent-warning)" />
-                    ) : (
-                      <Folder size={20} />
-                    )}
-                  </span>
-                  <span className="dfb-folder-name truncate">{folder.name}</span>
-                  {!folder.isSynced && !errorFolders.has(folder.googleFolderId) && (
-                    <span className="dfb-unsynced-dot" title="Not yet loaded" />
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Divider */}
-          {subfolders.length > 0 && files.length > 0 && (
-            <div className="dfb-divider" />
-          )}
-
-          {/* Files */}
-          {files.map(file => {
-            const driveIdx = drives.findIndex(d => d.id === file.driveAccountId);
-            return (
-              <FileCard
-                key={file.id ?? file.googleFileId}
-                file={file}
-                driveColor={getDriveColor(driveIdx >= 0 ? driveIdx : driveIndex)}
+          {/* Subfolders and Files via FileGrid */}
+          {(subfolders.length > 0 || files.length > 0) ? (
+            <div className="bg-white rounded-lg border shadow-sm mt-4">
+              <FileGrid
+                files={files}
+                subfolders={subfolders}
+                getDriveInfo={(_driveAccountId) => {
+                  return { drive: drives[driveIndex], index: driveIndex };
+                }}
+                onNavigateFolder={(folderId, _targetDriveId) => {
+                  const folder = subfolders.find(f => f.googleFolderId === folderId);
+                  if (folder) handleOpenFolder(folder);
+                }}
+                errorDrives={errorFolders}
               />
-            );
-          })}
-
-          {/* Empty state */}
-          {subfolders.length === 0 && files.length === 0 && (
-            <div className="dfb-empty">
-              <span>📂</span>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-20 text-gray-500 bg-white rounded-lg border mt-4">
+              <span className="text-6xl mb-4">📂</span>
               <p>This folder is empty</p>
             </div>
           )}

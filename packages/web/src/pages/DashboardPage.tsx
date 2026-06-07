@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useDriveStore } from '../stores/driveStore';
 import { QuotaBar } from '../components/QuotaBar';
-import { FileCard } from '../components/FileCard';
+import { FileGrid } from '../components/files/FileGrid';
 import { ShareModal } from '../components/ShareModal';
 import { formatFileSize, getDriveColor } from '../lib/utils';
 import { api } from '../lib/api';
@@ -65,19 +65,19 @@ export function DashboardPage() {
       {recentFiles.length > 0 && (
         <div>
           <h2 style={{ fontSize: 'var(--font-size-lg)', fontWeight: 600, marginBottom: 'var(--space-md)' }}>Recent Files</h2>
-          <div className="card" style={{ padding: 'var(--space-sm)' }}>
-            {recentFiles.map((file) => {
-              const driveIndex = drives.findIndex((d) => d.id === file.driveAccountId);
-              return (
-                <FileCard
-                  key={file.id}
-                  file={file}
-                  driveColor={getDriveColor(driveIndex >= 0 ? driveIndex : 0)}
-                  onShare={(f) => setShareTarget({ id: f.id, type: 'file' })}
-                  isShared={isTargetShared(file.id, 'file')}
-                />
-              );
-            })}
+          <div className="bg-white rounded-lg border shadow-sm p-4">
+            <FileGrid
+              files={recentFiles}
+              subfolders={[]}
+              getDriveInfo={(driveAccountId) => {
+                if (!driveAccountId) return { drive: null, index: 0 };
+                const index = drives.findIndex((d) => d.id === driveAccountId);
+                if (index === -1) return { drive: drives[0] || null, index: 0 };
+                return { drive: drives[index], index };
+              }}
+              onShare={(id, type) => setShareTarget({ id, type })}
+              isTargetShared={isTargetShared}
+            />
           </div>
         </div>
       )}
