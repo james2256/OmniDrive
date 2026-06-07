@@ -56,7 +56,7 @@ sharedRouter.post('/', authGuard, async (c) => {
     return c.json({ error: 'Invalid JSON body' }, 400);
   }
 
-  const { targetType, targetId, password, expiresAt } = body;
+  const { targetType, targetId, password, expiresAt, allowDownloads = true, allowUploads = false, maxDownloads = null, requireEmail = false, webhookUrl = null } = body;
   if (!targetType || !targetId) {
     return c.json({ error: 'targetType and targetId are required' }, 400);
   }
@@ -105,9 +105,9 @@ sharedRouter.post('/', authGuard, async (c) => {
     id = generateId().slice(0, 8); // Short slug
     try {
       await db.prepare(
-        'INSERT INTO shared_links (id, user_id, target_type, target_id, password_hash, expires_at) VALUES (?, ?, ?, ?, ?, ?)'
+        'INSERT INTO shared_links (id, user_id, target_type, target_id, password_hash, expires_at, allow_downloads, allow_uploads, max_downloads, require_email, webhook_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
       )
-      .bind(id, userId, targetType, targetId, passwordHash, expiresAt || null)
+      .bind(id, userId, targetType, targetId, passwordHash, expiresAt || null, allowDownloads ? 1 : 0, allowUploads ? 1 : 0, maxDownloads, requireEmail ? 1 : 0, webhookUrl)
       .run();
       success = true;
     } catch (e: any) {
