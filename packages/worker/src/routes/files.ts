@@ -82,6 +82,86 @@ filesRouter.patch('/:id/move', async (c) => {
   return c.json({ success: true });
 });
 
+// Move file to another drive
+filesRouter.post('/:id/move-drive', async (c) => {
+  const userId = c.get('userId');
+  const fileId = c.req.param('id');
+  const { targetDriveId } = await c.req.json();
+
+  if (!targetDriveId) {
+    throw new AppError(400, 'Target drive ID is required');
+  }
+
+  const db = c.env.DB;
+
+  const file = await db.prepare(
+    `SELECT f.*, d.email as driveEmail, d.id as sourceDriveId
+     FROM files f
+     JOIN drive_accounts d ON f.drive_account_id = d.id
+     WHERE f.id = ? AND f.user_id = ?`
+  ).bind(fileId, userId).first();
+
+  if (!file) {
+    throw new AppError(404, 'File not found or unauthorized');
+  }
+
+  if (file.sourceDriveId === targetDriveId) {
+    throw new AppError(400, 'File is already in the target drive');
+  }
+
+  const targetDrive = await db.prepare(
+    'SELECT id, email FROM drive_accounts WHERE id = ? AND user_id = ?'
+  ).bind(targetDriveId, userId).first();
+
+  if (!targetDrive) {
+    throw new AppError(404, 'Target drive not found or unauthorized');
+  }
+
+  const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET);
+
+  try {
+    await driveService.shareFile(
+      file.sourceDriveId as string,
+      file.google_file_id as string,
+      targetDrive.email as string,
+      'writer'
+    );
+
+    const copiedFile = await driveService.copyFile(
+      targetDriveId,
+      file.google_file_id as string
+    );
+
+    try {
+      await driveService.trashFile(file.sourceDriveId as string, file.google_file_id as string);
+    } catch (trashError) {
+      console.error('Failed to trash original file:', trashError);
+    }
+
+    await db.prepare(
+      `UPDATE files 
+       SET drive_account_id = ?, google_file_id = ?, google_parent_id = NULL, updated_at = datetime("now")
+       WHERE id = ?`
+    ).bind(targetDriveId, copiedFile.id, fileId).run();
+
+    const updatedFile = await db.prepare('SELECT * FROM files WHERE id = ?').bind(fileId).first();
+    
+    return c.json({ file: mapFileRow(updatedFile!), success: true });
+  } catch (error) {
+    console.error('Move drive failed:', error);
+    try {
+      await driveService.revokeShare(
+        file.sourceDriveId as string,
+        file.google_file_id as string,
+        targetDrive.email as string
+      );
+    } catch (revokeError) {
+      console.error('Failed to revoke share:', revokeError);
+    }
+    throw new AppError(500, 'Failed to move file to another drive');
+  }
+});
+
 // Initialize upload (returns Google Drive Resumable URL)
 filesRouter.post('/upload/init', async (c) => {
   const userId = c.get('userId');
