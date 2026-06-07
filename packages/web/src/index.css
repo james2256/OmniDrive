@@ -775,3 +775,23 @@ input:focus, textarea:focus, select:focus {
   border: 1px solid;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
+
+/* ─── Forms ─── */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.form-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+}
+
+.form-control {
+  width: 100%;
+  display: block;
+}

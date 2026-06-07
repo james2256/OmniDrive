@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { X, Copy, Check, Link as LinkIcon, Calendar, Lock } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { X, Copy, Check, Share2, Calendar, Lock } from 'lucide-react';
 import { createSharedLink } from '../lib/api';
 
 interface ShareModalProps {
@@ -15,6 +15,15 @@ export function ShareModal({ targetType, targetId, onClose }: ShareModalProps) {
   const [error, setError] = useState('');
   const [sharedUrl, setSharedUrl] = useState('');
   const [copied, setCopied] = useState(false);
+  const timeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current !== null) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleShare = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,18 +43,25 @@ export function ShareModal({ targetType, targetId, onClose }: ShareModalProps) {
     try {
       await navigator.clipboard.writeText(sharedUrl);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setError('');
+      if (timeoutRef.current !== null) {
+        clearTimeout(timeoutRef.current);
+      }
+      timeoutRef.current = window.setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error('Failed to copy', err);
+      setError('Failed to copy to clipboard');
     }
   };
+
+  const currentDateTime = new Date().toISOString().slice(0, 16);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-lg)' }}>
           <h2 style={{ fontSize: 'var(--font-size-lg)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
-            <LinkIcon size={20} />
+            <Share2 size={20} />
             Share {targetType === 'file' ? 'File' : 'Folder'}
           </h2>
           <button className="btn btn-ghost btn-sm" onClick={onClose}>
@@ -62,8 +78,8 @@ export function ShareModal({ targetType, targetId, onClose }: ShareModalProps) {
 
           {!sharedUrl ? (
             <form onSubmit={handleShare} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)', fontSize: 'var(--font-size-sm)', fontWeight: 500 }}>
+              <div className="form-group">
+                <label className="form-label">
                   <Lock size={14} /> Password (optional)
                 </label>
                 <input
@@ -71,19 +87,20 @@ export function ShareModal({ targetType, targetId, onClose }: ShareModalProps) {
                   placeholder="Leave blank for no password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  style={{ width: '100%', padding: 'var(--space-sm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', background: 'var(--bg-primary)' }}
+                  className="form-control"
                 />
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)', fontSize: 'var(--font-size-sm)', fontWeight: 500 }}>
+              <div className="form-group">
+                <label className="form-label">
                   <Calendar size={14} /> Expiration Date (optional)
                 </label>
                 <input
                   type="datetime-local"
                   value={expiresAt}
+                  min={currentDateTime}
                   onChange={(e) => setExpiresAt(e.target.value)}
-                  style={{ width: '100%', padding: 'var(--space-sm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', background: 'var(--bg-primary)' }}
+                  className="form-control"
                 />
               </div>
 
@@ -106,7 +123,8 @@ export function ShareModal({ targetType, targetId, onClose }: ShareModalProps) {
                   type="text"
                   readOnly
                   value={sharedUrl}
-                  style={{ flex: 1, padding: 'var(--space-sm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)' }}
+                  className="form-control"
+                  style={{ flex: 1 }}
                   onClick={(e) => e.currentTarget.select()}
                 />
                 <button className="btn btn-secondary" onClick={copyToClipboard} title="Copy to clipboard">
