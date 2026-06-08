@@ -12,6 +12,7 @@ import {
   Settings,
   Clock,
   Star,
+  FolderTree,
 } from 'lucide-react';
 import { formatFileSize } from '../../lib/utils';
 
@@ -66,6 +67,10 @@ export const Sidebar: React.FC = () => {
           <Monitor size={20} />
           <span>Computers</span>
         </div>
+        <NavLink to="/virtual-folders" className={navLinkClass}>
+          <FolderTree size={20} />
+          <span>Virtual Folders</span>
+        </NavLink>
         <NavLink to="/trash" className={navLinkClass}>
           <Trash2 size={20} />
           <span>Trash</span>
