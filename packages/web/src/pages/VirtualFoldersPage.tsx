@@ -7,7 +7,6 @@ import { useToastStore } from '../stores/toastStore';
 import { FolderPlus, RefreshCw } from 'lucide-react';
 import { useSelectionStore } from '../stores/useSelectionStore';
 import { useUIStore } from '../stores/useUIStore';
-import { AddToVirtualFolderModal } from '../components/virtual-folders/AddToVirtualFolderModal';
 
 export function VirtualFoldersPage() {
   const [folders, setFolders] = useState<VirtualFolder[]>([]);
@@ -16,7 +15,6 @@ export function VirtualFoldersPage() {
   const [subfolders, setSubfolders] = useState<VirtualFolder[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [virtualFolderTarget, setVirtualFolderTarget] = useState<FileEntry | null>(null);
   const addToast = useToastStore(state => state.addToast);
   const { clearSelection, toggleSelection } = useSelectionStore();
   const setIsInfoPanelOpen = useUIStore(s => s.setIsInfoPanelOpen);
@@ -138,7 +136,6 @@ export function VirtualFoldersPage() {
               onMoveDrive={() => {}}
               isTargetShared={() => false}
               errorDrives={new Set()}
-              onAddToVirtualFolder={setVirtualFolderTarget}
               onViewInfo={handleViewInfo}
             />
           ) : (
@@ -148,18 +145,6 @@ export function VirtualFoldersPage() {
           )}
         </div>
       </div>
-      
-      {virtualFolderTarget && (
-        <AddToVirtualFolderModal
-          file={virtualFolderTarget}
-          onClose={() => setVirtualFolderTarget(null)}
-          onSuccess={() => {
-            setVirtualFolderTarget(null);
-            addToast('success', 'Added to virtual folder');
-            if (activeFolderId) fetchContents(activeFolderId);
-          }}
-        />
-      )}
     </div>
   );
 }

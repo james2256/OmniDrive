@@ -1,7 +1,7 @@
 import React from 'react';
-import type { FileEntry, DriveFolder } from '../../types';
+import type { FileEntry, DriveFolder, VirtualFolder } from '../../types';
 import { getFileIcon, formatFileSize, formatRelativeTime, getDriveColor } from '../../lib/utils';
-import { Folder, Download, Trash2, Pencil, ExternalLink, Share2, RefreshCw, Eye, Star } from 'lucide-react';
+import { Folder, Download, Trash2, Pencil, ExternalLink, Share2, RefreshCw, Eye, Star, Info } from 'lucide-react';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -22,6 +22,7 @@ const ItemContextMenuContent: React.FC<{
   native?: boolean;
   file?: FileEntry;
   isTrashView?: boolean;
+
   isStarred?: boolean;
   onToggleStar?: (id: string, type: 'file' | 'folder', currentStarStatus: boolean) => void;
   onPreviewFile?: (file: FileEntry) => void;
@@ -31,7 +32,8 @@ const ItemContextMenuContent: React.FC<{
   onDeleteFile?: (id: string) => void;
   onRestore?: (id: string) => void;
   onPermanentDelete?: (id: string) => void;
-  onAddToVirtualFolder?: (file: FileEntry) => void;
+  onAddToVirtualFolder?: (item: FileEntry) => void;
+  onViewInfo?: (item: FileEntry | DriveFolder | VirtualFolder, type: 'file' | 'folder') => void;
 }> = ({
   type,
   id,
@@ -39,6 +41,7 @@ const ItemContextMenuContent: React.FC<{
   native,
   file,
   isTrashView,
+
   isStarred,
   onToggleStar,
   onPreviewFile,
@@ -49,8 +52,15 @@ const ItemContextMenuContent: React.FC<{
   onRestore,
   onPermanentDelete,
   onAddToVirtualFolder,
+  onViewInfo,
 }) => (
   <ContextMenuContent className="w-48 bg-white border border-gray-200 shadow-xl rounded-xl overflow-hidden py-1">
+    {onViewInfo && id && (
+      <ContextMenuItem className="px-3 py-2 text-sm text-gray-700 cursor-pointer hover:bg-gray-100 outline-none flex items-center" onClick={() => onViewInfo(file ?? { id, name } as any, type)}>
+        <Info size={16} className="mr-3 text-gray-500" />
+        View Info
+      </ContextMenuItem>
+    )}
     {isTrashView ? (
       <>
         {onRestore && id && (
@@ -94,7 +104,7 @@ const ItemContextMenuContent: React.FC<{
             <Share2 className="mr-2 h-4 w-4" /> Share
           </ContextMenuItem>
         )}
-        {type === 'file' && onAddToVirtualFolder && file && (
+        {type === 'file' && file && onAddToVirtualFolder && (
           <ContextMenuItem onClick={() => onAddToVirtualFolder(file)}>
             <Folder className="mr-2 h-4 w-4" /> Add to Virtual Folder
           </ContextMenuItem>
@@ -127,7 +137,7 @@ const ItemContextMenuContent: React.FC<{
 
 export interface FileGridProps {
   files: FileEntry[];
-  subfolders: DriveFolder[];
+  subfolders: (DriveFolder | VirtualFolder)[];
   getDriveInfo: (driveAccountId?: string) => { drive: any, index: number };
   onNavigateFolder?: (folderId: string, driveId: string) => void;
   onToggleStar?: (id: string, type: 'file' | 'folder', currentStarStatus: boolean) => void;
@@ -143,7 +153,8 @@ export interface FileGridProps {
   isTrashView?: boolean;
   onRestore?: (fileId: string) => void;
   onPermanentDelete?: (fileId: string) => void;
-  onAddToVirtualFolder?: (file: FileEntry) => void;
+  onAddToVirtualFolder?: (item: FileEntry) => void;
+  onViewInfo?: (item: FileEntry | DriveFolder | VirtualFolder, type: 'file' | 'folder') => void;
 }
 
 export const FileGrid: React.FC<FileGridProps> = ({
@@ -164,6 +175,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
   onRestore,
   onPermanentDelete,
   onAddToVirtualFolder,
+  onViewInfo,
 }) => {
   const storeViewMode = useUIStore((s) => s.viewMode);
   const viewMode = viewModeProp ?? storeViewMode;
@@ -194,12 +206,16 @@ export const FileGrid: React.FC<FileGridProps> = ({
 
         {/* Folders */}
         {subfolders.map((folder) => {
-          const { drive } = getDriveInfo(folder.driveAccountId);
+          const isVirtual = !('googleFolderId' in folder);
+          const key = isVirtual ? folder.id : (folder as DriveFolder).googleFolderId;
+          const driveAccountId = isVirtual ? undefined : (folder as DriveFolder).driveAccountId;
+          const { drive } = getDriveInfo(driveAccountId);
           const hasError = drive ? errorDrives?.has(drive.id) : false;
           const shared = folder.id ? isTargetShared?.(folder.id, 'folder') : false;
+          const isStarred = 'isStarred' in folder ? folder.isStarred : false;
 
           return (
-            <ContextMenu key={folder.googleFolderId}>
+            <ContextMenu key={key}>
               <ContextMenuTrigger>
                 <div
                   onClick={(e) => {
@@ -208,12 +224,14 @@ export const FileGrid: React.FC<FileGridProps> = ({
                   }}
                   onDoubleClick={() => {
                     if (isTrashView) return;
-                    if (folder.driveAccountId) {
-                      onNavigateFolder?.(folder.googleFolderId, folder.driveAccountId);
+                    if (isVirtual) {
+                      onNavigateFolder?.(folder.id, 'virtual');
+                    } else if (driveAccountId) {
+                      onNavigateFolder?.((folder as DriveFolder).googleFolderId, driveAccountId);
                     }
                   }}
                   className={`grid grid-cols-[auto_1fr_120px_140px_44px] gap-0 items-center px-4 py-2.5 cursor-pointer transition-colors border-b border-gray-50 group ${
-                    selectedItem?.type === 'folder' && selectedItem.item.googleFolderId === folder.googleFolderId
+                    selectedItem?.type === 'folder' && (isVirtual ? selectedItem.item.id === folder.id : (selectedItem.item as DriveFolder).googleFolderId === key)
                       ? 'bg-blue-100 hover:bg-blue-200'
                       : hasError
                       ? 'bg-red-50 hover:bg-red-100'
@@ -225,7 +243,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
                   </div>
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-sm text-gray-800 font-medium truncate">{folder.name}</span>
-                    {folder.isStarred && <Star className="fill-yellow-400 text-yellow-400 flex-shrink-0" size={14} />}
+                    {isStarred && <Star className="fill-yellow-400 text-yellow-400 flex-shrink-0" size={14} />}
                     {shared && <Share2 size={12} className="text-blue-400 flex-shrink-0" />}
                   </div>
                   <div className="text-right text-xs text-gray-400">—</div>
@@ -237,12 +255,16 @@ export const FileGrid: React.FC<FileGridProps> = ({
                 type="folder"
                 id={folder.id}
                 name={folder.name}
+                file={folder as any}
                 isTrashView={isTrashView}
-                isStarred={folder.isStarred}
+
+                isStarred={isStarred}
                 onToggleStar={onToggleStar}
                 onShare={onShare}
                 onRestore={onRestore}
                 onPermanentDelete={onPermanentDelete}
+                onAddToVirtualFolder={onAddToVirtualFolder}
+                onViewInfo={onViewInfo}
               />
             </ContextMenu>
           );
@@ -314,6 +336,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
                 onRestore={onRestore}
                 onPermanentDelete={onPermanentDelete}
                 onAddToVirtualFolder={onAddToVirtualFolder}
+                onViewInfo={onViewInfo}
               />
             </ContextMenu>
           );
@@ -327,12 +350,16 @@ export const FileGrid: React.FC<FileGridProps> = ({
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 p-4">
       {/* Render Folders */}
       {subfolders.map((folder) => {
-        const { drive } = getDriveInfo(folder.driveAccountId);
-        const hasError = drive ? errorDrives?.has(drive.id) : false;
-        const shared = folder.id ? isTargetShared?.(folder.id, 'folder') : false;
+          const isVirtual = !('googleFolderId' in folder);
+          const key = isVirtual ? folder.id : (folder as DriveFolder).googleFolderId;
+          const driveAccountId = isVirtual ? undefined : (folder as DriveFolder).driveAccountId;
+          const { drive } = getDriveInfo(driveAccountId);
+          const hasError = drive ? errorDrives?.has(drive.id) : false;
+          const shared = folder.id ? isTargetShared?.(folder.id, 'folder') : false;
+          const isStarred = 'isStarred' in folder ? folder.isStarred : false;
 
         return (
-          <ContextMenu key={folder.googleFolderId}>
+          <ContextMenu key={key}>
             <ContextMenuTrigger>
               <div
                 onClick={(e) => {
@@ -341,12 +368,14 @@ export const FileGrid: React.FC<FileGridProps> = ({
                 }}
                 onDoubleClick={() => {
                   if (isTrashView) return;
-                  if (folder.driveAccountId) {
-                    onNavigateFolder?.(folder.googleFolderId, folder.driveAccountId);
-                  }
+                    if (isVirtual) {
+                      onNavigateFolder?.(folder.id, 'virtual');
+                    } else if (driveAccountId) {
+                      onNavigateFolder?.((folder as DriveFolder).googleFolderId, driveAccountId);
+                    }
                 }}
                 className={`p-3 border rounded-xl cursor-pointer flex items-center gap-2.5 transition-all ${
-                  selectedItem?.type === 'folder' && selectedItem.item.googleFolderId === folder.googleFolderId
+                    selectedItem?.type === 'folder' && (isVirtual ? selectedItem.item.id === folder.id : (selectedItem.item as DriveFolder).googleFolderId === key)
                     ? 'bg-blue-100 border-blue-300'
                     : hasError
                     ? 'border-red-300 bg-red-50 hover:border-red-400'
@@ -358,7 +387,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
                   {folder.name}
                 </div>
                 <div className="flex gap-1 items-center">
-                  {folder.isStarred && <Star className="fill-yellow-400 text-yellow-400 flex-shrink-0" size={14} />}
+                  {isStarred && <Star className="fill-yellow-400 text-yellow-400 flex-shrink-0" size={14} />}
                   {shared && <Share2 size={12} className="text-blue-400 flex-shrink-0" />}
                 </div>
               </div>
@@ -367,12 +396,16 @@ export const FileGrid: React.FC<FileGridProps> = ({
               type="folder"
               id={folder.id}
               name={folder.name}
+              file={folder as any}
               isTrashView={isTrashView}
-              isStarred={folder.isStarred}
+
+              isStarred={isStarred}
               onToggleStar={onToggleStar}
               onShare={onShare}
               onRestore={onRestore}
               onPermanentDelete={onPermanentDelete}
+              onAddToVirtualFolder={onAddToVirtualFolder}
+              onViewInfo={onViewInfo}
             />
           </ContextMenu>
         );

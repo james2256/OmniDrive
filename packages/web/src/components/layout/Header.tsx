@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Menu, Search, Settings, HelpCircle, Grid3X3, LogOut } from 'lucide-react';
+import { Menu, Search, LogOut } from 'lucide-react';
 import { useUIStore } from '../../stores/useUIStore';
-import { useToastStore } from '../../stores/toastStore';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,11 +15,7 @@ export const Header: React.FC = () => {
   const toggleSidebar = useUIStore((state) => state.toggleSidebar);
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
-  const addToast = useToastStore((state) => state.addToast);
 
-  const handlePlaceholderClick = () => {
-    addToast('info', 'Coming soon!');
-  };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && query.trim()) {
@@ -58,16 +53,7 @@ export const Header: React.FC = () => {
       </div>
       
       <div className="flex items-center gap-2 px-2 text-gray-600">
-        <button aria-label="Help" onClick={handlePlaceholderClick} className="p-2 hover:bg-gray-200 rounded-full transition-colors hidden sm:block">
-          <HelpCircle size={24} />
-        </button>
-        <button aria-label="Settings" onClick={handlePlaceholderClick} className="p-2 hover:bg-gray-200 rounded-full transition-colors hidden sm:block">
-          <Settings size={24} />
-        </button>
-        <button aria-label="Apps" onClick={handlePlaceholderClick} className="p-2 hover:bg-gray-200 rounded-full transition-colors hidden sm:block mr-2">
-          <Grid3X3 size={24} />
-        </button>
-        
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-medium cursor-pointer hover:bg-blue-700 select-none">

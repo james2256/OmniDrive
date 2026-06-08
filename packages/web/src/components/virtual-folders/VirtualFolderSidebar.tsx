@@ -19,7 +19,7 @@ export function VirtualFolderSidebar({ folders, activeFolderId, onSelect }: Virt
           <button
             onClick={() => onSelect(folder.id)}
             className={`flex items-center gap-2 px-3 py-1.5 text-sm text-left hover:bg-gray-100 rounded-md mx-2 ${isActive ? 'bg-[#c2e7ff] text-gray-900 font-medium' : 'text-gray-700'}`}
-            style={{ paddingLeft: `${level * 1rem + 0.75rem}` }}
+            style={{ paddingLeft: `${level * 1 + 0.75}rem` }}
           >
             {folder.icon ? <span>{folder.icon}</span> : <Folder size={16} className="text-gray-400" />}
             <span className="truncate">{folder.name}</span>

@@ -10,6 +10,7 @@ interface UIState {
   theme: Theme;
   toggleSidebar: () => void;
   toggleInfoPanel: () => void;
+  setIsInfoPanelOpen: (isOpen: boolean) => void;
   setViewMode: (mode: ViewMode) => void;
   setTheme: (theme: Theme) => void;
 }
@@ -21,6 +22,7 @@ export const useUIStore = create<UIState>((set) => ({
   theme: 'light',
   toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
   toggleInfoPanel: () => set((state) => ({ isInfoPanelOpen: !state.isInfoPanelOpen })),
+  setIsInfoPanelOpen: (isOpen) => set({ isInfoPanelOpen: isOpen }),
   setViewMode: (mode) => set({ viewMode: mode }),
   setTheme: (theme) => set({ theme }),
 }));
