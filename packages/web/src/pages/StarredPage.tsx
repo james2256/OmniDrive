@@ -37,6 +37,7 @@ export function StarredPage() {
         if (currentStarStatus) {
           await api.unstarFile(id);
           addToast('success', 'File unstarred');
+          setFiles((prev) => prev.filter((f) => f.id !== id));
         } else {
           await api.starFile(id);
           addToast('success', 'File starred');
@@ -45,12 +46,12 @@ export function StarredPage() {
         if (currentStarStatus) {
           await api.unstarFolder(id);
           addToast('success', 'Folder unstarred');
+          setFolders((prev) => prev.filter((f) => f.id !== id));
         } else {
           await api.starFolder(id);
           addToast('success', 'Folder starred');
         }
       }
-      fetchStarred();
     } catch (error) {
       addToast('error', 'Failed to update star status');
     }
@@ -77,11 +78,8 @@ export function StarredPage() {
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <FileGrid
             files={files}
-            subfolders={folders as any}
+            subfolders={folders.map((f) => ({ ...f, googleFolderId: '', driveAccountId: '', isSynced: true }))}
             getDriveInfo={getDriveInfo}
-            onShare={() => {}}
-            onMoveDrive={() => {}}
-            onPreviewFile={() => {}}
             isTargetShared={() => false}
             viewMode="list"
             onToggleStar={handleToggleStar}
