@@ -203,13 +203,24 @@ foldersRouter.delete('/:id', async (c) => {
 foldersRouter.post('/:id/files', async (c) => {
   const userId = c.get('userId');
   const folderId = c.req.param('id');
-  const { fileIds } = await c.req.json<{ fileIds: string[] }>();
+  
+  let body;
+  try {
+    body = await c.req.json<{ fileIds: string[] }>();
+  } catch (e) {
+    throw new AppError(400, 'Invalid JSON or missing body');
+  }
+  const { fileIds } = body;
   
   if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) return c.json({ success: true });
   
-  const placeholders = fileIds.map(() => '?').join(',');
-  const query = `UPDATE files SET virtual_folder_id = ?, updated_at = datetime('now') WHERE user_id = ? AND id IN (${placeholders})`;
-  await c.env.DB.prepare(query).bind(folderId, userId, ...fileIds).run();
+  const CHUNK_SIZE = 50;
+  for (let i = 0; i < fileIds.length; i += CHUNK_SIZE) {
+    const chunk = fileIds.slice(i, i + CHUNK_SIZE);
+    const placeholders = chunk.map(() => '?').join(',');
+    const query = `UPDATE files SET virtual_folder_id = ?, updated_at = datetime('now') WHERE user_id = ? AND id IN (${placeholders})`;
+    await c.env.DB.prepare(query).bind(folderId, userId, ...chunk).run();
+  }
   
   return c.json({ success: true });
 });
@@ -230,6 +241,7 @@ foldersRouter.post('/:id/sync', async (c) => {
     const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET);
     for (const row of results) {
        const drive = mapDriveRow(row as any);
+       // syncDriveAccount already updates the sync_state table with errors, so we just log to console here
        c.executionCtx.waitUntil(syncDriveAccount(drive, db, c.env.KV, driveService).catch(console.error));
     }
   }
