@@ -30,6 +30,8 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 export const api = {
   // Auth
+  login: (data: any) => request<{ success: boolean; user: import('../types').User }>('/api/auth/login', { method: 'POST', body: JSON.stringify(data) }),
+  register: (data: any) => request<{ success: boolean; user: import('../types').User }>('/api/auth/register', { method: 'POST', body: JSON.stringify(data) }),
   getUser: () => request<{ user: import('../types').User }>('/api/auth/me'),
   logout: () => request<{ success: boolean }>('/api/auth/logout', { method: 'POST' }),
 
@@ -129,10 +131,16 @@ export interface SharedLink {
   userId: string;
   targetType: 'file' | 'folder';
   targetId: string;
+  targetName?: string;
   expiresAt: string | null;
   viewCount: number;
   downloadCount: number;
   createdAt: string;
+  allowDownloads: boolean;
+  allowUploads: boolean;
+  maxDownloads: number | null;
+  requireEmail: boolean;
+  webhookUrl: string | null;
 }
 
 export interface SharedMetaResponse {
@@ -145,8 +153,8 @@ export interface SharedMetaResponse {
 export interface CreateSharedLinkPayload {
   targetType: 'file' | 'folder';
   targetId: string;
-  password?: string;
-  expiresAt?: string;
+  password?: string | null;
+  expiresAt?: string | null;
   allowDownloads?: boolean;
   allowUploads?: boolean;
   maxDownloads?: number | null;
