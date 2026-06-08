@@ -4,6 +4,9 @@ import { authGuard } from '../middleware/auth-guard';
 import { AppError } from '../middleware/error-handler';
 import { generateId } from '../lib/id';
 import { mapFolderRow, mapFileRow, type BreadcrumbItem } from '../types';
+import { syncDriveAccount } from '../services/sync';
+import { GoogleDriveService } from '../services/google-drive';
+import { mapDriveRow } from '../types/index';
 
 export const foldersRouter = new Hono<AppContext>({ strict: false });
 
@@ -194,5 +197,42 @@ foldersRouter.delete('/:id', async (c) => {
   await c.env.DB.prepare('DELETE FROM virtual_folders WHERE id = ? AND user_id = ?')
     .bind(folderId, userId).run();
 
+  return c.json({ success: true });
+});
+
+foldersRouter.post('/:id/files', async (c) => {
+  const userId = c.get('userId');
+  const folderId = c.req.param('id');
+  const { fileIds } = await c.req.json<{ fileIds: string[] }>();
+  
+  if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) return c.json({ success: true });
+  
+  const placeholders = fileIds.map(() => '?').join(',');
+  const query = `UPDATE files SET virtual_folder_id = ?, updated_at = datetime('now') WHERE user_id = ? AND id IN (${placeholders})`;
+  await c.env.DB.prepare(query).bind(folderId, userId, ...fileIds).run();
+  
+  return c.json({ success: true });
+});
+
+foldersRouter.post('/:id/sync', async (c) => {
+  const userId = c.get('userId');
+  const folderId = c.req.param('id');
+  const db = c.env.DB;
+  
+  const { results } = await db.prepare(`
+    SELECT DISTINCT d.* 
+    FROM files f 
+    JOIN drive_accounts d ON f.drive_account_id = d.id 
+    WHERE f.virtual_folder_id = ? AND f.user_id = ?
+  `).bind(folderId, userId).all();
+  
+  if (results && results.length > 0) {
+    const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET);
+    for (const row of results) {
+       const drive = mapDriveRow(row as any);
+       c.executionCtx.waitUntil(syncDriveAccount(drive, db, c.env.KV, driveService).catch(console.error));
+    }
+  }
+  
   return c.json({ success: true });
 });
