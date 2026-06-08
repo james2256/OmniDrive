@@ -117,9 +117,51 @@ foldersRouter.put('/:id', async (c) => {
   const body = await c.req.json();
   const { name, parentId, icon, color } = body;
   
-  const { meta } = await c.env.DB.prepare(
-    'UPDATE virtual_folders SET name = coalesce(?, name), parent_id = ?, icon = coalesce(?, icon), color = coalesce(?, color), updated_at = datetime("now") WHERE id = ? AND user_id = ?'
-  ).bind(name ?? null, parentId !== undefined ? parentId : null, icon ?? null, color ?? null, folderId, userId).run();
+  const updateFields: string[] = [];
+  const params: any[] = [];
+
+  if (name !== undefined) {
+    if (typeof name !== 'string') throw new AppError(400, 'Invalid name');
+    updateFields.push('name = ?');
+    params.push(name);
+  }
+
+  if (icon !== undefined) {
+    if (typeof icon !== 'string' && icon !== null) throw new AppError(400, 'Invalid icon');
+    updateFields.push('icon = ?');
+    params.push(icon);
+  }
+
+  if (color !== undefined) {
+    if (typeof color !== 'string' && color !== null) throw new AppError(400, 'Invalid color');
+    updateFields.push('color = ?');
+    params.push(color);
+  }
+
+  if (parentId !== undefined) {
+    if (parentId !== null && typeof parentId !== 'string') throw new AppError(400, 'Invalid parentId');
+    if (parentId === folderId) throw new AppError(400, 'Folder cannot be its own parent');
+    
+    if (parentId !== null) {
+      const breadcrumb = await buildBreadcrumb(c.env.DB, userId, parentId);
+      if (breadcrumb.some(b => b.id === folderId)) {
+        throw new AppError(400, 'Circular dependency detected');
+      }
+    }
+    
+    updateFields.push('parent_id = ?');
+    params.push(parentId);
+  }
+
+  if (updateFields.length === 0) {
+    return c.json({ success: true });
+  }
+
+  updateFields.push('updated_at = datetime("now")');
+  params.push(folderId, userId);
+
+  const query = `UPDATE virtual_folders SET ${updateFields.join(', ')} WHERE id = ? AND user_id = ?`;
+  const { meta } = await c.env.DB.prepare(query).bind(...params).run();
   
   if (meta.changes === 0) throw new AppError(404, 'Folder not found');
   return c.json({ success: true });
