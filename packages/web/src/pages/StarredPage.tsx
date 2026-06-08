@@ -6,7 +6,7 @@ import { api } from '../lib/api';
 import type { FileEntry, VirtualFolder } from '../types';
 
 export function StarredPage() {
-  const { drives } = useDriveStore();
+  const { drives, fetchDrives } = useDriveStore();
   const { addToast } = useToastStore();
   
   const [files, setFiles] = useState<FileEntry[]>([]);
@@ -27,8 +27,9 @@ export function StarredPage() {
   }, [addToast]);
 
   useEffect(() => {
+    fetchDrives();
     fetchStarred();
-  }, [fetchStarred]);
+  }, [fetchDrives, fetchStarred]);
 
   const handleToggleStar = async (id: string, type: 'file' | 'folder', currentStarStatus: boolean) => {
     try {
