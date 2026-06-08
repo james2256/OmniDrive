@@ -9,6 +9,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { SharedLinksPage } from './pages/SharedLinksPage';
 import { PublicSharedPage } from './pages/PublicSharedPage';
 import { AutomationsPage } from './pages/AutomationsPage';
+import { SearchPage } from './pages/SearchPage';
 
 export const App = () => {
   return (
@@ -25,6 +26,7 @@ export const App = () => {
           }
         >
           <Route path="/" element={<DashboardPage />} />
+          <Route path="/search" element={<SearchPage />} />
           <Route path="/files" element={<FilesPage />} />
           <Route path="/files/:folderId" element={<FilesPage />} />
           <Route path="/automations" element={<AutomationsPage />} />
