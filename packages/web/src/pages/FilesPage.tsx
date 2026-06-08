@@ -23,7 +23,7 @@ export function FilesPage() {
   const driveIdParam = searchParams.get('driveId');
   const navigate = useNavigate();
   
-  const drives = useDriveStore(state => state.drives);
+  const { drives, fetchDrives, isLoading: isDrivesLoading } = useDriveStore();
   const { showModal, setShowModal } = useUploadStore();
   const { addToast } = useToastStore();
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
@@ -36,7 +36,8 @@ export function FilesPage() {
 
   useEffect(() => {
     fetchSharedLinks();
-  }, [fetchSharedLinks]);
+    fetchDrives();
+  }, [fetchSharedLinks, fetchDrives]);
 
   const { subfolders, files, breadcrumb, isLoading, errorDrives, refresh } = useMergedDrive(folderId, driveIdParam);
 
@@ -147,17 +148,21 @@ export function FilesPage() {
           </div>
         </div>
 
-        {isLoading ? (
+        {isLoading || isDrivesLoading ? (
           <div className="flex flex-col items-center justify-center p-16">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4" />
             <p className="text-gray-500">Loading folder contents...</p>
           </div>
         ) : drives.length === 0 ? (
-          <div className="text-center p-12 text-gray-500 border rounded-lg bg-white m-4">
-            <p className="mb-4">No drives connected yet</p>
-            <Link to="/settings" className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-medium">
-              Connect Google Drive
-            </Link>
+          <div className="text-center p-12 text-gray-500 border rounded-lg bg-white m-4 flex flex-col items-center shadow-sm">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+               <Info size={24} className="text-gray-400" />
+            </div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Google Drive Connected</h3>
+            <p className="mb-6 max-w-sm text-center">You need to connect at least one Google Drive account to start using OmniDrive.</p>
+            <a href={`${import.meta.env.VITE_API_URL || ''}/api/auth/google`} className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow-sm transition-colors">
+              Connect Google Drive Now
+            </a>
           </div>
         ) : (
           <div className="flex-1 overflow-auto bg-white rounded-lg border border-gray-200 m-4 shadow-sm">
