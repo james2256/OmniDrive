@@ -1,7 +1,7 @@
 import React from 'react';
 import type { FileEntry, DriveFolder } from '../../types';
 import { getFileIcon, formatFileSize, formatRelativeTime, getDriveColor } from '../../lib/utils';
-import { Folder, Download, Trash2, Pencil, ExternalLink, Share2, RefreshCw, Eye } from 'lucide-react';
+import { Folder, Download, Trash2, Pencil, ExternalLink, Share2, RefreshCw, Eye, Star } from 'lucide-react';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -22,6 +22,8 @@ const ItemContextMenuContent: React.FC<{
   native?: boolean;
   file?: FileEntry;
   isTrashView?: boolean;
+  isStarred?: boolean;
+  onToggleStar?: (id: string, type: 'file' | 'folder', currentStarStatus: boolean) => void;
   onPreviewFile?: (file: FileEntry) => void;
   onShare?: (id: string, type: 'file' | 'folder') => void;
   onRenameFile?: (id: string, name: string) => void;
@@ -36,6 +38,8 @@ const ItemContextMenuContent: React.FC<{
   native,
   file,
   isTrashView,
+  isStarred,
+  onToggleStar,
   onPreviewFile,
   onShare,
   onRenameFile,
@@ -78,6 +82,11 @@ const ItemContextMenuContent: React.FC<{
             <Download className="mr-2 h-4 w-4" /> Download
           </ContextMenuItem>
         )}
+        {onToggleStar && id && (
+          <ContextMenuItem onClick={() => onToggleStar(id, type, !!isStarred)}>
+            <Star className="mr-2 h-4 w-4" /> {isStarred ? 'Remove from Starred' : 'Add to Starred'}
+          </ContextMenuItem>
+        )}
         {onShare && id && (
           <ContextMenuItem onClick={() => onShare(id, type)}>
             <Share2 className="mr-2 h-4 w-4" /> Share
@@ -114,6 +123,7 @@ export interface FileGridProps {
   subfolders: DriveFolder[];
   getDriveInfo: (driveAccountId?: string) => { drive: any, index: number };
   onNavigateFolder?: (folderId: string, driveId: string) => void;
+  onToggleStar?: (id: string, type: 'file' | 'folder', currentStarStatus: boolean) => void;
   onPreviewFile?: (file: FileEntry) => void;
   onShare?: (id: string, type: 'file' | 'folder') => void;
   onRenameFile?: (id: string, name: string) => void;
@@ -133,6 +143,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
   subfolders,
   getDriveInfo,
   onNavigateFolder,
+  onToggleStar,
   onPreviewFile,
   onShare,
   onRenameFile,
@@ -205,6 +216,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
                   </div>
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-sm text-gray-800 font-medium truncate">{folder.name}</span>
+                    {folder.isStarred && <Star className="fill-yellow-400 text-yellow-400 flex-shrink-0" size={14} />}
                     {shared && <Share2 size={12} className="text-blue-400 flex-shrink-0" />}
                   </div>
                   <div className="text-right text-xs text-gray-400">—</div>
@@ -217,6 +229,8 @@ export const FileGrid: React.FC<FileGridProps> = ({
                 id={folder.id}
                 name={folder.name}
                 isTrashView={isTrashView}
+                isStarred={folder.isStarred}
+                onToggleStar={onToggleStar}
                 onShare={onShare}
                 onRestore={onRestore}
                 onPermanentDelete={onPermanentDelete}
@@ -261,6 +275,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
                   </div>
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-sm text-gray-800 truncate" title={file.name}>{file.name}</span>
+                    {file.isStarred && <Star className="fill-yellow-400 text-yellow-400 flex-shrink-0" size={14} />}
                     {shared && <Share2 size={12} className="text-blue-400 flex-shrink-0" />}
                     <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: driveColor }} />
                   </div>
@@ -280,6 +295,8 @@ export const FileGrid: React.FC<FileGridProps> = ({
                 file={file}
                 native={native}
                 isTrashView={isTrashView}
+                isStarred={file.isStarred}
+                onToggleStar={onToggleStar}
                 onPreviewFile={onPreviewFile}
                 onShare={onShare}
                 onRenameFile={onRenameFile}
@@ -330,7 +347,10 @@ export const FileGrid: React.FC<FileGridProps> = ({
                 <div className="flex-1 truncate text-sm font-medium text-gray-800">
                   {folder.name}
                 </div>
-                {shared && <Share2 size={12} className="text-blue-400 flex-shrink-0" />}
+                <div className="flex gap-1 items-center">
+                  {folder.isStarred && <Star className="fill-yellow-400 text-yellow-400 flex-shrink-0" size={14} />}
+                  {shared && <Share2 size={12} className="text-blue-400 flex-shrink-0" />}
+                </div>
               </div>
             </ContextMenuTrigger>
             <ItemContextMenuContent
@@ -338,6 +358,8 @@ export const FileGrid: React.FC<FileGridProps> = ({
               id={folder.id}
               name={folder.name}
               isTrashView={isTrashView}
+              isStarred={folder.isStarred}
+              onToggleStar={onToggleStar}
               onShare={onShare}
               onRestore={onRestore}
               onPermanentDelete={onPermanentDelete}
@@ -379,7 +401,10 @@ export const FileGrid: React.FC<FileGridProps> = ({
               >
                 <div className="flex justify-between items-start">
                   <div className="text-3xl">{getFileIcon(file.mimeType)}</div>
-                  {shared && <Share2 size={12} className="text-blue-400 flex-shrink-0" />}
+                  <div className="flex gap-1 items-center">
+                    {file.isStarred && <Star className="fill-yellow-400 text-yellow-400 flex-shrink-0" size={14} />}
+                    {shared && <Share2 size={12} className="text-blue-400 flex-shrink-0" />}
+                  </div>
                 </div>
                 <div>
                   <div className="font-medium text-xs text-gray-800 truncate mb-1 leading-snug" title={file.name}>
@@ -401,6 +426,8 @@ export const FileGrid: React.FC<FileGridProps> = ({
               file={file}
               native={native}
               isTrashView={isTrashView}
+              isStarred={file.isStarred}
+              onToggleStar={onToggleStar}
               onPreviewFile={onPreviewFile}
               onShare={onShare}
               onRenameFile={onRenameFile}

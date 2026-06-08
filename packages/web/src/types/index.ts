@@ -87,6 +87,7 @@ export interface DriveFolder {
   name: string;
   isSynced: boolean;
   syncedAt?: string | null;
+  isStarred?: boolean;
 }
 
 export interface DriveFolderContents {
