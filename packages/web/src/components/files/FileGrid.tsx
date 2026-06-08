@@ -199,7 +199,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
       <div className="w-full">
         {/* Table header */}
         <div className="grid grid-cols-[auto_1fr_120px_140px_44px] gap-0 border-b border-gray-100 px-4 py-2 text-xs font-medium text-gray-500 uppercase tracking-wide group">
-          <div className="w-10 flex items-center justify-center">
+          <div className="w-14 flex items-center pl-3">
             <input
               type="checkbox"
               className={`w-4 h-4 cursor-pointer ${hasSelection ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 transition-opacity'}`}
@@ -258,17 +258,15 @@ export const FileGrid: React.FC<FileGridProps> = ({
                       : 'hover:bg-gray-50'
                   }`}
                 >
-                  <div className="w-10 flex justify-center items-center relative">
+                  <div className="w-14 flex items-center gap-2 pl-3">
                     <input 
                       type="checkbox" 
-                      className={`absolute z-10 w-4 h-4 cursor-pointer ${hasSelection ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 transition-opacity'}`}
+                      className={`w-4 h-4 cursor-pointer flex-shrink-0 ${hasSelection ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 transition-opacity'}`}
                       checked={selectedItems.some(i => isSameItem(i, { type: 'folder', item: folder }))}
                       onChange={() => toggleSelection({ type: 'folder', item: folder })}
                       onClick={(e) => e.stopPropagation()}
                     />
-                    <div className={`${hasSelection ? 'opacity-0' : 'opacity-100 group-hover:opacity-0 transition-opacity'}`}>
-                      <Folder size={20} className="text-blue-500" />
-                    </div>
+                    <Folder size={20} className="text-blue-500 flex-shrink-0" />
                   </div>
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-sm text-gray-800 font-medium truncate">{folder.name}</span>
@@ -330,17 +328,15 @@ export const FileGrid: React.FC<FileGridProps> = ({
                       : 'hover:bg-gray-50'
                   }`}
                 >
-                  <div className="w-10 flex justify-center items-center relative">
+                  <div className="w-14 flex items-center gap-2 pl-3">
                     <input 
                       type="checkbox" 
-                      className={`absolute z-10 w-4 h-4 cursor-pointer ${hasSelection ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 transition-opacity'}`}
+                      className={`w-4 h-4 cursor-pointer flex-shrink-0 ${hasSelection ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 transition-opacity'}`}
                       checked={selectedItems.some(i => isSameItem(i, { type: 'file', item: file }))}
                       onChange={() => toggleSelection({ type: 'file', item: file })}
                       onClick={(e) => e.stopPropagation()}
                     />
-                    <div className={`${hasSelection ? 'opacity-0' : 'opacity-100 group-hover:opacity-0 transition-opacity'}`}>
-                      <span className="text-xl">{getFileIcon(file.mimeType)}</span>
-                    </div>
+                    <span className="text-xl flex-shrink-0">{getFileIcon(file.mimeType)}</span>
                   </div>
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-sm text-gray-800 truncate" title={file.name}>{file.name}</span>
