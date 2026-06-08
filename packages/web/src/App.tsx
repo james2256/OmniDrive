@@ -10,6 +10,7 @@ import { SharedLinksPage } from './pages/SharedLinksPage';
 import { PublicSharedPage } from './pages/PublicSharedPage';
 import { AutomationsPage } from './pages/AutomationsPage';
 import { SearchPage } from './pages/SearchPage';
+import { TrashPage } from './pages/TrashPage';
 
 export const App = () => {
   return (
@@ -33,6 +34,7 @@ export const App = () => {
           <Route path="/settings/drives" element={<SettingsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/shared" element={<SharedLinksPage />} />
+          <Route path="/trash" element={<TrashPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

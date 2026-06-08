@@ -66,10 +66,10 @@ export const Sidebar: React.FC = () => {
           <Monitor size={20} />
           <span>Computers</span>
         </div>
-        <div className="flex items-center gap-3 px-4 py-2 hover:bg-gray-100 rounded-full cursor-pointer text-gray-700 text-sm">
+        <NavLink to="/trash" className={navLinkClass}>
           <Trash2 size={20} />
           <span>Trash</span>
-        </div>
+        </NavLink>
       </nav>
 
       {/* Spacer */}
