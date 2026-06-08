@@ -21,7 +21,7 @@ const ItemContextMenuContent: React.FC<{
   id?: string;
   name?: string;
   native?: boolean;
-  file?: FileEntry;
+  item?: FileEntry | DriveFolder | VirtualFolder;
   isTrashView?: boolean;
 
   isStarred?: boolean;
@@ -40,7 +40,7 @@ const ItemContextMenuContent: React.FC<{
   id,
   name,
   native,
-  file,
+  item,
   isTrashView,
 
   isStarred,
@@ -54,14 +54,17 @@ const ItemContextMenuContent: React.FC<{
   onPermanentDelete,
   onAddToVirtualFolder,
   onViewInfo,
-}) => (
-  <ContextMenuContent className="w-48 bg-white border border-gray-200 shadow-xl rounded-xl overflow-hidden py-1">
-    {onViewInfo && id && (
-      <ContextMenuItem className="px-3 py-2 text-sm text-gray-700 cursor-pointer hover:bg-gray-100 outline-none flex items-center" onClick={() => onViewInfo(file ?? ({ id, name } as unknown as FileEntry), type)}>
-        <Info size={16} className="mr-3 text-gray-500" />
-        View Info
-      </ContextMenuItem>
-    )}
+}) => {
+  const file = type === 'file' ? (item as FileEntry) : undefined;
+
+  return (
+    <ContextMenuContent className="w-48 bg-white border border-gray-200 shadow-xl rounded-xl overflow-hidden py-1">
+      {onViewInfo && item && (
+        <ContextMenuItem className="px-3 py-2 text-sm text-gray-700 cursor-pointer hover:bg-gray-100 outline-none flex items-center" onClick={() => onViewInfo(item, type)}>
+          <Info size={16} className="mr-3 text-gray-500" />
+          View Info
+        </ContextMenuItem>
+      )}
     {isTrashView ? (
       <>
         {onRestore && id && (
@@ -133,8 +136,9 @@ const ItemContextMenuContent: React.FC<{
         )}
       </>
     )}
-  </ContextMenuContent>
-);
+    </ContextMenuContent>
+  );
+};
 
 export interface FileGridProps {
   files: FileEntry[];
@@ -182,7 +186,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
   const viewMode = viewModeProp ?? storeViewMode;
   const { selectedItems, toggleSelection, selectAll, clearSelection } = useSelectionStore();
   const hasSelection = selectedItems.length > 0;
-  const selectedKeys = new Set(selectedItems.map(i => i.item.id || (i.item as DriveFolder).googleFolderId));
+  const selectedKeys = new Set(selectedItems.map(i => i.item.id || ('googleFolderId' in i.item ? i.item.googleFolderId : undefined)));
 
   if (files.length === 0 && subfolders.length === 0) {
     return (
@@ -228,13 +232,13 @@ export const FileGrid: React.FC<FileGridProps> = ({
         {/* Folders */}
         {subfolders.map((folder) => {
           const isVirtual = !('googleFolderId' in folder);
-          const key = isVirtual ? folder.id : (folder as DriveFolder).googleFolderId;
-          const driveAccountId = isVirtual ? undefined : (folder as DriveFolder).driveAccountId;
+          const key = 'googleFolderId' in folder ? folder.googleFolderId : folder.id;
+          const driveAccountId = 'driveAccountId' in folder ? folder.driveAccountId : undefined;
           const { drive } = getDriveInfo(driveAccountId);
           const hasError = drive ? errorDrives?.has(drive.id) : false;
           const shared = folder.id ? isTargetShared?.(folder.id, 'folder') : false;
           const isStarred = 'isStarred' in folder ? folder.isStarred : false;
-          const isSelected = selectedKeys.has(folder.id || (folder as DriveFolder).googleFolderId);
+          const isSelected = selectedKeys.has(folder.id || ('googleFolderId' in folder ? folder.googleFolderId : undefined));
 
           return (
             <ContextMenu key={key}>
@@ -248,8 +252,8 @@ export const FileGrid: React.FC<FileGridProps> = ({
                     if (isTrashView) return;
                     if (isVirtual) {
                       onNavigateFolder?.(folder.id, 'virtual');
-                    } else if (driveAccountId) {
-                      onNavigateFolder?.((folder as DriveFolder).googleFolderId, driveAccountId);
+                    } else if (driveAccountId && 'googleFolderId' in folder) {
+                      onNavigateFolder?.(folder.googleFolderId, driveAccountId);
                     }
                   }}
                   className={`grid grid-cols-[auto_1fr_120px_140px_44px] gap-0 items-center px-4 py-2.5 cursor-pointer transition-colors border-b border-gray-50 group ${
@@ -284,7 +288,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
                 type="folder"
                 id={folder.id}
                 name={folder.name}
-                file={folder as unknown as FileEntry}
+                item={folder}
                 isTrashView={isTrashView}
 
                 isStarred={isStarred}
@@ -360,7 +364,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
                 type="file"
                 id={file.id}
                 name={file.name}
-                file={file}
+                item={file}
                 native={native}
                 isTrashView={isTrashView}
                 isStarred={file.isStarred}
@@ -388,13 +392,13 @@ export const FileGrid: React.FC<FileGridProps> = ({
       {/* Render Folders */}
       {subfolders.map((folder) => {
           const isVirtual = !('googleFolderId' in folder);
-          const key = isVirtual ? folder.id : (folder as DriveFolder).googleFolderId;
-          const driveAccountId = isVirtual ? undefined : (folder as DriveFolder).driveAccountId;
+          const key = 'googleFolderId' in folder ? folder.googleFolderId : folder.id;
+          const driveAccountId = 'driveAccountId' in folder ? folder.driveAccountId : undefined;
           const { drive } = getDriveInfo(driveAccountId);
           const hasError = drive ? errorDrives?.has(drive.id) : false;
           const shared = folder.id ? isTargetShared?.(folder.id, 'folder') : false;
           const isStarred = 'isStarred' in folder ? folder.isStarred : false;
-          const isSelected = selectedKeys.has(folder.id || (folder as DriveFolder).googleFolderId);
+          const isSelected = selectedKeys.has(folder.id || ('googleFolderId' in folder ? folder.googleFolderId : undefined));
 
         return (
           <ContextMenu key={key}>
@@ -408,8 +412,8 @@ export const FileGrid: React.FC<FileGridProps> = ({
                   if (isTrashView) return;
                     if (isVirtual) {
                       onNavigateFolder?.(folder.id, 'virtual');
-                    } else if (driveAccountId) {
-                      onNavigateFolder?.((folder as DriveFolder).googleFolderId, driveAccountId);
+                    } else if (driveAccountId && 'googleFolderId' in folder) {
+                      onNavigateFolder?.(folder.googleFolderId, driveAccountId);
                     }
                 }}
                 className={`p-3 border rounded-xl cursor-pointer flex items-center gap-2.5 transition-all group relative ${
@@ -441,7 +445,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
               type="folder"
               id={folder.id}
               name={folder.name}
-              file={folder as unknown as FileEntry}
+              item={folder}
               isTrashView={isTrashView}
 
               isStarred={isStarred}
@@ -519,7 +523,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
               type="file"
               id={file.id}
               name={file.name}
-              file={file}
+              item={file}
               native={native}
               isTrashView={isTrashView}
               isStarred={file.isStarred}
