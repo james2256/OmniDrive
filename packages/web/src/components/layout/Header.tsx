@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Menu, Search, Settings, HelpCircle, Grid3X3, LogOut, User } from 'lucide-react';
+import { Menu, Search, Settings, HelpCircle, Grid3X3, LogOut } from 'lucide-react';
 import { useUIStore } from '../../stores/useUIStore';
 import { useToastStore } from '../../stores/toastStore';
 import {
@@ -82,7 +82,7 @@ export const Header: React.FC = () => {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator className="bg-gray-200" />
-            <DropdownMenuItem className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50" onClick={handlePlaceholderClick}>
+            <DropdownMenuItem className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50">
               <LogOut className="mr-2 h-4 w-4" />
               <span>Log out</span>
             </DropdownMenuItem>
