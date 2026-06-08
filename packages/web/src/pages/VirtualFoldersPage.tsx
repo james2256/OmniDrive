@@ -93,7 +93,7 @@ export function VirtualFoldersPage() {
 
   const handleViewInfo = (item: FileEntry | VirtualFolder | DriveFolder, type: 'file' | 'folder') => {
     clearSelection();
-    toggleSelection({ type, item });
+    toggleSelection({ type, item } as any);
     setIsInfoPanelOpen(true);
   };
 
