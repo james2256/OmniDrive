@@ -3,6 +3,7 @@ import type { AppContext, Env } from './types/env';
 import { corsMiddleware } from './middleware/cors';
 import { errorHandler } from './middleware/error-handler';
 import { runScheduledSync } from './services/sync';
+import { AuditService } from './services/audit.service';
 
 import { authRouter } from './routes/auth';
 import { drivesRouter } from './routes/drives';
@@ -39,6 +40,10 @@ export default {
     ctx.waitUntil(runScheduledSync(env));
     const engine = new AutomationEngine(env);
     ctx.waitUntil(engine.processCronTrigger(ctx));
+    
+    // Audit log cleanup
+    const auditService = new AuditService(env.DB);
+    ctx.waitUntil(auditService.cleanupOldLogs(30));
   },
 } satisfies ExportedHandler<Env>;
 
