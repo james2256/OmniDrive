@@ -44,7 +44,7 @@ export interface WorkspaceMember {
   id: string;
   workspaceId: string;
   userId: string;
-  role: 'owner' | 'admin' | 'member';
+  role: 'viewer' | 'commenter' | 'editor' | 'manager' | 'auditor' | 'owner';
   joinedAt: string;
 }
 
@@ -126,4 +126,15 @@ export interface Toast {
   id: string;
   type: ToastType;
   message: string;
+}
+
+export interface AuditLog {
+  id: string;
+  workspaceId: string | null;
+  actorId: string;
+  actionType: string;
+  resourceId: string | null;
+  resourceName: string | null;
+  metadata: string | null;
+  createdAt: string;
 }
