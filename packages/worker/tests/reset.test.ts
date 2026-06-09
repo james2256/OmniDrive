@@ -10,19 +10,13 @@ describe('reset.mjs prompt logic', () => {
 
 describe('reset.mjs D1 logic', () => {
   it('should execute wrangler d1 commands with correct flag', () => {
-    const execSyncMock = vi.fn().mockImplementation((cmd) => {
-      if (cmd.includes('SELECT name FROM sqlite_master')) {
-        return Buffer.from(JSON.stringify([{ results: [{ name: 'users' }, { name: 'workspaces' }] }]));
-      }
-      return Buffer.from('');
-    });
-    
+    const execSyncMock = vi.fn();
     resetD1(execSyncMock, '--local');
     
-    expect(execSyncMock).toHaveBeenCalledTimes(3);
-    expect(execSyncMock.mock.calls[0][0]).toContain('SELECT name FROM sqlite_master');
-    expect(execSyncMock.mock.calls[1][0]).toContain('DROP TABLE IF EXISTS users; DROP TABLE IF EXISTS workspaces;');
-    expect(execSyncMock.mock.calls[2][0]).toContain('d1 execute omnidrive --local --file=src/db/schema.sql');
+    expect(execSyncMock).toHaveBeenCalledTimes(2);
+    expect(execSyncMock.mock.calls[0][0]).toContain('DROP TABLE IF EXISTS shared_link_logs');
+    expect(execSyncMock.mock.calls[0][0]).toContain('DROP TABLE IF EXISTS users');
+    expect(execSyncMock.mock.calls[1][0]).toContain('d1 execute omnidrive --local -y --file=src/db/schema.sql');
   });
 });
 

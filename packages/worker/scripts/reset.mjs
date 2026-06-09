@@ -21,28 +21,32 @@ export async function promptUser(isRemote) {
 
 export function resetD1(execSync, flag) {
   console.log(`\n=> Mereset D1 Database (${flag})...`);
-  console.log('Mendapatkan daftar tabel...');
+  console.log('Menghapus tabel secara berurutan (berdasarkan dependensi)...');
   
-  const tablesOutput = execSync(`npx wrangler d1 execute omnidrive ${flag} --command="SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%';" --json`).toString();
-  
-  const jsonStart = tablesOutput.indexOf('[');
-  if (jsonStart !== -1) {
-    const parsed = JSON.parse(tablesOutput.substring(jsonStart));
-    const tables = parsed[0]?.results?.map(r => r.name) || [];
-    
-    if (tables.length > 0) {
-      console.log(`Menghapus ${tables.length} tabel...`);
-      const dropCommands = tables.map(t => `DROP TABLE IF EXISTS ${t};`).join(' ');
-      execSync(`npx wrangler d1 execute omnidrive ${flag} --command="PRAGMA foreign_keys = OFF; ${dropCommands}"`, { stdio: 'inherit' });
-    } else {
-      console.log('Database D1 sudah kosong.');
-    }
-  } else {
-    console.warn('Gagal mendapatkan daftar tabel, melanjutkan penerapan schema...');
-  }
+  // Daftar tabel diurutkan dari child ke parent untuk menghindari error foreign keys di D1
+  const TABLES_TO_DROP = [
+    'shared_link_logs',
+    'automation_logs',
+    'sync_state',
+    'drive_folders',
+    'files',
+    'workspace_policies',
+    'workspace_members',
+    'audit_logs',
+    'invitation_codes',
+    'workspace_folders',
+    'shared_links',
+    'automation_rules',
+    'workspaces',
+    'drive_accounts',
+    'users'
+  ];
+
+  const dropCommands = TABLES_TO_DROP.map(t => `DROP TABLE IF EXISTS ${t};`).join(' ');
+  execSync(`npx wrangler d1 execute omnidrive ${flag} -y --command="${dropCommands}"`, { stdio: 'inherit' });
   
   console.log('Menerapkan schema baru...');
-  execSync(`npx wrangler d1 execute omnidrive ${flag} --file=src/db/schema.sql`, { stdio: 'inherit' });
+  execSync(`npx wrangler d1 execute omnidrive ${flag} -y --file=src/db/schema.sql`, { stdio: 'inherit' });
 }
 
 export function resetKV(execSync, writeFileSync, unlinkSync, flag) {
