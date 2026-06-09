@@ -50,12 +50,12 @@ export function WorkspacesPage() {
     clearSelection();
   }, [activeFolderId, clearSelection, fetchContents]);
 
-  const handleCreateFolder = async (parentId?: string) => {
+  const handleCreateFolder = async (parentId?: string | null) => {
     const promptMessage = parentId ? 'New subfolder name:' : 'New workspace name:';
     const name = prompt(promptMessage);
     if (name?.trim()) {
       try {
-        await api.createFolder(name.trim(), parentId || activeFolderId || undefined);
+        await api.createFolder(name.trim(), parentId === null ? undefined : parentId);
         fetchTree();
       } catch {
         addToast('error', 'Failed to create workspace');
@@ -181,7 +181,8 @@ export function WorkspacesPage() {
       <WorkspaceMainView
         activeFolder={activeFolder}
         path={breadcrumbPath}
-        onCreateFolder={() => handleCreateFolder()}
+        onCreateFolder={() => activeFolder && handleCreateFolder(activeFolder.id)}
+        onCreateRootFolder={() => handleCreateFolder(null)}
         onSync={handleSync}
         isSyncing={isSyncing}
         fileTabProps={fileTabProps}

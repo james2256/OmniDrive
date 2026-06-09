@@ -9,20 +9,24 @@ interface WorkspaceMainViewProps {
   activeFolder: WorkspaceFolder | null;
   path: BreadcrumbItem[];
   onCreateFolder: () => void;
+  onCreateRootFolder: () => void;
   onSync: () => void;
   isSyncing: boolean;
   fileTabProps: ComponentProps<typeof WorkspaceFilesTab>;
 }
 
 export function WorkspaceMainView({ 
-  activeFolder, path, onCreateFolder, onSync, isSyncing, fileTabProps 
+  activeFolder, path, onCreateFolder, onCreateRootFolder, onSync, isSyncing, fileTabProps 
 }: WorkspaceMainViewProps) {
   const [activeTab, setActiveTab] = useState<'files' | 'members' | 'settings'>('files');
 
   if (!activeFolder) {
     return (
-      <div className="flex-1 flex items-center justify-center text-gray-500 bg-gray-50 border-l border-gray-200">
-        Select or create a Workspace to get started.
+      <div className="flex-1 flex flex-col items-center justify-center text-gray-500 bg-gray-50 border-l border-gray-200 gap-4">
+        <p>Select or create a Workspace to get started.</p>
+        <button onClick={onCreateRootFolder} className="flex items-center gap-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors">
+          <FolderPlus size={16} /> New Workspace
+        </button>
       </div>
     );
   }
