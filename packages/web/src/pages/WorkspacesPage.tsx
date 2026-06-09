@@ -55,6 +55,11 @@ export function WorkspacesPage() {
     }
   }, [activeFolderId]);
 
+  useEffect(() => {
+    clearSelection();
+    return () => clearSelection();
+  }, [activeFolderId, clearSelection]);
+
   const handleCreateFolder = async () => {
     const name = prompt('New workspace name:');
     if (name?.trim()) {
@@ -98,9 +103,54 @@ export function WorkspacesPage() {
     setIsInfoPanelOpen(true);
   };
 
+  const handleRenameWorkspace = async (id: string) => {
+    const folder = folders.find(f => f.id === id);
+    if (!folder) return;
+    const name = prompt('Rename workspace:', folder.name);
+    if (name?.trim() && name.trim() !== folder.name) {
+      try {
+        await api.updateFolder(id, { name: name.trim() });
+        fetchTree();
+      } catch {
+        addToast('error', 'Failed to rename workspace');
+      }
+    }
+  };
+
+  const handleDeleteWorkspace = async (id: string) => {
+    if (confirm('Are you sure you want to delete this workspace?')) {
+      try {
+        await api.deleteFolder(id);
+        if (activeFolderId === id) setActiveFolderId(null);
+        fetchTree();
+      } catch {
+        addToast('error', 'Failed to delete workspace');
+      }
+    }
+  };
+
+  const handleCreateSubfolder = async (parentId: string) => {
+    const name = prompt('New subfolder name:');
+    if (name?.trim()) {
+      try {
+        await api.createFolder(name.trim(), parentId);
+        fetchTree();
+      } catch {
+        addToast('error', 'Failed to create subfolder');
+      }
+    }
+  };
+
   return (
     <div className="flex h-full w-full overflow-hidden bg-white">
-      <WorkspaceSidebar folders={folders} activeFolderId={activeFolderId} onSelect={setActiveFolderId} />
+      <WorkspaceSidebar 
+        folders={folders} 
+        activeFolderId={activeFolderId} 
+        onSelect={setActiveFolderId}
+        onRename={handleRenameWorkspace}
+        onDelete={handleDeleteWorkspace}
+        onNewSubfolder={handleCreateSubfolder}
+      />
       
       <div className="flex-1 flex flex-col h-full bg-gray-50 border-l border-gray-200">
         {selectedItems.length > 0 ? (
