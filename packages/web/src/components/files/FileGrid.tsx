@@ -170,6 +170,27 @@ export interface FileGridProps {
   onSetRetentionPolicy?: (id: string, type: 'file' | 'folder') => void;
 }
 
+const renderMetadataBadges = (metadata?: string | Record<string, string>) => {
+  if (!metadata) return null;
+  try {
+    const parsed = typeof metadata === 'string' ? JSON.parse(metadata) : metadata;
+    const entries = Object.entries(parsed);
+    if (entries.length === 0) return null;
+    return (
+      <div className="flex gap-1 ml-2 items-center">
+        {entries.slice(0, 2).map(([k, v]) => (
+          <span key={k} className="bg-blue-100 text-blue-800 text-[10px] px-1.5 py-0.5 rounded-full whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]" title={`${k}: ${v}`}>
+            {v as string}
+          </span>
+        ))}
+        {entries.length > 2 && <span className="text-gray-400 text-[10px]">+{entries.length - 2}</span>}
+      </div>
+    );
+  } catch {
+    return null;
+  }
+};
+
 export const FileGrid: React.FC<FileGridProps> = ({
   files,
   subfolders,
@@ -287,6 +308,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
                     <span className="text-sm text-gray-800 font-medium truncate">{folder.name}</span>
                     {isStarred && <Star className="fill-yellow-400 text-yellow-400 flex-shrink-0" size={14} />}
                     {shared && <Share2 size={12} className="text-blue-400 flex-shrink-0" />}
+                    {renderMetadataBadges(folder.metadata)}
                   </div>
                   <div className="text-right text-xs text-gray-400">—</div>
                   <div className="text-right text-xs text-gray-400">—</div>
@@ -359,6 +381,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
                     <span className="text-sm text-gray-800 truncate" title={file.name}>{file.name}</span>
                     {file.isStarred && <Star className="fill-yellow-400 text-yellow-400 flex-shrink-0" size={14} />}
                     {shared && <Share2 size={12} className="text-blue-400 flex-shrink-0" />}
+                    {renderMetadataBadges(file.metadata)}
                     <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: driveColor }} />
                   </div>
                   <div className="text-right text-xs text-gray-500">
