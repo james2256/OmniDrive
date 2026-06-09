@@ -14,29 +14,57 @@ export const filesRouter = new Hono<AppContext>({ strict: false });
 
 filesRouter.use('*', authGuard);
 
-// GET /api/files/search?q=
+// GET /api/files/search
 filesRouter.get('/search', async (c) => {
   const userId = c.get('userId');
   const query = c.req.query('q');
+  const workspaceId = c.req.query('workspaceId');
+  const metadataRaw = c.req.query('metadata');
+  
+  const db = c.env.DB;
+  
+  let sql = `
+    SELECT DISTINCT f.*, d.email as driveEmail 
+    FROM files f
+    JOIN drive_accounts d ON f.drive_account_id = d.id
+    LEFT JOIN workspace_members wm ON f.workspace_id = wm.workspace_id
+    WHERE (f.user_id = ? OR wm.user_id = ?)
+      AND f.is_trashed = 0
+  `;
+  const binds: any[] = [userId, userId];
 
-  if (!query?.trim()) {
-    throw new AppError(400, 'Search query is required');
+  if (query?.trim()) {
+    sql += ` AND f.name LIKE ?`;
+    binds.push(`%${query.trim()}%`);
   }
 
-  const db = c.env.DB;
-  const { results } = await db.prepare(
-    `SELECT f.*, d.email as driveEmail FROM files f
-     JOIN drive_accounts d ON f.drive_account_id = d.id
-     WHERE f.user_id = ? AND f.name LIKE ? AND f.is_trashed = 0
-     ORDER BY f.created_at DESC LIMIT 50`
-  ).bind(userId, `%${query.trim()}%`).all<Record<string, unknown> & { driveEmail: string }>();
+  if (workspaceId) {
+    sql += ` AND f.workspace_id = ?`;
+    binds.push(workspaceId);
+  }
+
+  if (metadataRaw) {
+    try {
+      const meta = JSON.parse(metadataRaw);
+      for (const [key, value] of Object.entries(meta)) {
+        sql += ` AND json_extract(f.metadata, '$.' || ?) = ?`;
+        binds.push(key, String(value));
+      }
+    } catch (e) {
+      // ignore invalid json
+    }
+  }
+
+  sql += ` ORDER BY f.created_at DESC LIMIT 50`;
+
+  const { results } = await db.prepare(sql).bind(...binds).all<Record<string, unknown> & { driveEmail: string }>();
 
   return c.json({
     files: results.map((r) => ({
       ...mapFileRow(r),
       driveEmail: r.driveEmail,
     })),
-    query: query.trim(),
+    query: query || '',
   });
 });
 
