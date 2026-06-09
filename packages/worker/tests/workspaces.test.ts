@@ -11,4 +11,11 @@ describe('Workspaces API', () => {
     const res = await app.request('/workspaces');
     expect(res.status).toBe(401);
   });
+
+  it('should have members endpoints', async () => {
+    const app = new Hono().route('/workspaces', workspacesRouter);
+    const req = new Request('http://localhost/workspaces/123/members', { method: 'POST' });
+    const res = await app.request(req);
+    expect(res.status).not.toBe(404);
+  });
 });
