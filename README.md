@@ -131,6 +131,19 @@ npm run dev
 
 This starts both the Worker (port 8787) and the web app (port 5173) concurrently. Open [http://localhost:5173](http://localhost:5173) in your browser.
 
+## Database Management
+
+If you need to perform a complete factory reset of all data (dropping all tables in D1 and clearing all sessions in KV), you can use the built-in reset commands. These commands are optimized to handle D1's strict foreign key constraints.
+
+```bash
+# Reset local development database and KV
+make reset-local
+
+# Reset production (remote) database and KV
+# WARNING: This deletes ALL production data! Requires explicit 'YES' confirmation.
+make reset-remote
+```
+
 ## Deployment
 
 ### Backend (Cloudflare Workers)

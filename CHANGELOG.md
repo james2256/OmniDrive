@@ -21,6 +21,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Bulk Actions:**
   - Checkboxes for multiple file selection in Grid and List views
   - Bulk Move, Delete, and Add to Workspace operations
+- **Database Management:**
+  - `make reset-local` and `make reset-remote` for complete factory reset of D1 and KV data
 
 ### Changed
 
