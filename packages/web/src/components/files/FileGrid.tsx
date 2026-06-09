@@ -35,6 +35,7 @@ const ItemContextMenuContent: React.FC<{
   onPermanentDelete?: (id: string) => void;
   onAddToWorkspace?: (item: FileEntry) => void;
   onViewInfo?: (item: FileEntry | DriveFolder | WorkspaceFolder, type: 'file' | 'folder') => void;
+  onSetRetentionPolicy?: (id: string, type: 'file' | 'folder') => void;
 }> = ({
   type,
   id,
@@ -54,6 +55,7 @@ const ItemContextMenuContent: React.FC<{
   onPermanentDelete,
   onAddToWorkspace,
   onViewInfo,
+  onSetRetentionPolicy,
 }) => {
   const file = type === 'file' ? (item as FileEntry) : undefined;
 
@@ -113,6 +115,11 @@ const ItemContextMenuContent: React.FC<{
             <Folder className="mr-2 h-4 w-4" /> Add to Workspace
           </ContextMenuItem>
         )}
+        {onSetRetentionPolicy && id && (
+          <ContextMenuItem onClick={() => onSetRetentionPolicy(id, type)}>
+            <Folder className="mr-2 h-4 w-4" /> Set Retention Policy
+          </ContextMenuItem>
+        )}
         {type === 'file' && onRenameFile && id && name && (
           <ContextMenuItem onClick={() => {
             const newName = prompt('Rename file:', name);
@@ -160,6 +167,7 @@ export interface FileGridProps {
   onPermanentDelete?: (fileId: string) => void;
   onAddToWorkspace?: (item: FileEntry) => void;
   onViewInfo?: (item: FileEntry | DriveFolder | WorkspaceFolder, type: 'file' | 'folder') => void;
+  onSetRetentionPolicy?: (id: string, type: 'file' | 'folder') => void;
 }
 
 export const FileGrid: React.FC<FileGridProps> = ({
@@ -181,6 +189,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
   onPermanentDelete,
   onAddToWorkspace,
   onViewInfo,
+  onSetRetentionPolicy,
 }) => {
   const storeViewMode = useUIStore((s) => s.viewMode);
   const viewMode = viewModeProp ?? storeViewMode;
@@ -298,6 +307,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
                 onPermanentDelete={onPermanentDelete}
                 onAddToWorkspace={onAddToWorkspace}
                 onViewInfo={onViewInfo}
+                onSetRetentionPolicy={onSetRetentionPolicy}
               />
             </ContextMenu>
           );
@@ -378,6 +388,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
                 onPermanentDelete={onPermanentDelete}
                 onAddToWorkspace={onAddToWorkspace}
                 onViewInfo={onViewInfo}
+                onSetRetentionPolicy={onSetRetentionPolicy}
               />
             </ContextMenu>
           );

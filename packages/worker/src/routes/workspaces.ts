@@ -142,3 +142,73 @@ workspacesRouter.get('/:id/audit-logs', async (c) => {
 
   return c.json({ logs: results });
 });
+
+workspacesRouter.get('/:id/policies', async (c) => {
+  const userId = c.get('userId');
+  const db = c.env.DB;
+  const workspaceId = c.req.param('id');
+
+  const role = await getWorkspaceRole(db, workspaceId, userId);
+  if (!role || !hasPermission(role, 'manager')) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  const { results } = await db.prepare(
+    'SELECT * FROM workspace_policies WHERE workspace_id = ?'
+  ).bind(workspaceId).all();
+
+  return c.json({ policies: results });
+});
+
+workspacesRouter.post('/:id/policies', async (c) => {
+  const userId = c.get('userId');
+  const db = c.env.DB;
+  const workspaceId = c.req.param('id');
+
+  const role = await getWorkspaceRole(db, workspaceId, userId);
+  if (!role || !hasPermission(role, 'manager')) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  const { targetType, targetId, policyType, config } = await c.req.json<{
+    targetType?: 'workspace' | 'folder';
+    targetId?: string;
+    policyType?: 'storage_quota' | 'data_retention';
+    config?: any;
+  }>();
+
+  if (!targetType || !policyType || !config) {
+    return c.json({ error: 'Missing required fields' }, 400);
+  }
+
+  if (policyType === 'storage_quota' && targetType !== 'workspace') {
+    return c.json({ error: 'storage_quota must target a workspace' }, 400);
+  }
+
+  const policyId = generateId();
+
+  await db.prepare(`
+    INSERT INTO workspace_policies (id, workspace_id, target_type, target_id, policy_type, config)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).bind(policyId, workspaceId, targetType, targetId || null, policyType, JSON.stringify(config)).run();
+
+  const policy = await db.prepare('SELECT * FROM workspace_policies WHERE id = ?').bind(policyId).first();
+
+  return c.json({ policy }, 201);
+});
+
+workspacesRouter.delete('/:id/policies/:policyId', async (c) => {
+  const userId = c.get('userId');
+  const db = c.env.DB;
+  const workspaceId = c.req.param('id');
+  const policyId = c.req.param('policyId');
+
+  const role = await getWorkspaceRole(db, workspaceId, userId);
+  if (!role || !hasPermission(role, 'manager')) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  await db.prepare('DELETE FROM workspace_policies WHERE id = ? AND workspace_id = ?').bind(policyId, workspaceId).run();
+
+  return c.json({ success: true });
+});

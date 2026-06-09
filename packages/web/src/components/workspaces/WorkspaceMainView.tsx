@@ -81,7 +81,7 @@ export function WorkspaceMainView({
       <div className="flex-1 overflow-auto bg-gray-50">
         {activeTab === 'files' && <WorkspaceFilesTab {...fileTabProps} />}
         {activeTab === 'members' && <WorkspaceMembersTab />}
-        {activeTab === 'settings' && <WorkspaceSettingsTab />}
+        {activeTab === 'settings' && <WorkspaceSettingsTab workspaceId={activeFolder.id} />}
         {activeTab === 'audit' && <WorkspaceAuditTab workspaceId={activeFolder.id} />}
       </div>
     </div>

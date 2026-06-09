@@ -36,6 +36,7 @@ export interface Workspace {
   id: string;
   name: string;
   ownerId: string;
+  usedBytes?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -137,4 +138,15 @@ export interface AuditLog {
   resourceName: string | null;
   metadata: string | null;
   createdAt: string;
+}
+
+export interface WorkspacePolicy {
+  id: string;
+  workspaceId: string;
+  targetType: 'workspace' | 'folder';
+  targetId: string | null;
+  policyType: 'storage_quota' | 'data_retention';
+  config: string;
+  createdAt: string;
+  updatedAt: string;
 }

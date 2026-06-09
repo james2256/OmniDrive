@@ -7,6 +7,7 @@ import { DriveService } from '../services/drive.service';
 import { GoogleDriveService } from '../services/google-drive';
 import { UploadRouter } from '../services/upload-router';
 import { AutomationEngine } from '../services/automation.service';
+import { PolicyService } from '../services/policy.service';
 import { mapDriveRow, mapFileRow, mapFolderRow } from '../types';
 
 export const filesRouter = new Hono<AppContext>({ strict: false });
@@ -209,9 +210,17 @@ filesRouter.post('/:id/move-drive', async (c) => {
 // Initialize upload (returns Google Drive Resumable URL)
 filesRouter.post('/upload/init', async (c) => {
   const userId = c.get('userId');
-  const { name, mimeType, size, folderId } = await c.req.json();
+  const { name, mimeType, size, folderId, workspaceId } = await c.req.json();
   console.log(`Init upload for folder: ${folderId}`); // prevent unused var error
   const db = c.env.DB;
+
+  if (workspaceId && size) {
+    const policyService = new PolicyService(db);
+    const hasQuota = await policyService.checkQuota(workspaceId, size);
+    if (!hasQuota) {
+      return c.json({ error: 'Storage quota exceeded' }, 403);
+    }
+  }
 
   // 1. Get all drives to calculate routing
   const { results: driveRows } = await db.prepare('SELECT * FROM drive_accounts WHERE user_id = ?').bind(userId).all();
@@ -252,11 +261,13 @@ filesRouter.post('/upload/init', async (c) => {
 
 filesRouter.post('/upload/finalize', async (c) => {
   const userId = c.get('userId');
-  const { googleFileId, driveAccountId, virtualFolderId } = await c.req.json();
+  const { googleFileId, driveAccountId, virtualFolderId, workspaceFolderId, workspaceId } = await c.req.json();
 
   if (!googleFileId || !driveAccountId) {
     throw new AppError(400, 'Missing required fields: googleFileId, driveAccountId');
   }
+
+  const finalFolderId = workspaceFolderId || virtualFolderId;
 
   // Verify drive belongs to user
   const db = c.env.DB;
@@ -272,19 +283,25 @@ filesRouter.post('/upload/finalize', async (c) => {
   const gFile = await driveService.getFile(driveAccountId, googleFileId);
 
   const id = generateId();
+  const fileSize = parseInt(gFile.size || '0', 10);
   
   await db.prepare(`
     INSERT INTO files (
-      id, user_id, drive_account_id, virtual_folder_id, 
+      id, user_id, drive_account_id, workspace_id, workspace_folder_id, 
       google_file_id, name, mime_type, size, thumbnail_url, web_view_link, web_content_link,
       google_created_at, google_modified_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
-    id, userId, driveAccountId, virtualFolderId || null,
-    gFile.id, gFile.name, gFile.mimeType, parseInt(gFile.size || '0', 10),
+    id, userId, driveAccountId, workspaceId || null, finalFolderId || null,
+    gFile.id, gFile.name, gFile.mimeType, fileSize,
     gFile.thumbnailLink || null, gFile.webViewLink || null, gFile.webContentLink || null,
     gFile.createdTime, gFile.modifiedTime
   ).run();
+
+  if (workspaceId && fileSize > 0) {
+    const policyService = new PolicyService(db);
+    await policyService.updateWorkspaceStorage(workspaceId, fileSize);
+  }
 
   // Invalidate quota cache
   await c.env.KV.delete(`quota:${driveAccountId}`);
@@ -356,13 +373,21 @@ filesRouter.delete('/:id/permanent', async (c) => {
   const db = c.env.DB;
 
   const file = await db.prepare(
-    `SELECT f.google_file_id, d.id as driveId 
+    `SELECT f.google_file_id, f.size, f.workspace_id, f.workspace_folder_id, d.id as driveId 
      FROM files f
      JOIN drive_accounts d ON f.drive_account_id = d.id
      WHERE f.id = ? AND f.user_id = ? AND f.is_trashed = 1`
-  ).bind(fileId, userId).first<{ google_file_id: string; driveId: string }>();
+  ).bind(fileId, userId).first<{ google_file_id: string; size: number; workspace_id: string; workspace_folder_id: string; driveId: string }>();
 
   if (!file) throw new AppError(404, 'File not found in trash');
+
+  if (file.workspace_folder_id) {
+    const policyService = new PolicyService(db);
+    const protectedRet = await policyService.checkRetentionProtection(file.workspace_folder_id);
+    if (protectedRet) {
+      return c.json({ error: 'Retention policy prevents deletion' }, 403);
+    }
+  }
 
   const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET);
   
@@ -374,6 +399,11 @@ filesRouter.delete('/:id/permanent', async (c) => {
   }
 
   await db.prepare('DELETE FROM files WHERE id = ? AND user_id = ?').bind(fileId, userId).run();
+
+  if (file.workspace_id && file.size) {
+    const policyService = new PolicyService(db);
+    await policyService.updateWorkspaceStorage(file.workspace_id, -file.size);
+  }
 
   return c.json({ success: true });
 });

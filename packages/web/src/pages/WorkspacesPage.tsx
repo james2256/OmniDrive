@@ -13,6 +13,7 @@ export function WorkspacesPage() {
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [subfolders, setSubfolders] = useState<WorkspaceFolder[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [retentionTargetId, setRetentionTargetId] = useState<string | null>(null);
   const addToast = useToastStore(state => state.addToast);
   const { clearSelection, toggleSelection } = useSelectionStore();
   const setIsInfoPanelOpen = useUIStore(s => s.setIsInfoPanelOpen);
@@ -141,6 +142,12 @@ export function WorkspacesPage() {
     }
   }, [activeFolderId, fetchContents, addToast]);
 
+  const handleSetRetentionPolicy = useCallback((id: string, type: 'file' | 'folder') => {
+    if (type === 'folder') {
+      setRetentionTargetId(id);
+    }
+  }, []);
+
   const fileTabProps = useMemo(() => ({
     files,
     subfolders,
@@ -153,7 +160,8 @@ export function WorkspacesPage() {
     onMoveDrive,
     isTargetShared,
     errorDrives,
-    onViewInfo: handleViewInfo
+    onViewInfo: handleViewInfo,
+    onSetRetentionPolicy: handleSetRetentionPolicy
   }), [
     files,
     subfolders,
@@ -165,7 +173,8 @@ export function WorkspacesPage() {
     onMoveDrive,
     isTargetShared,
     errorDrives,
-    handleViewInfo
+    handleViewInfo,
+    handleSetRetentionPolicy
   ]);
 
   return (
@@ -185,9 +194,49 @@ export function WorkspacesPage() {
         onCreateRootFolder={() => handleCreateFolder(null)}
         onSync={handleSync}
         isSyncing={isSyncing}
-        fileTabProps={fileTabProps}
+        fileTabProps={fileTabProps as any}
       />
+      {retentionTargetId && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full">
+            <h3 className="text-lg font-bold mb-4">Set Retention Policy</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Action</label>
+                <select id="retentionAction" className="w-full border-gray-300 rounded p-2 text-sm border">
+                  <option value="auto_delete">Auto-Delete (Retention limit)</option>
+                  <option value="prevent_deletion">Prevent Deletion (Legal Hold)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Days</label>
+                <input id="retentionDays" type="number" defaultValue={30} className="w-full border-gray-300 rounded p-2 text-sm border" />
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded" onClick={() => setRetentionTargetId(null)}>Cancel</button>
+              <button className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700" onClick={async () => {
+                const action = (document.getElementById('retentionAction') as HTMLSelectElement).value;
+                const days = parseInt((document.getElementById('retentionDays') as HTMLInputElement).value, 10);
+                if (activeFolderId) {
+                  try {
+                    await api.createWorkspacePolicy(activeFolderId, {
+                      targetType: 'folder',
+                      targetId: retentionTargetId,
+                      policyType: 'data_retention',
+                      config: { action, days }
+                    });
+                    addToast('success', 'Policy applied successfully');
+                    setRetentionTargetId(null);
+                  } catch {
+                    addToast('error', 'Failed to apply policy');
+                  }
+                }
+              }}>Save Policy</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-

@@ -138,6 +138,17 @@ export const api = {
     request<{ logs: import('../types').AuditLog[] }>(`/api/workspaces/${workspaceId}/audit-logs`),
   getAdminAuditLogs: () =>
     request<{ logs: import('../types').AuditLog[] }>('/api/admin/audit-logs'),
+
+  // Policies
+  getWorkspacePolicies: (workspaceId: string) =>
+    request<{ policies: import('../types').WorkspacePolicy[] }>(`/api/workspaces/${workspaceId}/policies`),
+  createWorkspacePolicy: (workspaceId: string, data: { targetType: 'workspace' | 'folder', targetId?: string, policyType: 'storage_quota' | 'data_retention', config: any }) =>
+    request<{ policy: import('../types').WorkspacePolicy }>(`/api/workspaces/${workspaceId}/policies`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  deleteWorkspacePolicy: (workspaceId: string, policyId: string) =>
+    request<{ success: boolean }>(`/api/workspaces/${workspaceId}/policies/${policyId}`, { method: 'DELETE' }),
 };
 
 export { ApiError };
