@@ -15,16 +15,16 @@ import { Omnibar } from './Omnibar';
 
 export const Header: React.FC = () => {
   const toggleSidebar = useUIStore((state) => state.toggleSidebar);
-  const logout = useAuthStore((state) => state.logout);
+  const { user, logout } = useAuthStore();
   const navigate = useNavigate();
-  const [query, setQuery] = useState('');
-
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && query.trim()) {
-      navigate(`/search?q=${encodeURIComponent(query.trim()).replace(/%20/g, '+')}`);
+    if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+      navigate(`/search?q=${encodeURIComponent(e.currentTarget.value.trim()).replace(/%20/g, '+')}`);
     }
   };
+
+  const getInitials = (name: string) => name ? name.charAt(0).toUpperCase() : 'U';
 
   return (
     <header className="flex items-center justify-between px-2 py-2 bg-surface h-16 w-full gap-4">
@@ -44,18 +44,21 @@ export const Header: React.FC = () => {
       <Omnibar />
       
       <div className="flex items-center gap-2 px-2 text-gray-600">
-
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-medium cursor-pointer hover:bg-blue-700 select-none">
-              U
+            <button className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-medium cursor-pointer hover:bg-blue-700 select-none overflow-hidden">
+              {user?.avatarUrl ? (
+                <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
+              ) : (
+                <span>{getInitials(user?.name || 'User')}</span>
+              )}
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56 bg-white shadow-xl rounded-xl border border-gray-200">
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col space-y-1 py-1">
-                <p className="text-sm font-medium leading-none text-gray-800">User</p>
-                <p className="text-xs leading-none text-gray-500">user@example.com</p>
+                <p className="text-sm font-medium leading-none text-gray-800">{user?.name || 'User'}</p>
+                <p className="text-xs leading-none text-gray-500">{user?.email || 'user@example.com'}</p>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator className="bg-gray-200" />
