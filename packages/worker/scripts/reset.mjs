@@ -14,7 +14,7 @@ export async function promptUser(isRemote) {
   return new Promise((resolve) => {
     rl.question("\x1b[31mPERINGATAN: Anda akan menghapus SELURUH data di PRODUCTION. Ketik 'YES' untuk melanjutkan: \x1b[0m", (answer) => {
       rl.close();
-      resolve(answer === 'YES');
+      resolve(answer.trim().toUpperCase() === 'YES');
     });
   });
 }
