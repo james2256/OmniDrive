@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthGuard } from './components/AuthGuard';
 import { AppLayout } from './components/layout/AppLayout';
 import { ToastContainer } from './components/Toast';
@@ -13,12 +14,27 @@ import { SearchPage } from './pages/SearchPage';
 import { TrashPage } from './pages/TrashPage';
 import { StarredPage } from './pages/StarredPage';
 import { WorkspacesPage } from './pages/WorkspacesPage';
+import { SetupPage } from './pages/SetupPage';
+import { api } from './lib/api';
 
 export const App = () => {
+  const [isSetup, setIsSetup] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    api.getSetupStatus().then(res => setIsSetup(res.isSetup)).catch(() => setIsSetup(true));
+  }, []);
+
+  if (isSetup === null) return null; // loading state
+
+  if (isSetup === false && window.location.pathname !== '/setup') {
+    window.location.href = '/setup';
+  }
+
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
+        <Route path="/setup" element={isSetup ? <Navigate to="/login" /> : <SetupPage />} />
+        <Route path="/login" element={!isSetup ? <Navigate to="/setup" /> : <LoginPage />} />
         <Route path="/shared/:id" element={<PublicSharedPage />} />
         <Route
           element={
