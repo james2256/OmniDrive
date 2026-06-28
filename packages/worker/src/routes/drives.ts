@@ -8,7 +8,6 @@ import { syncDriveAccount } from '../services/sync';
 import { mapDriveRow, mapDriveFolderRow, mapFileRow } from '../types';
 import { generateId } from '../lib/id';
 import type { BreadcrumbItem } from '../types';
-import { decryptOrPassthrough } from '../lib/crypto';
 import { generatePKCE } from '../lib/pkce';
 
 export async function buildDriveBreadcrumb(db: D1Database, driveId: string, googleFolderId: string): Promise<BreadcrumbItem[]> {
@@ -85,17 +84,11 @@ drivesRouter.get('/', async (c) => {
   const drives = results.map(mapDriveRow);
 
   const drivesWithQuota = await Promise.all(drives.map(async (drive) => {
-    const encryptedTokens = await c.env.KV.get(`tokens:${drive.id}`);
-    if (!encryptedTokens) return { ...drive, freeSpace: 0, usagePercent: 0 };
-    const tokenJson = await decryptOrPassthrough(encryptedTokens, c.env.TOKEN_ENCRYPTION_KEY);
+    const hasTokens = await c.env.KV.get(`tokens:${drive.id}`) ?? await c.env.KV.get(`oauth:${drive.id}`);
+    if (!hasTokens) return { ...drive, freeSpace: 0, usagePercent: 0 };
 
     try {
-      // Use the robust GoogleDriveService which handles token caching & refreshing
       const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
-      
-      // Ensure available under oauth: prefix for GoogleDriveService
-      await c.env.KV.put(`oauth:${drive.id}`, tokenJson);
-      
       const quota = await driveService.getQuota(drive.id);
 
       const freeSpace = quota.total - quota.used;
@@ -233,13 +226,8 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/sync', async (c) => {
     });
   }
 
-  // Fetch tokens
-  const encryptedTokens = await c.env.KV.get(`tokens:${driveId}`);
-  if (!encryptedTokens) return c.json({ error: 'No tokens for drive' }, 400);
-  const tokenJson = await decryptOrPassthrough(encryptedTokens, c.env.TOKEN_ENCRYPTION_KEY);
-
-  // Ensure available under oauth: prefix for GoogleDriveService
-  await c.env.KV.put(`oauth:${driveId}`, tokenJson);
+  const hasTokens = await c.env.KV.get(`tokens:${driveId}`) ?? await c.env.KV.get(`oauth:${driveId}`);
+  if (!hasTokens) return c.json({ error: 'No tokens for drive' }, 400);
 
   const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
   const { files: gFiles, folders: gFolders } = await driveService.listFolderContents(driveId, googleFolderId);
@@ -333,6 +321,9 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/sync', async (c) => {
 drivesRouter.delete('/:id', async (c) => {
   const userId = c.get('userId');
   const driveId = c.req.param('id');
+
+  const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+  await driveService.revokeTokens(driveId);
 
   await c.env.DB.prepare('DELETE FROM drive_accounts WHERE id = ? AND user_id = ?')
     .bind(driveId, userId).run();

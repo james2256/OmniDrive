@@ -45,32 +45,37 @@ export class GoogleDriveService {
 
   // ─── Token Management ───
 
-  async getValidToken(driveAccountId: string): Promise<string> {
-    // Try tokens: prefix first (new), fallback to oauth: (legacy)
+  private async loadTokens(driveAccountId: string): Promise<OAuthTokens> {
+    // ponytail: read legacy oauth: once for migration; never write plaintext there
     const raw = await this.kv.get(`tokens:${driveAccountId}`) ?? await this.kv.get(`oauth:${driveAccountId}`);
-    if (!raw) {
-      throw new Error(`No tokens found for drive ${driveAccountId}`);
-    }
+    if (!raw) throw new Error(`No tokens found for drive ${driveAccountId}`);
 
     let tokensJson = raw;
     if (this.encryptionKey) {
-      try {
-        const { decryptOrPassthrough } = await import('../lib/crypto');
-        tokensJson = await decryptOrPassthrough(raw, this.encryptionKey);
-      } catch {
-        // Fallback to raw if decrypt fails
-      }
+      const { decryptOrPassthrough } = await import('../lib/crypto');
+      tokensJson = await decryptOrPassthrough(raw, this.encryptionKey);
     }
+    return JSON.parse(tokensJson) as OAuthTokens;
+  }
 
-    const tokens: OAuthTokens = JSON.parse(tokensJson);
-
-    // Return cached token if not expired (with 60s buffer)
+  async getValidToken(driveAccountId: string): Promise<string> {
+    const tokens = await this.loadTokens(driveAccountId);
     if (tokens.expiresAt > Date.now() + 60_000) {
       return tokens.accessToken;
     }
-
-    // Refresh the token
     return this.refreshToken(driveAccountId, tokens.refreshToken);
+  }
+
+  // ponytail: best-effort revoke on disconnect; Google ignores already-revoked tokens
+  async revokeTokens(driveAccountId: string): Promise<void> {
+    try {
+      const tokens = await this.loadTokens(driveAccountId);
+      const token = tokens.refreshToken || tokens.accessToken;
+      if (!token) return;
+      await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(token)}`, { method: 'POST' });
+    } catch {
+      // disconnect still proceeds if revoke fails
+    }
   }
 
   private async refreshToken(driveAccountId: string, refreshToken: string): Promise<string> {
@@ -101,10 +106,9 @@ export class GoogleDriveService {
 
     if (this.encryptionKey) {
       const { encrypt } = await import('../lib/crypto');
-      const encrypted = await encrypt(newTokens, this.encryptionKey);
-      await this.kv.put(`tokens:${driveAccountId}`, encrypted);
+      await this.kv.put(`tokens:${driveAccountId}`, await encrypt(newTokens, this.encryptionKey));
     } else {
-      await this.kv.put(`oauth:${driveAccountId}`, newTokens);
+      await this.kv.put(`tokens:${driveAccountId}`, newTokens);
     }
 
     return data.access_token;

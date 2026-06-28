@@ -46,6 +46,17 @@ describe('GoogleDriveService Move Operations', () => {
     });
   });
 
+  describe('revokeTokens', () => {
+    it('revokes refresh token via Google endpoint', async () => {
+      (globalThis.fetch as any).mockResolvedValue({ ok: true });
+      await service.revokeTokens('driveAccountId');
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        'https://oauth2.googleapis.com/revoke?token=fake-refresh-token',
+        { method: 'POST' }
+      );
+    });
+  });
+
   describe('revokeShare', () => {
     it('sends DELETE request to revoke share', async () => {
       (globalThis.fetch as any).mockResolvedValue({

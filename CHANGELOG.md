@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- **Project Documentation (fork init by asmaraputra):**
+  - `AGENTS.md` — panduan untuk AI agent dan kontributor (struktur repo, perintah, aturan kode, area sensitif)
+  - `ARCHITECTURE.md` — arsitektur sistem (request pipeline, auth, sync, S3 layer, deployment)
+  - `SCHEMA.md` — referensi skema database D1 (tabel, relasi, migrasi, KV store)
+  - `DESIGN.md` — design system frontend (token warna, layout, komponen, pola interaksi)
+
+### Changed
+
+- **Production deploy (Cloudflare):** D1/KV resource akun `asmaraputra`, `wrangler.toml` + `.env.production` diarahkan ke Worker (`omnidrive-api.asmara-putra.workers.dev`) dan Pages (`omnidrive-ajm.pages.dev`)
+- **Google Drive move:** perbaikan logika move file/folder di `google-drive.ts` beserta test
+
+### Notes
+
+- Fork dari [`abilfida/OmniDrive`](https://github.com/abilfida/OmniDrive) v0.9.7
+- Maintainer: `asmaraputra` — remote `origin` → `asmaraputra/OmniDrive`
+- Upstream opsional: `abilfida/OmniDrive` via `git fetch upstream`
+
 ## [0.9.7] - 2026-06-24
 
 ### Fixed

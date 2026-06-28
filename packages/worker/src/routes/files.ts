@@ -374,13 +374,14 @@ filesRouter.post('/upload/init', async (c) => {
   const router = new UploadRouter(drives);
   const targetDrive = router.selectDriveForUpload(size);
 
-  // 3. Get token for target drive
-  const tokenJson = await c.env.KV.get(`tokens:${targetDrive.id}`);
-  if (!tokenJson) throw new AppError(401, 'Drive token missing');
-  const tokens = JSON.parse(tokenJson);
+  const gDrive = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+  const accessToken = await gDrive.getValidToken(targetDrive.id);
 
-  // 4. Create resumable upload session in Google Drive
-  const driveService = new DriveService(c.env, targetDrive.id, tokens);
+  const driveService = new DriveService(c.env, targetDrive.id, {
+    accessToken,
+    refreshToken: '',
+    expiresAt: Date.now() + 3_600_000,
+  });
   
   // Note: we place it in root or a specific Omnidrive hidden folder inside Google Drive.
   // For simplicity, we just put it in root of that specific Drive.

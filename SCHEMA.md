@@ -1,0 +1,413 @@
+# SCHEMA.md — Database Schema (Cloudflare D1)
+
+Database OmniDrive menggunakan **Cloudflare D1** (SQLite). Skema master ada di `packages/worker/src/db/schema.sql`. Migrasi incremental: `0001`–`0006`.
+
+## Diagram Relasi
+
+```mermaid
+erDiagram
+    users ||--o{ drive_accounts : owns
+    users ||--o{ workspaces : owns
+    users ||--o{ workspace_members : joins
+    users ||--o{ files : owns
+    users ||--o{ shared_links : creates
+    users ||--o{ automation_rules : creates
+    users ||--o{ s3_credentials : generates
+    users ||--o{ audit_logs : acts
+
+    workspaces ||--o{ workspace_members : has
+    workspaces ||--o{ workspace_folders : contains
+    workspaces ||--o{ workspace_policies : governs
+    workspaces ||--o{ files : scopes
+    workspaces ||--o{ s3_multipart_uploads : receives
+
+    drive_accounts ||--o{ drive_folders : mirrors
+    drive_accounts ||--o{ files : stores
+    drive_accounts ||--|| sync_state : tracks
+    drive_accounts ||--o{ s3_multipart_uploads : buffers
+
+    workspace_folders ||--o{ workspace_folders : parent_child
+    workspace_folders ||--o{ files : organizes
+
+    shared_links ||--o{ shared_link_logs : logs
+    automation_rules ||--o{ automation_logs : logs
+    s3_multipart_uploads ||--o{ s3_multipart_parts : parts
+```
+
+## Tabel
+
+### `users`
+
+Akun lokal dan Google OAuth.
+
+| Kolom | Tipe | Keterangan |
+|-------|------|------------|
+| `id` | TEXT PK | UUID |
+| `username` | TEXT UNIQUE | Login username |
+| `password_hash` | TEXT | bcrypt hash; `'oauth_only_user'` untuk user OAuth-only |
+| `google_id` | TEXT UNIQUE | Google subject ID (nullable) |
+| `email` | TEXT UNIQUE | Email (nullable) |
+| `name` | TEXT | Display name |
+| `avatar_url` | TEXT | URL avatar |
+| `is_super_admin` | INTEGER | `1` = super admin, `0` = member |
+| `created_at` | TEXT | ISO datetime |
+| `updated_at` | TEXT | ISO datetime |
+
+**Role global**: `super_admin` | `member` (di session, bukan kolom terpisah selain `is_super_admin`).
+
+---
+
+### `drive_accounts`
+
+Akun Google Drive yang terhubung per user.
+
+| Kolom | Tipe | Keterangan |
+|-------|------|------------|
+| `id` | TEXT PK | UUID |
+| `user_id` | TEXT FK → users | Pemilik |
+| `google_account_id` | TEXT | ID akun Google |
+| `email` | TEXT | Email akun Drive |
+| `name` | TEXT | Nama tampilan |
+| `type` | TEXT | `'oauth'` atau `'service_account'` |
+| `is_primary` | INTEGER | Drive utama |
+| `root_folder_id` | TEXT | Folder root (shared drive / subfolder) |
+| `total_quota` | INTEGER | Kuota total (bytes) |
+| `used_quota` | INTEGER | Kuota terpakai (bytes) |
+| `quota_updated_at` | TEXT | Terakhir update kuota |
+| `created_at` | TEXT | |
+
+**Unique**: `(user_id, google_account_id)`
+
+---
+
+### `drive_folders`
+
+Mirror struktur folder Google Drive (read-only cache).
+
+| Kolom | Tipe | Keterangan |
+|-------|------|------------|
+| `id` | TEXT PK | |
+| `drive_account_id` | TEXT FK | |
+| `google_folder_id` | TEXT | ID folder di Google |
+| `google_parent_id` | TEXT | Parent di Google |
+| `name` | TEXT | |
+| `is_synced` | INTEGER | Status sync |
+| `synced_at` | TEXT | |
+
+**Unique**: `(drive_account_id, google_folder_id)`
+
+---
+
+### `workspaces`
+
+Ruang kolaborasi tim (menggantikan virtual folders).
+
+| Kolom | Tipe | Keterangan |
+|-------|------|------------|
+| `id` | TEXT PK | Juga digunakan sebagai **S3 bucket name** |
+| `name` | TEXT | Nama workspace |
+| `owner_id` | TEXT FK → users | |
+| `used_bytes` | INTEGER | Pemakaian storage |
+| `sync_ttl_minutes` | INTEGER | Default `5` — TTL cache sync |
+| `created_at` | TEXT | |
+| `updated_at` | TEXT | |
+
+---
+
+### `workspace_members`
+
+Keanggotaan dan RBAC workspace.
+
+| Kolom | Tipe | Keterangan |
+|-------|------|------------|
+| `id` | TEXT PK | |
+| `workspace_id` | TEXT FK | |
+| `user_id` | TEXT FK | |
+| `role` | TEXT | `viewer`, `commenter`, `editor`, `manager`, `auditor`, `owner` |
+| `joined_at` | TEXT | |
+
+**Unique**: `(workspace_id, user_id)`
+
+**Hierarki role** (tinggi → rendah): `owner` > `manager` > `auditor` > `editor` > `commenter` > `viewer`
+
+---
+
+### `workspace_folders`
+
+Struktur folder internal OmniDrive (bukan folder Google).
+
+| Kolom | Tipe | Keterangan |
+|-------|------|------------|
+| `id` | TEXT PK | |
+| `workspace_id` | TEXT FK | |
+| `name` | TEXT | |
+| `parent_id` | TEXT FK → self | Nullable = root |
+| `icon` | TEXT | Emoji/icon |
+| `color` | TEXT | Warna label |
+| `is_starred` | INTEGER | |
+| `metadata` | TEXT | JSON string, default `'{}'` |
+| `last_synced_at` | TEXT | |
+| `sync_status` | TEXT | `idle`, `syncing`, dll. |
+| `created_at` | TEXT | |
+| `updated_at` | TEXT | |
+
+**Unique**: `(workspace_id, parent_id, name)`
+
+---
+
+### `files`
+
+Metadata file yang disinkronkan dari Google Drive.
+
+| Kolom | Tipe | Keterangan |
+|-------|------|------------|
+| `id` | TEXT PK | |
+| `user_id` | TEXT FK | |
+| `drive_account_id` | TEXT FK | |
+| `google_file_id` | TEXT | ID file di Google |
+| `workspace_id` | TEXT FK | Nullable — file di workspace |
+| `workspace_folder_id` | TEXT FK | Nullable |
+| `google_parent_id` | TEXT | Parent folder di Google |
+| `name` | TEXT | |
+| `mime_type` | TEXT | |
+| `size` | INTEGER | Bytes |
+| `thumbnail_url` | TEXT | |
+| `web_view_link` | TEXT | |
+| `web_content_link` | TEXT | |
+| `is_trashed` | INTEGER | |
+| `is_starred` | INTEGER | |
+| `metadata` | TEXT | JSON custom metadata |
+| `google_created_at` | TEXT | |
+| `google_modified_at` | TEXT | |
+| `last_synced_at` | TEXT | |
+| `sync_status` | TEXT | |
+| `synced_at` | TEXT | |
+| `created_at` | TEXT | |
+| `updated_at` | TEXT | |
+
+**Unique**: `(drive_account_id, google_file_id)`
+
+**Indeks**: `user_id+workspace_id`, `workspace_folder_id`, `drive_account_id`, `name`, `google_parent_id`
+
+---
+
+### `sync_state`
+
+State sinkronisasi per drive account.
+
+| Kolom | Tipe | Keterangan |
+|-------|------|------------|
+| `drive_account_id` | TEXT PK FK | |
+| `change_token` | TEXT | Google Changes API token |
+| `next_page_token` | TEXT | Checkpoint pagination (resume-able sync) |
+| `last_synced_at` | TEXT | |
+| `status` | TEXT | `idle`, `syncing`, `error` |
+| `error_message` | TEXT | |
+
+---
+
+### `shared_links`
+
+Tautan berbagi file/folder publik.
+
+| Kolom | Tipe | Keterangan |
+|-------|------|------------|
+| `id` | TEXT PK | |
+| `user_id` | TEXT FK | Pemilik |
+| `target_type` | TEXT | `'file'` atau `'folder'` |
+| `target_id` | TEXT | ID target |
+| `password_hash` | TEXT | Opsional |
+| `expires_at` | TEXT | |
+| `allow_downloads` | INTEGER | Default `1` |
+| `allow_uploads` | INTEGER | Default `0` |
+| `max_downloads` | INTEGER | |
+| `require_email` | INTEGER | |
+| `webhook_url` | TEXT | Callback setelah akses |
+| `view_count` | INTEGER | |
+| `download_count` | INTEGER | |
+| `created_at` | TEXT | |
+
+---
+
+### `shared_link_logs`
+
+Log akses shared link.
+
+| Kolom | Tipe | Keterangan |
+|-------|------|------------|
+| `id` | INTEGER PK AUTO | |
+| `shared_link_id` | TEXT FK | |
+| `action` | TEXT | `view`, `download`, dll. |
+| `visitor_email` | TEXT | |
+| `created_at` | TEXT | |
+
+---
+
+### `automation_rules`
+
+Aturan automasi file.
+
+| Kolom | Tipe | Keterangan |
+|-------|------|------------|
+| `id` | TEXT PK | |
+| `user_id` | TEXT FK | |
+| `name` | TEXT | |
+| `trigger_type` | TEXT | Jenis trigger |
+| `trigger_config` | TEXT | JSON |
+| `conditions` | TEXT | JSON |
+| `actions` | TEXT | JSON |
+| `is_active` | INTEGER | |
+| `created_at` | TEXT | |
+| `updated_at` | TEXT | |
+
+---
+
+### `automation_logs`
+
+Log eksekusi automasi.
+
+| Kolom | Tipe | Keterangan |
+|-------|------|------------|
+| `id` | TEXT PK | |
+| `rule_id` | TEXT FK | |
+| `status` | TEXT | `success`, `failed`, dll. |
+| `details` | TEXT | JSON |
+| `executed_at` | TEXT | |
+
+---
+
+### `audit_logs`
+
+Audit trail aksi workspace.
+
+| Kolom | Tipe | Keterangan |
+|-------|------|------------|
+| `id` | TEXT PK | |
+| `workspace_id` | TEXT FK | Nullable |
+| `actor_id` | TEXT FK → users | |
+| `action_type` | TEXT | |
+| `resource_id` | TEXT | |
+| `resource_name` | TEXT | |
+| `metadata` | TEXT | JSON |
+| `created_at` | TEXT | |
+
+Retensi: dibersihkan otomatis setelah 30 hari (cron).
+
+---
+
+### `workspace_policies`
+
+Kebijakan kuota dan retensi data.
+
+| Kolom | Tipe | Keterangan |
+|-------|------|------------|
+| `id` | TEXT PK | |
+| `workspace_id` | TEXT FK | |
+| `target_type` | TEXT | `'workspace'` atau `'folder'` |
+| `target_id` | TEXT FK | Folder target (nullable) |
+| `policy_type` | TEXT | `'storage_quota'` atau `'data_retention'` |
+| `config` | TEXT | JSON konfigurasi |
+| `created_at` | TEXT | |
+| `updated_at` | TEXT | |
+
+---
+
+### `invitation_codes`
+
+Kode undangan registrasi user baru.
+
+| Kolom | Tipe | Keterangan |
+|-------|------|------------|
+| `id` | TEXT PK | |
+| `code` | TEXT UNIQUE | |
+| `created_by` | TEXT FK → users | |
+| `max_uses` | INTEGER | Default `1` |
+| `used_count` | INTEGER | |
+| `expires_at` | TEXT | |
+| `created_at` | TEXT | |
+
+---
+
+### `s3_credentials`
+
+Kredensial API key kompatibel S3 per user.
+
+| Kolom | Tipe | Keterangan |
+|-------|------|------------|
+| `id` | TEXT PK | |
+| `user_id` | TEXT FK | |
+| `access_key_id` | TEXT UNIQUE | Prefix `OMNI...` |
+| `secret_key_enc` | TEXT | Secret terenkripsi |
+| `description` | TEXT | Label user |
+| `workspace_id` | TEXT FK | `NULL` = global; terisi = scoped ke workspace |
+| `created_at` | TEXT | |
+
+---
+
+### `s3_multipart_uploads`
+
+Upload multipart aktif (buffer di Google Drive).
+
+| Kolom | Tipe | Keterangan |
+|-------|------|------------|
+| `upload_id` | TEXT PK | |
+| `user_id` | TEXT FK | |
+| `workspace_id` | TEXT FK | Bucket/workspace |
+| `key` | TEXT | Object key |
+| `drive_account_id` | TEXT FK | Drive untuk buffer |
+| `temp_folder_id` | TEXT | Folder temp di Google Drive |
+| `created_at` | TEXT | |
+
+---
+
+### `s3_multipart_parts`
+
+Part individual dari multipart upload.
+
+| Kolom | Tipe | Keterangan |
+|-------|------|------------|
+| `upload_id` | TEXT FK | |
+| `part_number` | INTEGER | |
+| `google_file_id` | TEXT | File part di Drive |
+| `etag` | TEXT | MD5 hex |
+| `size` | INTEGER | |
+| `created_at` | TEXT | |
+
+**PK**: `(upload_id, part_number)`
+
+---
+
+## Migrasi Incremental
+
+| File | Perubahan |
+|------|-----------|
+| `0001_add_local_auth_migration.sql` | Tambah `username`, `password_hash` ke users |
+| `0002_enterprise_workspace_phase1.sql` | Tabel workspace, members, policies, audit |
+| `0003_enterprise_workspace_phase2.sql` | Workspace folders, metadata files |
+| `0004_enterprise_workspace_phase3.sql` | Search indexes, invitation codes |
+| `0005_add_workspace_id_to_s3_credentials.sql` | Kolom `workspace_id` di s3_credentials |
+| `0006_add_sync_cache_columns.sql` | `sync_ttl_minutes`, `last_synced_at`, `sync_status` |
+
+## Perintah Database
+
+```bash
+# Apply schema (fresh install)
+make db-migrate-local     # development
+make db-migrate-remote    # production
+
+# Factory reset (hapus semua data)
+make reset-local
+make reset-remote
+```
+
+## KV Store (Bukan D1)
+
+Session dan OAuth token disimpan di **Cloudflare KV**, bukan D1:
+
+| Key pattern | Isi |
+|-------------|-----|
+| `session:{cookieId}` | JSON `SessionData` (7-day sliding TTL) |
+| `oauth:{state}` | PKCE state + redirect info |
+| `tokens:{driveAccountId}` | OAuth tokens terenkripsi AES-256-GCM |
+
+Lihat `packages/worker/src/services/auth.service.ts` dan `packages/worker/src/lib/crypto.ts`.
