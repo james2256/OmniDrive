@@ -21,12 +21,25 @@ export function SettingsPage() {
   const { drives, fetchDrives, removeDrive, triggerSync } = useDriveStore();
   const { addToast } = useToastStore();
   const [showSaForm, setShowSaForm] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [saCredentials, setSaCredentials] = useState('');
   const [saFolderId, setSaFolderId] = useState('');
 
   const [s3Keys, setS3Keys] = useState<any[]>([]);
   const [workspaces, setWorkspaces] = useState<any[]>([]);
   const [loadingS3, setLoadingS3] = useState(false);
+
+  const handleConnectDrive = async () => {
+    if (isConnecting) return;
+    setIsConnecting(true);
+    try {
+      const { url } = await api.getDriveConnectUrl();
+      window.location.href = url;
+    } catch (e) {
+      setIsConnecting(false);
+      addToast('error', e instanceof Error ? e.message : 'Failed to start Google OAuth');
+    }
+  };
 
   // Form states for creating a key
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -203,13 +216,13 @@ export function SettingsPage() {
       <div>
         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Add Drive</h2>
         <div className="flex gap-3 flex-wrap">
-          <a
-            href={`${import.meta.env.VITE_API_URL ?? ''}/api/drives/connect`}
-            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium text-sm no-underline"
-            style={{ textDecoration: 'none' }}
+          <button
+            onClick={handleConnectDrive}
+            disabled={isConnecting}
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium text-sm disabled:opacity-60"
           >
-            <Plus size={18} /> Add Google Drive
-          </a>
+            {isConnecting ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />} Add Google Drive
+          </button>
           <button
             className="flex items-center gap-2 px-4 py-2.5 bg-white text-gray-700 rounded-xl border border-gray-300 hover:bg-gray-50 transition-colors font-medium text-sm"
             onClick={() => setShowSaForm(!showSaForm)}

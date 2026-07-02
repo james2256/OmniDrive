@@ -35,6 +35,11 @@ export const api = {
   login: (data: any) => request<{ success: boolean; user: import('../types').User }>('/api/auth/login', { method: 'POST', body: JSON.stringify(data) }),
   register: (data: any) => request<{ success: boolean; user: import('../types').User }>('/api/auth/register', { method: 'POST', body: JSON.stringify(data) }),
   getUser: () => request<{ user: import('../types').User }>('/api/auth/me'),
+  // OAuth initiation: backend returns the Google auth URL as JSON (the SPA
+  // performs the redirect). Called via credentialed fetch so the session
+  // cookie is sent; the backend stores userId in the KV OAuth state.
+  getGoogleOAuthUrl: () => request<{ url: string }>('/api/auth/google'),
+  getDriveConnectUrl: () => request<{ url: string }>('/api/drives/connect'),
   logout: () => request<{ success: boolean }>('/api/auth/logout', { method: 'POST' }),
 
   getInvitations: () => request<{ invitations: any[] }>('/api/admin/invitations'),

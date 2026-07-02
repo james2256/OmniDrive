@@ -88,12 +88,17 @@ authRouter.post('/login', async (c) => {
   return c.json({ success: true, user: sessionData });
 });
 
-// Protected routes below
-authRouter.use('*', authGuard);
-
-authRouter.get('/google', async (c) => {
+// Initiates Google OAuth. Called via credentialed fetch from the SPA: the
+// session cookie IS sent on a cross-site fetch (that's how /api/auth/me
+// works) but is NOT reliably sent on a cross-site top-level navigation, so
+// the frontend must not use an <a href> here. Returns the Google auth URL as
+// JSON and the SPA performs the redirect. The userId is carried in the
+// server-side OAuth state (KV) so /callback can link the Drive without
+// depending on the session cookie surviving the Google round-trip.
+authRouter.get('/google', authGuard, async (c) => {
   const env = c.env;
-  
+  const userId = c.get('userId');
+
   if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
     throw new AppError(400, 'Google OAuth is not configured. Please login with username and password.');
   }
@@ -112,8 +117,9 @@ authRouter.get('/google', async (c) => {
   const state = crypto.randomUUID();
   const { codeVerifier, codeChallenge } = await generatePKCE();
 
-  // Store state + PKCE verifier in KV (10-min TTL)
-  await env.KV.put(`oauth_state:${state}`, JSON.stringify({ codeVerifier }), { expirationTtl: 600 });
+  // Store state + PKCE verifier + userId in KV (10-min TTL). The userId is
+  // read back in /callback so the Drive link survives the cross-site redirect.
+  await env.KV.put(`oauth_state:${state}`, JSON.stringify({ codeVerifier, userId }), { expirationTtl: 600 });
   const isSecure = env.WORKER_URL.startsWith('https://');
   setCookie(c, 'oauth_state', state, { path: '/', httpOnly: true, secure: isSecure, sameSite: isSecure ? 'None' : 'Lax', maxAge: 60 * 5 });
 
@@ -121,25 +127,35 @@ authRouter.get('/google', async (c) => {
   authUrl.searchParams.append('code_challenge', codeChallenge);
   authUrl.searchParams.append('code_challenge_method', 'S256');
 
-  return c.redirect(authUrl.toString());
+  return c.json({ url: authUrl.toString() });
 });
 
+// OAuth callback — a top-level navigation arriving back from Google. The
+// session cookie is NOT reliably sent on this cross-site redirect, so the
+// linking user is read from the KV OAuth state (set during the credentialed
+// /google fetch), NOT from c.get('userId'). The KV state is single-use and
+// unguessable, which is the real CSRF protection; the oauth_state cookie is
+// only enforced as an extra check when the browser happens to send it.
 authRouter.get('/callback', async (c) => {
   const code = c.req.query('code');
   if (!code) throw new AppError(400, 'Authorization code missing');
 
   const state = c.req.query('state');
+  if (!state) throw new AppError(400, 'Missing state parameter');
   const savedState = getCookie(c, 'oauth_state');
-  if (!state || state !== savedState) {
+  deleteCookie(c, 'oauth_state', { path: '/' });
+  if (savedState && state !== savedState) {
     throw new AppError(400, 'Invalid state parameter');
   }
-  deleteCookie(c, 'oauth_state', { path: '/' });
 
-  // Retrieve PKCE verifier from KV
+  // Retrieve PKCE verifier + userId from KV (authoritative single-use state)
   const stateDataJson = await c.env.KV.get(`oauth_state:${state}`);
   if (!stateDataJson) throw new AppError(400, 'OAuth state expired');
   const stateData = JSON.parse(stateDataJson);
   await c.env.KV.delete(`oauth_state:${state}`);
+
+  const targetUserId = stateData.userId;
+  if (!targetUserId) throw new AppError(400, 'OAuth session expired — please reconnect your Google account.');
 
   const env = c.env;
   const redirectUri = `${env.WORKER_URL}/api/auth/callback`;
@@ -148,7 +164,6 @@ authRouter.get('/callback', async (c) => {
   const tokens = await authService.exchangeCodeForTokens(code, redirectUri, stateData.codeVerifier);
   const googleUser = await authService.fetchUserInfo(tokens.accessToken);
 
-  const targetUserId = c.get('userId');
   const db = env.DB;
 
   await db.prepare('UPDATE users SET google_id = ? WHERE id = ?')
@@ -180,11 +195,11 @@ authRouter.get('/callback', async (c) => {
   return c.redirect(`${env.FRONTEND_URL}/`);
 });
 
-authRouter.get('/me', (c) => {
+authRouter.get('/me', authGuard, (c) => {
   return c.json({ user: c.get('session') });
 });
 
-authRouter.post('/logout', async (c) => {
+authRouter.post('/logout', authGuard, async (c) => {
   const sid = getCookie(c, 'omnidrive_sid');
   if (sid) {
     await c.env.KV.delete(`session:${sid}`);

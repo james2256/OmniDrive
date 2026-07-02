@@ -34,6 +34,7 @@ export function FilesPage() {
   const [moveDriveFiles, setMoveDriveFiles] = useState<FileEntry[]>([]);
   const [workspaceTarget, setWorkspaceTarget] = useState<FileEntry | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isConnecting, setIsConnecting] = useState(false);
   const { viewMode, setViewMode, isInfoPanelOpen, toggleInfoPanel, setIsInfoPanelOpen } = useUIStore();
   const { clearSelection, toggleSelection, selectedItems } = useSelectionStore();
 
@@ -41,6 +42,18 @@ export function FilesPage() {
     clearSelection();
     toggleSelection({ type, item } as SelectedItem);
     setIsInfoPanelOpen(true);
+  };
+
+  const handleConnectGoogle = async () => {
+    if (isConnecting) return;
+    setIsConnecting(true);
+    try {
+      const { url } = await api.getGoogleOAuthUrl();
+      window.location.href = url;
+    } catch (e) {
+      setIsConnecting(false);
+      addToast('error', e instanceof Error ? e.message : 'Failed to start Google OAuth');
+    }
   };
 
   const { fetchSharedLinks, isTargetShared } = useSharedStore();
@@ -180,9 +193,13 @@ export function FilesPage() {
             </div>
             <h3 className="text-lg font-medium text-gray-900 mb-2">No Google Drive Connected</h3>
             <p className="mb-6 max-w-sm text-center">You need to connect at least one Google Drive account to start using OmniDrive.</p>
-            <a href={`${import.meta.env.VITE_API_URL || ''}/api/auth/google`} className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow-sm transition-colors">
-              Connect Google Drive Now
-            </a>
+            <button
+              onClick={handleConnectGoogle}
+              disabled={isConnecting}
+              className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow-sm transition-colors disabled:opacity-60"
+            >
+              {isConnecting ? 'Connecting…' : 'Connect Google Drive Now'}
+            </button>
           </div>
         ) : (
           <div className="flex-1 overflow-auto bg-white rounded-lg border border-gray-200 m-4 shadow-sm">

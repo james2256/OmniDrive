@@ -41,9 +41,14 @@ export const drivesRouter = new Hono<AppContext>({ strict: false });
 
 drivesRouter.use('*', authGuard);
 
+// Returns the Google OAuth URL as JSON (called via credentialed fetch from
+// the SPA). userId is carried in the KV OAuth state so /api/auth/callback
+// can link the Drive without relying on the session cookie across the
+// cross-site Google redirect. See auth.ts /google for the matching flow.
 drivesRouter.get('/connect', async (c) => {
   const env = c.env;
-  
+  const userId = c.get('userId');
+
   if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
     throw new AppError(400, 'Google OAuth is not configured. Please use a Service Account JSON to connect your drives.');
   }
@@ -62,14 +67,14 @@ drivesRouter.get('/connect', async (c) => {
   const state = crypto.randomUUID();
   const { codeVerifier, codeChallenge } = await generatePKCE();
 
-  await env.KV.put(`oauth_state:${state}`, JSON.stringify({ codeVerifier }), { expirationTtl: 600 });
+  await env.KV.put(`oauth_state:${state}`, JSON.stringify({ codeVerifier, userId }), { expirationTtl: 600 });
   setCookie(c, 'oauth_state', state, { path: '/', httpOnly: true, secure: true, maxAge: 60 * 5 });
   
   authUrl.searchParams.append('state', state);
   authUrl.searchParams.append('code_challenge', codeChallenge);
   authUrl.searchParams.append('code_challenge_method', 'S256');
 
-  return c.redirect(authUrl.toString());
+  return c.json({ url: authUrl.toString() });
 });
 
 drivesRouter.get('/', async (c) => {
