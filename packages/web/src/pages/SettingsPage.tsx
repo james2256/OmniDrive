@@ -233,8 +233,9 @@ export function SettingsPage() {
       </div>
 
       {/* Service Account Form */}
-      {showSaForm && (
-        <div className="bg-white border border-gray-200 rounded-2xl p-5">
+      <div className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${showSaForm ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+        <div className="overflow-hidden">
+          <div className="bg-white border border-gray-200 rounded-2xl p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-base font-semibold text-gray-800">Add Service Account</h3>
             <button
@@ -287,8 +288,9 @@ export function SettingsPage() {
               </button>
             </div>
           </form>
+          </div>
         </div>
-      )}
+      </div>
 
       {/* Section: S3 API Keys */}
       <div className="border-t border-gray-200 pt-6">

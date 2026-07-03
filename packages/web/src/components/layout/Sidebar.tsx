@@ -16,77 +16,83 @@ import {
 import { SidebarStorage } from './SidebarStorage';
 import pkg from '../../../../../package.json';
 
-const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-  `flex items-center gap-3 px-4 py-2 rounded-full cursor-pointer transition-colors text-sm ${
-    isActive ? 'bg-blue-100 text-gray-900 font-medium' : 'hover:bg-gray-100 text-gray-700'
-  }`;
-
 export const Sidebar: React.FC = () => {
   const isSidebarOpen = useUIStore((state) => state.isSidebarOpen);
   const { user } = useAuthStore();
 
-  if (!isSidebarOpen) return null;
+  // Padding stays identical in both states so icons never shift position;
+  // the aside just clips/reveals the fixed-width content like a curtain.
+  const navLinkClass = ({ isActive }: { isActive: boolean }) =>
+    `flex items-center gap-3 px-4 py-2 rounded-full cursor-pointer transition-colors text-sm ${
+      isActive ? 'bg-blue-100 text-gray-900 font-medium' : 'hover:bg-gray-100 text-gray-700'
+    }`;
 
   return (
-    <aside className="w-64 bg-surface h-full flex flex-col p-3 gap-1 flex-shrink-0">
+    <aside
+      className={`bg-surface h-full flex-shrink-0 overflow-hidden transition-[width] duration-300 ease-in-out ${
+        isSidebarOpen ? 'w-64' : 'w-16'
+      }`}
+    >
+      {/* Fixed-width inner wrapper so icons stay put while the aside width animates */}
+      <div className="w-64 h-full flex flex-col p-3 gap-1">
 
-
-      {/* Navigation */}
-      <nav className="flex flex-col gap-0.5">
-        <NavLink to="/" end className={navLinkClass}>
-          <Home size={20} />
-          <span>Home</span>
-        </NavLink>
-        <NavLink to="/files/root" className={navLinkClass}>
-          <HardDrive size={20} />
-          <span>My Drive</span>
-        </NavLink>
-        <NavLink to="/starred" className={navLinkClass}>
-          <Star size={20} />
-          <span>Starred</span>
-        </NavLink>
-        <NavLink to="/shared" className={navLinkClass}>
-          <Users size={20} />
-          <span>Shared</span>
-        </NavLink>
-        <NavLink to="/workspaces" className={navLinkClass}>
-          <FolderTree size={20} />
-          <span>Workspaces</span>
-        </NavLink>
-        <NavLink to="/trash" className={navLinkClass}>
-          <Trash2 size={20} />
-          <span>Trash</span>
-        </NavLink>
-        {user?.role === 'super_admin' && (
-          <NavLink to="/admin/users" className={navLinkClass}>
-            <UserCog size={20} />
-            <span>Users</span>
+        {/* Navigation */}
+        <nav className="flex flex-col gap-0.5">
+          <NavLink to="/" end className={navLinkClass}>
+            <Home size={20} />
+            {isSidebarOpen && <span>Home</span>}
           </NavLink>
-        )}
-        <NavLink to="/settings" className={navLinkClass}>
-          <Settings size={20} />
-          <span>Settings</span>
-        </NavLink>
-      </nav>
+          <NavLink to="/files/root" className={navLinkClass}>
+            <HardDrive size={20} />
+            {isSidebarOpen && <span>My Drive</span>}
+          </NavLink>
+          <NavLink to="/starred" className={navLinkClass}>
+            <Star size={20} />
+            {isSidebarOpen && <span>Starred</span>}
+          </NavLink>
+          <NavLink to="/shared" className={navLinkClass}>
+            <Users size={20} />
+            {isSidebarOpen && <span>Shared</span>}
+          </NavLink>
+          <NavLink to="/workspaces" className={navLinkClass}>
+            <FolderTree size={20} />
+            {isSidebarOpen && <span>Workspaces</span>}
+          </NavLink>
+          <NavLink to="/trash" className={navLinkClass}>
+            <Trash2 size={20} />
+            {isSidebarOpen && <span>Trash</span>}
+          </NavLink>
+          {user?.role === 'super_admin' && (
+            <NavLink to="/admin/users" className={navLinkClass}>
+              <UserCog size={20} />
+              {isSidebarOpen && <span>Users</span>}
+            </NavLink>
+          )}
+          <NavLink to="/settings" className={navLinkClass}>
+            <Settings size={20} />
+            {isSidebarOpen && <span>Settings</span>}
+          </NavLink>
+        </nav>
 
-      {/* Spacer */}
-      <div className="flex-1" />
+        {/* Spacer */}
+        <div className="flex-1" />
 
-      {/* Storage quota */}
-      <SidebarStorage />
+        {/* Storage quota — hidden in collapsed rail */}
+        {isSidebarOpen && <SidebarStorage />}
 
-      {/* Version and Links */}
-      <div className="mt-4 px-3 flex items-center justify-between text-xs text-gray-400">
-        <a 
-          href={pkg.repository.url.replace('.git', '')} 
-          target="_blank" 
-          rel="noopener noreferrer"
-          className="flex items-center gap-1.5 hover:text-gray-600 transition-colors"
-        >
-          <Github size={14} />
-          <span>GitHub</span>
-        </a>
-        <span>v{pkg.version}</span>
+        {/* Version and Links */}
+        <div className="mt-4 px-3 flex items-center justify-between text-xs text-gray-400">
+          <a
+            href={pkg.repository.url.replace('.git', '')}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 hover:text-gray-600 transition-colors"
+          >
+            <Github size={14} />
+            {isSidebarOpen && <span>GitHub</span>}
+          </a>
+          {isSidebarOpen && <span>v{pkg.version}</span>}
+        </div>
       </div>
     </aside>
   );

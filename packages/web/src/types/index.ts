@@ -144,6 +144,7 @@ export interface Toast {
   id: string;
   type: ToastType;
   message: string;
+  removing?: boolean;
 }
 
 export interface AuditLog {

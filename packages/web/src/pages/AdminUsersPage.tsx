@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../stores/authStore';
-import { ShieldAlert, Plus, MoreVertical, X } from 'lucide-react';
+import { ShieldAlert, Plus, MoreVertical } from 'lucide-react';
 import type { User } from '../types';
 import { api } from '../lib/api';
 import {
@@ -18,7 +18,7 @@ import {
   DialogTitle,
 } from '../components/ui/dialog';
 
-const AddUserModal: React.FC<{ onClose: () => void, onSuccess: () => void }> = ({ onClose, onSuccess }) => {
+const AddUserModal: React.FC<{ open: boolean, onClose: () => void, onSuccess: () => void }> = ({ open, onClose, onSuccess }) => {
   const [username, setUsername] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -26,14 +26,6 @@ const AddUserModal: React.FC<{ onClose: () => void, onSuccess: () => void }> = (
   const [role, setRole] = useState<'super_admin' | 'member'>('member');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,13 +48,10 @@ const AddUserModal: React.FC<{ onClose: () => void, onSuccess: () => void }> = (
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h3 className="text-lg font-medium text-gray-900">Add User</h3>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full text-gray-500">
-            <X size={20} />
-          </button>
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md p-0 gap-0 rounded-2xl overflow-hidden">
+        <div className="flex items-center px-6 py-4 border-b border-gray-100 shrink-0">
+          <DialogTitle className="text-lg font-medium text-gray-900">Add User</DialogTitle>
         </div>
         <form onSubmit={handleSubmit} className="p-6">
           {error && <div className="mb-4 text-sm text-red-600 bg-red-50 p-2 rounded">{error}</div>}
@@ -92,12 +81,12 @@ const AddUserModal: React.FC<{ onClose: () => void, onSuccess: () => void }> = (
             </div>
           </div>
           <div className="mt-6 flex justify-end gap-3">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 border rounded-md">Cancel</button>
-            <button type="submit" disabled={loading} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50">Create</button>
+            <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 border rounded-md transition-colors">Cancel</button>
+            <button type="submit" disabled={loading} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50 transition-colors">Create</button>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 
@@ -338,15 +327,14 @@ export const AdminUsersPage: React.FC = () => {
         )}
       </div>
 
-      {isAddUserModalOpen && (
-        <AddUserModal
-          onClose={() => setIsAddUserModalOpen(false)}
-          onSuccess={() => {
-            setIsAddUserModalOpen(false);
-            loadUsers();
-          }}
-        />
-      )}
+      <AddUserModal
+        open={isAddUserModalOpen}
+        onClose={() => setIsAddUserModalOpen(false)}
+        onSuccess={() => {
+          setIsAddUserModalOpen(false);
+          loadUsers();
+        }}
+      />
 
       <Dialog open={!!userToDelete} onOpenChange={(open) => !open && setUserToDelete(null)}>
         <DialogContent>

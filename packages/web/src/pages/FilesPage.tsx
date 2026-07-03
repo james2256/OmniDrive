@@ -221,43 +221,39 @@ export function FilesPage() {
           </div>
         )}
 
-        {/* Modals */}
-        {showModal && <UploadModal folderId={folderId} onClose={() => setShowModal(false)} onSuccess={() => { setShowModal(false); refresh(); }} />}
-        {previewFile && <FilePreviewModal file={previewFile} onClose={() => setPreviewFile(null)} />}
-        {shareTarget && (
-          <ShareModal
-            targetType={shareTarget.type}
-            targetId={shareTarget.id}
-            onClose={() => setShareTarget(null)}
-          />
-        )}
-        {moveDriveFiles.length > 0 && (
-          <MoveDriveModal
-            files={moveDriveFiles}
-            onClose={() => setMoveDriveFiles([])}
-            onSuccess={() => {
-              setMoveDriveFiles([]);
-              clearSelection();
-              refresh();
-            }}
-            onError={(err) => {
-              console.error(err);
-              addToast('error', 'Failed to move file(s)');
-              setMoveDriveFiles([]);
-            }}
-          />
-        )}
-        {workspaceTarget && (
-          <AddToWorkspaceModal
-            file={workspaceTarget}
-            onClose={() => setWorkspaceTarget(null)}
-            onSuccess={() => {
-              setWorkspaceTarget(null);
-              addToast('success', 'Added to workspace');
-              refresh();
-            }}
-          />
-        )}
+        {/* Modals — always mounted so Radix Dialog can play enter/exit animations */}
+        <UploadModal open={showModal} folderId={folderId} onClose={() => setShowModal(false)} onSuccess={() => { setShowModal(false); refresh(); }} />
+        <FilePreviewModal open={!!previewFile} file={previewFile ?? undefined} onClose={() => setPreviewFile(null)} />
+        <ShareModal
+          open={!!shareTarget}
+          targetType={shareTarget?.type ?? 'file'}
+          targetId={shareTarget?.id ?? ''}
+          onClose={() => setShareTarget(null)}
+        />
+        <MoveDriveModal
+          files={moveDriveFiles}
+          onClose={() => setMoveDriveFiles([])}
+          onSuccess={() => {
+            setMoveDriveFiles([]);
+            clearSelection();
+            refresh();
+          }}
+          onError={(err) => {
+            console.error(err);
+            addToast('error', 'Failed to move file(s)');
+            setMoveDriveFiles([]);
+          }}
+        />
+        <AddToWorkspaceModal
+          open={!!workspaceTarget}
+          file={workspaceTarget ?? undefined}
+          onClose={() => setWorkspaceTarget(null)}
+          onSuccess={() => {
+            setWorkspaceTarget(null);
+            addToast('success', 'Added to workspace');
+            refresh();
+          }}
+        />
       </div>
     </DropZone>
   );

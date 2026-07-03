@@ -1,24 +1,26 @@
 import { useState, useEffect } from 'react';
 import { api } from '../../lib/api';
 import type { WorkspaceFolder, FileEntry } from '../../types';
-import { X, Folder } from 'lucide-react';
+import { Folder } from 'lucide-react';
+import { Dialog, DialogContent, DialogTitle } from '../ui/dialog';
 
 interface Props {
-  file: FileEntry;
+  open: boolean;
+  file?: FileEntry;
   onClose: () => void;
   onSuccess: () => void;
 }
 
-export function AddToWorkspaceModal({ file, onClose, onSuccess }: Props) {
+export function AddToWorkspaceModal({ open, file, onClose, onSuccess }: Props) {
   const [folders, setFolders] = useState<WorkspaceFolder[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
-    api.getWorkspaceTree().then(res => setFolders(res.folders));
-  }, []);
+    if (open) api.getWorkspaceTree().then(res => setFolders(res.folders));
+  }, [open]);
 
   const handleAdd = async () => {
-    if (!selectedId) return;
+    if (!selectedId || !file) return;
     try {
       await api.addFilesToWorkspace(selectedId, [file.id]);
       onSuccess();
@@ -28,29 +30,28 @@ export function AddToWorkspaceModal({ file, onClose, onSuccess }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-md bg-white rounded-xl shadow-xl overflow-hidden flex flex-col max-h-[80vh]">
-        <div className="flex items-center justify-between px-6 py-4 border-b">
-          <h2 className="text-xl font-semibold">Add to Workspace</h2>
-          <button onClick={onClose} className="text-gray-500 hover:bg-gray-100 p-1 rounded-full"><X size={20} /></button>
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md p-0 gap-0 rounded-2xl overflow-hidden flex flex-col max-h-[80vh]">
+        <div className="flex items-center px-6 py-4 border-b border-gray-100 shrink-0">
+          <DialogTitle className="text-xl font-semibold text-gray-800">Add to Workspace</DialogTitle>
         </div>
         <div className="p-4 overflow-y-auto flex-1 space-y-2">
           {folders.map(folder => (
             <button
               key={folder.id}
               onClick={() => setSelectedId(folder.id)}
-              className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-left ${selectedId === folder.id ? 'bg-blue-100' : 'hover:bg-gray-50'}`}
+              className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-left transition-colors ${selectedId === folder.id ? 'bg-blue-100' : 'hover:bg-gray-50'}`}
             >
               <Folder size={16} className="text-blue-500" />
               {folder.name}
             </button>
           ))}
         </div>
-        <div className="px-6 py-4 border-t flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
-          <button onClick={handleAdd} disabled={!selectedId} className="px-4 py-2 font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50">Add</button>
+        <div className="px-6 py-4 border-t flex justify-end gap-3 shrink-0">
+          <button onClick={onClose} className="px-4 py-2 font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">Cancel</button>
+          <button onClick={handleAdd} disabled={!selectedId} className="px-4 py-2 font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">Add</button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

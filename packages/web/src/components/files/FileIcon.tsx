@@ -12,7 +12,7 @@ import {
 import { cn } from '../../lib/utils';
 
 interface FileIconProps {
-  mimeType: string | null;
+  mimeType: string | null | undefined;
   className?: string;
 }
 

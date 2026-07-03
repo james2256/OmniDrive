@@ -73,23 +73,25 @@ export function WorkspaceTreeNode({
         </DropdownMenu.Root>
       </div>
 
-      {isExpanded && hasChildren && (
-        <div>
-          {children.map(child => (
-            <WorkspaceTreeNode
-              key={child.id}
-              folder={child}
-              level={level + 1}
-              activeFolderId={activeFolderId}
-              expandedIds={expandedIds}
-              childrenMap={childrenMap}
-              onSelect={onSelect}
-              onToggle={onToggle}
-              onRename={onRename}
-              onDelete={onDelete}
-              onNewSubfolder={onNewSubfolder}
-            />
-          ))}
+      {hasChildren && (
+        <div className={`grid transition-[grid-template-rows] duration-200 ease-in-out ${isExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+          <div className="overflow-hidden">
+            {children.map(child => (
+              <WorkspaceTreeNode
+                key={child.id}
+                folder={child}
+                level={level + 1}
+                activeFolderId={activeFolderId}
+                expandedIds={expandedIds}
+                childrenMap={childrenMap}
+                onSelect={onSelect}
+                onToggle={onToggle}
+                onRename={onRename}
+                onDelete={onDelete}
+                onNewSubfolder={onNewSubfolder}
+              />
+            ))}
+          </div>
         </div>
       )}
     </div>

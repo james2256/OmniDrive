@@ -8,11 +8,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- **Project Documentation (fork init by asmaraputra):**
-  - `AGENTS.md` — panduan untuk AI agent dan kontributor (struktur repo, perintah, aturan kode, area sensitif)
-  - `ARCHITECTURE.md` — arsitektur sistem (request pipeline, auth, sync, S3 layer, deployment)
-  - `SCHEMA.md` — referensi skema database D1 (tabel, relasi, migrasi, KV store)
-  - `DESIGN.md` — design system frontend (token warna, layout, komponen, pola interaksi)
+- **Agentation integration:** wired `<Agentation>` component into `main.tsx` (dev-only via `import.meta.env.DEV`) for in-browser annotation feedback during development
+- **Smooth expand/collapse animations across the web app:** installed `tailwindcss-animate` plugin and added transitions to 15 components:
+  - **Sidebar:** animated width transition between expanded (w-64, icons+labels) and collapsed (w-16, icon rail) with fixed-width inner wrapper so icons stay put
+  - **InfoPanel:** curtain `transition-[width]` pattern (w-80 ↔ w-0), always-mounted; also fixes a pre-existing React hooks violation
+  - **6 custom modals migrated to Radix Dialog:** UploadModal, FilePreviewModal, ShareModal, EditShareModal, AddToWorkspaceModal, AddUserModal — now get enter+exit fade/zoom/slide, focus trap, Escape close, backdrop click
+  - **3 accordions:** ShareModal & EditShareModal "Advanced Settings", SettingsPage "Service Account" form — `grid-rows-[1fr]/[0fr]` transition
+  - **WorkspaceTreeNode:** tree expand/collapse via `grid-rows` transition
+  - **Omnibar:** advanced search panel + results dropdown — `animate-in fade-in-0 slide-in-from-top-2`
+  - **BulkActionBar:** `animate-in slide-in-from-bottom-5` enter animation
+  - **Toast:** enter + exit animation via delayed-unmount pattern in `toastStore` (`removing` flag + 300ms delayed removal)
+  - **Bonus:** existing Radix Dialog/DropdownMenu/ContextMenu classes (`animate-in`, `fade-in-0`, `zoom-in-95`, etc.) now produce actual CSS since the plugin was previously missing
 
 ### Changed
 

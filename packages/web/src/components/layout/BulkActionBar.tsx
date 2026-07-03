@@ -53,7 +53,7 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({ onActionComplete, 
   };
 
   return (
-    <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center justify-between bg-white/80 backdrop-blur-md border border-gray-200 text-gray-800 rounded-full shadow-2xl px-6 py-3 min-w-[500px]">
+    <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center justify-between bg-white/80 backdrop-blur-md border border-gray-200 text-gray-800 rounded-full shadow-2xl px-6 py-3 min-w-[500px] animate-in fade-in-0 slide-in-from-bottom-5 duration-300">
       <div className="flex items-center gap-4 border-r border-gray-200 pr-4">
         <button onClick={clearSelection} disabled={isProcessing} className="p-1.5 hover:bg-gray-100 text-gray-500 rounded-full transition-colors">
           <X size={18} />

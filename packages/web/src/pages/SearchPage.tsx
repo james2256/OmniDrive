@@ -93,13 +93,12 @@ export function SearchPage() {
         </div>
       )}
 
-      {shareTarget && (
-        <ShareModal
-          targetType={shareTarget.type}
-          targetId={shareTarget.id}
-          onClose={() => setShareTarget(null)}
-        />
-      )}
+      <ShareModal
+        open={!!shareTarget}
+        targetType={shareTarget?.type ?? 'file'}
+        targetId={shareTarget?.id ?? ''}
+        onClose={() => setShareTarget(null)}
+      />
 
       {moveDriveFiles.length > 0 && (
         <MoveDriveModal
@@ -117,12 +116,11 @@ export function SearchPage() {
         />
       )}
 
-      {previewFile && (
-        <FilePreviewModal
-          file={previewFile}
-          onClose={() => setPreviewFile(null)}
-        />
-      )}
+      <FilePreviewModal
+        open={!!previewFile}
+        file={previewFile ?? undefined}
+        onClose={() => setPreviewFile(null)}
+      />
     </div>
   );
 }

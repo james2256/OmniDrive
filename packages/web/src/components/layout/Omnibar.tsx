@@ -66,7 +66,7 @@ export const Omnibar: React.FC = () => {
       </div>
 
       {showAdvanced && (
-        <div className="absolute top-14 left-0 right-0 bg-white shadow-lg border border-gray-200 rounded-lg p-4 z-50 flex gap-2">
+        <div className="absolute top-14 left-0 right-0 bg-white shadow-lg border border-gray-200 rounded-lg p-4 z-50 flex gap-2 animate-in fade-in-0 slide-in-from-top-2 duration-200">
           <input 
             type="text" 
             placeholder="Metadata Key (e.g. Status)" 
@@ -85,7 +85,7 @@ export const Omnibar: React.FC = () => {
       )}
 
       {isOpen && (query || metadataKey) && (
-        <div className="absolute top-14 left-0 right-0 bg-white shadow-lg border border-gray-200 rounded-lg max-h-96 overflow-y-auto z-40">
+        <div className="absolute top-14 left-0 right-0 bg-white shadow-lg border border-gray-200 rounded-lg max-h-96 overflow-y-auto z-40 animate-in fade-in-0 slide-in-from-top-2 duration-200">
           {isSearching ? (
             <div className="p-4 text-center text-sm text-gray-500">Searching...</div>
           ) : results.length > 0 ? (

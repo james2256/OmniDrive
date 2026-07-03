@@ -154,12 +154,11 @@ export function SharedLinksPage() {
         </div>
       )}
 
-      {editingLink && (
-        <EditShareModal 
-          link={editingLink} 
-          onClose={() => setEditingLink(null)} 
-        />
-      )}
+      <EditShareModal
+        open={!!editingLink}
+        link={editingLink}
+        onClose={() => setEditingLink(null)}
+      />
     </div>
   );
 }
