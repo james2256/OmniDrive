@@ -101,7 +101,7 @@ drivesRouter.get('/', async (c) => {
     const hasTokens = await c.env.KV.get(`tokens:${drive.id}`) ?? await c.env.KV.get(`oauth:${drive.id}`);
     if (!hasTokens) {
       const { freeSpace, usagePercent } = computeDriveQuota(drive);
-      return { ...drive, freeSpace, usagePercent };
+      return { ...drive, freeSpace, usagePercent, health: 'auth_expired' as const };
     }
 
     try {
@@ -125,12 +125,12 @@ drivesRouter.get('/', async (c) => {
       }
 
       const computed = computeDriveQuota(drive, { total: quota.hasLimit ? quota.total : 0, used: quota.used });
-      return { ...drive, ...computed };
+      return { ...drive, ...computed, health: 'connected' as const };
 
     } catch (e) {
       console.error(`Failed to fetch quota for drive ${drive.id}`, e);
       const computed = computeDriveQuota({ totalQuota: 0, usedQuota: drive.usedQuota, quotaOverride: drive.quotaOverride });
-      return { ...drive, ...computed };
+      return { ...drive, ...computed, health: 'error' as const };
     }
   }));
 

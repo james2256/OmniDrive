@@ -73,6 +73,12 @@ export function DriveAccountCard({ drive, index, onSync, onDisconnect, onQuotaSa
               {drive.quotaOverride && drive.quotaOverride > 0 && (
                 <span className="ml-1.5 text-amber-600" title="Capacity set manually — Google's API does not report it for this account">· manual</span>
               )}
+              {drive.health === 'auth_expired' && (
+                <span className="ml-1.5 text-red-600 font-medium" title="Google session expired — disconnect and reconnect this account">· reconnect needed</span>
+              )}
+              {drive.health === 'error' && (
+                <span className="ml-1.5 text-amber-600" title="Could not reach Google Drive on last check — usually temporary">· unreachable</span>
+              )}
             </div>
             {drive.lastSyncedAt && (
               <div className="text-[10px] text-gray-400 mt-0.5">
@@ -105,7 +111,7 @@ export function DriveAccountCard({ drive, index, onSync, onDisconnect, onQuotaSa
                 : '';
               const message =
                 `Disconnect ${drive.email}?${primaryNote} ` +
-                'Your files on Google Drive will not be deleted; only OmniDrive access and synced data will be removed.';
+                'Your files on Google Drive will not be deleted; only AzaDrive access and synced data will be removed.';
               if (confirm(message)) {
                 void onDisconnect(drive.id);
               }

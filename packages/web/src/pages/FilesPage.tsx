@@ -186,7 +186,7 @@ export function FilesPage() {
                <Info size={24} className="text-gray-400" />
             </div>
             <h3 className="text-lg font-medium text-gray-900 mb-2">No Google Drive Connected</h3>
-            <p className="mb-6 max-w-sm text-center">You need to connect at least one Google Drive account to start using OmniDrive.</p>
+            <p className="mb-6 max-w-sm text-center">You need to connect at least one Google Drive account to start using AzaDrive.</p>
             <button
               onClick={handleConnectGoogle}
               disabled={isConnecting}

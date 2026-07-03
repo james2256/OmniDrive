@@ -230,6 +230,23 @@ Tautan berbagi file/folder publik.
 
 ---
 
+### `s3_lifecycle_rules`
+
+Aturan lifecycle bucket S3 (bucket = workspace). "Expire" = pindah objek ke **trash** Google Drive (recoverable ~30 hari), **bukan** hard delete. Dijalankan oleh cron `*/30`.
+
+| Kolom | Tipe | Keterangan |
+|-------|------|------------|
+| `id` | TEXT PK | |
+| `workspace_id` | TEXT FK | Bucket = workspace, `ON DELETE CASCADE` |
+| `prefix` | TEXT | Prefix objek, default `''` (semua) |
+| `expiration_days` | INTEGER | Umur file (hari) sebelum di-trash |
+| `enabled` | INTEGER | Default `1` |
+| `created_at` | TEXT | |
+
+`UNIQUE(workspace_id, prefix)` — satu rule per prefix per bucket.
+
+---
+
 ### `shared_link_logs`
 
 Log akses shared link.
@@ -389,6 +406,7 @@ Part individual dari multipart upload.
 | `0005_add_workspace_id_to_s3_credentials.sql` | Kolom `workspace_id` di s3_credentials |
 | `0006_add_sync_cache_columns.sql` | `sync_ttl_minutes`, `last_synced_at`, `sync_status` |
 | `0007_add_quota_override.sql` | Kolom `quota_override` di `drive_accounts` (manual capacity untuk Workspace/service account) |
+| `0008_add_s3_lifecycle_rules.sql` | Tabel `s3_lifecycle_rules` (aturan expire objek S3 → trash Google Drive) |
 
 ## Perintah Database
 

@@ -50,10 +50,17 @@ describe('UploadRouter', () => {
     expect(selected.id).toBe('drive1');
   });
 
-  it('throws if preferredDriveId does not have enough space', () => {
+  it('spills over to the most-free drive when preferredDriveId is full', () => {
     const router = new UploadRouter(mockDrives);
-    expect(() => router.selectDriveForUpload(300, 'drive1')).toThrowError(
-      'Insufficient quota in preferred drive'
+    // drive1 has 200 free (too small for 300), spill over to drive2 (600 free)
+    const selected = router.selectDriveForUpload(300, 'drive1');
+    expect(selected.id).toBe('drive2');
+  });
+
+  it('throws if preferred is full and no drive fits', () => {
+    const router = new UploadRouter(mockDrives);
+    expect(() => router.selectDriveForUpload(700, 'drive1')).toThrowError(
+      'Insufficient overall quota for this file'
     );
   });
 

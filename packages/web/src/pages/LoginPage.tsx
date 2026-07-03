@@ -31,8 +31,8 @@ export function LoginPage() {
       <div className="w-full max-w-sm">
         <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-10 text-center">
           <div className="flex flex-col items-center justify-center mb-1">
-            <img src="/logo.png" alt="OmniDrive" className="w-16 h-16 object-contain mb-3" />
-            <h1 className="text-3xl font-bold text-gray-900">OmniDrive</h1>
+            <img src="/logo.png" alt="AzaDrive" className="w-16 h-16 object-contain mb-3" />
+            <h1 className="text-3xl font-bold text-gray-900">AzaDrive</h1>
           </div>
           <p className="text-gray-500 text-sm mb-8">
             Sign in to your account

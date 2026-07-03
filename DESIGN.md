@@ -148,7 +148,7 @@ Urutan menu (dari `Sidebar.tsx`):
 | `Breadcrumb` | Navigasi folder |
 | `DropZone` | Drag-and-drop upload |
 | `UploadModal` | Queue upload + progress |
-| `DriveAccountCard` | Kartu akun Drive di Settings |
+| `DriveAccountCard` | Kartu akun Drive di Settings (quota bar, editor kapasitas manual, badge `· manual`/`· reconnect needed`/`· unreachable`) |
 | `DriveFolderBrowser` | Browser folder native Drive |
 
 ### Modals

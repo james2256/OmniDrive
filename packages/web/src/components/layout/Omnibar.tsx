@@ -51,7 +51,7 @@ export const Omnibar: React.FC = () => {
         <Search size={20} className="text-gray-600 mr-3" />
         <input 
           type="text" 
-          placeholder="Search OmniDrive" 
+          placeholder="Search AzaDrive" 
           className="bg-transparent outline-none w-full text-gray-800 placeholder-gray-600" 
           value={query}
           onChange={(e) => setQuery(e.target.value)}

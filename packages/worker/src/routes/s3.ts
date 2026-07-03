@@ -8,6 +8,7 @@ import { UploadRouter } from '../services/upload-router';
 import { mapDriveRow } from '../types';
 import { createHash } from 'node:crypto';
 import { hasPermission } from '../middleware/rbac';
+import { parseLifecycleXml, serializeLifecycleXml } from '../services/s3-lifecycle';
 
 export const s3Router = new Hono<AppContext>({ strict: false });
 
@@ -135,6 +136,18 @@ s3Router.on(['GET', 'HEAD'], '/:bucket', async (c) => {
   const rbacDenied = requireS3Role(c, workspace.role, false);
   if (rbacDenied) return rbacDenied;
 
+  // GET /s3/:bucket?lifecycle -> GetBucketLifecycleConfiguration
+  if (c.req.method === 'GET' && c.req.query('lifecycle') !== undefined) {
+    const { results } = await db.prepare(
+      'SELECT prefix, expiration_days, enabled FROM s3_lifecycle_rules WHERE workspace_id = ?'
+    ).bind(workspace.id).all<{ prefix: string; expiration_days: number; enabled: number }>();
+    if (!results?.length) {
+      return xmlError(c, 'NoSuchLifecycleConfiguration', 'The lifecycle configuration does not exist.', 404);
+    }
+    const rules = results.map((r) => ({ prefix: r.prefix, days: r.expiration_days, enabled: r.enabled === 1 }));
+    return c.text(serializeLifecycleXml(rules), 200, { 'Content-Type': 'application/xml' });
+  }
+
   if (c.req.method === 'HEAD') {
     return c.body(null, 200);
   }
@@ -210,6 +223,54 @@ s3Router.on(['GET', 'HEAD'], '/:bucket', async (c) => {
 ${contentsXml}${prefixesXml}</ListBucketResult>`;
 
   return c.text(xml, 200, { 'Content-Type': 'application/xml' });
+});
+
+// Resolve a bucket (workspace) for bucket-level subresource ops.
+async function resolveBucket(c: any, needWrite: boolean): Promise<{ workspace: any } | Response> {
+  const userId = c.get('userId');
+  const s3WorkspaceId = c.get('s3WorkspaceId') || null;
+  const bucketName = c.req.param('bucket');
+  const workspace = await c.env.DB.prepare(`
+    SELECT w.id, wm.role FROM workspaces w
+    JOIN workspace_members wm ON w.id = wm.workspace_id
+    WHERE w.name = ? AND wm.user_id = ?
+      AND (? IS NULL OR w.id = ?)
+  `).bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId).first<any>();
+  if (!workspace) return xmlError(c, 'NoSuchBucket', 'Bucket not found', 404);
+  const denied = requireS3Role(c, workspace.role, needWrite);
+  if (denied) return denied;
+  return { workspace };
+}
+
+// PUT /s3/:bucket?lifecycle -> PutBucketLifecycleConfiguration (replaces all rules)
+s3Router.put('/:bucket', async (c) => {
+  if (c.req.query('lifecycle') === undefined) {
+    return xmlError(c, 'NotImplemented', 'Only the ?lifecycle subresource is supported on buckets.', 501);
+  }
+  const resolved = await resolveBucket(c, true);
+  if (resolved instanceof Response) return resolved;
+  const { workspace } = resolved;
+
+  const rules = parseLifecycleXml(await c.req.text());
+  const db = c.env.DB;
+  await db.prepare('DELETE FROM s3_lifecycle_rules WHERE workspace_id = ?').bind(workspace.id).run();
+  for (const r of rules) {
+    await db.prepare(
+      'INSERT OR REPLACE INTO s3_lifecycle_rules (id, workspace_id, prefix, expiration_days, enabled) VALUES (?, ?, ?, ?, ?)'
+    ).bind(generateId(), workspace.id, r.prefix, r.days, r.enabled ? 1 : 0).run();
+  }
+  return c.body(null, 200);
+});
+
+// DELETE /s3/:bucket?lifecycle -> DeleteBucketLifecycleConfiguration
+s3Router.delete('/:bucket', async (c) => {
+  if (c.req.query('lifecycle') === undefined) {
+    return xmlError(c, 'NotImplemented', 'Only the ?lifecycle subresource is supported on buckets.', 501);
+  }
+  const resolved = await resolveBucket(c, true);
+  if (resolved instanceof Response) return resolved;
+  await c.env.DB.prepare('DELETE FROM s3_lifecycle_rules WHERE workspace_id = ?').bind(resolved.workspace.id).run();
+  return c.body(null, 204);
 });
 
 // Helpers to resolve virtual folders dynamically

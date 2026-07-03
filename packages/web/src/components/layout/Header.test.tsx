@@ -13,12 +13,12 @@ vi.mock('react-router-dom', async () => {
 });
 
 describe('Header', () => {
-  it('renders OmniDrive branding', () => {
+  it('renders AzaDrive branding', () => {
     render(
       <MemoryRouter>
         <Header />
       </MemoryRouter>
     );
-    expect(screen.getByText('OmniDrive')).toBeDefined();
+    expect(screen.getByText('AzaDrive')).toBeDefined();
   });
 });

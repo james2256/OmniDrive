@@ -91,7 +91,7 @@ D1 / KV / Google API
 | `AutomationEngine` | `services/automation.service.ts` | Rule evaluation & execution |
 | `AuditService` | `services/audit.service.ts` | Workspace audit logging |
 | `PolicyService` | `services/policy.service.ts` | Quota & data retention |
-| `UploadRouter` | `services/upload-router.ts` | Smart drive selection for uploads |
+| `UploadRouter` | `services/upload-router.ts` | Pilih drive terlapang untuk upload; spillover bila preferred drive penuh |
 | `computeDriveQuota` | `lib/storage-quota.ts` | Hitung total/used/free/percent + fallback chain & override |
 
 ### Middleware
@@ -206,6 +206,8 @@ Google Drive API (stream read/write)
 
 **Multipart upload**: parts buffered as temp files in Google Drive folder → stream-concatenated on complete.
 
+**Bucket lifecycle** (`?lifecycle` subresource on `/s3/:bucket`): `PutBucketLifecycleConfiguration` / `GetBucketLifecycleConfiguration` / `DeleteBucketLifecycleConfiguration`. Rule `Expiration/Days` per prefix disimpan di `s3_lifecycle_rules`. Cron `*/30` men-**trash** objek yang lebih tua dari window (recoverable ~30 hari via Google, bukan hard delete). Parser XML regex-based (`services/s3-lifecycle.ts`), tanpa dep XML.
+
 ## Frontend Architecture
 
 ### Routing & Guards
@@ -243,6 +245,7 @@ Trigger: `*/30 * * * *` (setiap 30 menit)
 | Automation | `AutomationEngine.processCronTrigger()` | Evaluasi rules |
 | Audit cleanup | `AuditService.cleanupOldLogs(30)` | Hapus log > 30 hari |
 | Data retention | `PolicyService.processAutoDeleteRetentionPolicies()` | Auto-delete per policy |
+| S3 lifecycle | `runLifecycleExpiration()` | Trash objek S3 yang lewat `expiration_days` per rule (Option A, recoverable) |
 
 ## Security Model
 

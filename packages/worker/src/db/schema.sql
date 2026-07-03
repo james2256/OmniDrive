@@ -155,6 +155,19 @@ CREATE TABLE IF NOT EXISTS shared_link_logs (
     created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- S3 bucket lifecycle rules. "expire" = move object to Google Drive trash
+-- (recoverable ~30 days), NOT a permanent delete. See migration 0008.
+CREATE TABLE IF NOT EXISTS s3_lifecycle_rules (
+    id              TEXT PRIMARY KEY,
+    workspace_id    TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    prefix          TEXT NOT NULL DEFAULT '',
+    expiration_days INTEGER NOT NULL,
+    enabled         INTEGER NOT NULL DEFAULT 1,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(workspace_id, prefix)
+);
+CREATE INDEX IF NOT EXISTS idx_s3_lifecycle_workspace ON s3_lifecycle_rules(workspace_id);
+
 CREATE INDEX IF NOT EXISTS idx_shared_links_user ON shared_links(user_id);
 CREATE INDEX IF NOT EXISTS idx_shared_links_target ON shared_links(target_type, target_id);
 

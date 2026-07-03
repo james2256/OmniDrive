@@ -377,7 +377,7 @@ export function SettingsPage() {
           <DialogHeader>
             <DialogTitle className="text-lg font-semibold text-gray-800">Generate S3 API Key</DialogTitle>
             <DialogDescription className="text-xs text-gray-400">
-              Create credentials to access OmniDrive storage with S3 compatible applications.
+              Create credentials to access AzaDrive storage with S3 compatible applications.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreateKey} className="space-y-4 pt-2">

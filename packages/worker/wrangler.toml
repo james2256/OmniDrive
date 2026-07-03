@@ -16,7 +16,7 @@ binding = "KV"
 id = "8c23adf4a2334e35959a9e480f5392c4"
 
 [vars]
-FRONTEND_URL = "https://omnidrive-ajm.pages.dev"
+FRONTEND_URL = "https://azadrive.my.id"
 WORKER_URL = "https://omnidrive-api.asmara-putra.workers.dev"
 
 [observability]

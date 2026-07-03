@@ -122,6 +122,8 @@ export interface QuotaCache {
 export interface DriveWithQuota extends DriveAccount {
   freeSpace: number;
   usagePercent: number;
+  // ponytail: derived from the branches /drives GET already runs; no stored column.
+  health?: 'connected' | 'auth_expired' | 'error';
 }
 
 export interface AggregateQuota {

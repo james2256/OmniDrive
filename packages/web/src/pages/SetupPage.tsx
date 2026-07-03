@@ -21,7 +21,7 @@ export function SetupPage() {
     <div className="min-h-[100dvh] flex items-center justify-center bg-surface px-4">
       <div className="w-full max-w-sm">
         <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-10 text-center">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome to OmniDrive</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome to AzaDrive</h1>
           <p className="text-gray-500 text-sm mb-6">Create the first Super Admin account to get started.</p>
           {errorMsg && <div className="mb-4 text-red-600 text-sm">{errorMsg}</div>}
           <form onSubmit={handleSubmit} className="flex flex-col gap-4 text-left">
