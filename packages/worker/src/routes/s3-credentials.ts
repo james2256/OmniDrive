@@ -37,7 +37,8 @@ s3CredentialsRouter.post('/', async (c) => {
     secretAccessKey: rawSecretKey,
     description,
     workspaceId: workspaceId || null,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    warning: 'Store this secret now — it will not be shown again.'
   }, 201);
 });
 

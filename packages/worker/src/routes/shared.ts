@@ -338,6 +338,12 @@ sharedRouter.post('/:id/verify', async (c) => {
   }
   
   if (!link.passwordHash) return c.json({ error: 'Link does not require password' }, 400);
+
+  const lockKey = `shared_verify_lock:${id}`;
+  const failKey = `shared_verify_fail:${id}`;
+  if (await c.env.KV.get(lockKey)) {
+    return c.json({ error: 'Too many failed attempts. Try again later.' }, 429);
+  }
   
   const [saltHex, storedHashHex] = link.passwordHash.split(':');
   
@@ -371,9 +377,18 @@ sharedRouter.post('/:id/verify', async (c) => {
   const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   
   if (!timingSafeEqualStr(storedHashHex, hashHex)) {
+    // ponytail: per-link lockout stops distributed brute-force beyond IP rate limit.
+    const failed = Number(await c.env.KV.get(failKey) || '0') + 1;
+    if (failed >= 20) {
+      await c.env.KV.put(lockKey, '1', { expirationTtl: 15 * 60 });
+      await c.env.KV.delete(failKey);
+    } else {
+      await c.env.KV.put(failKey, String(failed), { expirationTtl: 15 * 60 });
+    }
     return c.json({ error: 'Invalid password' }, 401);
   }
-  
+
+  await c.env.KV.delete(failKey);
   const token = await sign({ id, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 }, c.env.JWT_SECRET, 'HS256');
   setCookie(c, `shared_session_${id}`, token, { path: '/', httpOnly: true, secure: true, sameSite: 'None', maxAge: 60 * 60 * 24 });
   return c.json({ success: true });

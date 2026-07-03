@@ -27,16 +27,27 @@ adminRouter.get('/invitations', async (c) => {
 
 adminRouter.post('/invitations', async (c) => {
   const { code, max_uses } = await c.req.json();
-  if (!code) throw new AppError(400, 'Code is required');
-  
+
+  // ponytail: server-generates a high-entropy code when none given; user-supplied
+  // codes must be >= 12 chars so short guessable invites can't be brute-forced.
+  let finalCode: string;
+  if (code) {
+    if (typeof code !== 'string' || code.trim().length < 12) {
+      throw new AppError(400, 'Invitation code must be at least 12 characters');
+    }
+    finalCode = code.trim();
+  } else {
+    finalCode = generateId().replace(/-/g, '');
+  }
+
   const id = generateId();
   const userId = c.get('userId');
   
   await c.env.DB.prepare(
     'INSERT INTO invitation_codes (id, code, created_by, max_uses) VALUES (?, ?, ?, ?)'
-  ).bind(id, code, userId, max_uses || 1).run();
+  ).bind(id, finalCode, userId, max_uses || 1).run();
   
-  return c.json({ success: true, invitation: { id, code, created_by: userId, max_uses: max_uses || 1, used_count: 0 } });
+  return c.json({ success: true, invitation: { id, code: finalCode, created_by: userId, max_uses: max_uses || 1, used_count: 0 } });
 });
 
 adminRouter.delete('/invitations/:id', async (c) => {
