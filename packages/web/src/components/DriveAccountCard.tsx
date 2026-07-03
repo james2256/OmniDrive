@@ -54,19 +54,23 @@ export function DriveAccountCard({ drive, index, onSync, onDisconnect }: DriveAc
             <RefreshCw size={12} className={isSyncing ? 'animate-spin' : ''} />
             {isSyncing ? 'Syncing...' : 'Sync'}
           </button>
-          {!drive.isPrimary && (
-            <button
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
-              onClick={() => {
-                if (confirm(`Disconnect ${drive.email}? Files from this drive will be removed from Omnidrive.`)) {
-                  onDisconnect(drive.id);
-                }
-              }}
-            >
-              <Trash2 size={12} />
-              Disconnect
-            </button>
-          )}
+          <button
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+            onClick={() => {
+              const primaryNote = drive.isPrimary
+                ? ' This is your primary drive — another connected drive will become primary if available.'
+                : '';
+              const message =
+                `Disconnect ${drive.email}?${primaryNote} ` +
+                'Your files on Google Drive will not be deleted; only OmniDrive access and synced data will be removed.';
+              if (confirm(message)) {
+                void onDisconnect(drive.id);
+              }
+            }}
+          >
+            <Trash2 size={12} />
+            Disconnect
+          </button>
         </div>
       </div>
 

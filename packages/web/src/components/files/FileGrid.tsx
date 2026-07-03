@@ -2,7 +2,8 @@ import React from 'react';
 import type { FileEntry, DriveFolder, WorkspaceFolder } from '../../types';
 import { formatFileSize, formatRelativeTime, getDriveColor } from '../../lib/utils';
 import { FileIcon } from './FileIcon';
-import { Folder, Download, Trash2, Pencil, ExternalLink, Share2, RefreshCw, Eye, Star, Info } from 'lucide-react';
+import { Folder, Download, Trash2, Pencil, ExternalLink, Share2, RefreshCw, Eye, Star, Info, ArrowUp, ArrowDown } from 'lucide-react';
+import { sortFiles, sortFolders, type SortField } from '../../lib/sort-items';
 import { api } from '../../lib/api';
 import {
   ContextMenu,
@@ -215,7 +216,36 @@ export const FileGrid: React.FC<FileGridProps> = ({
   onSetRetentionPolicy,
 }) => {
   const storeViewMode = useUIStore((s) => s.viewMode);
+  const sortField = useUIStore((s) => s.sortField);
+  const sortDirection = useUIStore((s) => s.sortDirection);
+  const toggleSort = useUIStore((s) => s.toggleSort);
   const viewMode = viewModeProp ?? storeViewMode;
+  const sortedSubfolders = React.useMemo(
+    () => sortFolders(subfolders, sortField, sortDirection),
+    [subfolders, sortField, sortDirection]
+  );
+  const sortedFiles = React.useMemo(
+    () => sortFiles(files, sortField, sortDirection),
+    [files, sortField, sortDirection]
+  );
+
+  const renderSortHeader = (label: string, field: SortField, align: 'left' | 'right' = 'left') => {
+    const active = sortField === field;
+    const Icon = sortDirection === 'asc' ? ArrowUp : ArrowDown;
+    return (
+      <button
+        type="button"
+        onClick={() => toggleSort(field)}
+        className={`inline-flex items-center gap-1 hover:text-gray-700 transition-colors ${
+          align === 'right' ? 'ml-auto' : ''
+        } ${active ? 'text-gray-800' : ''}`}
+        aria-sort={active ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
+      >
+        {label}
+        {active && <Icon size={12} className="flex-shrink-0" />}
+      </button>
+    );
+  };
   const [lastSelected, setLastSelected] = React.useState<SelectedItem | null>(null);
   const { selectedItems, toggleSelection, selectMultiple, selectAll, clearSelection } = useSelectionStore();
   const hasSelection = selectedItems.length > 0;
@@ -229,8 +259,8 @@ export const FileGrid: React.FC<FileGridProps> = ({
       document.getSelection()?.removeAllRanges();
       
       const allItems: SelectedItem[] = [
-        ...subfolders.map(f => ({ type: 'folder' as const, item: f })),
-        ...files.map(f => ({ type: 'file' as const, item: f }))
+        ...sortedSubfolders.map(f => ({ type: 'folder' as const, item: f })),
+        ...sortedFiles.map(f => ({ type: 'file' as const, item: f }))
       ];
       const startIndex = allItems.findIndex(i => isSameItem(i, lastSelected));
       const endIndex = allItems.findIndex(i => isSameItem(i, item));
@@ -270,8 +300,8 @@ export const FileGrid: React.FC<FileGridProps> = ({
               onChange={(e) => {
                 if (e.target.checked) {
                   const allItems: SelectedItem[] = [
-                    ...subfolders.map(f => ({ type: 'folder' as const, item: f })),
-                    ...files.map(f => ({ type: 'file' as const, item: f }))
+                    ...sortedSubfolders.map(f => ({ type: 'folder' as const, item: f })),
+                    ...sortedFiles.map(f => ({ type: 'file' as const, item: f }))
                   ];
                   selectAll(allItems);
                 } else {
@@ -281,14 +311,14 @@ export const FileGrid: React.FC<FileGridProps> = ({
               title="Select All"
             />
           </div>
-          <span>Name</span>
-          <span className="text-right">Size</span>
-          <span className="text-right">Modified</span>
+          <span>{renderSortHeader('Name', 'name')}</span>
+          <span className="text-right">{renderSortHeader('Size', 'size', 'right')}</span>
+          <span className="text-right">{renderSortHeader('Modified', 'modified', 'right')}</span>
           <span />
         </div>
 
         {/* Folders */}
-        {subfolders.map((folder) => {
+        {sortedSubfolders.map((folder) => {
           const isVirtual = !('googleFolderId' in folder);
           const key = 'googleFolderId' in folder ? folder.googleFolderId : folder.id;
           const driveAccountId = 'driveAccountId' in folder ? folder.driveAccountId : undefined;
@@ -377,7 +407,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
         })}
 
         {/* Files */}
-        {files.map((file) => {
+        {sortedFiles.map((file) => {
           const { index } = getDriveInfo(file.driveAccountId);
           const driveColor = getDriveColor(index);
           const native = isGoogleNative(file.mimeType);
@@ -470,7 +500,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 p-4">
       {/* Render Folders */}
-      {subfolders.map((folder) => {
+      {sortedSubfolders.map((folder) => {
           const isVirtual = !('googleFolderId' in folder);
           const key = 'googleFolderId' in folder ? folder.googleFolderId : folder.id;
           const driveAccountId = 'driveAccountId' in folder ? folder.driveAccountId : undefined;
@@ -554,7 +584,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
       })}
 
       {/* Render Files */}
-      {files.map((file) => {
+      {sortedFiles.map((file) => {
         const { index } = getDriveInfo(file.driveAccountId);
         const driveColor = getDriveColor(index);
         const native = isGoogleNative(file.mimeType);

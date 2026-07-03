@@ -143,7 +143,7 @@ export const api = {
   starFolder: (id: string) => request<{ success: boolean }>(`/api/folders/${id}/star`, { method: 'POST' }),
   unstarFolder: (id: string) => request<{ success: boolean }>(`/api/folders/${id}/unstar`, { method: 'POST' }),
 
-  // Recent files (uses root contents, sorted by date)
+  // Recent files (sorted by Google modified date)
   getRecentFiles: () =>
     request<{ files: import('../types').FileEntry[], folders: import('../types').WorkspaceFolder[] }>('/api/files/recent'),
     
