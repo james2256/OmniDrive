@@ -148,9 +148,9 @@ describe('S3 API compatibility endpoints', () => {
                     };
                   }
                 }
-                if (sql.includes('SELECT w.id FROM workspaces w')) {
-                  // Resolve workspace
-                  return workspaceResolved;
+                if (sql.includes('FROM workspaces w')) {
+                  // ponytail: auto-add role:'owner' so RBAC checks pass — tests cover S3 behavior, not RBAC denial
+                  return workspaceResolved ? { ...workspaceResolved, role: workspaceResolved.role || 'owner' } : null;
                 }
                 if (sql.includes('SELECT id FROM workspace_folders')) {
                   return folderResolved;
@@ -1500,7 +1500,7 @@ describe('S3 API compatibility endpoints', () => {
       const res = await makeSignedRequest('GET', '/s3/my-bucket-1', env);
       expect(res.status).toBe(200);
 
-      const resolveQuery = sqlQueries.find(q => q.sql.includes('SELECT w.id FROM workspaces w'));
+      const resolveQuery = sqlQueries.find(q => q.sql.includes('SELECT w.id') && q.sql.includes('FROM workspaces w'));
       expect(resolveQuery).toBeDefined();
       expect(resolveQuery.args[2]).toBe('ws-1');
       expect(resolveQuery.args[3]).toBe('ws-1');

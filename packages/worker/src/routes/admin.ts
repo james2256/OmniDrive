@@ -4,7 +4,7 @@ import { authGuard } from '../middleware/auth-guard';
 import { AppError } from '../middleware/error-handler';
 import { generateId } from '../lib/id';
 import * as bcrypt from 'bcryptjs';
-import { validatePassword } from '../lib/validation';
+import { validatePassword, validateEmail } from '../lib/validation';
 
 export const adminRouter = new Hono<AppContext>({ strict: false });
 
@@ -69,12 +69,14 @@ adminRouter.post('/users', async (c) => {
   if (existing) throw new AppError(400, 'Username already exists');
 
   if (email) {
+    const emailError = validateEmail(email);
+    if (emailError) throw new AppError(400, emailError);
     const existingEmail = await c.env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
     if (existingEmail) throw new AppError(400, 'Email already exists');
   }
 
   const id = generateId();
-  const passwordHash = await bcrypt.hash(password, 10);
+  const passwordHash = await bcrypt.hash(password, 12); // ponytail: OWASP recommends cost ≥ 12
   const isSuperAdmin = role === 'super_admin' ? 1 : 0;
 
   await c.env.DB.prepare(

@@ -90,7 +90,18 @@ app.use('/api/shared/:id/verify', rateLimiter({
     return `${ip}:${id}`;
   },
 }));
+app.use('/api/shared/:id/download', rateLimiter({
+  windowMs: 60_000,
+  maxRequests: 20,
+  keyFn: (c: any) => {
+    const ip = c.req.header('CF-Connecting-IP') ?? c.req.header('X-Real-IP') ?? 'unknown';
+    const id = c.req.param('id') ?? 'unknown';
+    return `${ip}:${id}`;
+  },
+}));
 app.use('/api/*', rateLimiter({ windowMs: 60_000, maxRequests: 100 }));
+// ponytail: S3 rate limit — /s3 bypasses /api/* catch-all, needs its own limiter
+app.use('/s3/*', rateLimiter({ windowMs: 60_000, maxRequests: 100 }));
 
 app.route('/api/auth', authRouter);
 app.route('/api/drives', drivesRouter);

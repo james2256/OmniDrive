@@ -7,8 +7,19 @@ import { getMD5HashingStream } from '../lib/crypto-s3';
 import { UploadRouter } from '../services/upload-router';
 import { mapDriveRow } from '../types';
 import { createHash } from 'node:crypto';
+import { hasPermission } from '../middleware/rbac';
 
 export const s3Router = new Hono<AppContext>({ strict: false });
+
+// ponytail: S3 RBAC — read ops require viewer, write ops require editor.
+// Enforced here instead of middleware because workspace is resolved per-handler.
+function requireS3Role(c: any, role: string | undefined, write: boolean): Response | null {
+  const needed = write ? 'editor' : 'viewer';
+  if (!role || !hasPermission(role, needed)) {
+    return xmlError(c, 'AccessDenied', `Insufficient permissions: ${needed} role required`, 403);
+  }
+  return null;
+}
 
 function parseSqliteDate(dateStr: string | number): Date {
   if (typeof dateStr === 'number') {
@@ -105,7 +116,7 @@ s3Router.on(['GET', 'HEAD'], '/:bucket', async (c) => {
 
   // Resolve Workspace by Bucket Name
   const workspace = await db.prepare(`
-    SELECT w.id FROM workspaces w
+    SELECT w.id, wm.role FROM workspaces w
     JOIN workspace_members wm ON w.id = wm.workspace_id
     WHERE w.name = ? AND wm.user_id = ?
       AND (? IS NULL OR w.id = ?)
@@ -120,6 +131,9 @@ s3Router.on(['GET', 'HEAD'], '/:bucket', async (c) => {
     }
     return c.text(`<?xml version="1.0" encoding="UTF-8"?><Error><Code>${escapeXml(errorCode)}</Code><Message>${escapeXml(errorMessage)}</Message></Error>`, 404, { 'Content-Type': 'application/xml' });
   }
+
+  const rbacDenied = requireS3Role(c, workspace.role, false);
+  if (rbacDenied) return rbacDenied;
 
   if (c.req.method === 'HEAD') {
     return c.body(null, 200);
@@ -249,13 +263,16 @@ s3Router.on('HEAD', '/:bucket/:key{.+}', async (c) => {
   const db = c.env.DB;
 
   const workspace = await db.prepare(`
-    SELECT w.id FROM workspaces w
+    SELECT w.id, wm.role FROM workspaces w
     JOIN workspace_members wm ON w.id = wm.workspace_id
     WHERE w.name = ? AND wm.user_id = ?
       AND (? IS NULL OR w.id = ?)
   `).bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId).first<any>();
 
   if (!workspace) return c.text('Not Found', 404);
+
+  const rbacDenied = requireS3Role(c, workspace.role, false);
+  if (rbacDenied) return rbacDenied;
 
   const pathParts = key.split('/');
   const fileName = pathParts.pop();
@@ -287,13 +304,16 @@ s3Router.get('/:bucket/:key{.+}', async (c) => {
   const db = c.env.DB;
 
   const workspace = await db.prepare(`
-    SELECT w.id FROM workspaces w
+    SELECT w.id, wm.role FROM workspaces w
     JOIN workspace_members wm ON w.id = wm.workspace_id
     WHERE w.name = ? AND wm.user_id = ?
       AND (? IS NULL OR w.id = ?)
   `).bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId).first<any>();
 
   if (!workspace) return c.text('Bucket not found', 404);
+
+  const rbacDenied = requireS3Role(c, workspace.role, false);
+  if (rbacDenied) return rbacDenied;
 
   // Split S3 key to locate file
   const pathParts = key.split('/');
@@ -341,13 +361,16 @@ s3Router.delete('/:bucket/:key{.+}', async (c) => {
   const db = c.env.DB;
 
   const workspace = await db.prepare(`
-    SELECT w.id FROM workspaces w
+    SELECT w.id, wm.role FROM workspaces w
     JOIN workspace_members wm ON w.id = wm.workspace_id
     WHERE w.name = ? AND wm.user_id = ?
       AND (? IS NULL OR w.id = ?)
   `).bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId).first<any>();
 
   if (!workspace) return c.text('Bucket not found', 404);
+
+  const rbacDenied = requireS3Role(c, workspace.role, true);
+  if (rbacDenied) return rbacDenied;
 
   const uploadId = c.req.query('uploadId');
   if (uploadId) {
@@ -422,13 +445,16 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
   const db = c.env.DB;
 
   const workspace = await db.prepare(`
-    SELECT w.id FROM workspaces w
+    SELECT w.id, wm.role FROM workspaces w
     JOIN workspace_members wm ON w.id = wm.workspace_id
     WHERE w.name = ? AND wm.user_id = ?
       AND (? IS NULL OR w.id = ?)
   `).bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId).first<any>();
 
   if (!workspace) return c.text('Bucket not found', 404);
+
+  const rbacDenied = requireS3Role(c, workspace.role, true);
+  if (rbacDenied) return rbacDenied;
 
   const contentLength = parseInt(c.req.header('Content-Length') || '0', 10);
   const mimeType = c.req.header('Content-Type') || 'application/octet-stream';
@@ -593,13 +619,16 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
   const db = c.env.DB;
 
   const workspace = await db.prepare(`
-    SELECT w.id FROM workspaces w
+    SELECT w.id, wm.role FROM workspaces w
     JOIN workspace_members wm ON w.id = wm.workspace_id
     WHERE w.name = ? AND wm.user_id = ?
       AND (? IS NULL OR w.id = ?)
   `).bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId).first<any>();
 
   if (!workspace) return c.text('Bucket not found', 404);
+
+  const rbacDenied = requireS3Role(c, workspace.role, true);
+  if (rbacDenied) return rbacDenied;
 
   const driveService = new GoogleDriveService(
     c.env.KV,

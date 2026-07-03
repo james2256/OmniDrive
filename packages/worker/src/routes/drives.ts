@@ -76,7 +76,8 @@ drivesRouter.get('/connect', async (c) => {
   const { codeVerifier, codeChallenge } = await generatePKCE();
 
   await env.KV.put(`oauth_state:${state}`, JSON.stringify({ codeVerifier, userId }), { expirationTtl: 600 });
-  setCookie(c, 'oauth_state', state, { path: '/', httpOnly: true, secure: true, maxAge: 60 * 5 });
+  const isSecure = env.WORKER_URL.startsWith('https://');
+  setCookie(c, 'oauth_state', state, { path: '/', httpOnly: true, secure: isSecure, sameSite: isSecure ? 'None' : 'Lax', maxAge: 60 * 5 });
   
   authUrl.searchParams.append('state', state);
   authUrl.searchParams.append('code_challenge', codeChallenge);
@@ -145,7 +146,8 @@ drivesRouter.post('/service-account', async (c) => {
   try {
     sa = parseServiceAccountJson(credentials);
   } catch (err) {
-    throw new AppError(400, err instanceof Error ? err.message : 'Invalid service account JSON');
+    console.error('Service account JSON parse error:', err);
+    throw new AppError(400, 'Invalid service account JSON');
   }
 
   const serviceAccount = { clientEmail: sa.client_email, privateKey: sa.private_key };
@@ -155,14 +157,16 @@ drivesRouter.post('/service-account', async (c) => {
   try {
     ({ accessToken, expiresAt } = await fetchServiceAccountAccessToken(serviceAccount));
   } catch (err) {
-    throw new AppError(400, err instanceof Error ? err.message : 'Service account authentication failed');
+    console.error('Service account auth error:', err);
+    throw new AppError(400, 'Failed to connect Google Drive account');
   }
 
   let folderInfo: { id: string; name: string };
   try {
     folderInfo = await verifySharedFolderAccess(accessToken, folderId);
   } catch (err) {
-    throw new AppError(400, err instanceof Error ? err.message : 'Cannot access shared folder');
+    console.error('Shared folder access error:', err);
+    throw new AppError(400, 'Cannot access the specified shared folder');
   }
 
   const db = c.env.DB;

@@ -1,5 +1,6 @@
 import type { Context, Next } from 'hono';
 
+// ponytail: unused — index.ts uses app.onError() directly. Kept for AppError export only.
 export async function errorHandler(c: Context, next: Next) {
   try {
     await next();

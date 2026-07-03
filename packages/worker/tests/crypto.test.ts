@@ -40,9 +40,14 @@ describe('decryptOrPassthrough', () => {
     expect(result).toBe('token-data');
   });
 
-  it('passes through plain text (legacy unencrypted tokens)', async () => {
-    const plainJson = '{"accessToken":"ya29.abc","refreshToken":"1//xyz"}';
+  it('passes through plain text with explicit marker (legacy unencrypted tokens)', async () => {
+    const plainJson = `plain:{"accessToken":"ya29.abc","refreshToken":"1//xyz"}`;
     const result = await decryptOrPassthrough(plainJson, TEST_KEY);
-    expect(result).toBe(plainJson);
+    expect(result).toBe('{"accessToken":"ya29.abc","refreshToken":"1//xyz"}');
+  });
+
+  it('rejects bare plaintext without marker (M6 security fix)', async () => {
+    const bareJson = '{"accessToken":"ya29.abc","refreshToken":"1//xyz"}';
+    await expect(decryptOrPassthrough(bareJson, TEST_KEY)).rejects.toThrow();
   });
 });

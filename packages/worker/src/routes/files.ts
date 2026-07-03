@@ -159,6 +159,7 @@ filesRouter.get('/search', async (c) => {
     try {
       const meta = JSON.parse(metadataRaw);
       for (const [key, value] of Object.entries(meta)) {
+        if (!/^[a-zA-Z0-9_.]+$/.test(key)) continue; // ponytail: L11 — reject JSON-path injection
         sql += ` AND json_extract(f.metadata, '$.' || ?) = ?`;
         binds.push(key, String(value));
       }
@@ -233,7 +234,7 @@ filesRouter.patch('/:id/move', async (c) => {
   const fileId = c.req.param('id');
   const { folderId } = await c.req.json();
 
-  const folder = await c.env.DB.prepare('SELECT workspace_id FROM workspace_folders WHERE id = ?').bind(folderId).first<{ workspace_id: string }>();
+  const folder = await c.env.DB.prepare('SELECT f.workspace_id FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ? WHERE f.id = ?').bind(userId, folderId).first<{ workspace_id: string }>(); // ponytail: L10 — verify target-workspace membership
   if (!folder && folderId) throw new AppError(404, 'Folder not found');
 
   await c.env.DB.prepare('UPDATE files SET workspace_folder_id = ?, workspace_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?')
@@ -348,8 +349,7 @@ filesRouter.post('/:id/move-drive', async (c) => {
 // Initialize upload (returns Google Drive Resumable URL)
 filesRouter.post('/upload/init', async (c) => {
   const userId = c.get('userId');
-  const { name, mimeType, size, folderId, workspaceId, driveAccountId } = await c.req.json();
-  console.log(`Init upload for folder: ${folderId}`); // prevent unused var error
+  const { name, mimeType, size, workspaceId, driveAccountId } = await c.req.json(); // ponytail: L12 — removed unused folderId + console.log
   const db = c.env.DB;
 
   if (workspaceId && size) {

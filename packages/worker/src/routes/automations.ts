@@ -33,6 +33,9 @@ automationsRouter.post('/', async (c) => {
   if (!body.name || !body.trigger_type) {
     throw new AppError(400, 'name and trigger_type are required');
   }
+  if (!['event', 'cron'].includes(body.trigger_type)) { // ponytail: L9 — validate trigger_type
+    throw new AppError(400, 'trigger_type must be "event" or "cron"');
+  }
 
   const conditions = Array.isArray(body.conditions) ? body.conditions : [];
   const actions = Array.isArray(body.actions) ? body.actions : [];
