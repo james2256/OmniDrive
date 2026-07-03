@@ -307,11 +307,7 @@ async function main() {
     }
 
     console.log(pc.cyan('Deploying to Cloudflare (Worker & Web)...'));
-    console.log(pc.cyan('Running remote D1 migrations...'));
-    runCmd('npx wrangler d1 execute omnidrive --remote --file=packages/worker/src/db/schema.sql -c packages/worker/wrangler.toml');
-    // ponytail: use npm scripts (cross-platform) instead of `make` — make is absent on Windows
-    runCmd('npm run deploy:worker');
-    runCmd('npm run deploy:web');
+    runCmd('npm run deploy:full');
     
     outro(pc.green('✅ Deployed successfully to Cloudflare!'));
   } else if (target === 'local') {
