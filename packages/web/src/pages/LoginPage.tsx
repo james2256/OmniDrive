@@ -31,7 +31,7 @@ export function LoginPage() {
       <div className="w-full max-w-sm">
         <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-10 text-center">
           <div className="flex flex-col items-center justify-center mb-1">
-            <img src="/logo.png" alt="AzaDrive" className="w-16 h-16 object-contain mb-3" />
+            <img src="/logo.png?v=2" alt="AzaDrive" className="w-16 h-16 object-contain mb-3" />
             <h1 className="text-3xl font-bold text-gray-900">AzaDrive</h1>
           </div>
           <p className="text-gray-500 text-sm mb-8">
@@ -82,6 +82,13 @@ export function LoginPage() {
               {isRegister ? 'Already have an account? Sign in' : 'Need an account? Register'}
             </button>
           </div>
+
+          <p className="mt-8 text-xs text-gray-400">
+            By signing in, you agree to our{' '}
+            <a href="/terms" className="text-primary hover:underline">Terms of Service</a>
+            {' '}and{' '}
+            <a href="/privacy" className="text-primary hover:underline">Privacy Policy</a>.
+          </p>
         </div>
       </div>
     </div>

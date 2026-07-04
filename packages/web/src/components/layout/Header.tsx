@@ -38,7 +38,7 @@ export const Header: React.FC = () => {
           <Menu size={24} />
         </button>
         <div className="flex items-center gap-2 min-w-0">
-          <img src="/logo.png" alt="AzaDrive" className="w-8 h-8 object-contain flex-shrink-0" />
+          <img src="/logo.png?v=2" alt="AzaDrive" className="w-8 h-8 object-contain flex-shrink-0" />
           <span className="text-xl text-gray-700 font-medium tracking-wide hidden sm:inline">AzaDrive</span>
         </div>
       </div>

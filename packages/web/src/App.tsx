@@ -16,6 +16,9 @@ import { StarredPage } from './pages/StarredPage';
 import { WorkspacesPage } from './pages/WorkspacesPage';
 import { SetupPage } from './pages/SetupPage';
 import { AdminUsersPage } from './pages/AdminUsersPage';
+import { LandingPage } from './pages/LandingPage';
+import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
+import { TermsOfServicePage } from './pages/TermsOfServicePage';
 import { api } from './lib/api';
 export const SetupGuard = ({ children, isSetup }: { children: React.ReactNode, isSetup: boolean }) => {
   if (isSetup === false) return <Navigate to="/setup" replace />;
@@ -53,6 +56,9 @@ export const App = () => {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/home" element={<LandingPage />} />
+        <Route path="/privacy" element={<PrivacyPolicyPage />} />
+        <Route path="/terms" element={<TermsOfServicePage />} />
         <Route path="/setup" element={isSetup ? <Navigate to="/login" /> : <SetupPage />} />
         <Route path="/login" element={!isSetup ? <Navigate to="/setup" /> : <LoginPage />} />
         <Route path="/shared/:id" element={<PublicSharedPage />} />

@@ -10,12 +10,12 @@ Panduan step-by-step menghilangkan peringatan **"Google belum memverifikasi apli
 
 | Item | Wajib | Catatan |
 |------|-------|---------|
-| Domain sendiri | Ya | Bukan `*.workers.dev` / `*.pages.dev` generik. Contoh: `omnidrive.example.com`. Google menolak domain shared. |
+| Domain sendiri | Ya | Bukan `*.workers.dev` / `*.pages.dev` generik. Production AzaDrive: `azadrive.my.id`. Google menolak domain shared. |
 | Domain terverifikasi di Google Search Console | Ya | Buktikan kepemilikan domain sebelum bisa dipakai di consent screen. |
 | Halaman **Privacy Policy** publik | Ya | URL di domainmu, bisa diakses tanpa login. Harus menyebut penggunaan data Google user. |
 | Halaman **Terms of Service** | Ya | URL di domainmu. |
 | App homepage publik | Ya | Landing page di domainmu yang menjelaskan fungsi app. |
-| Logo app (120×120 px, PNG/JPG) | Ya | Tidak boleh melanggar merek dagang. |
+| Logo app (120×120 px, PNG/JPG) | Ya | Harus **unik** — hindari ikon awan biru + kata "Drive" (dianggap meniru Google Drive). Pakai `logo-oauth-120.png` (lettermark "A" + titik multi-drive, tanpa teks). |
 | Akun Google Workspace/Cloud dengan billing | Ya | CASA & beberapa langkah butuh project berbayar. |
 
 ---
@@ -28,12 +28,12 @@ Panduan step-by-step menghilangkan peringatan **"Google belum memverifikasi apli
 4. Isi **App information**:
    - App name: `OmniDrive` (atau nama rebrand).
    - User support email.
-   - App logo (upload logo 120×120).
-5. Isi **App domain**:
-   - Application home page: `https://omnidrive.example.com`
-   - Privacy policy link: `https://omnidrive.example.com/privacy`
-   - Terms of service link: `https://omnidrive.example.com/terms`
-6. **Authorized domains**: tambahkan `example.com` (domain root, sudah terverifikasi di Search Console).
+   - App logo (upload logo 120×120) — file siap pakai: `packages/web/public/logo-oauth-120.png`.
+5. Isi **App domain** (gunakan URL production yang sudah live):
+   - Application home page: `https://azadrive.my.id/home`
+   - Privacy policy link: `https://azadrive.my.id/privacy`
+   - Terms of service link: `https://azadrive.my.id/terms`
+6. **Authorized domains**: tambahkan `my.id` (domain root, **wajib** terverifikasi di [Google Search Console](https://search.google.com/search-console) dulu).
 7. Developer contact email.
 8. Simpan.
 

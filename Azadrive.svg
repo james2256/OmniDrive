@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <rect width="512" height="512" rx="108" fill="#FCFCFD"/>
+  <rect x="96" y="72" width="320" height="320" rx="68" fill="#2563EB"/>
+  <path
+    d="M256 118 L362 362 H318 L296 296 H216 L194 362 H150 L256 118 Z M228 262 H284 L256 196 Z"
+    fill="#FFFFFF"
+  />
+  <circle cx="176" cy="378" r="18" fill="#00897B"/>
+  <circle cx="256" cy="378" r="18" fill="#E8710A"/>
+  <circle cx="336" cy="378" r="18" fill="#188038"/>
+  <text
+    x="256"
+    y="458"
+    text-anchor="middle"
+    font-family="system-ui, -apple-system, Segoe UI, sans-serif"
+    font-size="52"
+    font-weight="700"
+    letter-spacing="-1"
+  >
+    <tspan fill="#1E293B">Aza</tspan><tspan fill="#2563EB">Drive</tspan>
+  </text>
+</svg>
