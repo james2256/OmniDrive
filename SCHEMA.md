@@ -44,7 +44,7 @@ Akun lokal dan Google OAuth.
 |-------|------|------------|
 | `id` | TEXT PK | UUID |
 | `username` | TEXT UNIQUE | Login username |
-| `password_hash` | TEXT | bcrypt hash; `'oauth_only_user'` untuk user OAuth-only |
+| `password_hash` | TEXT | PBKDF2 hash (`pbkdf2:iters:salt:hash`); `'oauth_only_user'` untuk user OAuth-only |
 | `google_id` | TEXT UNIQUE | Google subject ID (nullable) |
 | `email` | TEXT UNIQUE | Email (nullable) |
 | `name` | TEXT | Display name |
@@ -440,12 +440,11 @@ make reset-remote
 
 ## KV Store (Bukan D1)
 
-Session dan OAuth token disimpan di **Cloudflare KV**, bukan D1:
+OAuth state dan token disimpan di **Cloudflare KV**, bukan D1. Session **sudah pindah ke D1** (tabel `sessions`, migrasi `0009`) karena KV free tier 1k writes/day habis:
 
 | Key pattern | Isi |
 |-------------|-----|
-| `session:{cookieId}` | JSON `SessionData` (7-day sliding TTL) |
-| `oauth:{state}` | PKCE state + redirect info |
+| `oauth_state:{state}` | PKCE code verifier + userId (TTL 10 menit) |
 | `tokens:{driveAccountId}` | OAuth tokens terenkripsi AES-256-GCM |
 
 Lihat `packages/worker/src/services/auth.service.ts` dan `packages/worker/src/lib/crypto.ts`.

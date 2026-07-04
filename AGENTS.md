@@ -138,7 +138,7 @@ node scripts/onboard-deploy.mjs   # wizard setup/deploy awal
 - Framework: **Hono** — router per domain di `src/routes/`
 - Business logic: `src/services/` — jangan taruh logika berat di route handler
 - Middleware global di `src/index.ts` (urutan penting): security headers → CORS → CSRF → rate limiter
-- Auth: cookie `omnidrive_sid` + KV session (`middleware/auth-guard.ts`)
+- Auth: cookie `omnidrive_sid` + D1 session (tabel `sessions`, `middleware/auth-guard.ts`)
 - S3: route terpisah di `/s3/*` dengan SigV4 (`middleware/s3-auth.ts`)
 - Error: gunakan `AppError` dari `middleware/error-handler.ts`
 - Database: D1 (SQLite) — skema di `src/db/schema.sql`, migrasi incremental `0001`–`0007`

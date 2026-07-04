@@ -15,7 +15,8 @@ Dokumen arsitektur AzaDrive — gateway penyimpanan multi-Google Drive di Cloudf
        ▼                                  ▼           ▼
   VITE_API_URL                      ┌─────────┐ ┌─────────┐
   → Worker :8888                    │ D1 (DB) │ │ KV      │
-                                    │ SQLite  │ │ Session │
+                                    │ SQLite  │ │ Tokens  │
+                                    │ Session │ │ OAuth   │
                                     └─────────┘ └────┬────┘
                                                      │
                                     ┌────────────────┼────────────────┐
@@ -98,7 +99,7 @@ D1 / KV / Google API
 
 | Middleware | File | Fungsi |
 |------------|------|--------|
-| `authGuard` | `middleware/auth-guard.ts` | Cookie `omnidrive_sid` → KV session |
+| `authGuard` | `middleware/auth-guard.ts` | Cookie `omnidrive_sid` → D1 session |
 | `csrfGuard` | `middleware/csrf-guard.ts` | CSRF protection |
 | `rateLimiter` | `middleware/rate-limiter.ts` | Sliding window in-memory |
 | `rbac` | `middleware/rbac.ts` | Workspace role authorization |
@@ -112,8 +113,8 @@ D1 / KV / Google API
 
 ```
 Client POST /api/auth/login { username, password }
-    → AuthService validates bcrypt hash
-    → Create session in KV (session:{uuid})
+    → AuthService validates PBKDF2 hash (Web Crypto)
+    → Create session in D1 (sessions table)
     → Set cookie omnidrive_sid
     → Return user JSON
 ```
@@ -134,11 +135,11 @@ Google GET /api/auth/callback?code=...&state=...
 
 ### Session Model
 
-- **Storage**: Cloudflare KV
+- **Storage**: Cloudflare D1 (`sessions` table) — migrated from KV (free tier 1k writes/day was exhausted by per-request extension)
 - **Cookie**: `omnidrive_sid` (httpOnly)
-- **TTL**: 7-day sliding window per request
-- **Max age**: 30-day absolute (`auth-guard.ts`)
-- **Data**: `SessionData` — userId, username, role, createdAt
+- **TTL**: 7-day sliding window, throttled to extend at most once per hour (`touched_at`)
+- **Cleanup**: expired rows removed by scheduled cron (`*/30`, `index.ts`)
+- **Data**: `SessionData` (JSON in `data` column) — userId, username, role, createdAt
 
 ## Data Sync Architecture
 
@@ -257,7 +258,7 @@ Trigger: `*/30 * * * *` (setiap 30 menit)
 | Token theft | AES-256-GCM encryption at rest in KV |
 | Role escalation | RBAC middleware, role hierarchy enforcement |
 | SSRF | Webhook URL validation |
-| Session hijack | httpOnly cookie, 30-day max session |
+| Session hijack | httpOnly cookie, 7-day sliding TTL, server-side revocable (D1) |
 | S3 signature bypass | Timing-safe comparison, clock skew ±15min |
 
 ## Deployment Topology
