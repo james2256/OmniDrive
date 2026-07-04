@@ -4,6 +4,7 @@ import { useToastStore } from '../stores/toastStore';
 import { FileGrid } from '../components/files/FileGrid';
 import { api } from '../lib/api';
 import type { FileEntry, WorkspaceFolder } from '../types';
+import { FilePreviewModal } from '../components/FilePreviewModal';
 
 export function StarredPage() {
   const { drives, fetchDrives } = useDriveStore();
@@ -12,6 +13,7 @@ export function StarredPage() {
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [folders, setFolders] = useState<WorkspaceFolder[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
 
   const fetchStarred = useCallback(async () => {
     setIsLoading(true);
@@ -83,6 +85,7 @@ export function StarredPage() {
             isTargetShared={() => false}
             viewMode="list"
             onToggleStar={handleToggleStar}
+            onPreviewFile={setPreviewFile}
           />
         </div>
       ) : (
@@ -90,6 +93,11 @@ export function StarredPage() {
           <p className="text-lg">No starred items found.</p>
         </div>
       )}
+      <FilePreviewModal
+        open={!!previewFile}
+        file={previewFile ?? undefined}
+        onClose={() => setPreviewFile(null)}
+      />
     </div>
   );
 }

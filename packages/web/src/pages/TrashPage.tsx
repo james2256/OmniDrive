@@ -4,6 +4,7 @@ import { useToastStore } from '../stores/toastStore';
 import { FileGrid } from '../components/files/FileGrid';
 import { api } from '../lib/api';
 import type { FileEntry } from '../types';
+import { FilePreviewModal } from '../components/FilePreviewModal';
 
 export function TrashPage() {
   const { drives } = useDriveStore();
@@ -11,6 +12,7 @@ export function TrashPage() {
   
   const [results, setResults] = useState<FileEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
 
   const fetchTrash = useCallback(async () => {
     setIsLoading(true);
@@ -73,7 +75,7 @@ export function TrashPage() {
             getDriveInfo={getDriveInfo}
             onShare={() => {}}
             onMoveDrive={() => {}}
-            onPreviewFile={() => {}}
+            onPreviewFile={setPreviewFile}
             isTargetShared={() => false}
             viewMode="list"
             isTrashView={true}
@@ -86,6 +88,11 @@ export function TrashPage() {
           <p className="text-lg">Your trash is empty.</p>
         </div>
       )}
+      <FilePreviewModal
+        open={!!previewFile}
+        file={previewFile ?? undefined}
+        onClose={() => setPreviewFile(null)}
+      />
     </div>
   );
 }

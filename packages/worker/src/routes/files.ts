@@ -566,6 +566,69 @@ filesRouter.patch('/:id/metadata', async (c) => {
   return c.json({ success: true });
 });
 
+function isPreviewableImageMime(mime: string): boolean {
+  return mime.startsWith('image/') || mime === 'application/vnd.google-apps.photo';
+}
+
+// GET /api/files/:id/preview — inline image stream for authenticated preview
+filesRouter.get('/:id/preview', async (c) => {
+  const userId = c.get('userId');
+  const fileId = c.req.param('id');
+  const db = c.env.DB;
+
+  const file = await db.prepare('SELECT * FROM files WHERE id = ?').bind(fileId).first<any>();
+  if (!file) throw new AppError(404, 'File not found');
+
+  if (file.workspace_id) {
+    const { getWorkspaceRole, hasPermission } = await import('../middleware/rbac');
+    const role = await getWorkspaceRole(db, file.workspace_id, userId);
+    if (!role || !hasPermission(role, 'viewer')) {
+      throw new AppError(403, 'Forbidden');
+    }
+  } else if (file.user_id !== userId) {
+    throw new AppError(403, 'Forbidden');
+  }
+
+  const mimeType = (file.mime_type as string) || '';
+  if (!isPreviewableImageMime(mimeType)) {
+    throw new AppError(415, 'Preview not available for this file type');
+  }
+
+  const driveService = new GoogleDriveService(
+    c.env.KV,
+    c.env.GOOGLE_CLIENT_ID,
+    c.env.GOOGLE_CLIENT_SECRET,
+    c.env.TOKEN_ENCRYPTION_KEY
+  );
+
+  let stream: ReadableStream<Uint8Array>;
+  let finalMimeType = mimeType === 'application/vnd.google-apps.photo' ? 'image/jpeg' : mimeType;
+
+  try {
+    const downloadResult = await driveService.downloadFile(
+      file.drive_account_id as string,
+      file.google_file_id as string,
+      file.mime_type as string
+    );
+    stream = downloadResult.stream;
+    if (downloadResult.exportedMimeType) {
+      finalMimeType = downloadResult.exportedMimeType;
+    }
+  } catch (e: any) {
+    console.error('Preview error:', e);
+    return c.text('Failed to load preview', 502);
+  }
+
+  c.header('Content-Type', finalMimeType);
+  c.header('Content-Disposition', 'inline');
+  c.header('Cache-Control', 'private, max-age=300');
+  if (file.size) {
+    c.header('Content-Length', String(file.size));
+  }
+
+  return c.body(stream);
+});
+
 // GET /api/files/:id/download
 filesRouter.get('/:id/download', async (c) => {
   const userId = c.get('userId');

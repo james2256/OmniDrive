@@ -1,6 +1,18 @@
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
 import type { WorkspaceFolder } from '../types';
 
+export function getFilePreviewUrl(fileId: string): string {
+  return `${API_BASE}/api/files/${fileId}/preview`;
+}
+
+export async function fetchFilePreviewBlob(fileId: string): Promise<Blob> {
+  const response = await fetch(getFilePreviewUrl(fileId), { credentials: 'include' });
+  if (!response.ok) {
+    throw new ApiError(response.status, 'Failed to load preview');
+  }
+  return response.blob();
+}
+
 class ApiError extends Error {
   constructor(
     public status: number,

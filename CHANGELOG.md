@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Preview gambar:** endpoint baru `GET /api/files/:id/preview` mem-proxy stream gambar dari Google Drive dengan auth session (inline, bukan attachment). `FilePreviewModal` fetch blob via API lalu tampilkan object URL — menggantikan `thumbnailUrl` Google yang tidak bisa di-load langsung di browser. Preview diaktifkan di Workspaces, Trash, dan Starred (sebelumnya stub kosong).
+
 - **Logo AzaDrive diganti untuk lolos Google brand verification:** ganti ikon awan biru (mirip Google Drive) dengan lettermark "A" cobalt + tiga titik drive (`Azadrive-icon.svg` untuk OAuth/favicon, `Azadrive.svg` untuk UI penuh). Regenerate PNG via `scripts/optimize-logo.mjs`.
 
 - **Logo AzaDrive dioptimasi dari `Azadrive.svg`:** generate PNG via `scripts/optimize-logo.mjs` (sharp) — `logo.png` 512px (~21 KB, turun dari ~1,8 MB), `favicon-32/48.png`, `apple-touch-icon.png` 180px, `logo-oauth-120.png` untuk upload Google Console. `index.html` pakai favicon multi-size.

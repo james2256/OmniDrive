@@ -7,6 +7,7 @@ import { CreateFolderModal } from '../components/CreateFolderModal';
 import { useToastStore } from '../stores/toastStore';
 import { useSelectionStore, type SelectedItem } from '../stores/useSelectionStore';
 import { useUIStore } from '../stores/useUIStore';
+import { FilePreviewModal } from '../components/FilePreviewModal';
 
 export function WorkspacesPage() {
   const [folders, setFolders] = useState<WorkspaceFolder[]>([]);
@@ -23,6 +24,7 @@ export function WorkspacesPage() {
   const { clearSelection, toggleSelection } = useSelectionStore();
   const setIsInfoPanelOpen = useUIStore(s => s.setIsInfoPanelOpen);
   const [wsSidebarOpen, setWsSidebarOpen] = useState(false);
+  const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
 
   const fetchTree = useCallback(async () => {
     try {
@@ -141,7 +143,7 @@ export function WorkspacesPage() {
   }, [activeFolder, folders]);
 
   const getDriveInfo = useCallback(() => ({ drive: null as any, index: 0 }), []);
-  const onPreviewFile = useCallback(() => {}, []);
+  const onPreviewFile = useCallback((file: FileEntry) => setPreviewFile(file), []);
   const onShare = useCallback(() => {}, []);
   const onRenameFile = useCallback(() => {}, []);
   const onMoveDrive = useCallback(() => {}, []);
@@ -237,6 +239,11 @@ export function WorkspacesPage() {
         title={createModal?.title ?? 'New Folder'}
         onClose={() => setCreateModal(null)}
         onSuccess={fetchTree}
+      />
+      <FilePreviewModal
+        open={!!previewFile}
+        file={previewFile ?? undefined}
+        onClose={() => setPreviewFile(null)}
       />
       {retentionTargetId && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">

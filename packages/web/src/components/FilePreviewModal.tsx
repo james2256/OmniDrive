@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { ExternalLink, Download } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ExternalLink, Download, Loader2 } from 'lucide-react';
 import type { FileEntry } from '../types';
 import { formatFileSize, formatRelativeTime } from '../lib/utils';
+import { fetchFilePreviewBlob } from '../lib/api';
 import { FileIcon } from './files/FileIcon';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 
@@ -12,9 +13,45 @@ interface FilePreviewModalProps {
 }
 
 export function FilePreviewModal({ open, file, onClose }: FilePreviewModalProps) {
-  const isImage = file?.mimeType?.startsWith('image/');
+  const isImage = file?.mimeType?.startsWith('image/') || file?.mimeType === 'application/vnd.google-apps.photo';
   const isGoogleDoc = file?.mimeType?.startsWith('application/vnd.google-apps.');
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const [imageError, setImageError] = useState(false);
+
+  useEffect(() => {
+    if (!open || !file || !isImage) {
+      setPreviewUrl(null);
+      setImageError(false);
+      setIsLoading(false);
+      return;
+    }
+
+    let revoked = false;
+    let objectUrl: string | null = null;
+
+    setIsLoading(true);
+    setImageError(false);
+    setPreviewUrl(null);
+
+    fetchFilePreviewBlob(file.id)
+      .then((blob) => {
+        if (revoked) return;
+        objectUrl = URL.createObjectURL(blob);
+        setPreviewUrl(objectUrl);
+        setIsLoading(false);
+      })
+      .catch(() => {
+        if (revoked) return;
+        setImageError(true);
+        setIsLoading(false);
+      });
+
+    return () => {
+      revoked = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [open, file?.id, isImage]);
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -37,38 +74,23 @@ export function FilePreviewModal({ open, file, onClose }: FilePreviewModalProps)
         {/* Content Body - Scrollable */}
         {file && (
           <div className="p-6 overflow-y-auto">
-            {/* Preview */}
-            {isImage && file.thumbnailUrl && (
+            {/* Image preview via authenticated API proxy */}
+            {isImage && (
               <div className="mb-6 rounded-xl overflow-hidden bg-gray-50 border border-gray-200 flex justify-center items-center p-2 min-h-[200px]">
-                {!imageError ? (
+                {isLoading ? (
+                  <div className="flex flex-col items-center justify-center text-gray-400 py-12">
+                    <Loader2 className="w-8 h-8 animate-spin mb-2" />
+                    <span className="text-sm">Loading preview…</span>
+                  </div>
+                ) : previewUrl && !imageError ? (
                   <img
-                    src={typeof file.thumbnailUrl === 'string' ? file.thumbnailUrl.replace('=s220', '=s600') : file.thumbnailUrl}
+                    src={previewUrl}
                     alt={file.name}
-                    loading="lazy"
                     className="max-w-full max-h-[400px] object-contain rounded-lg shadow-sm"
                     onError={() => setImageError(true)}
                   />
                 ) : (
-                  <div className="flex flex-col items-center justify-center text-gray-400">
-                    <FileIcon mimeType={file.mimeType} className="w-16 h-16 mb-2" />
-                    <span className="text-sm">Preview unavailable</span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {!isImage && file.thumbnailUrl && (
-              <div className="mb-6 flex justify-center p-8 bg-gray-50 border border-gray-200 rounded-xl min-h-[200px]">
-                {!imageError ? (
-                  <img
-                    src={file.thumbnailUrl}
-                    alt={file.name}
-                    loading="lazy"
-                    className="max-h-[200px] object-contain shadow-sm rounded bg-white"
-                    onError={() => setImageError(true)}
-                  />
-                ) : (
-                  <div className="flex flex-col items-center justify-center text-gray-400">
+                  <div className="flex flex-col items-center justify-center text-gray-400 py-12">
                     <FileIcon mimeType={file.mimeType} className="w-16 h-16 mb-2" />
                     <span className="text-sm">Preview unavailable</span>
                   </div>
