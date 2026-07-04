@@ -1,14 +1,14 @@
 # DESIGN.md — UI & Design System
 
-Panduan visual dan pola komponen untuk frontend OmniDrive (`packages/web`).
+Panduan visual dan pola komponen untuk frontend AzaDrive (`packages/web`).
 
 ## Filosofi Desain
 
-OmniDrive mengadopsi estetika **Google Drive / Google Workspace** — bersih, familiar, dan fungsional. Bukan dark mode murni; tema utama adalah **light mode** dengan sidebar abu-abu lembut dan aksen biru Google.
+AzaDrive mengadopsi estetika **premium SaaS cobalt** — bersih, bento-driven, dan fungsional. Light mode dengan surface cool slate, accent electric blue, dan dashboard asimetris. Bukan dark mode murni.
 
 | Prinsip | Implementasi |
 |---------|-------------|
-| Familiaritas | Layout sidebar + main content seperti Google Drive |
+| Bento asimetris | Dashboard grid 4-kolom dengan cell span varied (hero, donut, quick-access, drives, recent) |
 | Kepadatan informasi | File grid/list dengan metadata badge |
 | Aksi cepat | Bulk action bar floating, context menu, drag-and-drop |
 | Hierarki workspace | Sidebar tree ala Notion untuk workspace folders |
@@ -35,10 +35,10 @@ colors: {
   background: "hsl(0, 0%, 100%)",      // Putih — main canvas
   foreground: "hsl(222.2, 84%, 4.9%)", // Hampir hitam — teks utama
   primary: {
-    DEFAULT: "#0B57D0",                 // Google Blue — CTA, link aktif
+    DEFAULT: "#2563EB",                 // Cobalt blue — CTA, link aktif (Opsi B)
     foreground: "hsl(210, 40%, 98%)",
   },
-  surface: "#F0F4F9",                   // Abu biru — sidebar background
+  surface: "#F1F5F9",                   // Cool slate — sidebar background
 }
 borderRadius: {
   lg: "0.5rem",
@@ -117,7 +117,7 @@ Urutan menu (dari `Sidebar.tsx`):
 |-------|------|--------|
 | `/setup` | `SetupPage` | First-run admin setup |
 | `/login` | `LoginPage` | Login/register |
-| `/` | `DashboardPage` | Home — storage overview, recent files, per-drive capacity editor (gear icon → `parseSizeToBytes`) |
+| `/` | `DashboardPage` | Home — bento grid: storage hero (% besar + QuotaBar), donut breakdown per tipe (Recharts), quick-access tiles, connected drives, recent files, empty state bila belum ada drive, admin tile untuk `super_admin` |
 | `/files/:folderId?` | `FilesPage` | File browser |
 | `/search` | `SearchPage` | Global search |
 | `/workspaces` | `WorkspacesPage` | Workspace tabs (files, members, audit, settings) |
@@ -236,4 +236,4 @@ Urutan menu (dari `Sidebar.tsx`):
 
 ## Referensi Visual
 
-Estetika target: **Google Drive 2024+** — sidebar `#F0F4F9`, primary blue `#0B57D0`, pill navigation, stacked storage bar di sidebar bawah.
+Estetika target: **premium SaaS cobalt** — sidebar `#F1F5F9`, primary blue `#2563EB`, pill navigation, bento grid Dashboard, donut breakdown per tipe file.

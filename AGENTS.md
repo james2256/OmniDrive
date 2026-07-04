@@ -73,7 +73,7 @@ Keempat dokumen di bawah adalah **sumber kebenaran** untuk domain, data, UI, dan
 | `#tech-stack-ui` | React 19, Vite, Tailwind, Radix, Zustand |
 | `#design-tokens` | Token warna `--drive-*`, spacing, radius |
 | `#layout` | `AppLayout` → Sidebar + Header + MainContent |
-| `#halaman` | Tabel route → page (termasuk capacity editor di Dashboard) |
+| `#halaman` | Tabel route → page (termasuk bento grid Dashboard, capacity editor di Settings) |
 | `#komponen-ui-reusable` | Primitives & komponen bisnis |
 | `#pola-interaksi` | Pola modal, toast, dropdown |
 | `#responsive-aksesibilitas` | Breakpoint + a11y |
@@ -82,7 +82,7 @@ Keempat dokumen di bawah adalah **sumber kebenaran** untuk domain, data, UI, dan
 
 ### `CHANGELOG.md` — Riwayat Perubahan (366 baris)
 
-**Baca saat:** mulai sesi (cek `[Unreleased]`), selesai task (catat di `[Unreleased]`), atau cari kapan fitur/bug diperkenalkan. Versi pakai Keep a Changelog. Entry terbaru session ini: storage quota fix (`usageInDrive`) + manual capacity override (`quota_override`, migrasi `0007`).
+**Baca saat:** mulai sesi (cek `[Unreleased]`), selesai task (catat di `[Unreleased]`), atau cari kapan fitur/bug diperkenalkan. Versi pakai Keep a Changelog. Entry terbaru session ini: redesign Home jadi bento grid (Konsep 3) + recalibrasi palette brand (Opsi B — cobalt accent `#2563EB`) + drive identity color tokens (`--drive-1`..`--drive-5`).
 
 > **Aturan:** setiap task yang mengubah perilaku/library UI wajib tambah entry di `CHANGELOG.md` bagian `[Unreleased]`. Lihat section "Menambah Fitur Baru" langkah 5.
 
@@ -240,11 +240,11 @@ Peta navigasi lengkap (kapan baca + section anchor) ada di section **"Dokumentas
 
 | File | Isi | Update terakhir |
 |------|-----|-----------------|
-| `ARCHITECTURE.md` | Diagram, alur data, komponen sistem, quota/capacity | Session ini (Storage Quota & Capacity subsection) |
-| `SCHEMA.md` | Tabel, relasi, indeks D1, migrasi `0001`–`0007` | Session ini (`quota_override` + migrasi `0007`) |
-| `DESIGN.md` | Token warna, layout, pola komponen | Session ini (capacity editor di Dashboard) |
-| `CHANGELOG.md` | Riwayat versi (`[Unreleased]` + `0.9.7` ke bawah) | Session ini (quota fix + override + doc update) |
-| `README.md` / `README.id.md` | Panduan user & setup | — |
+| `ARCHITECTURE.md` | Diagram, alur data, komponen sistem, quota/capacity | Session ini (capacity editor ref pindah ke Settings) |
+| `SCHEMA.md` | Tabel, relasi, indeks D1, migrasi `0001`–`0007` | Session sebelumnya (`quota_override` + migrasi `0007`) |
+| `DESIGN.md` | Token warna cobalt, layout bento, pola komponen | Session ini (bento dashboard + Opsi B palette) |
+| `CHANGELOG.md` | Riwayat versi (`[Unreleased]` + `0.9.7` ke bawah) | Session ini (bento redesign + cobalt palette + drive tokens) |
+| `README.md` / `README.id.md` | Panduan user & setup | Tidak diubah (sudah rebrand AzaDrive) |
 
 ## Hal yang Jangan Dilakukan
 
