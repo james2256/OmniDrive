@@ -22,6 +22,6 @@ export const securityHeaders = createMiddleware(async (c, next) => {
     : "'self'";
   c.header(
     'Content-Security-Policy',
-    `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src ${connectSrc}; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; object-src 'none'`
+    `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src ${connectSrc}; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; object-src 'none'`
   );
 });

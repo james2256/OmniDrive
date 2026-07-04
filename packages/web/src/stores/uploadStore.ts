@@ -63,8 +63,8 @@ export const useUploadStore = create<UploadState>((set, get) => ({
           workspaceFolderId,
         });
 
-        // 2. Upload directly to Google Drive
-        const uploadResponse = await uploadToGoogleDrive(uploadUrl, item.file, (progress) => {
+        // 2. Upload via Worker proxy (bypasses Google CORS restriction)
+        const uploadResponse = await api.uploadViaProxy(uploadUrl, item.file, (progress) => {
           set((state) => ({
             queue: state.queue.map((q) => (q.id === item.id ? { ...q, progress } : q)),
           }));
@@ -99,32 +99,3 @@ export const useUploadStore = create<UploadState>((set, get) => ({
   setShowModal: (show: boolean) => set({ showModal: show }),
 }));
 
-async function uploadToGoogleDrive(
-  uploadUrl: string,
-  file: File,
-  onProgress: (percent: number) => void
-): Promise<{ id: string }> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-
-    xhr.upload.addEventListener('progress', (e) => {
-      if (e.lengthComputable) {
-        onProgress(Math.round((e.loaded / e.total) * 100));
-      }
-    });
-
-    xhr.addEventListener('load', () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        resolve(JSON.parse(xhr.responseText));
-      } else {
-        reject(new Error(`Upload failed: ${xhr.status}`));
-      }
-    });
-
-    xhr.addEventListener('error', () => reject(new Error('Upload network error')));
-
-    xhr.open('PUT', uploadUrl);
-    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-    xhr.send(file);
-  });
-}

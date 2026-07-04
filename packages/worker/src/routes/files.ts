@@ -347,6 +347,52 @@ filesRouter.post('/:id/move-drive', async (c) => {
 });
 
 // Initialize upload (returns Google Drive Resumable URL)
+// Proxy direct-to-Google upload bytes through Worker (Google resumable endpoints
+// don't set CORS headers, so browser can't PUT directly)
+filesRouter.put('/upload/proxy', async (c) => {
+  const uploadUrl = c.req.header('X-Upload-Url');
+  if (!uploadUrl) throw new AppError(400, 'Missing X-Upload-Url header');
+
+  const contentLength = c.req.header('Content-Length');
+  const contentType = c.req.header('Content-Type') || 'application/octet-stream';
+  const contentRange = c.req.header('Content-Range');
+
+  console.log('Upload proxy:', { uploadUrl: uploadUrl.substring(0, 80), contentLength, contentType, contentRange });
+
+  const headers: Record<string, string> = {
+    'Content-Type': contentType,
+  };
+  if (contentLength) headers['Content-Length'] = contentLength;
+  if (contentRange) headers['Content-Range'] = contentRange;
+
+  // Read body explicitly to ensure it's forwarded correctly
+  const body = await c.req.raw.arrayBuffer();
+  console.log('Upload proxy body size:', body.byteLength);
+
+  const googleResponse = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers,
+    body,
+  });
+
+  console.log('Google response:', googleResponse.status, googleResponse.statusText);
+
+  const responseBody = await googleResponse.text();
+  console.log('Google response body preview:', responseBody.substring(0, 200));
+
+  const cleanHeaders = new Headers();
+  googleResponse.headers.forEach((v, k) => {
+    if (!['access-control-allow-origin', 'access-control-allow-credentials'].includes(k.toLowerCase())) {
+      cleanHeaders.set(k, v);
+    }
+  });
+
+  return new Response(responseBody, {
+    status: googleResponse.status,
+    headers: cleanHeaders,
+  });
+});
+
 filesRouter.post('/upload/init', async (c) => {
   const userId = c.get('userId');
   const { name, mimeType, size, workspaceId, driveAccountId } = await c.req.json(); // ponytail: L12 — removed unused folderId + console.log
@@ -414,7 +460,13 @@ filesRouter.post('/upload/finalize', async (c) => {
 
   // Fetch file metadata from Google Drive
   const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
-  const gFile = await driveService.getFile(driveAccountId, googleFileId);
+  let gFile;
+  try {
+    gFile = await driveService.getFile(driveAccountId, googleFileId);
+  } catch (err) {
+    console.error('Upload finalize getFile error:', err, 'FileID:', googleFileId, 'DriveID:', driveAccountId);
+    throw new AppError(400, `Failed to fetch uploaded file from Google Drive: ${(err as Error).message}. File ID: ${googleFileId}, Drive: ${driveAccountId}`);
+  }
 
   const id = generateId();
   const fileSize = parseInt(gFile.size || '0', 10);

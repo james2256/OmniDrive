@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Preview gambar gagal di production:** CSP `img-src` tidak mengizinkan `blob:` — `FilePreviewModal` menggunakan `URL.createObjectURL()` untuk menampilkan gambar yang di-fetch dari `/api/files/:id/preview`, tapi browser memblokir `<img src="blob:...">` karena CSP. Fix: tambahkan `blob:` ke direktif `img-src` di `security-headers.ts`.
+
 ### Added
 
 - **Preview gambar:** endpoint baru `GET /api/files/:id/preview` mem-proxy stream gambar dari Google Drive dengan auth session (inline, bukan attachment). `FilePreviewModal` fetch blob via API lalu tampilkan object URL — menggantikan `thumbnailUrl` Google yang tidak bisa di-load langsung di browser. Preview diaktifkan di Workspaces, Trash, dan Starred (sebelumnya stub kosong).

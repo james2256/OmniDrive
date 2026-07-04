@@ -128,6 +128,43 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+
+  // Upload file bytes via Worker proxy (bypasses Google CORS restriction)
+  uploadViaProxy: (uploadUrl: string, file: File, onProgress?: (percent: number) => void) => {
+    return new Promise<{ id: string }>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) onProgress?.(Math.round((e.loaded / e.total) * 100));
+      });
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const result = JSON.parse(xhr.responseText);
+            if (!result.id) {
+              reject(new Error(`Upload response missing file ID`));
+            } else {
+              resolve(result);
+            }
+          } catch (err) {
+            reject(new Error(`Upload response not valid JSON: ${xhr.responseText.substring(0, 100)}`));
+          }
+        } else if (xhr.status === 308) {
+          // Google resumable upload incomplete - need to resume
+          reject(new Error(`Upload incomplete, Google returned 308 Resume Incomplete`));
+        } else {
+          reject(new Error(`Upload proxy failed: ${xhr.status} - ${xhr.responseText.substring(0, 100)}`));
+        }
+      });
+      xhr.addEventListener('error', () => reject(new Error('Upload network error')));
+      xhr.open('PUT', `${API_BASE}/api/files/upload/proxy`);
+      xhr.withCredentials = true;
+      xhr.setRequestHeader('X-Upload-Url', uploadUrl);
+      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+      // Google resumable single-chunk upload requires Content-Range header
+      xhr.setRequestHeader('Content-Range', `bytes 0-${file.size - 1}/${file.size}`);
+      xhr.send(file);
+    });
+  },
   moveFile: (id: string, workspaceFolderId: string | null) =>
     request<{ success: boolean }>(`/api/files/${id}/move`, {
       method: 'PATCH',
