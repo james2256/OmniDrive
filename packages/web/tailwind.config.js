@@ -18,10 +18,10 @@ export default {
         background: "hsl(0, 0%, 100%)",
         foreground: "hsl(222.2, 84%, 4.9%)",
         primary: {
-          DEFAULT: "#0B57D0",
+          DEFAULT: "#2563EB",
           foreground: "hsl(210, 40%, 98%)",
         },
-        surface: "#F0F4F9",
+        surface: "#F1F5F9",
       },
       borderRadius: {
         lg: "0.5rem",

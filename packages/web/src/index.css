@@ -6,4 +6,26 @@
   body {
     @apply bg-background text-foreground m-0 p-0 font-sans;
   }
+
+  /* Drive identity colors — assigned round-robin by getDriveColor(index).
+     Distinct, Google-Workspace-ish, none overlap the page primary. */
+  :root {
+    --drive-1: #2563EB; /* blue   — matches brand primary (electric) */
+    --drive-2: #00897B; /* teal   */
+    --drive-3: #E8710A; /* amber  */
+    --drive-4: #D93025; /* red    */
+    --drive-5: #188038; /* green  */
+  }
+
+  /* Bento cell reveal — CSS-driven stagger via animation-delay.
+     ponytail: no Motion dep; transform+opacity only; reduced-motion collapses to static. */
+  @media (prefers-reduced-motion: no-preference) {
+    .bento-reveal {
+      animation: bento-fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    @keyframes bento-fade-up {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+  }
 }

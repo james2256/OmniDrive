@@ -1,6 +1,6 @@
 # ARCHITECTURE.md — System Architecture
 
-Dokumen arsitektur OmniDrive — gateway penyimpanan multi-Google Drive di Cloudflare Edge.
+Dokumen arsitektur AzaDrive — gateway penyimpanan multi-Google Drive di Cloudflare Edge.
 
 ## Overview
 
@@ -179,7 +179,7 @@ Kapasitas tiap drive dihitung di `computeDriveQuota()` (`lib/storage-quota.ts`) 
 - Google Workspace pooled storage (akun 5 TB dst.)
 - Service account
 
-Akun-akun tersebut akan jatuh ke fallback 1 TiB kecuali user set `quota_override` manual via UI Dashboard (tombol gear per drive). `getQuota()` mengekspos `hasLimit` agar route tidak menimpa `total_quota` DB dengan nilai fallback saat Google omit limit.
+Akun-akun tersebut akan jatuh ke fallback 1 TiB kecuali user set `quota_override` manual via UI Settings > Connected Drives (tombol gear per drive di `DriveAccountCard`). `getQuota()` mengekspos `hasLimit` agar route tidak menimpa `total_quota` DB dengan nilai fallback saat Google omit limit.
 
 Pemakaian (`used`) memakai `storageQuota.usageInDrive` (Drive-only), bukan `usage` (akun-wide: Drive+Gmail+Photos).
 
