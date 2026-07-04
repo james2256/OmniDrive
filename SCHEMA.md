@@ -1,6 +1,6 @@
 # SCHEMA.md — Database Schema (Cloudflare D1)
 
-Database OmniDrive menggunakan **Cloudflare D1** (SQLite). Skema master ada di `packages/worker/src/db/schema.sql`. Migrasi incremental: `0001`–`0006`.
+Database OmniDrive menggunakan **Cloudflare D1** (SQLite). Skema master ada di `packages/worker/src/db/schema.sql`. Migrasi incremental: `0001`–`0008`.
 
 ## Diagram Relasi
 
@@ -406,6 +406,7 @@ Part individual dari multipart upload.
 | `0005_add_workspace_id_to_s3_credentials.sql` | Kolom `workspace_id` di s3_credentials |
 | `0006_add_sync_cache_columns.sql` | `sync_ttl_minutes`, `last_synced_at`, `sync_status` |
 | `0007_add_quota_override.sql` | Kolom `quota_override` di `drive_accounts` (manual capacity untuk Workspace/service account) |
+| `0008_add_is_super_admin.sql` | Kolom `is_super_admin` di `users` — fix kolom hilang dari migrasi incremental (ada di `schema.sql` tapi tidak di `0001`); promotes user tertua jadi super admin |
 | `0008_add_s3_lifecycle_rules.sql` | Tabel `s3_lifecycle_rules` (aturan expire objek S3 → trash Google Drive) |
 
 ## Perintah Database
