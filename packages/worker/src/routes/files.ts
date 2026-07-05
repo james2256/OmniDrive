@@ -279,7 +279,7 @@ filesRouter.post('/:id/move-drive', async (c) => {
     throw new AppError(404, 'Target drive not found or unauthorized');
   }
 
-  const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+  const driveService = new GoogleDriveService(c.env.DB, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
 
   let sharePermissionId: string | null = null;
   let copySuccessId: string | null = null;
@@ -418,19 +418,18 @@ filesRouter.post('/upload/init', async (c) => {
   });
   if (drives.length === 0) throw new AppError(400, 'No connected drives');
 
-  const hasAnyTokens = await Promise.all(
-    drives.map(async (d) =>
-      !!(await c.env.KV.get(`tokens:${d.id}`) ?? await c.env.KV.get(`oauth:${d.id}`))
-    )
-  );
-  if (!hasAnyTokens.some(Boolean)) {
+  const driveIds = drives.map(d => d.id);
+  const tokenRows = await c.env.DB.prepare(
+    `SELECT DISTINCT drive_account_id FROM drive_tokens WHERE drive_account_id IN (${driveIds.map(() => '?').join(',')})`
+  ).bind(...driveIds).all();
+  if (!tokenRows.results?.length) {
     throw new AppError(400, 'Google Drive session expired. Disconnect and reconnect your account in Settings.');
   }
 
   const router = new UploadRouter(drives);
   const targetDrive = router.selectDriveForUpload(size, driveAccountId);
 
-  const gDrive = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+  const gDrive = new GoogleDriveService(c.env.DB, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
   // parentFolderId (current view) wins; fall back to the drive's configured root folder, then Google 'root'.
   const uploadParent = parentFolderId || targetDrive.rootFolderId || 'root';
   console.log('upload/init', { driveId: targetDrive.id, type: targetDrive.type, rootFolderId: targetDrive.rootFolderId, override: targetDrive.quotaOverride, freeSpace: targetDrive.freeSpace, size, parentFolderId, uploadParent });
@@ -477,7 +476,7 @@ filesRouter.post('/upload/finalize', async (c) => {
   }
 
   // Fetch file metadata from Google Drive
-  const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+  const driveService = new GoogleDriveService(c.env.DB, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
   let gFile;
   try {
     gFile = await driveService.getFile(driveAccountId, googleFileId);
@@ -512,7 +511,7 @@ filesRouter.post('/upload/finalize', async (c) => {
   }
 
   // Invalidate quota cache
-  await c.env.KV.delete(`quota:${driveAccountId}`);
+  await c.env.DB.prepare('DELETE FROM quota_cache WHERE drive_account_id = ?').bind(driveAccountId).run();
 
   const created = await db.prepare('SELECT * FROM files WHERE id = ?').bind(id).first();
 
@@ -597,7 +596,7 @@ filesRouter.delete('/:id/permanent', async (c) => {
     }
   }
 
-  const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+  const driveService = new GoogleDriveService(c.env.DB, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
   
   try {
     await driveService.deleteFile(file.driveId, file.google_file_id);
@@ -669,7 +668,7 @@ filesRouter.get('/:id/preview', async (c) => {
   }
 
   const driveService = new GoogleDriveService(
-    c.env.KV,
+    c.env.DB,
     c.env.GOOGLE_CLIENT_ID,
     c.env.GOOGLE_CLIENT_SECRET,
     c.env.TOKEN_ENCRYPTION_KEY
@@ -723,7 +722,7 @@ filesRouter.get('/:id/download', async (c) => {
   }
 
   const driveService = new GoogleDriveService(
-    c.env.KV,
+    c.env.DB,
     c.env.GOOGLE_CLIENT_ID,
     c.env.GOOGLE_CLIENT_SECRET,
     c.env.TOKEN_ENCRYPTION_KEY

@@ -84,7 +84,7 @@ describe('DELETE /api/drives/:id', () => {
       .mockResolvedValueOnce({ id: NEXT_DRIVE_ID });
 
     const db = {
-      prepare: vi.fn((sql: string) => ({
+      prepare: vi.fn((_sql: string) => ({
         bind: vi.fn(() => ({
           first: firstMock,
           run: runMock,
@@ -102,8 +102,8 @@ describe('DELETE /api/drives/:id', () => {
     expect(body).toEqual({ success: true });
     expect(revokeSpy).toHaveBeenCalledWith(DRIVE_ID);
     expect(runMock).toHaveBeenCalled();
-    expect(env.KV.delete).toHaveBeenCalledWith(`tokens:${DRIVE_ID}`);
-    expect(env.KV.delete).toHaveBeenCalledWith(`oauth:${DRIVE_ID}`);
+    // Tokens now deleted via D1 (drive_tokens table), not KV
+    expect(db.prepare).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM drive_tokens'));
   });
 
   it('skips token revoke for service account drives', async () => {
@@ -116,7 +116,7 @@ describe('DELETE /api/drives/:id', () => {
     });
 
     const db = {
-      prepare: vi.fn(() => ({
+      prepare: vi.fn((_sql: string) => ({
         bind: vi.fn(() => ({
           first: firstMock,
           run: runMock,
@@ -131,6 +131,7 @@ describe('DELETE /api/drives/:id', () => {
 
     expect(res.status).toBe(200);
     expect(revokeSpy).not.toHaveBeenCalled();
-    expect(env.KV.delete).toHaveBeenCalledWith(`tokens:${DRIVE_ID}`);
+    // Tokens now deleted via D1 (drive_tokens table), not KV
+    expect(db.prepare).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM drive_tokens'));
   });
 });

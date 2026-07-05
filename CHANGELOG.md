@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **Sisa penggunaan KV dipindahkan ke D1** (`0010_kv_to_d1_tokens_quota_oauth.sql`): setelah session dipindah ke D1 (`0009`), KV free tier 1k writes/day masih habis oleh `quota:` cache (sync cron + dashboard), `tokens:` (refresh), dan `oauth_state:` (connect Google Drive). Migrasi `0010` membuat 3 tabel baru: `oauth_states` (PKCE state, TTL 10 mnt via cron), `drive_tokens` (token terenkripsi, ON DELETE CASCADE dari drive_accounts), `quota_cache` (cache hasil Google API, TTL 5 mnt via `updated_at`). `GoogleDriveService` constructor kini terima `D1Database` bukan `KVNamespace`. KV binding tetap ada untuk rate-limit shared link (`shared_verify_fail/lock`) — volume rendah, tidak akan exceed quota.
+
 - **Session storage dipindah dari KV ke D1** (`0009_sessions_table.sql`): KV free tier 1k writes/day habis karena `auth-guard` write KV setiap request authenticated. D1 free tier 100k row writes/day — 100x lebih generous. Tabel baru `sessions` (`id`, `user_id`, `data`, `expires_at`, `touched_at`). Sliding window tetap throttled 1x/jam. Expired session cleanup via cron `*/30`. KV tetap dipakai untuk `oauth_state` dan `tokens` (bukan session). **Existing KV sessions expire natural dalam 7 hari — user perlu login ulang sekali.**
 
 ### Fixed

@@ -273,3 +273,26 @@ CREATE TABLE IF NOT EXISTS s3_multipart_parts (
     created_at         TEXT NOT NULL DEFAULT (datetime('now')),
     PRIMARY KEY (upload_id, part_number)
 );
+
+-- OAuth state (short-lived, 10-min TTL via cron cleanup). Migrated from KV.
+CREATE TABLE IF NOT EXISTS oauth_states (
+    state           TEXT PRIMARY KEY,
+    code_verifier   TEXT NOT NULL,
+    user_id         TEXT NOT NULL,
+    created_at      INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_oauth_states_created ON oauth_states(created_at);
+
+-- Encrypted OAuth tokens per drive account. Migrated from KV.
+CREATE TABLE IF NOT EXISTS drive_tokens (
+    drive_account_id TEXT PRIMARY KEY REFERENCES drive_accounts(id) ON DELETE CASCADE,
+    encrypted_tokens TEXT NOT NULL,
+    updated_at       INTEGER NOT NULL
+);
+
+-- Quota cache (5-min TTL via updated_at). Migrated from KV.
+CREATE TABLE IF NOT EXISTS quota_cache (
+    drive_account_id TEXT PRIMARY KEY REFERENCES drive_accounts(id) ON DELETE CASCADE,
+    payload          TEXT NOT NULL,
+    updated_at       INTEGER NOT NULL
+);

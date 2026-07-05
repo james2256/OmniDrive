@@ -1,6 +1,6 @@
 # SCHEMA.md — Database Schema (Cloudflare D1)
 
-Database OmniDrive menggunakan **Cloudflare D1** (SQLite). Skema master ada di `packages/worker/src/db/schema.sql`. Migrasi incremental: `0001`–`0009`.
+Database OmniDrive menggunakan **Cloudflare D1** (SQLite). Skema master ada di `packages/worker/src/db/schema.sql`. Migrasi incremental: `0001`–`0010`.
 
 ## Diagram Relasi
 
@@ -362,6 +362,39 @@ Cleanup: cron `*/30` di `index.ts` menghapus baris `WHERE expires_at < now`.
 
 ---
 
+### `oauth_states`
+
+PKCE verifier + userId untuk OAuth round-trip (migrasi dari KV via `0010`). TTL 10 menit, dibersihkan cron.
+
+| Kolom | Tipe | Keterangan |
+|-------|------|------------|
+| `state` | TEXT PK | Random UUID — OAuth state parameter |
+| `code_verifier` | TEXT | PKCE code verifier |
+| `user_id` | TEXT | User yang memulai OAuth (dibaca di callback) |
+| `created_at` | INTEGER | Unix ms — cleanup `WHERE created_at < now - 10min` |
+
+### `drive_tokens`
+
+OAuth tokens terenkripsi per drive account (migrasi dari KV via `0010`). Auto-delete saat drive dihapus (ON DELETE CASCADE).
+
+| Kolom | Tipe | Keterangan |
+|-------|------|------------|
+| `drive_account_id` | TEXT PK FK → drive_accounts | Drive yang punya token |
+| `encrypted_tokens` | TEXT | Ciphertext AES-256-GCM dari JSON `OAuthTokens` |
+| `updated_at` | INTEGER | Unix ms — timestamp write terakhir |
+
+### `quota_cache`
+
+Cache hasil `storageQuota` Google Drive API (migrasi dari KV via `0010`). TTL 5 menit via `updated_at` check di kode.
+
+| Kolom | Tipe | Keterangan |
+|-------|------|------------|
+| `drive_account_id` | TEXT PK FK → drive_accounts | Drive yang di-cache |
+| `payload` | TEXT | JSON `QuotaCache` (v, total, used, hasLimit) |
+| `updated_at` | INTEGER | Unix ms — entry dianggap stale jika > 5min / >1h (cron) |
+
+---
+
 ### `s3_credentials`
 
 Kredensial API key kompatibel S3 per user.
@@ -425,6 +458,7 @@ Part individual dari multipart upload.
 | `0008_add_is_super_admin.sql` | Kolom `is_super_admin` di `users` — fix kolom hilang dari migrasi incremental (ada di `schema.sql` tapi tidak di `0001`); promotes user tertua jadi super admin |
 | `0008_add_s3_lifecycle_rules.sql` | Tabel `s3_lifecycle_rules` (aturan expire objek S3 → trash Google Drive) |
 | `0009_sessions_table.sql` | Tabel `sessions` — pindah session storage dari KV ke D1 (KV free tier 1k writes/day → D1 100k writes/day) |
+| `0010_kv_to_d1_tokens_quota_oauth.sql` | Tabel `oauth_states`, `drive_tokens`, `quota_cache` — pindah sisa KV (oauth_state, tokens, quota cache) ke D1; KV hanya untuk rate-limit shared link |
 
 ## Perintah Database
 
@@ -440,11 +474,11 @@ make reset-remote
 
 ## KV Store (Bukan D1)
 
-OAuth state dan token disimpan di **Cloudflare KV**, bukan D1. Session **sudah pindah ke D1** (tabel `sessions`, migrasi `0009`) karena KV free tier 1k writes/day habis:
+Mulai migrasi `0010`, hampir semua data sudah pindah ke D1. KV hanya menyimpan **rate-limit counter shared link** (volume rendah, TTL semantics convenient):
 
 | Key pattern | Isi |
 |-------------|-----|
-| `oauth_state:{state}` | PKCE code verifier + userId (TTL 10 menit) |
-| `tokens:{driveAccountId}` | OAuth tokens terenkripsi AES-256-GCM |
+| `shared_verify_lock:{linkId}` | Lockout setelah 20x password salah (TTL 15 menit) |
+| `shared_verify_fail:{linkId}` | Counter percobaan gagal (TTL 15 menit) |
 
-Lihat `packages/worker/src/services/auth.service.ts` dan `packages/worker/src/lib/crypto.ts`.
+Token OAuth, PKCE state, dan quota cache sudah di D1 (tabel `drive_tokens`, `oauth_states`, `quota_cache`).

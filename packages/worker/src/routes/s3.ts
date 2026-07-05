@@ -400,7 +400,7 @@ s3Router.get('/:bucket/:key{.+}', async (c) => {
   }
 
   const driveService = new GoogleDriveService(
-    c.env.KV,
+    c.env.DB,
     c.env.GOOGLE_CLIENT_ID,
     c.env.GOOGLE_CLIENT_SECRET,
     c.env.TOKEN_ENCRYPTION_KEY
@@ -444,7 +444,7 @@ s3Router.delete('/:bucket/:key{.+}', async (c) => {
     }
 
     const driveService = new GoogleDriveService(
-      c.env.KV,
+      c.env.DB,
       c.env.GOOGLE_CLIENT_ID,
       c.env.GOOGLE_CLIENT_SECRET,
       c.env.TOKEN_ENCRYPTION_KEY
@@ -476,7 +476,7 @@ s3Router.delete('/:bucket/:key{.+}', async (c) => {
   if (!file) return xmlError(c, 'NoSuchKey', `The specified key does not exist.`, 404);
 
   const driveService = new GoogleDriveService(
-    c.env.KV,
+    c.env.DB,
     c.env.GOOGLE_CLIENT_ID,
     c.env.GOOGLE_CLIENT_SECRET,
     c.env.TOKEN_ENCRYPTION_KEY
@@ -542,7 +542,7 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
 
   // 3. Perform Direct Google Drive Upload
   const driveService = new GoogleDriveService(
-    c.env.KV,
+    c.env.DB,
     c.env.GOOGLE_CLIENT_ID,
     c.env.GOOGLE_CLIENT_SECRET,
     c.env.TOKEN_ENCRYPTION_KEY
@@ -631,7 +631,7 @@ async function handleUploadPart(c: any, uploadId: string, partNumber: number): P
   const pipedStream = bodyStream.pipeThrough(hashingStream);
 
   const driveService = new GoogleDriveService(
-    c.env.KV,
+    c.env.DB,
     c.env.GOOGLE_CLIENT_ID,
     c.env.GOOGLE_CLIENT_SECRET,
     c.env.TOKEN_ENCRYPTION_KEY
@@ -692,7 +692,7 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
   if (rbacDenied) return rbacDenied;
 
   const driveService = new GoogleDriveService(
-    c.env.KV,
+    c.env.DB,
     c.env.GOOGLE_CLIENT_ID,
     c.env.GOOGLE_CLIENT_SECRET,
     c.env.TOKEN_ENCRYPTION_KEY

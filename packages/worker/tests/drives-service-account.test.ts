@@ -52,7 +52,7 @@ describe('POST /api/drives/service-account', () => {
       });
 
     const db = {
-      prepare: vi.fn(() => ({
+      prepare: vi.fn((_sql: string) => ({
         bind: vi.fn(() => ({
           first: firstMock,
           run: runMock,
@@ -91,12 +91,12 @@ describe('POST /api/drives/service-account', () => {
         TOKEN_ENCRYPTION_KEY: 'test-key',
       },
       runMock,
-      kvPut,
+      db,
     };
   };
 
   it('creates a service account drive and stores encrypted credentials', async () => {
-    const { app, env, runMock, kvPut } = buildApp();
+    const { app, env, runMock, db } = buildApp();
     const executionCtx = { waitUntil: vi.fn() };
     const res = await app.request(
       '/drives/service-account',
@@ -116,10 +116,8 @@ describe('POST /api/drives/service-account', () => {
     expect(res.status).toBe(200);
     expect(body).toEqual({ success: true, driveId: expect.any(String) });
     expect(runMock).toHaveBeenCalled();
-    expect(kvPut).toHaveBeenCalledWith(
-      expect.stringMatching(/^tokens:/),
-      expect.stringContaining('enc:')
-    );
+    // Tokens now stored in D1 drive_tokens table, not KV
+    expect(db.prepare).toHaveBeenCalledWith(expect.stringContaining('drive_tokens'));
   });
 
   it('validates required fields', async () => {

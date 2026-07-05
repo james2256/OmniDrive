@@ -131,10 +131,14 @@ export default {
 
     // Data retention policies
     const policyService = new PolicyService(env.DB);
-    ctx.waitUntil(policyService.processAutoDeleteRetentionPolicies(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, env.KV));
+    ctx.waitUntil(policyService.processAutoDeleteRetentionPolicies(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET));
 
     // Expired session cleanup (D1 has no auto-expiry unlike KV TTL)
     ctx.waitUntil(env.DB.prepare('DELETE FROM sessions WHERE expires_at < ?').bind(Date.now()).run());
+
+    // Cleanup expired OAuth states (10-min TTL) + stale quota cache (>1h old)
+    ctx.waitUntil(env.DB.prepare('DELETE FROM oauth_states WHERE created_at < ?').bind(Date.now() - 10 * 60 * 1000).run());
+    ctx.waitUntil(env.DB.prepare('DELETE FROM quota_cache WHERE updated_at < ?').bind(Date.now() - 60 * 60 * 1000).run());
   },
 } satisfies ExportedHandler<Env>;
 

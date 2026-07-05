@@ -33,7 +33,6 @@ export async function syncDriveFolder(_env: Env, _driveId: string, _folderId: st
 export async function syncDriveAccount(
   drive: DriveAccount,
   db: D1Database,
-  _kv: KVNamespace,
   driveService: GoogleDriveService
 ): Promise<void> {
   // Update status to syncing
@@ -244,14 +243,13 @@ async function upsertFile(
 
 export async function runScheduledSync(env: {
   DB: D1Database;
-  KV: KVNamespace;
   GOOGLE_CLIENT_ID: string;
   GOOGLE_CLIENT_SECRET: string;
   TOKEN_ENCRYPTION_KEY: string;
 }): Promise<void> {
   if (getIsShuttingDown()) return;
 
-  const driveService = new GoogleDriveService(env.KV, env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, env.TOKEN_ENCRYPTION_KEY);
+  const driveService = new GoogleDriveService(env.DB, env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, env.TOKEN_ENCRYPTION_KEY);
 
   const rows = await env.DB.prepare("SELECT * FROM drive_accounts WHERE type = 'oauth'").all();
   const driveAccounts = (rows.results ?? []).map(mapDriveRow);
@@ -264,7 +262,7 @@ export async function runScheduledSync(env: {
 
       activeSyncs.add(drive.id);
       try {
-        await syncDriveAccount(drive, env.DB, env.KV, driveService);
+        await syncDriveAccount(drive, env.DB, driveService);
       } catch (err) {
         console.error(`Sync error for ${drive.email}:`, err);
       } finally {

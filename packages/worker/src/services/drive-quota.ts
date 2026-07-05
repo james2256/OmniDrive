@@ -19,16 +19,15 @@ export async function resolveDrivesWithQuota(
 
   return Promise.all(
     drives.map(async (drive) => {
-      const hasTokens =
-        (await env.KV.get(`tokens:${drive.id}`)) ?? (await env.KV.get(`oauth:${drive.id}`));
-      if (!hasTokens) {
+      const tokenRow = await db.prepare('SELECT 1 as ok FROM drive_tokens WHERE drive_account_id = ?').bind(drive.id).first();
+      if (!tokenRow) {
         const { freeSpace, usagePercent } = computeDriveQuota(drive);
         return { ...drive, freeSpace, usagePercent };
       }
 
       try {
         const driveService = new GoogleDriveService(
-          env.KV,
+          db,
           env.GOOGLE_CLIENT_ID,
           env.GOOGLE_CLIENT_SECRET,
           env.TOKEN_ENCRYPTION_KEY

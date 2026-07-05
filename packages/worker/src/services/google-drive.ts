@@ -1,5 +1,8 @@
+import type { D1Database } from '@cloudflare/workers-types';
 import type { OAuthTokens, QuotaCache } from '../types/index';
 import { parseStorageQuota, QUOTA_CACHE_VERSION } from '../lib/storage-quota';
+
+const QUOTA_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 const DRIVE_API = 'https://www.googleapis.com/drive/v3';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -36,7 +39,7 @@ export class GoogleDriveService {
   private encryptionKey?: string;
 
   constructor(
-    private kv: KVNamespace,
+    private db: D1Database,
     private clientId: string,
     private clientSecret: string,
     encryptionKey?: string
@@ -47,14 +50,14 @@ export class GoogleDriveService {
   // ─── Token Management ───
 
   private async loadTokens(driveAccountId: string): Promise<OAuthTokens> {
-    // ponytail: read legacy oauth: once for migration; never write plaintext there
-    const raw = await this.kv.get(`tokens:${driveAccountId}`) ?? await this.kv.get(`oauth:${driveAccountId}`);
-    if (!raw) throw new Error(`No tokens found for drive ${driveAccountId}`);
+    const row = await this.db.prepare('SELECT encrypted_tokens FROM drive_tokens WHERE drive_account_id = ?')
+      .bind(driveAccountId).first<{ encrypted_tokens: string }>();
+    if (!row?.encrypted_tokens) throw new Error(`No tokens found for drive ${driveAccountId}`);
 
-    let tokensJson = raw;
+    let tokensJson = row.encrypted_tokens;
     if (this.encryptionKey) {
       const { decryptOrPassthrough } = await import('../lib/crypto');
-      tokensJson = await decryptOrPassthrough(raw, this.encryptionKey);
+      tokensJson = await decryptOrPassthrough(row.encrypted_tokens, this.encryptionKey);
     }
     return JSON.parse(tokensJson) as OAuthTokens;
   }
@@ -78,12 +81,13 @@ export class GoogleDriveService {
 
   private async persistTokens(driveAccountId: string, tokens: import('../types/env').OAuthTokens): Promise<void> {
     const serialized = JSON.stringify(tokens);
-    if (this.encryptionKey) {
-      const { encrypt } = await import('../lib/crypto');
-      await this.kv.put(`tokens:${driveAccountId}`, await encrypt(serialized, this.encryptionKey));
-    } else {
-      await this.kv.put(`tokens:${driveAccountId}`, serialized);
-    }
+    const encryptedTokens = this.encryptionKey
+      ? await (await import('../lib/crypto')).encrypt(serialized, this.encryptionKey)
+      : serialized;
+    await this.db.prepare(
+      'INSERT INTO drive_tokens (drive_account_id, encrypted_tokens, updated_at) VALUES (?, ?, ?) ' +
+      'ON CONFLICT(drive_account_id) DO UPDATE SET encrypted_tokens = excluded.encrypted_tokens, updated_at = excluded.updated_at'
+    ).bind(driveAccountId, encryptedTokens, Date.now()).run();
   }
 
   private async refreshServiceAccountToken(
@@ -160,11 +164,12 @@ export class GoogleDriveService {
   async getQuota(
     driveAccountId: string
   ): Promise<{ total: number; used: number; hasLimit: boolean }> {
-    // Check KV cache first. Cache entries carry the schema version so stale
+    // Check D1 cache first. Cache entries carry the schema version so stale
     // pre-usageInDrive entries (which stored account-wide usage) are ignored.
-    const cached = await this.kv.get(`quota:${driveAccountId}`);
-    if (cached) {
-      const quota: QuotaCache = JSON.parse(cached);
+    const cacheRow = await this.db.prepare('SELECT payload, updated_at FROM quota_cache WHERE drive_account_id = ?')
+      .bind(driveAccountId).first<{ payload: string; updated_at: number }>();
+    if (cacheRow && Date.now() - cacheRow.updated_at < QUOTA_CACHE_TTL_MS) {
+      const quota: QuotaCache = JSON.parse(cacheRow.payload);
       if (quota.v === QUOTA_CACHE_VERSION && quota.total > 0) {
         return { total: quota.total, used: quota.used, hasLimit: quota.hasLimit };
       }
@@ -191,18 +196,18 @@ export class GoogleDriveService {
       data.storageQuota.usage
     );
 
-    // Cache in KV (5-min TTL)
-    await this.kv.put(
-      `quota:${driveAccountId}`,
-      JSON.stringify({
+    // Cache in D1 (5-min TTL enforced by updated_at check above)
+    const payload = JSON.stringify({
         v: QUOTA_CACHE_VERSION,
         total,
         used,
         hasLimit,
         updatedAt: new Date().toISOString(),
-      } satisfies QuotaCache),
-      { expirationTtl: 300 }
-    );
+      } satisfies QuotaCache);
+    await this.db.prepare(
+      'INSERT INTO quota_cache (drive_account_id, payload, updated_at) VALUES (?, ?, ?) ' +
+      'ON CONFLICT(drive_account_id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at'
+    ).bind(driveAccountId, payload, Date.now()).run();
 
     return { total, used, hasLimit };
   }

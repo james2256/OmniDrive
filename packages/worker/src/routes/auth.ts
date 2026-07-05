@@ -151,9 +151,12 @@ authRouter.get('/google', authGuard, async (c) => {
   const state = crypto.randomUUID();
   const { codeVerifier, codeChallenge } = await generatePKCE();
 
-  // Store state + PKCE verifier + userId in KV (10-min TTL). The userId is
-  // read back in /callback so the Drive link survives the cross-site redirect.
-  await env.KV.put(`oauth_state:${state}`, JSON.stringify({ codeVerifier, userId }), { expirationTtl: 600 });
+  // Store state + PKCE verifier + userId in D1 (10-min TTL via created_at).
+  // The userId is read back in /callback so the Drive link survives the
+  // cross-site redirect.
+  await env.DB.prepare(
+    'INSERT INTO oauth_states (state, code_verifier, user_id, created_at) VALUES (?, ?, ?, ?)'
+  ).bind(state, codeVerifier, userId, Date.now()).run();
   const isSecure = env.WORKER_URL.startsWith('https://');
   setCookie(c, 'oauth_state', state, { path: '/', httpOnly: true, secure: isSecure, sameSite: isSecure ? 'None' : 'Lax', maxAge: 60 * 5 });
 
@@ -182,20 +185,21 @@ authRouter.get('/callback', async (c) => {
     throw new AppError(400, 'Invalid state parameter');
   }
 
-  // Retrieve PKCE verifier + userId from KV (authoritative single-use state)
-  const stateDataJson = await c.env.KV.get(`oauth_state:${state}`);
-  if (!stateDataJson) throw new AppError(400, 'OAuth state expired');
-  const stateData = JSON.parse(stateDataJson);
-  await c.env.KV.delete(`oauth_state:${state}`);
+  // Retrieve PKCE verifier + userId from D1 (authoritative single-use state)
+  const stateRow = await c.env.DB.prepare('SELECT code_verifier, user_id FROM oauth_states WHERE state = ?')
+    .bind(state).first<{ code_verifier: string; user_id: string }>();
+  if (!stateRow) throw new AppError(400, 'OAuth state expired');
+  await c.env.DB.prepare('DELETE FROM oauth_states WHERE state = ?').bind(state).run();
 
-  const targetUserId = stateData.userId;
+  const targetUserId = stateRow.user_id;
+  const codeVerifier = stateRow.code_verifier;
   if (!targetUserId) throw new AppError(400, 'OAuth session expired — please reconnect your Google account.');
 
   const env = c.env;
   const redirectUri = `${env.WORKER_URL}/api/auth/callback`;
   const authService = new AuthService(env);
 
-  const tokens = await authService.exchangeCodeForTokens(code, redirectUri, stateData.codeVerifier);
+  const tokens = await authService.exchangeCodeForTokens(code, redirectUri, codeVerifier);
   const googleUser = await authService.fetchUserInfo(tokens.accessToken);
 
   const db = env.DB;
@@ -215,15 +219,18 @@ authRouter.get('/callback', async (c) => {
     drive = { id: driveId };
   }
 
-  // Encrypt tokens before storing
+  // Encrypt tokens before storing in D1
   const encryptedTokens = await encrypt(JSON.stringify(tokens), env.TOKEN_ENCRYPTION_KEY);
-  await env.KV.put(`tokens:${drive.id}`, encryptedTokens);
+  await db.prepare(
+    'INSERT INTO drive_tokens (drive_account_id, encrypted_tokens, updated_at) VALUES (?, ?, ?) ' +
+    'ON CONFLICT(drive_account_id) DO UPDATE SET encrypted_tokens = excluded.encrypted_tokens, updated_at = excluded.updated_at'
+  ).bind(drive.id, encryptedTokens, Date.now()).run();
 
   const driveRow = await db.prepare('SELECT * FROM drive_accounts WHERE id = ?').bind(drive.id).first();
   if (driveRow) {
     const driveObj = mapDriveRow(driveRow as Record<string, unknown>);
-    const driveService = new GoogleDriveService(env.KV, env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, env.TOKEN_ENCRYPTION_KEY);
-    c.executionCtx.waitUntil(syncDriveAccount(driveObj, db, env.KV, driveService));
+    const driveService = new GoogleDriveService(db, env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, env.TOKEN_ENCRYPTION_KEY);
+    c.executionCtx.waitUntil(syncDriveAccount(driveObj, db, driveService));
   }
 
   return c.redirect(`${env.FRONTEND_URL}/`);

@@ -57,7 +57,7 @@ export async function runLifecycleExpiration(env: Env): Promise<void> {
   if (!rules?.length) return;
 
   const driveService = new GoogleDriveService(
-    env.KV,
+    env.DB,
     env.GOOGLE_CLIENT_ID,
     env.GOOGLE_CLIENT_SECRET,
     env.TOKEN_ENCRYPTION_KEY

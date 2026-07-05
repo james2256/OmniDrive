@@ -363,10 +363,10 @@ foldersRouter.post('/:id/sync', async (c) => {
   `).bind(folderId, folderId, userId).all();
   
   if (results && results.length > 0) {
-    const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+    const driveService = new GoogleDriveService(c.env.DB, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
     for (const row of results) {
        const drive = mapDriveRow(row as any);
-       c.executionCtx.waitUntil(syncDriveAccount(drive, db, c.env.KV, driveService).catch(console.error));
+       c.executionCtx.waitUntil(syncDriveAccount(drive, db, driveService).catch(console.error));
     }
   }
   

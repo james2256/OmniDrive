@@ -478,7 +478,7 @@ sharedRouter.get('/:id/download', async (c) => {
     if (!driveAccount) return c.text('Drive account not found', 404);
 
     const driveService = new GoogleDriveService(
-      c.env.KV,
+      c.env.DB,
       c.env.GOOGLE_CLIENT_ID,
       c.env.GOOGLE_CLIENT_SECRET,
       c.env.TOKEN_ENCRYPTION_KEY

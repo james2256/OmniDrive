@@ -75,7 +75,9 @@ drivesRouter.get('/connect', async (c) => {
   const state = crypto.randomUUID();
   const { codeVerifier, codeChallenge } = await generatePKCE();
 
-  await env.KV.put(`oauth_state:${state}`, JSON.stringify({ codeVerifier, userId }), { expirationTtl: 600 });
+  await env.DB.prepare(
+    'INSERT INTO oauth_states (state, code_verifier, user_id, created_at) VALUES (?, ?, ?, ?)'
+  ).bind(state, codeVerifier, userId, Date.now()).run();
   const isSecure = env.WORKER_URL.startsWith('https://');
   setCookie(c, 'oauth_state', state, { path: '/', httpOnly: true, secure: isSecure, sameSite: isSecure ? 'None' : 'Lax', maxAge: 60 * 5 });
   
@@ -98,14 +100,14 @@ drivesRouter.get('/', async (c) => {
   const drives = results.map(mapDriveRow);
 
   const drivesWithQuota = await Promise.all(drives.map(async (drive) => {
-    const hasTokens = await c.env.KV.get(`tokens:${drive.id}`) ?? await c.env.KV.get(`oauth:${drive.id}`);
-    if (!hasTokens) {
+    const tokenRow = await db.prepare('SELECT 1 as ok FROM drive_tokens WHERE drive_account_id = ?').bind(drive.id).first();
+    if (!tokenRow) {
       const { freeSpace, usagePercent } = computeDriveQuota(drive);
       return { ...drive, freeSpace, usagePercent, health: 'auth_expired' as const };
     }
 
     try {
-      const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+      const driveService = new GoogleDriveService(db, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
       const quota = await driveService.getQuota(drive.id);
 
       // Only persist the total quota Google actually reports. Google omits
@@ -218,18 +220,21 @@ drivesRouter.post('/service-account', async (c) => {
     expiresAt,
     serviceAccount,
   };
-  await c.env.KV.put(`tokens:${driveId}`, await encrypt(JSON.stringify(tokens), c.env.TOKEN_ENCRYPTION_KEY));
+  await db.prepare(
+    'INSERT INTO drive_tokens (drive_account_id, encrypted_tokens, updated_at) VALUES (?, ?, ?) ' +
+    'ON CONFLICT(drive_account_id) DO UPDATE SET encrypted_tokens = excluded.encrypted_tokens, updated_at = excluded.updated_at'
+  ).bind(driveId, await encrypt(JSON.stringify(tokens), c.env.TOKEN_ENCRYPTION_KEY), Date.now()).run();
 
   const driveRow = await db.prepare('SELECT * FROM drive_accounts WHERE id = ?').bind(driveId).first();
   if (driveRow) {
     const driveObj = mapDriveRow(driveRow as Record<string, unknown>);
     const driveService = new GoogleDriveService(
-      c.env.KV,
+      db,
       c.env.GOOGLE_CLIENT_ID,
       c.env.GOOGLE_CLIENT_SECRET,
       c.env.TOKEN_ENCRYPTION_KEY
     );
-    c.executionCtx.waitUntil(syncDriveAccount(driveObj, db, c.env.KV, driveService));
+    c.executionCtx.waitUntil(syncDriveAccount(driveObj, db, driveService));
   }
 
   return c.json({ success: true, driveId });
@@ -296,11 +301,11 @@ drivesRouter.post('/:id/sync', async (c) => {
   if (!row) return c.json({ error: 'Drive not found' }, 404);
 
   const drive = mapDriveRow(row as Record<string, unknown>);
-  const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+  const driveService = new GoogleDriveService(c.env.DB, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
   
   // Run the sync process in the background via c.executionCtx.waitUntil
   // so the user doesn't have to wait for the entire sync to complete
-  c.executionCtx.waitUntil(syncDriveAccount(drive, c.env.DB, c.env.KV, driveService));
+  c.executionCtx.waitUntil(syncDriveAccount(drive, c.env.DB, driveService));
   
   return c.json({ success: true });
 });
@@ -342,11 +347,11 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/sync', async (c) => {
     });
   }
 
-  const hasTokens = await c.env.KV.get(`tokens:${driveId}`) ?? await c.env.KV.get(`oauth:${driveId}`);
-  if (!hasTokens) return c.json({ error: 'No tokens for drive' }, 400);
+  const tokenRow = await c.env.DB.prepare('SELECT 1 as ok FROM drive_tokens WHERE drive_account_id = ?').bind(driveId).first();
+  if (!tokenRow) return c.json({ error: 'No tokens for drive' }, 400);
 
   const drive = mapDriveRow(driveRow as Record<string, unknown>);
-  const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+  const driveService = new GoogleDriveService(c.env.DB, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
   const effectiveFolderId = resolveGoogleFolderId(drive, googleFolderId);
   const { files: gFiles, folders: gFolders } = await driveService.listFolderContents(driveId, effectiveFolderId);
 
@@ -452,7 +457,7 @@ drivesRouter.delete('/:id', async (c) => {
   const driveType = (row as Record<string, unknown>).type as string;
 
   if (driveType === 'oauth') {
-    const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+    const driveService = new GoogleDriveService(db, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
     await driveService.revokeTokens(driveId);
   }
 
@@ -470,8 +475,9 @@ drivesRouter.delete('/:id', async (c) => {
     }
   }
 
-  await c.env.KV.delete(`tokens:${driveId}`);
-  await c.env.KV.delete(`oauth:${driveId}`);
+  // drive_tokens row auto-deleted by ON DELETE CASCADE when drive_accounts row removed,
+  // but explicit delete in case the drive_account row is kept.
+  await db.prepare('DELETE FROM drive_tokens WHERE drive_account_id = ?').bind(driveId).run();
 
   return c.json({ success: true });
 });
