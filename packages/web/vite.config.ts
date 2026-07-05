@@ -14,7 +14,11 @@ export default defineConfig(({ mode }) => {
         '/api': {
           target: `http://localhost:${workerPort}`,
           changeOrigin: true,
-        }
+        },
+        '/s3': {
+          target: `http://localhost:${workerPort}`,
+          changeOrigin: true,
+        },
       }
     },
     test: {

@@ -2,8 +2,8 @@ import { createMiddleware } from 'hono/factory';
 import { getCookie } from 'hono/cookie';
 import type { AppContext, SessionData } from '../types/env';
 import { AppError } from './error-handler';
+import { SESSION_TTL_MS } from '../lib/session-cookie';
 
-const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const EXTENSION_THRESHOLD = 60 * 60 * 1000; // 1 hour
 
 export const authGuard = createMiddleware<AppContext>(async (c, next) => {

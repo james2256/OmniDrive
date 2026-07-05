@@ -12,22 +12,9 @@ import { encrypt } from '../lib/crypto';
 import { syncDriveAccount } from '../services/sync';
 import { GoogleDriveService } from '../services/google-drive';
 import { mapDriveRow } from '../types';
-
-const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+import { SESSION_TTL_MS, sessionCookieOptions, sessionDeleteCookieOptions } from '../lib/session-cookie';
 
 export const authRouter = new Hono<AppContext>({ strict: false });
-
-// ponytail: SameSite=Lax is safer when frontend and worker share an origin;
-// None only needed for cross-origin credentialed SPA fetch.
-function sameSiteValue(env: { FRONTEND_URL: string; WORKER_URL: string }): 'None' | 'Lax' {
-  try {
-    const fe = new URL(env.FRONTEND_URL).hostname;
-    const we = new URL(env.WORKER_URL).hostname;
-    return fe === we ? 'Lax' : 'None';
-  } catch {
-    return 'None';
-  }
-}
 
 authRouter.get('/setup-status', async (c) => {
   const result = await c.env.DB.prepare('SELECT COUNT(*) as count FROM users').first<{ count: number }>();
@@ -91,9 +78,7 @@ authRouter.post('/register', async (c) => {
     'INSERT INTO sessions (id, user_id, data, expires_at, touched_at) VALUES (?, ?, ?, ?, ?)'
   ).bind(sessionId, id, JSON.stringify(sessionData), now + SESSION_TTL_MS, now).run();
 
-  const isSecure = c.env.WORKER_URL.startsWith('https://');
-  const sameSite = sameSiteValue(c.env);
-  setCookie(c, 'omnidrive_sid', sessionId, { path: '/', secure: isSecure, httpOnly: true, sameSite, maxAge: SESSION_TTL_MS / 1000 });
+  setCookie(c, 'omnidrive_sid', sessionId, sessionCookieOptions(c.env));
 
   return c.json({ success: true, user: sessionData, isSuperAdmin: !!isSuperAdmin });
 });
@@ -115,9 +100,7 @@ authRouter.post('/login', async (c) => {
     'INSERT INTO sessions (id, user_id, data, expires_at, touched_at) VALUES (?, ?, ?, ?, ?)'
   ).bind(sessionId, user.id, JSON.stringify(sessionData), now + SESSION_TTL_MS, now).run();
 
-  const isSecure = c.env.WORKER_URL.startsWith('https://');
-  const sameSite = sameSiteValue(c.env);
-  setCookie(c, 'omnidrive_sid', sessionId, { path: '/', secure: isSecure, httpOnly: true, sameSite, maxAge: SESSION_TTL_MS / 1000 });
+  setCookie(c, 'omnidrive_sid', sessionId, sessionCookieOptions(c.env));
 
   return c.json({ success: true, user: sessionData });
 });
@@ -245,8 +228,7 @@ authRouter.post('/logout', authGuard, async (c) => {
   if (sid) {
     await c.env.DB.prepare('DELETE FROM sessions WHERE id = ?').bind(sid).run();
   }
-  const isSecure = c.env.WORKER_URL.startsWith('https://');
-  deleteCookie(c, 'omnidrive_sid', { path: '/', secure: isSecure, sameSite: sameSiteValue(c.env) });
+  deleteCookie(c, 'omnidrive_sid', sessionDeleteCookieOptions(c.env));
   return c.json({ success: true });
 });
 
@@ -254,7 +236,6 @@ authRouter.post('/logout', authGuard, async (c) => {
 authRouter.post('/sessions/revoke', authGuard, async (c) => {
   const userId = c.get('userId');
   await c.env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(userId).run();
-  const isSecure = c.env.WORKER_URL.startsWith('https://');
-  deleteCookie(c, 'omnidrive_sid', { path: '/', secure: isSecure, sameSite: sameSiteValue(c.env) });
+  deleteCookie(c, 'omnidrive_sid', sessionDeleteCookieOptions(c.env));
   return c.json({ success: true });
 });

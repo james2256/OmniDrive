@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { useSelectionStore } from '../../stores/useSelectionStore';
 import { formatFileSize, formatRelativeTime } from '../../lib/utils';
 import { FileIcon } from '../files/FileIcon';
+import { DriveBadge } from '../DriveBadge';
 import { X, File, Folder, Loader2, RefreshCw } from 'lucide-react';
 import { useUIStore } from '../../stores/useUIStore';
 import { useToastStore } from '../../stores/toastStore';
+import { useDriveStore } from '../../stores/driveStore';
 
 export const InfoPanel: React.FC = () => {
   const selectedItems = useSelectionStore((s) => s.selectedItems);
@@ -16,6 +18,7 @@ export const InfoPanel: React.FC = () => {
   // only called when selectedItems.length === 1).
   const [isSyncing, setIsSyncing] = useState(false);
   const addToast = useToastStore((s) => s.addToast);
+  const { drives } = useDriveStore();
 
   const singleSelection = selectedItems.length === 1 ? selectedItems[0] : null;
   const { type, item } = singleSelection ?? { type: 'file' as const, item: null };
@@ -71,6 +74,11 @@ export const InfoPanel: React.FC = () => {
       );
     }
 
+    const driveAccountId =
+      item && 'driveAccountId' in item && item.driveAccountId ? item.driveAccountId : undefined;
+    const driveIndex = driveAccountId ? drives.findIndex((d) => d.id === driveAccountId) : -1;
+    const driveAccount = driveIndex >= 0 ? drives[driveIndex] : null;
+
     // Single item selected
     return (
       <>
@@ -101,6 +109,14 @@ export const InfoPanel: React.FC = () => {
           <div className="border-t border-gray-100 pt-4">
             <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Properties</h4>
             <dl className="space-y-3 text-sm">
+              {driveAccount && (
+                <div className="flex flex-col">
+                  <dt className="text-gray-500 mb-1 text-xs">Stored on</dt>
+                  <dd>
+                    <DriveBadge email={driveAccount.email} colorIndex={driveIndex} size="md" />
+                  </dd>
+                </div>
+              )}
               <div className="flex flex-col">
                 <dt className="text-gray-500 mb-0.5 text-xs">Type</dt>
                 <dd className="text-gray-800">{type === 'folder' ? 'Google Drive Folder' : item?.mimeType || 'Unknown file type'}</dd>

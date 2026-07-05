@@ -1,1 +1,5 @@
-/*    /index.html   200
+# Proxy API to Worker so session cookies are first-party on the Pages host.
+# Keep WORKER_URL in wrangler.toml in sync with the target below.
+/api/*  https://omnidrive-api.asmara-putra.workers.dev/api/:splat  200
+/s3/*   https://omnidrive-api.asmara-putra.workers.dev/s3/:splat  200
+/*      /index.html  200

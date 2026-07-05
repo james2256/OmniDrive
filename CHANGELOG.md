@@ -2,125 +2,58 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Drive account badges (`DriveBadge`) in the file browser: colored label with shortened username, optional **Drive** column when multiple accounts are connected, and **Stored on** field in the details panel; full email shown on hover.
+- Image preview via `GET /api/files/:id/preview` and updated `FilePreviewModal` in Workspaces, Trash, and Starred.
+- AzaDrive logo and optimized favicon assets for Google OAuth brand verification.
+- Public pages `/home`, `/privacy`, and `/terms` for OAuth consent screen requirements.
+- Mobile-responsive layout: drawer sidebar and info panel, wrapped toolbars, and touch-friendly bulk actions.
+- Home dashboard bento grid redesign with storage hero, category donut chart, and quick-access tiles.
+- Drive identity color tokens (`--drive-1` through `--drive-5`).
+- S3 bucket lifecycle configuration API; cron moves expired objects to trash instead of hard-deleting.
+- `tailwindcss-animate` plugin with expand/collapse and modal enter/exit animations across 15 components.
+- Dev-only Agentation annotation component in `main.tsx`.
+- AI agent documentation navigation map in `AGENTS.md`.
+
 ### Changed
 
-- **Sisa penggunaan KV dipindahkan ke D1** (`0010_kv_to_d1_tokens_quota_oauth.sql`): setelah session dipindah ke D1 (`0009`), KV free tier 1k writes/day masih habis oleh `quota:` cache (sync cron + dashboard), `tokens:` (refresh), dan `oauth_state:` (connect Google Drive). Migrasi `0010` membuat 3 tabel baru: `oauth_states` (PKCE state, TTL 10 mnt via cron), `drive_tokens` (token terenkripsi, ON DELETE CASCADE dari drive_accounts), `quota_cache` (cache hasil Google API, TTL 5 mnt via `updated_at`). `GoogleDriveService` constructor kini terima `D1Database` bukan `KVNamespace`. KV binding tetap ada untuk rate-limit shared link (`shared_verify_fail/lock`) — volume rendah, tidak akan exceed quota.
-
-- **Session storage dipindah dari KV ke D1** (`0009_sessions_table.sql`): KV free tier 1k writes/day habis karena `auth-guard` write KV setiap request authenticated. D1 free tier 100k row writes/day — 100x lebih generous. Tabel baru `sessions` (`id`, `user_id`, `data`, `expires_at`, `touched_at`). Sliding window tetap throttled 1x/jam. Expired session cleanup via cron `*/30`. KV tetap dipakai untuk `oauth_state` dan `tokens` (bukan session). **Existing KV sessions expire natural dalam 7 hari — user perlu login ulang sekali.**
-
-### Fixed
-
-- **Login 500 (`is_super_admin` column missing):** kolom `is_super_admin` ada di `schema.sql` tapi tidak ditambahkan oleh migrasi incremental manapun (`0001`–`0007`). DB yang diinisialisasi lewat jalur migrasi tidak punya kolom ini → query `SELECT ... is_super_admin FROM users WHERE username = ?` di `/api/auth/login` lempar error D1 → 500. Fix: migrasi baru `0008_add_is_super_admin.sql` yang menambah kolom (`DEFAULT 0`) dan mem-promote user paling awal (`ORDER BY created_at ASC LIMIT 1`) menjadi super admin (sesuai logika `/register`).
-
-- **Login 500 (bcrypt CPU timeout):** `bcrypt.hash(cost=12)` dan `bcrypt.compare` di Cloudflare Workers melebihi batas CPU time → 500. Diganti dengan PBKDF2 via Web Crypto native (`src/lib/password.ts`): `hashPassword` / `verifyPassword`. Tidak ada dependency baru. **Catatan migrasi:** hash lama (bcrypt) di DB tidak kompatibel — user yang sudah terdaftar perlu reset password atau re-register.
-
-- **Upload gagal 500 di `/api/files/upload/init` & `/api/files/upload/finalize`:** frontend (`FilesPage`) mengirim `folderId` (Google Drive folder id atau `'root'`) sebagai `workspaceFolderId`, lalu `finalize` menulisnya ke kolom `files.workspace_folder_id` yang FK→`workspace_folders` — `'root'`/Google folder id bukan workspace folder yang valid → pelanggaran FK constraint D1 → 500. Akar masalah: data model file Drive punya parent Google (`google_parent_id`), bukan workspace folder. Fix: rename field `workspaceFolderId` → `parentFolderId` di seluruh flow upload (api.ts, uploadStore, route init & finalize). `init` kini upload ke folder Google yang sedang dilihat user (`parentFolderId || rootFolderId || 'root'`) — sebelumnya selalu ke root, jadi file yang di-upload dari subfolder mendarat di root (bug laten terkait). `finalize` kini simpan `google_parent_id = parentFolderId` (agar file muncul di folder via query listing `drives.ts` `WHERE google_parent_id = ?`) dan `workspace_folder_id = null` (FK-safe; upload flow tak punya konteks workspace folder). Tambahan: error dari `initiateResumableUpload` (token/refresh gagal atau Google upstream error) yang sebelumnya plain `Error` → 500 opaque, kini dibungkus `AppError` 401 (auth) / 502 (upstream) dengan pesan jelas. Diagnostik log di `init` (drive id, type, rootFolderId, override, freeSpace, size, parentFolderId, uploadParent + error body) untuk membantu diagnosa failure upload via `wrangler tail`.
-
-- **Upload gagal di akun service-account / shared drive (korelasi: akun yang manual edit kapasitas `quota_override`):** `GoogleDriveService.initiateResumableUpload` dan `getFile` tidak menyertakan `supportsAllDrives=true`. Operasi file Google Drive v3 pada item di shared drive (team drive) — yang umum dipakai service account + folder shared — ditolak Google tanpa flag itu (403/404). Fix: tambah `&supportsAllDrives=true` ke URL `initiateResumableUpload` dan `getFile`. Aman untuk folder personal shared-with-me juga (flag diabaikan jika bukan shared drive).
+- Migrated OAuth state, encrypted tokens, and quota cache from KV to D1 (`0009`, `0010`); KV retained only for shared-link rate limits.
+- Migrated session storage from KV to D1; existing KV sessions expire within 7 days (one-time re-login required).
+- Rebranded user-facing strings from OmniDrive to AzaDrive; production frontend URL set to `https://azadrive.my.id` (infrastructure identifiers unchanged).
+- Recalibrated brand palette to cobalt accent (`#2563EB`) and cool slate surface (`#F1F5F9`).
+- Upload router falls back to the drive with the most free space when the preferred drive is full.
+- Account health badges (`reconnect needed`, `unreachable`) on connected drives in Settings.
+- Unified auth and dashboard visuals to match core app design tokens.
+- Password hashing switched from bcrypt to PBKDF2 (Web Crypto) for Workers CPU limits.
+- Production deploy targets updated for Cloudflare Worker and Pages under the `asmaraputra` account.
+- Google Drive file/folder move logic and tests.
 
 ### Removed
 
-- **Setting edit kapasitas storage manual (`quota_override`) dihapus:** UI editor (tombol gear + form input di `DriveAccountCard` Settings), badge `· manual` (Settings & Dashboard), method `api.updateDriveQuota`, dan endpoint `PATCH /api/drives/:id/quota`. Alasan: fitur ini jadi sumber bug upload — akun yang manual edit kapasitas (umumnya service-account/Workspace yang Google hide limit-nya) berkorelasi dengan kegagalan upload (lihat fix `supportsAllDrives` di atas), dan menambah kompleksitas tanpa value jelas. Kapasitas kini selalu dari Google API (atau fallback 1 TiB saat Google omit limit). **Kolom DB `quota_override` + migrasi `0007` + branch override di `computeDriveQuota` tetap dipertahankan** (read-only, tidak ditulis lagi) agar tidak butuh migrasi drop-kolom dan tetap compat dengan `mapDriveRow`/test `drive-quota.test.ts`. Util `parseSizeToBytes` dihapus (jadi dead code setelah editor dihapus).
-
-### Added
-
-- **Preview gambar:** endpoint baru `GET /api/files/:id/preview` mem-proxy stream gambar dari Google Drive dengan auth session (inline, bukan attachment). `FilePreviewModal` fetch blob via API lalu tampilkan object URL — menggantikan `thumbnailUrl` Google yang tidak bisa di-load langsung di browser. Preview diaktifkan di Workspaces, Trash, dan Starred (sebelumnya stub kosong).
-
-- **Logo AzaDrive diganti untuk lolos Google brand verification:** ganti ikon awan biru (mirip Google Drive) dengan lettermark "A" cobalt + tiga titik drive (`Azadrive-icon.svg` untuk OAuth/favicon, `Azadrive.svg` untuk UI penuh). Regenerate PNG via `scripts/optimize-logo.mjs`.
-
-- **Logo AzaDrive dioptimasi dari `Azadrive.svg`:** generate PNG via `scripts/optimize-logo.mjs` (sharp) — `logo.png` 512px (~21 KB, turun dari ~1,8 MB), `favicon-32/48.png`, `apple-touch-icon.png` 180px, `logo-oauth-120.png` untuk upload Google Console. `index.html` pakai favicon multi-size.
-
-- **Halaman publik untuk verifikasi Google OAuth:** landing page `/home`, Privacy Policy `/privacy`, dan Terms of Service `/terms` — dapat diakses tanpa login, sesuai persyaratan OAuth consent screen. Footer link di `LoginPage`. Panduan `GOOGLE_VERIFICATION.md` diupdate dengan URL production `azadrive.my.id`.
-
-- **Mobile responsiveness (web SPA <768px):** sidebar & InfoPanel kini drawer overlay di mobile (sebelumnya inline fixed-width yang makan layar / overflow horizontal), Header & Omnibar wrap + sembuny di very-small viewport, BulkActionBar wrap + touch target ≥44px (sebelumnya `min-w-[500px]` fixed yang pasti overflow di phone), FilesPage toolbar wrap + filter collapse, FileGrid list view sembunyikan kolom Size/Modified di mobile, WorkspaceSidebar drawer + toggle button di WorkspaceMainView, padding halaman responsif (`p-4 sm:p-6`), Dialog width `calc(100%-1rem)` + padding responsif, AdminUsersPage tabel `overflow-x-auto`, AutomationsPage dikonversi dari inline-style CSS-var (yang tak terdefinisi di Tailwind setup ini) ke Tailwind classes. Store `useUIStore` tambah state `mobileSidebarOpen` terpisah dari desktop collapse `isSidebarOpen`.
-
-- **Redesign halaman Home (`DashboardPage`) — Bento Dashboard (Konsep 3):** grid asimetris 4-kolom dengan cell span varied (hero storage `col-span-2 row-span-2`, donut kategori `col-span-2`, quick-access `col-span-2` tinted `bg-surface`, drives full-width `col-span-4`, recent `col-span-3`, admin `col-span-1`). Hero storage menampilkan persen besar (5xl/6xl) + `QuotaBar`. Breakdown per tipe file kini donut chart (Recharts `PieChart` innerRadius 62% dengan label `formatFileSize(totalUsed)` di tengah) + legend top-4, ganti stacked bar horizontal. Empty state saat belum ada drive terhubung + CTA Settings. Loading skeleton match bento shape. Reveal stagger CSS-driven (`.bento-reveal` keyframe `bento-fade-up`, `animation-delay` cascade, honor `prefers-reduced-motion`). Hover lift `-translate-y-[1px]` pada quick-link. Tanpa dep baru (Recharts sudah ada, motion CSS-only).
-
-- **Drive identity colors (`--drive-1`..`--drive-5`):** token CSS didefinisikan di `index.css` `:root`. Sebelumnya `getDriveColor(index)` merujuk `var(--drive-N)` yang tak pernah didefinisikan, sehingga tile drive di Dashboard & Settings render tanpa warna latar. Warna: blue (brand primary), teal, amber, red, green — round-robin per index drive.
-
-- **Recalibrasi palette brand (Opsi B — Cobalt accent):** `primary` `#0B57D0` (Google Blue) → `#2563EB` (electric blue, Tailwind `blue-600`) dan `surface` `#F0F4F9` (abu biru hangat) → `#F1F5F9` (cool gray slate) di `tailwind.config.js`. Drive-1 identity color ikut `#2563EB`. Hardcoded `bg-blue-600`/`text-blue-600` di 10 file (Button, FileGrid selection, InfoPanel, Header avatar, Omnibar, dsb) sudah match tanpa ubah. Tujuan: visual lebih "premium SaaS", kurang Google-Drive literal, tetap satu accent konsisten. Token-driven: 2 titik perubahan, propagasi ke semua 7 file pemakai `bg-primary`/`bg-surface`.
-
-### Removed
-
-- **Pembersihan artefak dev/testing:** hapus skrip smoke-test production (`scripts/prod-browser-test*.mjs`, `scripts/prod-upload-test.mjs`), skrip one-off migrasi/rename (`replace_terms.mjs`, `packages/worker/refactor*.js`, `packages/worker/scripts/add_sync_cache_columns.sql`), skrip debug SQLite (`query.cjs`, `query2.cjs`), dump diff (`full_diff.txt`), dan artefak lokal hasil test (`.prod-auth-state.json`, `.prod-test-files/`). Hapus `console.log` debug di `sync.ts` dan `index.ts` (cron handler); pertahankan `console.error` untuk error handling.
-
-### Changed
-
-- **S3 bucket lifecycle rules (Option A — trash, bukan hard delete):** endpoint S3 baru `PutBucketLifecycleConfiguration` / `GetBucketLifecycleConfiguration` / `DeleteBucketLifecycleConfiguration` via subresource `?lifecycle` di route `/:bucket` (kompatibel aws-cli/rclone). Rule `Expiration/Days` per prefix disimpan di tabel baru `s3_lifecycle_rules` (migrasi `0008`). Cron `*/30` yang sudah ada menjalankan `runLifecycleExpiration`: file yang lebih tua dari `expiration_days` di-**trash** ke Google Drive (`trashFile`, recoverable ~30 hari) + `is_trashed = 1`, **bukan** hard delete. Parser XML pakai regex (tanpa dep baru, ikut pola multipart). Test: `tests/s3-lifecycle.test.ts`.
-
-- **Account health badge di Settings > Connected Drives:** `DriveAccountCard` kini menampilkan badge `· reconnect needed` (token OAuth hilang/expired) atau `· unreachable` (quota API gagal saat cek terakhir). Sinyal `health` diturunkan dari cabang yang sudah dijalankan `/api/drives` GET (`auth_expired` bila tak ada token di KV, `error` bila fetch quota gagal, `connected` bila sukses) — tanpa kolom DB baru atau cron. Badge hanya muncul untuk state bermasalah (connected = tanpa clutter).
-
-- **Upload spillover saat preferred drive penuh:** `UploadRouter.selectDriveForUpload` dulu `throw` "Insufficient quota in preferred drive" bila drive pilihan user tak muat. Sekarang fallback (spillover) ke drive dengan free space terbanyak; hanya `throw` "Insufficient overall quota" bila tak ada drive yang muat file. Auto-select tanpa preferensi tak berubah (tetap pilih paling lapang). Cross-drive split (striping) di luar scope.
-
-- **Rebrand OmniDrive → AzaDrive (string UI + domain production):** ganti brand string yang terlihat user di `index.html` (title + meta description), `Header.tsx`, `LoginPage.tsx`, `SetupPage.tsx`, `FilesPage.tsx`, `SettingsPage.tsx`, `Omnibar.tsx`, `DriveAccountCard.tsx`, dan `Header.test.tsx`. `FRONTEND_URL` di `packages/worker/wrangler.toml` diarahkan ke `https://azadrive.my.id`. **Infra identifier TIDAK diubah** (nama folder tetap OmniDrive, cookie `omnidrive_sid`, worker `omnidrive-api`, D1 `omnidrive`, KV, HKDF salt `omnidrive-token-v1`, prefix multipart `.omnidrive_multipart_`) karena mengubahnya memutus session/enkripsi/binding production yang sudah berjalan.
-
-- **Pindah editor kapasitas storage manual dari Dashboard ke Settings:** tombol gear + form input override (`quota_override`) sekarang ada di `DriveAccountCard` (halaman Settings > Connected Drives), bukan lagi inline di kartu drive Dashboard. Dashboard "Connected Drives" kembali read-only (bar + badge `· manual` saja). Logic edit/save quota (`startEditQuota`/`saveQuota`/`parseSizeToBytes`) dipindah ke `DriveAccountCard` dengan callback `onQuotaSaved` untuk refresh drives; `SettingsPage` mewire `onQuotaSaved={fetchDrives}`.
-
-- **Hapus AI-slop visual di halaman auth & Dashboard:** `LoginPage`, `SetupPage`, dan banner "Total Storage" di `DashboardPage` sebelumnya memakai gradient (`bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100`, dsb), floating blur blob, glassmorphism (`bg-white/80 backdrop-blur-sm`), dan palet indigo yang tidak dipakai di mana pun lagi di app inti (inkonsistensi accent). Diseragamkan ke bahasa visual app inti: `bg-surface` (#F0F4F9), card `bg-white border border-gray-200 rounded-2xl shadow-sm`, accent `primary` (#0B57D0), radius `rounded-lg`, input focus `ring-primary`. Ganti `min-h-screen` → `min-h-[100dvh]` (viewport stability). Copy hero login "Your unified Google Drive gateway" → "Sign in to your account".
+- Manual storage capacity override UI and `PATCH /api/drives/:id/quota` endpoint (`quota_override` column kept read-only for compatibility).
+- Dev smoke-test scripts, one-off migration scripts, debug `console.log` calls, and local test artifacts.
 
 ### Fixed
 
-- **Kapasitas storage per akun tidak akurat:** `parseStorageQuota` memakai `storageQuota.usage` dari Google Drive API, yang mencakup **seluruh akun Google** (Drive + Gmail + Photos), bukan hanya pemakaian Drive akun tersebut. Diperbaiki untuk memakai `storageQuota.usageInDrive` (Drive-only) dengan fallback ke `usage` bila `usageInDrive` tidak ada (mis. beberapa shared folder service account). Cache KV quota diberi `QUOTA_CACHE_VERSION` agar entri lama (angka akun-wide) otomatis diabaikan dan angka langsung akurat tanpa menunggu TTL 5 menit.
+- **Session hilang setelah tab ditutup (~5 menit):** frontend production memanggil API langsung ke `*.workers.dev` sementara SPA di `azadrive.my.id`, sehingga cookie `omnidrive_sid` menjadi third-party dan sering dihapus browser. Perbaikan: proxy same-origin `/api` dan `/s3` lewat Cloudflare Pages `_redirects`, `VITE_API_URL` kosong (relative path), cookie session `SameSite=Lax`, dan Vite dev proxy untuk `/api` + `/s3`. Session D1 tetap 7 hari.
+- Login failed with HTTP 500 when the `is_super_admin` column was missing from migrated databases (`0008` migration).
+- Login failed with HTTP 500 due to bcrypt CPU timeout on Cloudflare Workers.
+- Upload failed with HTTP 500 from invalid `workspace_folder_id` foreign key; uploads now use `parentFolderId` and correct `google_parent_id`.
+- Upload failed on service accounts and shared drives missing `supportsAllDrives=true`.
+- Per-drive storage display used account-wide Google quota instead of Drive-only usage.
+- Rate limiter double-counted login requests against the global API bucket (premature HTTP 429).
+- New folder and workspace creation used browser `prompt()`; replaced with `CreateFolderModal`.
+- Dialogs appeared dark when the OS used dark mode despite the app having no dark theme (`darkMode: 'class'`).
 
-### Added
+### Security
 
-- **Manual storage capacity override per drive:** Google Drive API **tidak** mengekspos `storageQuota.limit` untuk Google Workspace pooled storage dan service account (hanya "if applicable"), sehingga drive-drive terebut selalu menampilkan 1 TiB (fallback `UNLIMITED_DRIVE_QUOTA_BYTES`) alih-alih kapasitas asli (mis. 5 TiB). Tambah kolom DB `drive_accounts.quota_override` (migrasi `0007`), endpoint `PATCH /api/drives/:id/quota`, dan tombol pengaturan (ikon gear) di kartu drive Dashboard untuk set kapasitas manual sekali. Override diprioritaskan di `computeDriveQuota` di atas nilai live API dan fallback. Saat Google omit limit, route tidak lagi menimpa `total_quota` DB dengan 1 TiB. Helper frontend `parseSizeToBytes` mendukung input seperti "5 TB", "500 GB".
-
-- **Dokumentasi proyek diperkuat untuk AI agent:** `AGENTS.md` sekarang memuat peta navigasi dokumen (kapan baca, section utama, anchor) untuk `ARCHITECTURE.md`, `DESIGN.md`, `SCHEMA.md`, `CHANGELOG.md` agar agent baru tidak kesusahan menemukan komponen dan hemat token. Keempat dokumen di-update dengan status terkini proyek (kolom `quota_override` + migrasi `0007` di SCHEMA, alur quota/override di ARCHITECTURE, capacity editor di DESIGN).
-
-- **Agentation integration:** wired `<Agentation>` component into `main.tsx` (dev-only via `import.meta.env.DEV`) for in-browser annotation feedback during development
-- **Smooth expand/collapse animations across the web app:** installed `tailwindcss-animate` plugin and added transitions to 15 components:
-  - **Sidebar:** animated width transition between expanded (w-64, icons+labels) and collapsed (w-16, icon rail) with fixed-width inner wrapper so icons stay put
-  - **InfoPanel:** curtain `transition-[width]` pattern (w-80 ↔ w-0), always-mounted; also fixes a pre-existing React hooks violation
-  - **6 custom modals migrated to Radix Dialog:** UploadModal, FilePreviewModal, ShareModal, EditShareModal, AddToWorkspaceModal, AddUserModal — now get enter+exit fade/zoom/slide, focus trap, Escape close, backdrop click
-  - **3 accordions:** ShareModal & EditShareModal "Advanced Settings", SettingsPage "Service Account" form — `grid-rows-[1fr]/[0fr]` transition
-  - **WorkspaceTreeNode:** tree expand/collapse via `grid-rows` transition
-  - **Omnibar:** advanced search panel + results dropdown — `animate-in fade-in-0 slide-in-from-top-2`
-  - **BulkActionBar:** `animate-in slide-in-from-bottom-5` enter animation
-  - **Toast:** enter + exit animation via delayed-unmount pattern in `toastStore` (`removing` flag + 300ms delayed removal)
-  - **Bonus:** existing Radix Dialog/DropdownMenu/ContextMenu classes (`animate-in`, `fade-in-0`, `zoom-in-95`, etc.) now produce actual CSS since the plugin was previously missing
-
-### Changed
-
-- **Production deploy (Cloudflare):** D1/KV resource akun `asmaraputra`, `wrangler.toml` + `.env.production` diarahkan ke Worker (`omnidrive-api.asmara-putra.workers.dev`) dan Pages (`omnidrive-ajm.pages.dev`)
-- **Google Drive move:** perbaikan logika move file/folder di `google-drive.ts` beserta test
-
-### Fixed
-
-- **Dialog/popup warna gelap saat OS dark mode:** shadcn components (Dialog, DropdownMenu, ContextMenu, Button) dan `SidebarStorage` memuat `dark:*` utilities yang, karena `tailwind.config.js` tidak menetapkan `darkMode`, memakai default Tailwind v3 `'media'` — sehingga aktif otomatis mengikuti `prefers-color-scheme: dark` OS dan membuat dialog/pop-up tampak hitam meski proyek tidak punya dark mode. Ditambah `darkMode: 'class'` agar `dark:*` hanya aktif under eksplisit `.dark` ancestor (yang tidak pernah ditambahkan app), mematikan efek gelap di seluruh dialog/form/pop-up sekaligus.
-- **Login "Too many requests" (429) prematur:** `rateLimiter` memakai satu `Map` shared level modul untuk semua instance. Karena `POST /api/auth/login` cocok dengan dua middleware sekaligus — limiter login (`10/60s`) dan limiter global `/api/*` (`100/60s`) — keduanya menulis ke bucket IP yang sama, sehingga satu request login terhitung dua kali (5 × 2 = 10 → 429). Di `wrangler dev`, semua request dari `127.0.0.1` juga berbagi satu bucket, sehingga traffic API lain menghabiskan budget login. Diperbaiki dengan memberi setiap instance `rateLimiter` `Map`-nya sendiri sehingga bucket tiap limiter independen — tidak ada double-counting maupun collision antar limiter. Ditambah test regresi untuk skenario overlap route.
-- **New Folder / New Workspace memakai modal browser (`prompt()`):** button "New Folder" di FilesPage dan "New Workspace"/"New Folder" di WorkspacesPage sebelumnya memanggil `prompt()` browser asli, yang tidak konsisten dengan UI lain dan tidak bisa di-style. Dibuat komponen `CreateFolderModal` (Radix Dialog, mengikuti pola `EditShareModal`) dengan text input, loading state, error display, dan toast. Modal ini reusable — menangani baik pembuatan folder maupun workspace via `api.createFolder(name, parentId)` (parentId `null` = root workspace, string = subfolder).
-- **Security audit — 36 temuan diperbaiki (6 HIGH, 15 MEDIUM, 15 LOW):**
-  - **H1/H2/H6 — IDOR di workspace folders & shared-link creation:** semua endpoint folder/workspace-scoped (`GET/PUT/DELETE/star/unstar`, share-link create untuk folder) sekarang memverifikasi keanggotaan `workspace_members` sebelum query/mutasi. Sebelumnya user terautentikasi bisa membaca/mengubah/menghapus folder atau membuat share-link untuk workspace yang bukan miliknya.
-  - **H3 — S3 RBAC bypass:** handler S3 di `routes/s3.ts` sekarang retrieve `wm.role` dan enforce — read ops (`GET/HEAD/LIST`) butuh `viewer`+; write ops (`PUT/POST/DELETE`) butuh `editor`+. `POST /api/s3-credentials` tanpa `workspaceId` butuh role `manager` di minimal satu workspace (sebelumnya tanpa cek).
-  - **H4 — S3 signature oracle:** error response XML tidak lagi membocorkan `CanonicalRequest`/`StringToSign`/`err.message` ke client. Server-side `console.error` tetap ada untuk debugging.
-  - **H5 — Content-Security-Policy:** ditambahkan CSP strict di `securityHeaders` middleware (`default-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; ...`).
-  - **M1/M2 — Rate limiting:** `app.use('/s3/*', rateLimiter(...))` + dedicated limiter untuk shared-link download (`/api/shared/:id/download`).
-  - **M3 — TOCTOU di `maxDownloads`:** diganti dengan atomic conditional `UPDATE ... WHERE max_downloads IS NULL OR download_count < max_downloads RETURNING ...` — concurrent download tidak bisa double-count.
-  - **M4 — `requireEmail`/`allowUploads` enforcement:** `requireEmail` sekarang benar-benar dicek di `meta`/`download` (return 403 kalau belum verifikasi email). `allowUploads` ditolak saat create/update karena belum ada public upload endpoint — tidak menyimpan false sense of security.
-  - **M5 — KDF untuk at-rest encryption:** `getKey()` di `lib/crypto.ts` diganti dari truncate+zero-pad ke **HKDF-SHA256 via Web Crypto `deriveKey`**. Ciphertext di-prefix `v1:` untuk forward-compat key rotation.
-  - **M6 — `decryptOrPassthrough`:** fallback plaintext hanya dengan explicit `plain:` marker — bare plaintext ditolak (no more silent downgrade).
-  - **M7 — Manager dapat remove owner:** hanya `owner` yang boleh remove `owner`; tolak kalau target adalah owner terakhir (mencegah orphan workspace).
-  - **M8 — Bootstrap token:** optional `BOOTSTRAP_TOKEN` env var. Kalau di-set, registrasi super-admin pertama butuh token (mencegah race claim unclaimed instance). `setup-status` tetap publik tapi tidak reveal apakah token required.
-  - **M9 — SSRF webhook validation:** `validateWebhookUrlAsync` resolve DNS via Cloudflare DoH, block IPv6 ULA/link-local, CGNAT, `0.0.0.0/8`. DNS rebinding belum fully mitigated (Workers runtime tidak expose socket-level IP pinning).
-  - **M10 — S3 PUT/POST body commitment:** wajib `x-amz-content-sha256`; tidak terima `UNSIGNED-PAYLOAD` untuk write ops.
-  - **M11 — HSTS:** `Strict-Transport-Security: max-age=31536000; includeSubDomains` di HTTPS.
-  - **M13 — Google API error leak:** raw `err.message` dari Google API tidak lagi di-return ke client; diganti generic `'Failed to connect Google Drive account'`.
-  - **M14 — `SameSite=None` cookie:** `Lax` kalau `FRONTEND_URL` & `WORKER_URL` share origin; `None` hanya kalau truly cross-origin.
-  - **M15 — Session revocation:** ditambahkan `user_sessions:<userId>` KV index; sessions didaftarkan saat login, dihapus saat logout, dan bisa direvoke semua via `POST /api/auth/sessions/revoke`.
-  - **L1–L15:** shared-link expiry check di verify, logout cookie `secure` flag derived, OAuth state cookie `sameSite`, bcrypt cost 10→12, error-handler dead code marked, password max 72 chars, `validateEmail` (regex), `policy.config.max_bytes` numeric check, automation `trigger_type` whitelist (`event`/`cron`), file-move target-workspace check, JSON-path injection sanitization, removed unused `console.log` of folder IDs, consistent `hasPermission` usage, `X-XSS-Protection: 0` (modern best practice).
-  - **Tests:** 148/148 pass. `crypto.test.ts` (HKDF round-trip + `plain:` marker), `security-headers.test.ts` (CSP assertions), `s3-api.test.ts` (mock pattern updated for `wm.role` queries, auto-default `role:'owner'` agar S3 behavior test tidak crash oleh RBAC).
-  - Lihat `SECURITY_AUDIT.md` untuk laporan lengkap semua 36 finding + lokasi + perubahan.
-
-### Notes
-
-- Fork dari [`abilfida/OmniDrive`](https://github.com/abilfida/OmniDrive) v0.9.7
-- Maintainer: `asmaraputra` — remote `origin` → `asmaraputra/OmniDrive`
-- Upstream opsional: `abilfida/OmniDrive` via `git fetch upstream`
+- Remediated 36 findings from the security audit (6 high, 15 medium, 15 low), including IDOR in workspace folders, S3 RBAC bypass, CSP and HSTS headers, HKDF-based encryption, session revocation, and related hardening. See `SECURITY_AUDIT.md` for the full report.
 
 ## [0.9.7] - 2026-06-24
 
@@ -307,12 +240,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - Removed stray closing div causing build errors in `FilesPage`
   - Fixed broken and orphaned tests in `InviteUserModal` and `WorkspaceTabs` to ensure test suite integrity
 
-### Changed (UI)
+### Changed
 
-- **Aesthetics & Usability:**
-  - Improved file and folder icons for a more polished and enterprise look
-  - Increased spacing between icons and file names for better readability
-  - Ensured the navigation toolbar remains visible during active file selection
+- Improved file and folder icons for a more polished and enterprise look.
+- Increased spacing between icons and file names for better readability.
+- Ensured the navigation toolbar remains visible during active file selection.
 
 ## [0.5.0] - 2026-06-11
 
@@ -420,3 +352,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Dashboard with aggregate storage stats across all drives
 - File preview modal for images and documents
 - Settings page for managing connected drives
+
+[unreleased]: https://github.com/asmaraputra/OmniDrive/compare/v0.9.7...HEAD
+[0.9.7]: https://github.com/asmaraputra/OmniDrive/compare/v0.9.6...v0.9.7
+[0.9.6]: https://github.com/asmaraputra/OmniDrive/compare/v0.9.5...v0.9.6
+[0.9.5]: https://github.com/asmaraputra/OmniDrive/compare/v0.9.4...v0.9.5
+[0.9.4]: https://github.com/asmaraputra/OmniDrive/compare/v0.9.3...v0.9.4
+[0.9.3]: https://github.com/asmaraputra/OmniDrive/compare/v0.9.2...v0.9.3
+[0.9.2]: https://github.com/asmaraputra/OmniDrive/compare/v0.9.1...v0.9.2
+[0.9.1]: https://github.com/asmaraputra/OmniDrive/compare/v0.9.0...v0.9.1
+[0.9.0]: https://github.com/asmaraputra/OmniDrive/compare/v0.8.15...v0.9.0
+[0.8.15]: https://github.com/asmaraputra/OmniDrive/compare/v0.8.14...v0.8.15
+[0.8.14]: https://github.com/asmaraputra/OmniDrive/compare/v0.8.13...v0.8.14
+[0.8.13]: https://github.com/asmaraputra/OmniDrive/compare/v0.8.12...v0.8.13
+[0.8.12]: https://github.com/asmaraputra/OmniDrive/compare/v0.8.10...v0.8.12
+[0.8.10]: https://github.com/asmaraputra/OmniDrive/compare/v0.6.0...v0.8.10
+[0.6.0]: https://github.com/asmaraputra/OmniDrive/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/asmaraputra/OmniDrive/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/asmaraputra/OmniDrive/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/asmaraputra/OmniDrive/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/asmaraputra/OmniDrive/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/asmaraputra/OmniDrive/releases/tag/v0.1.0

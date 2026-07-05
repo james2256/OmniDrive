@@ -1,6 +1,7 @@
 import React from 'react';
 import type { FileEntry, DriveFolder, WorkspaceFolder } from '../../types';
-import { formatFileSize, formatRelativeTime, getDriveColor } from '../../lib/utils';
+import { formatFileSize, formatRelativeTime } from '../../lib/utils';
+import { DriveBadge } from '../DriveBadge';
 import { FileIcon } from './FileIcon';
 import { Folder, Download, Trash2, Pencil, ExternalLink, Share2, RefreshCw, Eye, Star, Info, ArrowUp, ArrowDown } from 'lucide-react';
 import { sortFiles, sortFolders, type SortField } from '../../lib/sort-items';
@@ -165,6 +166,8 @@ export interface FileGridProps {
   onMoveDrive?: (file: FileEntry) => void;
   /** Override viewMode (optional). If not provided, reads from UIStore. */
   viewMode?: 'grid' | 'list';
+  /** Show dedicated Drive column in list view (auto when multiple drives in listing). */
+  showDriveColumn?: boolean;
   isTrashView?: boolean;
   onRestore?: (fileId: string) => void;
   onPermanentDelete?: (fileId: string) => void;
@@ -208,6 +211,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
   errorDrives,
   onMoveDrive,
   viewMode: viewModeProp,
+  showDriveColumn: showDriveColumnProp,
   isTrashView,
   onRestore,
   onPermanentDelete,
@@ -228,6 +232,26 @@ export const FileGrid: React.FC<FileGridProps> = ({
     () => sortFiles(files, sortField, sortDirection),
     [files, sortField, sortDirection]
   );
+
+  const uniqueDriveCount = React.useMemo(() => {
+    const ids = new Set<string>();
+    for (const file of files) {
+      if (file.driveAccountId) ids.add(file.driveAccountId);
+    }
+    for (const folder of subfolders) {
+      if ('driveAccountId' in folder && folder.driveAccountId) ids.add(folder.driveAccountId);
+    }
+    return ids.size;
+  }, [files, subfolders]);
+
+  const showDriveColumn = showDriveColumnProp ?? uniqueDriveCount > 1;
+
+  const renderDriveBadge = (driveAccountId?: string) => {
+    if (!driveAccountId) return null;
+    const { drive, index } = getDriveInfo(driveAccountId);
+    if (!drive?.email) return null;
+    return <DriveBadge email={drive.email} colorIndex={index} />;
+  };
 
   const renderSortHeader = (label: string, field: SortField, align: 'left' | 'right' = 'left') => {
     const active = sortField === field;
@@ -288,10 +312,14 @@ export const FileGrid: React.FC<FileGridProps> = ({
 
   /* ─────────────────── LIST VIEW ─────────────────── */
   if (viewMode === 'list') {
+    const listGridClass = showDriveColumn
+      ? 'grid-cols-[auto_1fr_44px] sm:grid-cols-[auto_1fr_140px_120px_140px_44px]'
+      : 'grid-cols-[auto_1fr_44px] sm:grid-cols-[auto_1fr_120px_140px_44px]';
+
     return (
       <div className="w-full">
         {/* Table header */}
-        <div className="grid grid-cols-[auto_1fr_44px] sm:grid-cols-[auto_1fr_120px_140px_44px] gap-0 border-b border-gray-100 px-4 py-2 text-xs font-medium text-gray-500 uppercase tracking-wide group">
+        <div className={`grid ${listGridClass} gap-0 border-b border-gray-100 px-4 py-2 text-xs font-medium text-gray-500 uppercase tracking-wide group`}>
           <div className="w-[72px] flex items-center pl-3">
             <input
               type="checkbox"
@@ -312,6 +340,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
             />
           </div>
           <span>{renderSortHeader('Name', 'name')}</span>
+          {showDriveColumn && <span className="hidden sm:block">Drive</span>}
           <span className="text-right hidden sm:block">{renderSortHeader('Size', 'size', 'right')}</span>
           <span className="text-right hidden sm:block">{renderSortHeader('Modified', 'modified', 'right')}</span>
           <span />
@@ -354,7 +383,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
                   onMouseLeave={() => {
                     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
                   }}
-                  className={`grid grid-cols-[auto_1fr_44px] sm:grid-cols-[auto_1fr_120px_140px_44px] gap-0 items-center px-4 py-2.5 cursor-pointer transition-colors border-b border-gray-50 group ${
+                  className={`grid ${listGridClass} gap-0 items-center px-4 py-2.5 cursor-pointer transition-colors border-b border-gray-50 group ${
                     isSelected
                       ? 'bg-blue-100 hover:bg-blue-200'
                       : hasError
@@ -375,12 +404,18 @@ export const FileGrid: React.FC<FileGridProps> = ({
                     />
                     <Folder size={20} className="text-blue-500 flex-shrink-0" fill="currentColor" />
                   </div>
-                  <div className="flex items-center gap-2 min-w-0">
+                  <div className="flex items-center gap-2 min-w-0 flex-wrap">
                     <span className="text-sm text-gray-800 font-medium truncate">{folder.name}</span>
                     {isStarred && <Star className="fill-yellow-400 text-yellow-400 flex-shrink-0" size={14} />}
                     {shared && <Share2 size={12} className="text-blue-400 flex-shrink-0" />}
                     {renderMetadataBadges('metadata' in folder ? folder.metadata : undefined)}
+                    {!showDriveColumn && renderDriveBadge(driveAccountId)}
                   </div>
+                  {showDriveColumn && (
+                    <div className="hidden sm:flex items-center min-w-0">
+                      {renderDriveBadge(driveAccountId)}
+                    </div>
+                  )}
                   <div className="text-right text-xs text-gray-400 hidden sm:block">—</div>
                   <div className="text-right text-xs text-gray-400 hidden sm:block">—</div>
                   <div />
@@ -408,8 +443,6 @@ export const FileGrid: React.FC<FileGridProps> = ({
 
         {/* Files */}
         {sortedFiles.map((file) => {
-          const { index } = getDriveInfo(file.driveAccountId);
-          const driveColor = getDriveColor(index);
           const native = isGoogleNative(file.mimeType);
           const shared = file.id ? isTargetShared?.(file.id, 'file') : false;
           const isSelected = selectedKeys.has(file.id);
@@ -434,7 +467,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
                   onMouseLeave={() => {
                     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
                   }}
-                  className={`grid grid-cols-[auto_1fr_44px] sm:grid-cols-[auto_1fr_120px_140px_44px] gap-0 items-center px-4 py-2.5 cursor-pointer transition-colors border-b border-gray-50 group ${
+                  className={`grid ${listGridClass} gap-0 items-center px-4 py-2.5 cursor-pointer transition-colors border-b border-gray-50 group ${
                     isSelected
                       ? 'bg-blue-100 hover:bg-blue-200'
                       : 'hover:bg-gray-50'
@@ -453,13 +486,18 @@ export const FileGrid: React.FC<FileGridProps> = ({
                     />
                     <span className="text-xl flex-shrink-0"><FileIcon mimeType={file.mimeType} /></span>
                   </div>
-                  <div className="flex items-center gap-2 min-w-0">
+                  <div className="flex items-center gap-2 min-w-0 flex-wrap">
                     <span className="text-sm text-gray-800 truncate" title={file.name}>{file.name}</span>
                     {file.isStarred && <Star className="fill-yellow-400 text-yellow-400 flex-shrink-0" size={14} />}
                     {shared && <Share2 size={12} className="text-blue-400 flex-shrink-0" />}
                     {renderMetadataBadges(file.metadata)}
-                    <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: driveColor }} />
+                    {!showDriveColumn && renderDriveBadge(file.driveAccountId)}
                   </div>
+                  {showDriveColumn && (
+                    <div className="hidden sm:flex items-center min-w-0">
+                      {renderDriveBadge(file.driveAccountId)}
+                    </div>
+                  )}
                   <div className="text-right text-xs text-gray-500 hidden sm:block">
                     {!native ? formatFileSize(file.size) : '—'}
                   </div>
@@ -536,7 +574,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
                 onMouseLeave={() => {
                   if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
                 }}
-                className={`p-3 border rounded-xl cursor-pointer flex items-center gap-4 transition-all group relative ${
+                className={`p-3 border rounded-xl cursor-pointer flex flex-col gap-2 transition-all group relative ${
                     isSelected
                     ? 'bg-blue-100 border-blue-300'
                     : hasError
@@ -554,14 +592,17 @@ export const FileGrid: React.FC<FileGridProps> = ({
                     handleItemClick(e, { type: 'folder', item: folder });
                   }}
                 />
-                <Folder size={20} className="text-blue-500 flex-shrink-0 ml-5" fill="currentColor" />
-                <div className="flex-1 truncate text-sm font-medium text-gray-800">
-                  {folder.name}
+                <div className="flex items-center gap-3 min-w-0">
+                  <Folder size={20} className="text-blue-500 flex-shrink-0 ml-5" fill="currentColor" />
+                  <div className="flex-1 truncate text-sm font-medium text-gray-800">
+                    {folder.name}
+                  </div>
+                  <div className="flex gap-1 items-center">
+                    {isStarred && <Star className="fill-yellow-400 text-yellow-400 flex-shrink-0" size={14} />}
+                    {shared && <Share2 size={12} className="text-blue-400 flex-shrink-0" />}
+                  </div>
                 </div>
-                <div className="flex gap-1 items-center">
-                  {isStarred && <Star className="fill-yellow-400 text-yellow-400 flex-shrink-0" size={14} />}
-                  {shared && <Share2 size={12} className="text-blue-400 flex-shrink-0" />}
-                </div>
+                {renderDriveBadge(driveAccountId)}
               </div>
             </ContextMenuTrigger>
             <ItemContextMenuContent
@@ -585,8 +626,6 @@ export const FileGrid: React.FC<FileGridProps> = ({
 
       {/* Render Files */}
       {sortedFiles.map((file) => {
-        const { index } = getDriveInfo(file.driveAccountId);
-        const driveColor = getDriveColor(index);
         const native = isGoogleNative(file.mimeType);
         const shared = file.id ? isTargetShared?.(file.id, 'file') : false;
         const isSelected = selectedKeys.has(file.id);
@@ -611,7 +650,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
                 onMouseLeave={() => {
                   if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
                 }}
-                className={`p-3 border rounded-xl cursor-pointer flex flex-col justify-between h-36 transition-all group relative ${
+                className={`p-3 border rounded-xl cursor-pointer flex flex-col justify-between h-40 transition-all group relative ${
                   isSelected
                     ? 'bg-blue-100 border-blue-300'
                     : 'bg-white border-gray-200 hover:bg-blue-50 hover:border-blue-200'
@@ -638,8 +677,8 @@ export const FileGrid: React.FC<FileGridProps> = ({
                   <div className="font-medium text-xs text-gray-800 truncate mb-1 leading-snug" title={file.name}>
                     {file.name}
                   </div>
+                  <div className="mb-1.5">{renderDriveBadge(file.driveAccountId)}</div>
                   <div className="flex items-center text-xs text-gray-400 gap-1.5">
-                    <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: driveColor }} />
                     {!native && <span className="truncate">{formatFileSize(file.size)}</span>}
                     {!native && <span>·</span>}
                     <span className="truncate">{formatRelativeTime(file.googleModifiedAt ?? file.createdAt)}</span>
