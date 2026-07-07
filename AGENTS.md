@@ -191,6 +191,17 @@ node scripts/onboard-deploy.mjs   # wizard setup/deploy awal
 
 **Port default** (dari `.env.example`): Web `8999`, Worker `8888`.
 
+## Dual-Boot Windows + Linux Mint
+
+Maintainer punya clone terpisah: Windows `D:\coding\OmniDrive` (HDD), Linux `~/coding/OmniDrive` (SSD). Kode via Git; secret via `scripts/sync-config-from-windows.sh`.
+
+| OS | Dev start | Stop |
+|----|-----------|------|
+| Windows | `npm run dev` | tutup terminal / kill port |
+| Linux | `make dev` atau `npm run dev` | `make stop` |
+
+Baca **`LINUX-SETUP.md`** untuk prompt agent Linux, setup pertama, dan troubleshooting. Agent di Linux mengikuti aturan yang sama (dilarang baca `.env`, dilarang `npm run dev`/deploy).
+
 ## Aturan Kode
 
 ### Backend (`packages/worker`)
@@ -305,6 +316,7 @@ Peta navigasi lengkap (kapan baca + section anchor) ada di section **"Dokumentas
 | `DESIGN.md` | Token warna cobalt, layout bento, pola komponen | Session ini (bento dashboard + Opsi B palette) |
 | `CHANGELOG.md` | Riwayat versi (`[Unreleased]` + `0.9.7` ke bawah) | Session ini (bento redesign + cobalt palette + drive tokens) |
 | `README.md` / `README.id.md` | Panduan user & setup | Tidak diubah (sudah rebrand AzaDrive) |
+| `LINUX-SETUP.md` | Dual-boot Linux Mint: skrip setup, prompt agent, workflow harian | Session ini |
 
 ## Hal yang Jangan Dilakukan
 

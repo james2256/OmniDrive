@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `tailwindcss-animate` plugin with expand/collapse and modal enter/exit animations across 15 components.
 - Dev-only Agentation annotation component in `main.tsx`.
 - AI agent documentation navigation map in `AGENTS.md`.
+- Linux Mint dual-boot setup: `scripts/setup-linux.sh`, `scripts/sync-config-from-windows.sh`, `LINUX-SETUP.md` (agent prompt + maintainer guide), and `.gitattributes` (`eol=lf`) for Windows HDD + Linux SSD workflow.
 
 ### Changed
 
