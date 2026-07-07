@@ -43,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Upload proxy (`PUT /api/files/upload/proxy`) streams the request body straight to Google instead of buffering it with `arrayBuffer()`, avoiding the Worker 128MB memory limit crash on large files.
 - IDOR/quota abuse on uploads: `POST /api/files/upload/init` and `POST /api/files/upload/finalize` now require the caller to be an editor of the `workspaceId` in the request body before checking quota or attaching a file, preventing users from inflating or writing to workspaces they don't belong to.
+- Orphan S3 multipart uploads (never Completed/Aborted) are now reaped by the cron: `cleanupOrphanMultipartUploads` deletes the temp Google Drive folder and the `s3_multipart_uploads` row (parts cascade) for uploads older than 24h, preventing leaked temp folders and stale D1 rows.
 - Admin-created users could not log in: `POST /api/admin/users` now hashes passwords with PBKDF2 (same as register/login) instead of bcrypt.
 - Registration invitation codes: atomic consume after username/email validation (no race on `max_uses`, no slot burned on duplicate username).
 - Shared link downloads: `download_count` increments only after Google fetch succeeds, so failed downloads no longer consume `maxDownloads` quota.

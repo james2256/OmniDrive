@@ -96,3 +96,39 @@ export async function runLifecycleExpiration(env: Env): Promise<void> {
     }
   }
 }
+
+/**
+ * Cron: reap orphan S3 multipart uploads that were never Completed or Aborted.
+ * These leave a temp Google Drive folder + an s3_multipart_uploads row (and its
+ * parts) behind forever. We delete the temp folder best-effort, then remove the
+ * upload row; s3_multipart_parts rows cascade via ON DELETE CASCADE.
+ * created_at is a TEXT datetime string, so age is filtered in SQL with
+ * datetime('now','-1 day') — never epoch ms.
+ * ponytail: 24h threshold hardcoded — the ceiling is that a legitimate upload
+ * spanning >24h gets reaped; make it configurable if long-running uploads appear.
+ */
+export async function cleanupOrphanMultipartUploads(env: Env): Promise<void> {
+  const { results: orphans } = await env.DB.prepare(
+    "SELECT upload_id, drive_account_id, temp_folder_id FROM s3_multipart_uploads WHERE created_at < datetime('now','-1 day')"
+  ).all<{ upload_id: string; drive_account_id: string; temp_folder_id: string }>();
+
+  if (!orphans?.length) return;
+
+  const driveService = new GoogleDriveService(
+    env.DB,
+    env.GOOGLE_CLIENT_ID,
+    env.GOOGLE_CLIENT_SECRET,
+    env.TOKEN_ENCRYPTION_KEY
+  );
+
+  for (const upload of orphans) {
+    try {
+      await driveService.deleteFile(upload.drive_account_id, upload.temp_folder_id);
+    } catch (err) {
+      // Best-effort: the temp folder may already be gone; still drop the DB row.
+      console.error('Failed to delete orphan multipart temp folder from Google Drive:', err);
+    }
+    await env.DB.prepare('DELETE FROM s3_multipart_uploads WHERE upload_id = ?')
+      .bind(upload.upload_id).run();
+  }
+}

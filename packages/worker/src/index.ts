@@ -5,7 +5,7 @@ import { securityHeaders } from './middleware/security-headers';
 import { csrfGuard } from './middleware/csrf-guard';
 import { rateLimiter } from './middleware/rate-limiter';
 import { runScheduledSync } from './services/sync';
-import { runLifecycleExpiration } from './services/s3-lifecycle';
+import { runLifecycleExpiration, cleanupOrphanMultipartUploads } from './services/s3-lifecycle';
 import { AuditService } from './services/audit.service';
 import { PolicyService } from './services/policy.service';
 
@@ -122,6 +122,7 @@ export default {
   async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext) {
     ctx.waitUntil(runScheduledSync(env));
     ctx.waitUntil(runLifecycleExpiration(env));
+    ctx.waitUntil(cleanupOrphanMultipartUploads(env));
     const engine = new AutomationEngine(env);
     ctx.waitUntil(engine.processCronTrigger(ctx));
 
