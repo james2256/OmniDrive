@@ -12,6 +12,20 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Move session storage from KV to D1.
+-- KV free tier = 1k writes/day; D1 free tier = 100k row writes/day.
+-- Sessions were previously stored as KV keys `session:<id>` with 7-day TTL.
+-- D1 has no auto-expiry: a scheduled cron (*/30) cleans expired rows.
+CREATE TABLE IF NOT EXISTS sessions (
+    id          TEXT PRIMARY KEY,
+    user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    data        TEXT NOT NULL,
+    expires_at  INTEGER NOT NULL,
+    touched_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_user    ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
+
 -- Connected Google Drive accounts
 CREATE TABLE IF NOT EXISTS drive_accounts (
     id              TEXT PRIMARY KEY,
@@ -156,7 +170,7 @@ CREATE TABLE IF NOT EXISTS shared_link_logs (
 );
 
 -- S3 bucket lifecycle rules. "expire" = move object to Google Drive trash
--- (recoverable ~30 days), NOT a permanent delete. See migration 0008.
+-- (recoverable ~30 days), NOT a permanent delete (see s3-lifecycle service).
 CREATE TABLE IF NOT EXISTS s3_lifecycle_rules (
     id              TEXT PRIMARY KEY,
     workspace_id    TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,

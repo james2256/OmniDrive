@@ -28,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migrated session storage from KV to D1; existing KV sessions expire within 7 days (one-time re-login required).
 - Rebranded user-facing strings from OmniDrive to AzaDrive; production frontend URL set to `https://azadrive.my.id` (infrastructure identifiers unchanged).
 - Recalibrated brand palette to cobalt accent (`#2563EB`) and cool slate surface (`#F1F5F9`).
+
+### Fixed
+
+- Restored the `sessions` table to the schema baseline (`schema.sql` and `0001_initial_schema.sql`); it was missing after the migration consolidation, which would break authentication on a fresh install.
 - Upload router falls back to the drive with the most free space when the preferred drive is full.
 - Account health badges (`reconnect needed`, `unreachable`) on connected drives in Settings.
 - Unified auth and dashboard visuals to match core app design tokens.
