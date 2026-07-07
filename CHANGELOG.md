@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Upload proxy (`PUT /api/files/upload/proxy`) streams the request body straight to Google instead of buffering it with `arrayBuffer()`, avoiding the Worker 128MB memory limit crash on large files.
 - Admin-created users could not log in: `POST /api/admin/users` now hashes passwords with PBKDF2 (same as register/login) instead of bcrypt.
 - Registration invitation codes: atomic consume after username/email validation (no race on `max_uses`, no slot burned on duplicate username).
 - Shared link downloads: `download_count` increments only after Google fetch succeeds, so failed downloads no longer consume `maxDownloads` quota.

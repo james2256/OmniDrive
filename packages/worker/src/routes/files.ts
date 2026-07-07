@@ -357,28 +357,24 @@ filesRouter.put('/upload/proxy', async (c) => {
   const contentType = c.req.header('Content-Type') || 'application/octet-stream';
   const contentRange = c.req.header('Content-Range');
 
-  console.log('Upload proxy:', { uploadUrl: uploadUrl.substring(0, 80), contentLength, contentType, contentRange });
-
   const headers: Record<string, string> = {
     'Content-Type': contentType,
   };
   if (contentLength) headers['Content-Length'] = contentLength;
   if (contentRange) headers['Content-Range'] = contentRange;
 
-  // Read body explicitly to ensure it's forwarded correctly
-  const body = await c.req.raw.arrayBuffer();
-  console.log('Upload proxy body size:', body.byteLength);
-
+  // Stream the request body straight to Google instead of buffering it in RAM
+  // (arrayBuffer() would hold the whole file, crashing the Worker's 128MB limit
+  // on large uploads). duplex: 'half' is required to send a streaming body.
+  // ponytail: `as any` — RequestInit's type lacks `duplex`, which the Workers runtime supports.
   const googleResponse = await fetch(uploadUrl, {
     method: 'PUT',
     headers,
-    body,
-  });
-
-  console.log('Google response:', googleResponse.status, googleResponse.statusText);
+    body: c.req.raw.body,
+    duplex: 'half',
+  } as any);
 
   const responseBody = await googleResponse.text();
-  console.log('Google response body preview:', responseBody.substring(0, 200));
 
   const cleanHeaders = new Headers();
   googleResponse.headers.forEach((v, k) => {
