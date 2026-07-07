@@ -1,6 +1,6 @@
 # SCHEMA.md — Database Schema (Cloudflare D1)
 
-Database OmniDrive menggunakan **Cloudflare D1** (SQLite). Skema master ada di `packages/worker/src/db/schema.sql`. Migrasi incremental: `0001`–`0010`.
+Database OmniDrive menggunakan **Cloudflare D1** (SQLite). Skema master ada di `packages/worker/src/db/schema.sql`. Migrasi dijalankan lewat **wrangler native migrations** dari folder `packages/worker/migrations/` (lihat `#migrasi`).
 
 ## Diagram Relasi
 
@@ -444,30 +444,30 @@ Part individual dari multipart upload.
 
 ---
 
-## Migrasi Incremental
+## Migrasi
+
+Mulai session ini, migrasi memakai **wrangler native D1 migrations** (`wrangler d1 migrations apply`), bukan lagi `wrangler d1 execute --file=schema.sql`. Wrangler melacak migrasi yang sudah diterapkan di tabel `d1_migrations`, sehingga tiap file dijalankan **tepat sekali** dan kolom baru pada tabel lama benar-benar ter-apply (memperbaiki drift lama di mana `schema.sql` yang penuh `IF NOT EXISTS` tak pernah menjalankan `ALTER TABLE`).
+
+Folder migrasi: `packages/worker/migrations/`. Sumber tunggal kebenaran.
 
 | File | Perubahan |
 |------|-----------|
-| `0001_add_local_auth_migration.sql` | Tambah `username`, `password_hash` ke users |
-| `0002_enterprise_workspace_phase1.sql` | Tabel workspace, members, policies, audit |
-| `0003_enterprise_workspace_phase2.sql` | Workspace folders, metadata files |
-| `0004_enterprise_workspace_phase3.sql` | Search indexes, invitation codes |
-| `0005_add_workspace_id_to_s3_credentials.sql` | Kolom `workspace_id` di s3_credentials |
-| `0006_add_sync_cache_columns.sql` | `sync_ttl_minutes`, `last_synced_at`, `sync_status` |
-| `0007_add_quota_override.sql` | Kolom `quota_override` di `drive_accounts` (manual capacity untuk Workspace/service account) |
-| `0008_add_is_super_admin.sql` | Kolom `is_super_admin` di `users` — fix kolom hilang dari migrasi incremental (ada di `schema.sql` tapi tidak di `0001`); promotes user tertua jadi super admin |
-| `0008_add_s3_lifecycle_rules.sql` | Tabel `s3_lifecycle_rules` (aturan expire objek S3 → trash Google Drive) |
-| `0009_sessions_table.sql` | Tabel `sessions` — pindah session storage dari KV ke D1 (KV free tier 1k writes/day → D1 100k writes/day) |
-| `0010_kv_to_d1_tokens_quota_oauth.sql` | Tabel `oauth_states`, `drive_tokens`, `quota_cache` — pindah sisa KV (oauth_state, tokens, quota cache) ke D1; KV hanya untuk rate-limit shared link |
+| `0001_initial_schema.sql` | Baseline idempoten — salinan `schema.sql` (semua tabel + index). `apply` pertama di DB production yang sudah ada = no-op aman (semua `IF NOT EXISTS`), sekadar mencatat baseline. |
+
+Migrasi lama bernomor `0001`–`0010` di `src/db/` (dead, tak dirujuk kode manapun) dan `migrations/0008_add_s3_lifecycle_rules.sql` (tabrakan nomor `0008`) sudah dihapus — semua efeknya sudah ada di baseline. Riwayat tersimpan di git.
+
+**Aturan ke depan:** setiap perubahan skema wajib update DUA hal — `src/db/schema.sql` (canonical fresh-install, dipakai `reset.mjs`/`onboard-deploy.mjs`) **dan** file `migrations/000N_*.sql` baru berisi DDL incremental. Test `tests/migrations.test.ts` gagal bila keduanya divergen.
+
+> **Catatan drift production:** baseline idempoten aman sebagai no-op, tapi TIDAK menyembuhkan drift lama (mis. kolom `is_super_admin` yang tak pernah ter-apply di prod). Verifikasi kolom prod (`wrangler d1 execute omnidrive --remote --command "PRAGMA table_info(users)"`) lalu, bila ada kolom hilang, tulis migrasi rekonsiliasi `000N_*.sql` — `ALTER TABLE ADD COLUMN` tidak idempoten, jadi harus ditulis sesuai state prod aktual (keputusan maintainer).
 
 ## Perintah Database
 
 ```bash
-# Apply schema (fresh install)
-make db-migrate-local     # development
-make db-migrate-remote    # production
+# Apply migrasi (fresh install & incremental)
+make db-migrate-local     # development → wrangler d1 migrations apply omnidrive --local
+make db-migrate-remote    # production  → wrangler d1 migrations apply omnidrive --remote
 
-# Factory reset (hapus semua data)
+# Factory reset (hapus semua data, re-apply schema.sql penuh)
 make reset-local
 make reset-remote
 ```

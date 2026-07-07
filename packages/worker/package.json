@@ -8,8 +8,8 @@
     "deploy": "wrangler deploy",
     "test": "vitest run",
     "test:watch": "vitest",
-    "db:migrate:local": "wrangler d1 execute omnidrive --local --file=src/db/schema.sql",
-    "db:migrate:remote": "wrangler d1 execute omnidrive --remote --file=src/db/schema.sql",
+    "db:migrate:local": "wrangler d1 migrations apply omnidrive --local",
+    "db:migrate:remote": "wrangler d1 migrations apply omnidrive --remote",
     "db:reset:local": "node scripts/reset.mjs --local",
     "db:reset:remote": "node scripts/reset.mjs --remote"
   },

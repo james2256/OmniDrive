@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Migrated D1 schema management to wrangler native migrations (`wrangler d1 migrations apply`) with a single idempotent baseline (`0001_initial_schema.sql`), removing dead numbered migrations and resolving the duplicate `0008` numbering collision.
 - Migrated OAuth state, encrypted tokens, and quota cache from KV to D1 (`0009`, `0010`); KV retained only for shared-link rate limits.
 - Migrated session storage from KV to D1; existing KV sessions expire within 7 days (one-time re-login required).
 - Rebranded user-facing strings from OmniDrive to AzaDrive; production frontend URL set to `https://azadrive.my.id` (infrastructure identifiers unchanged).
