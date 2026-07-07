@@ -41,6 +41,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Admin-created users could not log in: `POST /api/admin/users` now hashes passwords with PBKDF2 (same as register/login) instead of bcrypt.
+- Registration invitation codes: atomic consume after username/email validation (no race on `max_uses`, no slot burned on duplicate username).
+- Shared link downloads: `download_count` increments only after Google fetch succeeds, so failed downloads no longer consume `maxDownloads` quota.
+- Workspace `force-sync` background job now runs real drive sync via `syncDriveAccount` (was a no-op stub).
+- Drive sync and lazy folder sync use D1 `batch()` for upserts (per Cloudflare docs: fewer round-trips, transactional chunks of 100 statements).
 - **Session hilang setelah tab ditutup (~5 menit):** frontend production memanggil API langsung ke `*.workers.dev` sementara SPA di `azadrive.my.id`, sehingga cookie `omnidrive_sid` menjadi third-party dan sering dihapus browser. Perbaikan: proxy same-origin `/api` dan `/s3` lewat Cloudflare Pages `_redirects`, `VITE_API_URL` kosong (relative path), cookie session `SameSite=Lax`, dan Vite dev proxy untuk `/api` + `/s3`. Session D1 tetap 7 hari.
 - Login failed with HTTP 500 when the `is_super_admin` column was missing from migrated databases (`0008` migration).
 - Login failed with HTTP 500 due to bcrypt CPU timeout on Cloudflare Workers.

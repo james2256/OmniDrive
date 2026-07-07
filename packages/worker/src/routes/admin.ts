@@ -3,7 +3,7 @@ import type { AppContext } from '../types/env';
 import { authGuard } from '../middleware/auth-guard';
 import { AppError } from '../middleware/error-handler';
 import { generateId } from '../lib/id';
-import * as bcrypt from 'bcryptjs';
+import { hashPassword } from '../lib/password';
 import { validatePassword, validateEmail } from '../lib/validation';
 
 export const adminRouter = new Hono<AppContext>({ strict: false });
@@ -87,7 +87,7 @@ adminRouter.post('/users', async (c) => {
   }
 
   const id = generateId();
-  const passwordHash = await bcrypt.hash(password, 12); // ponytail: OWASP recommends cost ≥ 12
+  const passwordHash = await hashPassword(password);
   const isSuperAdmin = role === 'super_admin' ? 1 : 0;
 
   await c.env.DB.prepare(

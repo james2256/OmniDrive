@@ -4,7 +4,7 @@ import { AppError } from '../middleware/error-handler';
 import type { AppContext } from '../types/env';
 import { authGuard } from '../middleware/auth-guard';
 import { GoogleDriveService } from '../services/google-drive';
-import { syncDriveAccount } from '../services/sync';
+import { syncDriveAccount, batchUpsertFolderContents } from '../services/sync';
 import { mapDriveRow, mapDriveFolderRow, mapFileRow } from '../types';
 import { generateId } from '../lib/id';
 import type { BreadcrumbItem } from '../types';
@@ -355,64 +355,7 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/sync', async (c) => {
   const effectiveFolderId = resolveGoogleFolderId(drive, googleFolderId);
   const { files: gFiles, folders: gFolders } = await driveService.listFolderContents(driveId, effectiveFolderId);
 
-  const ownerUserId = (driveRow as Record<string, unknown>).user_id as string;
-
-  for (const gFolder of gFolders) {
-    const existing = await c.env.DB
-      .prepare('SELECT id FROM drive_folders WHERE drive_account_id = ? AND google_folder_id = ?')
-      .bind(driveId, gFolder.id)
-      .first<{ id: string }>();
-
-    if (existing) {
-      await c.env.DB
-        .prepare('UPDATE drive_folders SET name = ?, google_parent_id = ? WHERE id = ?')
-        .bind(gFolder.name, googleFolderId, existing.id)
-        .run();
-    } else {
-      await c.env.DB
-        .prepare(
-          'INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name, is_synced) VALUES (?, ?, ?, ?, ?, 0)'
-        )
-        .bind(generateId(), driveId, gFolder.id, googleFolderId, gFolder.name)
-        .run();
-    }
-  }
-
-  for (const gFile of gFiles) {
-    const existing = await c.env.DB
-      .prepare('SELECT id FROM files WHERE drive_account_id = ? AND google_file_id = ?')
-      .bind(driveId, gFile.id)
-      .first<{ id: string }>();
-
-    if (existing) {
-      await c.env.DB
-        .prepare(
-          `UPDATE files SET name = ?, mime_type = ?, size = ?, thumbnail_url = ?, web_view_link = ?,
-           web_content_link = ?, google_modified_at = ?, google_parent_id = ?, synced_at = datetime('now')
-           WHERE id = ?`
-        )
-        .bind(
-          gFile.name, gFile.mimeType, parseInt(gFile.size ?? '0', 10),
-          gFile.thumbnailLink ?? null, gFile.webViewLink ?? null, gFile.webContentLink ?? null,
-          gFile.modifiedTime, googleFolderId, existing.id
-        )
-        .run();
-    } else {
-      await c.env.DB
-        .prepare(
-          `INSERT INTO files (id, user_id, drive_account_id, google_file_id, google_parent_id, name, mime_type, size,
-             thumbnail_url, web_view_link, web_content_link, google_created_at, google_modified_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-        )
-        .bind(
-          generateId(), ownerUserId, driveId, gFile.id, googleFolderId,
-          gFile.name, gFile.mimeType, parseInt(gFile.size ?? '0', 10),
-          gFile.thumbnailLink ?? null, gFile.webViewLink ?? null, gFile.webContentLink ?? null,
-          gFile.createdTime, gFile.modifiedTime
-        )
-        .run();
-    }
-  }
+  await batchUpsertFolderContents(c.env.DB, drive, gFolders, gFiles, googleFolderId);
 
   // Mark folder as synced
   if (folder) {

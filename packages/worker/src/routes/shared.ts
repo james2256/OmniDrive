@@ -441,7 +441,45 @@ sharedRouter.get('/:id/download', async (c) => {
     return c.text('Downloads are disabled for this link', 403);
   }
 
-  // ponytail: atomic conditional increment — prevents TOCTOU race on maxDownloads
+  if (link.targetType !== 'file') {
+    return c.text('Folder download not supported yet', 400);
+  }
+
+  const file = await db.prepare('SELECT * FROM files WHERE id = ? AND user_id = ?').bind(link.targetId, link.userId).first();
+  if (!file) return c.text('File not found', 404);
+
+  const driveAccount = await db.prepare('SELECT * FROM drive_accounts WHERE id = ? AND user_id = ?').bind(file.drive_account_id, link.userId).first();
+  if (!driveAccount) return c.text('Drive account not found', 404);
+
+  const driveService = new GoogleDriveService(
+    c.env.DB,
+    c.env.GOOGLE_CLIENT_ID,
+    c.env.GOOGLE_CLIENT_SECRET,
+    c.env.TOKEN_ENCRYPTION_KEY
+  );
+
+  let stream: ReadableStream<Uint8Array>;
+  let finalMimeType = (file.mime_type as string) || 'application/octet-stream';
+  let finalFileName = file.name as string;
+
+  try {
+    const downloadResult = await driveService.downloadFile(
+      file.drive_account_id as string,
+      file.google_file_id as string,
+      file.mime_type as string
+    );
+    stream = downloadResult.stream;
+
+    if (downloadResult.exportedMimeType && downloadResult.exportedExtension) {
+      finalMimeType = downloadResult.exportedMimeType;
+      finalFileName = `${finalFileName}${downloadResult.exportedExtension}`;
+    }
+  } catch (e: any) {
+    console.error('Download error:', e);
+    return c.text('Failed to download file', 502);
+  }
+
+  // ponytail: increment only after Google fetch succeeds — failed downloads don't burn quota
   if (link.maxDownloads !== null && link.maxDownloads !== undefined) {
     const updateResult = await db.prepare(
       'UPDATE shared_links SET download_count = download_count + 1 WHERE id = ? AND (max_downloads IS NULL OR download_count < max_downloads) RETURNING download_count'
@@ -459,61 +497,21 @@ sharedRouter.get('/:id/download', async (c) => {
     db.prepare('INSERT INTO shared_link_logs (shared_link_id, action) VALUES (?, ?)').bind(id, 'download').run()
   );
 
-  // Trigger webhook async if exists
   if (link.webhookUrl) {
     c.executionCtx.waitUntil(
       fetch(link.webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'download', linkId: id })
-      }).catch(() => {}) // Fire and forget
+      }).catch(() => {})
     );
   }
 
-  if (link.targetType === 'file') {
-    const file = await db.prepare('SELECT * FROM files WHERE id = ? AND user_id = ?').bind(link.targetId, link.userId).first();
-    if (!file) return c.text('File not found', 404);
-
-    const driveAccount = await db.prepare('SELECT * FROM drive_accounts WHERE id = ? AND user_id = ?').bind(file.drive_account_id, link.userId).first();
-    if (!driveAccount) return c.text('Drive account not found', 404);
-
-    const driveService = new GoogleDriveService(
-      c.env.DB,
-      c.env.GOOGLE_CLIENT_ID,
-      c.env.GOOGLE_CLIENT_SECRET,
-      c.env.TOKEN_ENCRYPTION_KEY
-    );
-
-    let stream: ReadableStream<Uint8Array>;
-    let finalMimeType = (file.mime_type as string) || 'application/octet-stream';
-    let finalFileName = file.name as string;
-
-    try {
-      const downloadResult = await driveService.downloadFile(
-        file.drive_account_id as string,
-        file.google_file_id as string,
-        file.mime_type as string
-      );
-      stream = downloadResult.stream;
-      
-      if (downloadResult.exportedMimeType && downloadResult.exportedExtension) {
-        finalMimeType = downloadResult.exportedMimeType;
-        finalFileName = `${finalFileName}${downloadResult.exportedExtension}`;
-      }
-    } catch (e: any) {
-      console.error('Download error:', e);
-      return c.text('Failed to download file', 502);
-    }
-    
-    c.header('Content-Type', finalMimeType);
-    c.header('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(finalFileName)}`);
-    if (file.size && !finalFileName.endsWith('.pdf') && !finalFileName.endsWith('.xlsx')) {
-      // Exported files don't have a reliable pre-known size
-      c.header('Content-Length', String(file.size));
-    }
-    
-    return c.body(stream);
-  } else {
-    return c.text('Folder download not supported yet', 400);
+  c.header('Content-Type', finalMimeType);
+  c.header('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(finalFileName)}`);
+  if (file.size && !finalFileName.endsWith('.pdf') && !finalFileName.endsWith('.xlsx')) {
+    c.header('Content-Length', String(file.size));
   }
+
+  return c.body(stream);
 });

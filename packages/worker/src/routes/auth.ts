@@ -35,23 +35,6 @@ authRouter.post('/register', async (c) => {
   const setupRes = await db.prepare('SELECT COUNT(*) as count FROM users').first<{ count: number }>();
   const isSetup = (setupRes?.count || 0) > 0;
 
-  if (isSetup) {
-    if (!invitation_code) throw new AppError(400, 'Invitation code required');
-    const inv = await db.prepare('SELECT id, max_uses, used_count FROM invitation_codes WHERE code = ?').bind(invitation_code).first<{ id: string, max_uses: number, used_count: number }>();
-    if (!inv) throw new AppError(400, 'Invalid invitation code');
-    if (inv.max_uses > 0 && inv.used_count >= inv.max_uses) throw new AppError(400, 'Invitation code has reached its usage limit');
-
-    await db.prepare('UPDATE invitation_codes SET used_count = used_count + 1 WHERE id = ?').bind(inv.id).run();
-  } else {
-    // ponytail: optional BOOTSTRAP_TOKEN — if set, first registration requires it instead of being fully open
-    const bootstrapToken = (c.env as any).BOOTSTRAP_TOKEN;
-    if (bootstrapToken) {
-      if (invitation_code !== bootstrapToken) {
-        throw new AppError(403, 'Bootstrap token required for first registration');
-      }
-    }
-  }
-
   const existing = await db.prepare('SELECT id FROM users WHERE username = ?').bind(username).first();
   if (existing) throw new AppError(400, 'Username already exists');
 
@@ -60,6 +43,27 @@ authRouter.post('/register', async (c) => {
     if (emailError) throw new AppError(400, emailError);
     const existingEmail = await db.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
     if (existingEmail) throw new AppError(400, 'Email already exists');
+  }
+
+  if (isSetup) {
+    if (!invitation_code) throw new AppError(400, 'Invitation code required');
+    // ponytail: atomic consume — no TOCTOU race; only after username/email checks pass
+    const consumed = await db.prepare(
+      'UPDATE invitation_codes SET used_count = used_count + 1 WHERE code = ? AND (max_uses <= 0 OR used_count < max_uses) RETURNING id'
+    ).bind(invitation_code).first<{ id: string }>();
+    if (!consumed) {
+      const inv = await db.prepare('SELECT id FROM invitation_codes WHERE code = ?').bind(invitation_code).first();
+      if (!inv) throw new AppError(400, 'Invalid invitation code');
+      throw new AppError(400, 'Invitation code has reached its usage limit');
+    }
+  } else {
+    // ponytail: optional BOOTSTRAP_TOKEN — if set, first registration requires it instead of being fully open
+    const bootstrapToken = (c.env as any).BOOTSTRAP_TOKEN;
+    if (bootstrapToken) {
+      if (invitation_code !== bootstrapToken) {
+        throw new AppError(403, 'Bootstrap token required for first registration');
+      }
+    }
   }
 
   const id = generateId();
