@@ -120,6 +120,7 @@ export class GoogleDriveService {
     }
   }
 
+  // ponytail: last-write-wins refresh — sync is mostly serial (activeSyncs guard); add single-flight lock if races become a problem
   private async refreshToken(driveAccountId: string, refreshToken: string): Promise<string> {
     const response = await fetch(TOKEN_URL, {
       method: 'POST',
@@ -563,7 +564,6 @@ export class GoogleDriveService {
       modifiedTime: string;
     }>
   > {
-    const token = await this.getValidToken(driveAccountId);
     const fields = 'files(id,name,mimeType,size,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum)';
     const q = encodeURIComponent(`'${folderId}' in parents and trashed = false`);
 
@@ -571,6 +571,7 @@ export class GoogleDriveService {
     let pageToken: string | undefined;
 
     do {
+      const token = await this.getValidToken(driveAccountId);
       const url = `${DRIVE_API}/files?q=${q}&fields=nextPageToken,${fields}${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
       const response = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
@@ -594,7 +595,6 @@ export class GoogleDriveService {
     driveAccountId: string,
     folderId: string
   ): Promise<{ files: GDriveFile[]; folders: GDriveFolder[] }> {
-    const token = await this.getValidToken(driveAccountId);
     const fields =
       'nextPageToken,files(id,name,mimeType,size,parents,trashed,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum)';
     const q = encodeURIComponent(`'${folderId}' in parents and trashed = false`);
@@ -604,6 +604,7 @@ export class GoogleDriveService {
     let pageToken: string | undefined;
 
     do {
+      const token = await this.getValidToken(driveAccountId);
       const url = `${DRIVE_API}/files?q=${q}&fields=${fields}${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
       const response = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
@@ -630,51 +631,10 @@ export class GoogleDriveService {
     return { files: allFiles, folders: allFolders };
   }
 
-  // ─── Full Drive Contents (All files + folders recursively) ───
-
-  async listAllFilesAndFolders(
-    driveAccountId: string
-  ): Promise<{ files: GDriveFile[]; folders: GDriveFolder[] }> {
-    const token = await this.getValidToken(driveAccountId);
-    const fields =
-      'nextPageToken,files(id,name,mimeType,size,parents,trashed,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum)';
-    const q = encodeURIComponent(`trashed = false`);
-
-    const allFiles: GDriveFile[] = [];
-    const allFolders: GDriveFolder[] = [];
-    let pageToken: string | undefined;
-
-    do {
-      const url = `${DRIVE_API}/files?q=${q}&fields=${fields}${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
-      const response = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to list folder contents: ${await response.text()}`);
-      }
-
-      const data: { files: GDriveFile[]; nextPageToken?: string } = await response.json();
-
-      for (const item of data.files) {
-        if (item.mimeType === 'application/vnd.google-apps.folder') {
-          allFolders.push({ id: item.id, name: item.name, parents: item.parents });
-        } else if (item.mimeType !== 'application/vnd.google-apps.shortcut') {
-          allFiles.push(item);
-        }
-      }
-
-      pageToken = data.nextPageToken;
-    } while (pageToken);
-
-    return { files: allFiles, folders: allFolders };
-  }
-
   async *iterateAllFilesAndFolders(
     driveAccountId: string,
     startPageToken?: string
   ): AsyncGenerator<{ files: GDriveFile[]; folders: GDriveFolder[]; nextPageToken?: string }, void, unknown> {
-    const token = await this.getValidToken(driveAccountId);
     const fields =
       'nextPageToken,files(id,name,mimeType,size,parents,trashed,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum)';
     const q = encodeURIComponent(`trashed = false`);
@@ -682,6 +642,7 @@ export class GoogleDriveService {
     let pageToken: string | undefined = startPageToken;
 
     do {
+      const token = await this.getValidToken(driveAccountId);
       const url = `${DRIVE_API}/files?q=${q}&fields=${fields}${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
       const response = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },

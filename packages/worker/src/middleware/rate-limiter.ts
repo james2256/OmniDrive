@@ -37,6 +37,7 @@ export function rateLimiter(opts: RateLimitOptions) {
   // module-level Map meant one POST /api/auth/login incremented both the
   // login bucket and the global bucket under the same key — exhausting the
   // login budget in as few as 5 attempts (5 × 2 = 10).
+  // ponytail: per-isolate limit — upgrade to Durable Object/KV if brute-force becomes a real problem
   const store: RateLimitStore = { map: new Map(), lastCleanup: Date.now() };
   allStores.push(store);
 

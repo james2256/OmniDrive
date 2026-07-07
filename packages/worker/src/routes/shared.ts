@@ -8,29 +8,28 @@ import { mapSharedLinkRow, type SharedLink } from '../types';
 import { generateId } from '../lib/id';
 import { GoogleDriveService } from '../services/google-drive';
 import { validateWebhookUrlAsync } from '../lib/validation';
+import { hashSharedPassword, verifySharedPassword } from '../lib/password';
 
 
 export const sharedRouter = new Hono<AppContext>({ strict: false });
-
-function timingSafeEqualStr(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return result === 0;
-}
 
 async function validateSharedLink(c: Context<AppContext>, link: SharedLink): Promise<{ ok: boolean; status?: number; error?: string; requiresPassword?: boolean; requiresEmail?: boolean }> {
   if (link.expiresAt && new Date(link.expiresAt) < new Date()) {
     return { ok: false, status: 410, error: 'Link expired' };
   }
 
-  // requireEmail gate: visitor must have submitted an email (stored in shared session cookie)
+  // requireEmail gate: visitor must have submitted an email (signed JWT cookie)
   if (link.requireEmail) {
     const emailCookie = getCookie(c, `shared_email_${link.id}`);
     if (!emailCookie) {
-      // Still allow if password session exists (legacy flow) — but check email separately
+      return { ok: false, status: 403, error: 'Email required', requiresEmail: true };
+    }
+    try {
+      const payload = await verify(emailCookie, c.env.JWT_SECRET, 'HS256');
+      if (payload.id !== link.id || typeof payload.email !== 'string' || !payload.email) {
+        return { ok: false, status: 403, error: 'Email required', requiresEmail: true };
+      }
+    } catch {
       return { ok: false, status: 403, error: 'Email required', requiresEmail: true };
     }
   }
@@ -97,34 +96,7 @@ sharedRouter.post('/', authGuard, async (c) => {
   let passwordHash = null;
   
   if (password) {
-    const encoder = new TextEncoder();
-    const passwordData = encoder.encode(password);
-    const salt = crypto.getRandomValues(new Uint8Array(16));
-    
-    const keyMaterial = await crypto.subtle.importKey(
-      'raw',
-      passwordData,
-      { name: 'PBKDF2' },
-      false,
-      ['deriveBits']
-    );
-
-    const hashBuffer = await crypto.subtle.deriveBits(
-      {
-        name: 'PBKDF2',
-        salt: salt,
-        iterations: 100000,
-        hash: 'SHA-256'
-      },
-      keyMaterial,
-      256
-    );
-
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const saltArray = Array.from(salt);
-    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    const saltHex = saltArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    passwordHash = `${saltHex}:${hashHex}`;
+    passwordHash = await hashSharedPassword(password);
   }
 
   let id = '';
@@ -218,34 +190,7 @@ sharedRouter.put('/:id', authGuard, async (c) => {
     if (password === null || password === '') {
       passwordHash = null;
     } else {
-      const encoder = new TextEncoder();
-      const passwordData = encoder.encode(password);
-      const salt = crypto.getRandomValues(new Uint8Array(16));
-      
-      const keyMaterial = await crypto.subtle.importKey(
-        'raw',
-        passwordData,
-        { name: 'PBKDF2' },
-        false,
-        ['deriveBits']
-      );
-
-      const hashBuffer = await crypto.subtle.deriveBits(
-        {
-          name: 'PBKDF2',
-          salt: salt,
-          iterations: 100000,
-          hash: 'SHA-256'
-        },
-        keyMaterial,
-        256
-      );
-
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const saltArray = Array.from(salt);
-      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-      const saltHex = saltArray.map(b => b.toString(16).padStart(2, '0')).join('');
-      passwordHash = `${saltHex}:${hashHex}`;
+      passwordHash = await hashSharedPassword(password);
     }
   }
   
@@ -345,38 +290,8 @@ sharedRouter.post('/:id/verify', async (c) => {
     return c.json({ error: 'Too many failed attempts. Try again later.' }, 429);
   }
   
-  const [saltHex, storedHashHex] = link.passwordHash.split(':');
-  
-  const saltMatch = saltHex.match(/.{1,2}/g);
-  if (!saltMatch) return c.json({ error: 'Invalid salt format' }, 500);
-  const salt = new Uint8Array(saltMatch.map(byte => parseInt(byte, 16)));
-  
-  const encoder = new TextEncoder();
-  const passwordData = encoder.encode(password);
-  
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    passwordData,
-    { name: 'PBKDF2' },
-    false,
-    ['deriveBits']
-  );
-
-  const hashBuffer = await crypto.subtle.deriveBits(
-    {
-      name: 'PBKDF2',
-      salt: salt,
-      iterations: 100000,
-      hash: 'SHA-256'
-    },
-    keyMaterial,
-    256
-  );
-
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  
-  if (!timingSafeEqualStr(storedHashHex, hashHex)) {
+  const valid = await verifySharedPassword(password, link.passwordHash);
+  if (!valid) {
     // ponytail: per-link lockout stops distributed brute-force beyond IP rate limit.
     const failed = Number(await c.env.KV.get(failKey) || '0') + 1;
     if (failed >= 20) {
@@ -417,7 +332,12 @@ sharedRouter.post('/:id/email', async (c) => {
     return c.json({ error: 'Link expired' }, 410);
   }
 
-  setCookie(c, `shared_email_${id}`, email, { path: '/', httpOnly: true, secure: true, sameSite: 'None', maxAge: 60 * 60 * 24 });
+  const emailToken = await sign(
+    { id, email, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 },
+    c.env.JWT_SECRET,
+    'HS256',
+  );
+  setCookie(c, `shared_email_${id}`, emailToken, { path: '/', httpOnly: true, secure: true, sameSite: 'None', maxAge: 60 * 60 * 24 });
   c.executionCtx.waitUntil(
     db.prepare('INSERT INTO shared_link_logs (shared_link_id, action, metadata) VALUES (?, ?, ?)').bind(id, 'email_access', JSON.stringify({ email })).run()
   );

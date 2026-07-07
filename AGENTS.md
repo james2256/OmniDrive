@@ -28,6 +28,66 @@ Alasan: deploy dan dev server memengaruhi lingkungan production/lokal milik main
 
 **OmniDrive** adalah gateway penyimpanan multi-Google Drive dengan workspace tim, shared links, automasi, dan API kompatibel S3.
 
+## Prinsip Biaya — 0 Biaya, Maksimalkan Free Tier
+
+**Target operasional:** pertahankan proyek ini dengan **biaya $0** selama memungkinkan. Setiap keputusan arsitektur harus memprioritaskan **free tier** Cloudflare (Workers Free + Pages Free + D1 + KV) dan menghindari fitur berbayar atau pola yang mudah memicu overage.
+
+Sebelum menaikkan iterasi crypto, menambah binding baru (DO/R2/Queues), atau mengubah observability, baca section ini. Jangan upgrade ke layanan berbayar tanpa persetujuan eksplisit maintainer.
+
+### PBKDF2 & password hashing (`packages/worker/src/lib/password.ts`)
+
+| Konteks | Keputusan | Alasan |
+|---------|-----------|--------|
+| User auth (register/login) | **10.000 iterasi** PBKDF2-SHA256 | Workers Free membatasi CPU ~10 ms/request; 100k sering memicu Error 1102 |
+| Shared-link password (baru) | **10.000 iterasi**, format `shared:10000:salt:hash` via `hashSharedPassword` | Sama — aman CPU; dikombinasi rate limit + per-link lockout KV |
+| Shared-link password (legacy) | Tetap verifikasi format lama `salt:hash` (implicit 100k) | Backward compat; jangan hapus tanpa migrasi data |
+
+**Jangan** naikkan iterasi shared-link baru ke 100k “demi OWASP” — di Workers itu kontra-produktif (timeout CPU). Pertahanan brute-force utama: rate limiter (`index.ts`), lockout KV di `shared.ts` (`shared_verify_fail` / `shared_verify_lock`), bukan iterasi tinggi.
+
+### Rate limiter (`packages/worker/src/middleware/rate-limiter.ts`)
+
+Implementasi saat ini: **`Map` per isolate** (in-memory). Cukup untuk abuse kasual; lemah terhadap brute-force terdistribusi karena limit efektif bisa ×N isolate.
+
+| Opsi | Biaya | Kapan pertimbangkan |
+|------|-------|---------------------|
+| **In-memory (sekarang)** | $0 | Default — pertahankan + komentar `ponytail` |
+| **KV counter** | Free: 100k read + 1k write/hari; overage ~$0.50/juta read (Paid) | Hanya jika insiden brute-force nyata; KV **sudah ada** di project |
+| **Durable Objects** | Free: 100k request/hari; Paid bisa mahal (duration billing) | **Hindari** — overkill & risiko biaya untuk app ini |
+| **WAF Rate Limiting** (dashboard) | 1 rule gratis di plan Free CF | Alternatif $0 tanpa ubah kode; maintainer set di dashboard |
+
+**Jangan** refactor rate limiter ke DO/KV hanya karena “best practice” — tunggu bukti masalah nyata. Upgrade KV lebih murah dari DO bila benar-benar diperlukan.
+
+### Observability (`packages/worker/wrangler.toml`)
+
+Konfigurasi disengaja — **logs on, traces off**:
+
+```toml
+[observability]
+enabled = false          # switch utama observability (non-traces)
+
+[observability.logs]
+enabled = true           # Workers Logs — invocation + console.log
+persist = true
+invocation_logs = true
+
+[observability.traces]
+enabled = false          # matikan tracing (hemat noise & biaya)
+```
+
+| Item | Free tier | Catatan agent |
+|------|-----------|---------------|
+| Workers Logs | 200.000 events/hari | `head_sampling_rate = 1` = 100% request dilog; traffic tinggi → risiko overage di Paid |
+| Traces | — | Biarkan `enabled = false` |
+
+**Jangan** ubah `wrangler.toml` observability tanpa alasan jelas. Jika maintainer minta hemat log: turunkan `head_sampling_rate` (mis. `0.1`), bukan nyalakan traces.
+
+### Ringkasan cepat untuk agent
+
+1. **Jangan** introduce binding/layanan baru yang memicu biaya (DO, Queues, R2, Workers Paid-only) tanpa persetujuan.
+2. **Utamakan** D1 + KV free tier yang sudah dipakai; token OAuth sudah di D1, KV hanya untuk shared-link rate/lockout.
+3. **Hindari** pola CPU-heavy (bcrypt, PBKDF2 100k untuk path baru, `arrayBuffer()` file besar).
+4. **Dokumentasikan** trade-off biaya di komentar `// ponytail:` bila sengaja menunda upgrade.
+
 ## Dokumentasi Proyek — Baca Dulu Sebelum Develop
 
 Keempat dokumen di bawah adalah **sumber kebenaran** untuk domain, data, UI, dan riwayat proyek. Baca yang relevan **sebelum** menulis/mengubah kode supaya tidak kesusahan menemukan komponen dan hemat token. Setiap dokumen punya daftar section (anchor) — lompat langsung dengan `read` + `offset`/`limit` daripada baca seluruh file.
@@ -256,6 +316,7 @@ Peta navigasi lengkap (kapan baca + section anchor) ada di section **"Dokumentas
 - Jangan hardcode URL production di kode — gunakan env vars
 - Jangan buat file markdown baru kecuali diminta (kecuali update dokumen di atas)
 - **Jangan baca file `.env`, `.dev.vars`, atau file berisi secret** — lihat "Aturan Keamanan" di paling atas
+- **Jangan upgrade ke layanan berbayar** (DO, R2, Workers Paid-only features) atau naikkan iterasi crypto/observability tanpa persetujuan — lihat "Prinsip Biaya — 0 Biaya, Maksimalkan Free Tier"
 
 ## Konteks Rebrand (Masa Depan)
 

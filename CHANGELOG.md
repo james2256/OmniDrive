@@ -42,12 +42,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-- Dead code and local artifacts: unused `AdvancedShareModal`, `DriveFolderBrowser`, legacy `DriveService`, unused `errorHandler` middleware, stale API client methods (`getRootContents`, `getAdminAuditLogs`, `syncDriveFolder`), `bcryptjs`/`@radix-ui/react-popover` dependencies, one-off `optimize-logo.mjs`, and scratch files (diff dumps, DB export, agent run dirs).
+- Dead code and local artifacts: unused `AdvancedShareModal`, `DriveFolderBrowser`, legacy `DriveService`, unused `errorHandler` middleware, unused `listAllFilesAndFolders` in `GoogleDriveService`, stale API client methods (`getRootContents`, `getAdminAuditLogs`, `syncDriveFolder`), `bcryptjs`/`@radix-ui/react-popover` dependencies, one-off `optimize-logo.mjs`, and scratch files (diff dumps, DB export, agent run dirs).
 - Manual storage capacity override UI and `PATCH /api/drives/:id/quota` endpoint (`quota_override` column kept read-only for compatibility).
 - Dev smoke-test scripts, one-off migration scripts, debug `console.log` calls, and local test artifacts.
 
 ### Fixed
 
+- `PATCH /api/files/:id/move` now reads `workspaceFolderId` from the request body (matching the frontend API client) instead of the mismatched `folderId` field that silently ignored folder targets.
+- Google Drive sync generators refresh OAuth tokens per page (`iterateAllFilesAndFolders`, `listFolderContents`, `listFilesInFolder`) so long-running syncs survive token expiry mid-stream.
+- Shared-link password hashing unified in `password.ts` (`hashSharedPassword` / `verifySharedPassword`): new links use 10k PBKDF2 iterations with `shared:<iterations>:<salt>:<hash>` format; legacy `salt:hash` (100k) hashes still verify.
+- `require_email` shared-link gate cookies are now signed JWTs (`shared_email_<id>`) instead of raw email strings, preventing forged cookie bypass.
+- Upload finalize error responses no longer leak internal Google file or drive account IDs to clients (details remain in server logs only).
 - Upload proxy (`PUT /api/files/upload/proxy`) streams the request body straight to Google instead of buffering it with `arrayBuffer()`, avoiding the Worker 128MB memory limit crash on large files.
 - IDOR/quota abuse on uploads: `POST /api/files/upload/init` and `POST /api/files/upload/finalize` now require the caller to be an editor of the `workspaceId` in the request body before checking quota or attaching a file, preventing users from inflating or writing to workspaces they don't belong to.
 - Orphan S3 multipart uploads (never Completed/Aborted) are now reaped by the cron: `cleanupOrphanMultipartUploads` deletes the temp Google Drive folder and the `s3_multipart_uploads` row (parts cascade) for uploads older than 24h, preventing leaked temp folders and stale D1 rows.

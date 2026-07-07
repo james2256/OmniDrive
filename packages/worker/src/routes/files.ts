@@ -232,13 +232,13 @@ filesRouter.patch('/:id/rename', async (c) => {
 filesRouter.patch('/:id/move', async (c) => {
   const userId = c.get('userId');
   const fileId = c.req.param('id');
-  const { folderId } = await c.req.json();
+  const { workspaceFolderId } = await c.req.json();
 
-  const folder = await c.env.DB.prepare('SELECT f.workspace_id FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ? WHERE f.id = ?').bind(userId, folderId).first<{ workspace_id: string }>(); // ponytail: L10 — verify target-workspace membership
-  if (!folder && folderId) throw new AppError(404, 'Folder not found');
+  const folder = await c.env.DB.prepare('SELECT f.workspace_id FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ? WHERE f.id = ?').bind(userId, workspaceFolderId).first<{ workspace_id: string }>(); // ponytail: L10 — verify target-workspace membership
+  if (!folder && workspaceFolderId) throw new AppError(404, 'Folder not found');
 
   await c.env.DB.prepare('UPDATE files SET workspace_folder_id = ?, workspace_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?')
-    .bind(folderId, folder?.workspace_id || null, fileId, userId).run();
+    .bind(workspaceFolderId, folder?.workspace_id || null, fileId, userId).run();
 
   return c.json({ success: true });
 });
@@ -499,7 +499,7 @@ filesRouter.post('/upload/finalize', async (c) => {
     gFile = await driveService.getFile(driveAccountId, googleFileId);
   } catch (err) {
     console.error('Upload finalize getFile error:', err, 'FileID:', googleFileId, 'DriveID:', driveAccountId);
-    throw new AppError(400, `Failed to fetch uploaded file from Google Drive: ${(err as Error).message}. File ID: ${googleFileId}, Drive: ${driveAccountId}`);
+    throw new AppError(400, 'Failed to fetch uploaded file from Google Drive');
   }
 
   const id = generateId();
