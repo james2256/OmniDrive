@@ -9,11 +9,11 @@ crons = ["*/30 * * * *"]
 [[d1_databases]]
 binding = "DB"
 database_name = "omnidrive"
-database_id = "72bd51b7-0869-4ead-9712-a76237904d81"
+database_id = "85427fa6-e0ce-4642-92e6-52b638643ef4"
 
 [[kv_namespaces]]
 binding = "KV"
-id = "e1938e5a2fce4999bd1556612cccfeaa"
+id = "f15360e6e6564f0cbec9d5678142abea"
 
 [vars]
 FRONTEND_URL = "https://omnidrive.pages.dev"
