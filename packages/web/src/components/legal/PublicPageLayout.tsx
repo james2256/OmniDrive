@@ -29,12 +29,12 @@ export function PublicPageLayout({ title, children }: PublicPageLayoutProps) {
       </main>
 
       <footer className="border-t border-stone-200 bg-card">
-        <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-4 px-4 py-6 text-sm text-stone-500 sm:px-6">
+        <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-4 px-4 py-6 text-sm text-stone-600 sm:px-6">
           <p>© {new Date().getFullYear()} AzaDrive</p>
-          <nav className="flex flex-wrap gap-4">
-            <Link to="/home" className="hover:text-primary">Home</Link>
-            <Link to="/privacy" className="hover:text-primary">Privacy Policy</Link>
-            <Link to="/terms" className="hover:text-primary">Terms of Service</Link>
+          <nav className="flex flex-wrap gap-4" aria-label="Legal">
+            <Link to="/home" className="underline hover:text-stone-900">Home</Link>
+            <Link to="/privacy" className="underline hover:text-stone-900">Privacy Policy</Link>
+            <Link to="/terms" className="underline hover:text-stone-900">Terms of Service</Link>
           </nav>
         </div>
       </footer>

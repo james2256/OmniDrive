@@ -98,12 +98,12 @@ export function LandingPage() {
 
         <section className="border-t border-stone-200">
           <div className="mx-auto max-w-5xl px-4 py-12 text-center sm:px-6">
-            <p className="text-sm text-stone-500">
+            <p className="text-sm text-stone-600">
               AzaDrive uses Google OAuth to connect your Google Drive accounts.
               By signing in and connecting a drive, you agree to our{' '}
-              <Link to="/terms" className="text-primary hover:underline">Terms of Service</Link>
+              <Link to="/terms" className="text-blue-700 underline hover:text-blue-800">Terms of Service</Link>
               {' '}and{' '}
-              <Link to="/privacy" className="text-primary hover:underline">Privacy Policy</Link>.
+              <Link to="/privacy" className="text-blue-700 underline hover:text-blue-800">Privacy Policy</Link>.
             </p>
           </div>
         </section>

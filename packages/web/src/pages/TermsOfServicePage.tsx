@@ -5,7 +5,7 @@ export function TermsOfServicePage() {
 
   return (
     <PublicPageLayout title="Terms of Service">
-      <p className="text-sm text-stone-500">Effective date: {effectiveDate}</p>
+      <p className="text-sm text-stone-600">Effective date: {effectiveDate}</p>
 
       <section className="space-y-4">
         <h2 className="text-xl font-semibold text-stone-900">1. Acceptance of Terms</h2>

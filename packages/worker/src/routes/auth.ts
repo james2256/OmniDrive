@@ -227,6 +227,49 @@ authRouter.get('/me', authGuard, (c) => {
   return c.json({ user: c.get('session') });
 });
 
+// Change password for the authenticated user (admin or member).
+// Requires current password; revokes all other sessions, keeps this one.
+authRouter.post('/change-password', authGuard, async (c) => {
+  const { currentPassword, newPassword } = await c.req.json();
+  if (!currentPassword || !newPassword) {
+    throw new AppError(400, 'Current password and new password are required');
+  }
+
+  const passwordError = validatePassword(newPassword);
+  if (passwordError) throw new AppError(400, passwordError);
+
+  if (currentPassword === newPassword) {
+    throw new AppError(400, 'New password must be different from current password');
+  }
+
+  const userId = c.get('userId');
+  const user = await c.env.DB.prepare('SELECT password_hash FROM users WHERE id = ?')
+    .bind(userId)
+    .first<{ password_hash: string }>();
+  if (!user) throw new AppError(404, 'User not found');
+
+  if (!(await verifyPassword(currentPassword, user.password_hash))) {
+    throw new AppError(401, 'Current password is incorrect');
+  }
+
+  const passwordHash = await hashPassword(newPassword);
+  await c.env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+    .bind(passwordHash, userId)
+    .run();
+
+  // Kill other sessions (stolen cookies); keep current so the user stays signed in.
+  const sid = getCookie(c, 'omnidrive_sid');
+  if (sid) {
+    await c.env.DB.prepare('DELETE FROM sessions WHERE user_id = ? AND id != ?')
+      .bind(userId, sid)
+      .run();
+  } else {
+    await c.env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(userId).run();
+  }
+
+  return c.json({ success: true });
+});
+
 authRouter.post('/logout', authGuard, async (c) => {
   const sid = getCookie(c, 'omnidrive_sid');
   if (sid) {

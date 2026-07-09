@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Change password for the signed-in user: `POST /api/auth/change-password` (current + new password) and Account form on Settings; other sessions are revoked, current session kept.
+- Pages `_headers`: long-cache immutable `/assets/*`, baseline security headers on static SPA.
 - Drive account badges (`DriveBadge`) in the file browser: colored label with shortened username, optional **Drive** column when multiple accounts are connected, and **Stored on** field in the details panel; full email shown on hover.
 - Image preview via `GET /api/files/:id/preview` and updated `FilePreviewModal` in Workspaces, Trash, and Starred.
 - AzaDrive logo and optimized favicon assets for Google OAuth brand verification.
@@ -24,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Route-level code splitting + vendor chunks (`react` / `router` / `recharts`) so login LCP no longer downloads the full app shell + charts.
+- Login/setup/public shared shells use `<main>` landmarks; setup/shared password labels; account menu `aria-label`; legal muted text raised to stone-600 for AA contrast.
+- Worker API CSP tightened to `default-src 'none'` (JSON/XML only); SPA headers remain on Pages.
 - Migrated D1 schema management to wrangler native migrations (`wrangler d1 migrations apply`) with a single idempotent baseline (`0001_initial_schema.sql`), removing dead numbered migrations and resolving the duplicate `0008` numbering collision.
 - Migrated OAuth state, encrypted tokens, and quota cache from KV to D1 (`0009`, `0010`); KV retained only for shared-link rate limits.
 - Migrated session storage from KV to D1; existing KV sessions expire within 7 days (one-time re-login required).

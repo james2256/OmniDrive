@@ -53,6 +53,11 @@ export const api = {
   getGoogleOAuthUrl: () => request<{ url: string }>('/api/auth/google'),
   getDriveConnectUrl: () => request<{ url: string }>('/api/drives/connect'),
   logout: () => request<{ success: boolean }>('/api/auth/logout', { method: 'POST' }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<{ success: boolean }>('/api/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
 
   getInvitations: () => request<{ invitations: any[] }>('/api/admin/invitations'),
   createInvitation: (code: string, max_uses: number) => request<{ success: boolean, invitation: any }>('/api/admin/invitations', { method: 'POST', body: JSON.stringify({ code, max_uses }) }),

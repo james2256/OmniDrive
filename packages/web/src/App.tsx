@@ -1,26 +1,41 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthGuard } from './components/AuthGuard';
 import { AppLayout } from './components/layout/AppLayout';
 import { ToastContainer } from './components/Toast';
-import { LoginPage } from './pages/LoginPage';
-import { DashboardPage } from './pages/DashboardPage';
-import { FilesPage } from './pages/FilesPage';
-import { SettingsPage } from './pages/SettingsPage';
-import { SharedLinksPage } from './pages/SharedLinksPage';
-import { PublicSharedPage } from './pages/PublicSharedPage';
-import { AutomationsPage } from './pages/AutomationsPage';
-import { SearchPage } from './pages/SearchPage';
-import { TrashPage } from './pages/TrashPage';
-import { StarredPage } from './pages/StarredPage';
-import { WorkspacesPage } from './pages/WorkspacesPage';
-import { SetupPage } from './pages/SetupPage';
-import { AdminUsersPage } from './pages/AdminUsersPage';
-import { LandingPage } from './pages/LandingPage';
-import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
-import { TermsOfServicePage } from './pages/TermsOfServicePage';
 import { api } from './lib/api';
-export const SetupGuard = ({ children, isSetup }: { children: React.ReactNode, isSetup: boolean }) => {
+
+// ponytail: lazy-load pages so login/public shells don't pull recharts + file UI (~900KB) into LCP path
+const LoginPage = lazy(() => import('./pages/LoginPage').then((m) => ({ default: m.LoginPage })));
+const DashboardPage = lazy(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
+const FilesPage = lazy(() => import('./pages/FilesPage').then((m) => ({ default: m.FilesPage })));
+const SettingsPage = lazy(() => import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
+const SharedLinksPage = lazy(() => import('./pages/SharedLinksPage').then((m) => ({ default: m.SharedLinksPage })));
+const PublicSharedPage = lazy(() => import('./pages/PublicSharedPage').then((m) => ({ default: m.PublicSharedPage })));
+const AutomationsPage = lazy(() => import('./pages/AutomationsPage').then((m) => ({ default: m.AutomationsPage })));
+const SearchPage = lazy(() => import('./pages/SearchPage').then((m) => ({ default: m.SearchPage })));
+const TrashPage = lazy(() => import('./pages/TrashPage').then((m) => ({ default: m.TrashPage })));
+const StarredPage = lazy(() => import('./pages/StarredPage').then((m) => ({ default: m.StarredPage })));
+const WorkspacesPage = lazy(() => import('./pages/WorkspacesPage').then((m) => ({ default: m.WorkspacesPage })));
+const SetupPage = lazy(() => import('./pages/SetupPage').then((m) => ({ default: m.SetupPage })));
+const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage').then((m) => ({ default: m.AdminUsersPage })));
+const LandingPage = lazy(() => import('./pages/LandingPage').then((m) => ({ default: m.LandingPage })));
+const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage').then((m) => ({ default: m.PrivacyPolicyPage })));
+const TermsOfServicePage = lazy(() => import('./pages/TermsOfServicePage').then((m) => ({ default: m.TermsOfServicePage })));
+
+function PageFallback() {
+  return (
+    <div
+      className="min-h-[100dvh] flex items-center justify-center bg-surface text-stone-600 text-sm"
+      role="status"
+      aria-live="polite"
+    >
+      Loading…
+    </div>
+  );
+}
+
+export const SetupGuard = ({ children, isSetup }: { children: React.ReactNode; isSetup: boolean }) => {
   if (isSetup === false) return <Navigate to="/setup" replace />;
   return <>{children}</>;
 };
@@ -33,8 +48,8 @@ export const App = () => {
     setSetupError(null);
     setIsSetup(null);
     api.getSetupStatus()
-      .then(res => setIsSetup(res.isSetup))
-      .catch(err => setSetupError(err.message || 'Failed to connect to server'));
+      .then((res) => setIsSetup(res.isSetup))
+      .catch((err) => setSetupError(err.message || 'Failed to connect to server'));
   };
 
   useEffect(() => {
@@ -43,49 +58,61 @@ export const App = () => {
 
   if (setupError) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', gap: '1rem' }}>
-        <h2>Connection Error</h2>
-        <p>{setupError}</p>
-        <button onClick={checkSetupStatus} style={{ padding: '8px 16px', cursor: 'pointer', borderRadius: '4px', border: '1px solid #e6dfd8', background: '#efe9de', color: '#141413' }}>Retry</button>
-      </div>
+      <main className="min-h-[100dvh] flex flex-col items-center justify-center gap-4 bg-surface px-4">
+        <h1 className="text-lg font-semibold text-stone-900">Connection Error</h1>
+        <p className="text-sm text-stone-600 text-center max-w-sm" role="alert">
+          {setupError}
+        </p>
+        <button
+          type="button"
+          onClick={checkSetupStatus}
+          className="px-4 py-2 rounded-lg border border-stone-300 bg-card text-stone-800 text-sm font-medium hover:bg-stone-50"
+        >
+          Retry
+        </button>
+      </main>
     );
   }
 
-  if (isSetup === null) return null; // loading state
+  if (isSetup === null) {
+    return <PageFallback />;
+  }
 
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/home" element={<LandingPage />} />
-        <Route path="/privacy" element={<PrivacyPolicyPage />} />
-        <Route path="/terms" element={<TermsOfServicePage />} />
-        <Route path="/setup" element={isSetup ? <Navigate to="/login" /> : <SetupPage />} />
-        <Route path="/login" element={!isSetup ? <Navigate to="/setup" /> : <LoginPage />} />
-        <Route path="/shared/:id" element={<PublicSharedPage />} />
-        <Route
-          element={
-            <SetupGuard isSetup={isSetup}>
-              <AuthGuard>
-                <AppLayout />
-                <ToastContainer />
-              </AuthGuard>
-            </SetupGuard>
-          }
-        >
-          <Route path="/" element={<DashboardPage />} />
-          <Route path="/search" element={<SearchPage />} />
-          <Route path="/files" element={<FilesPage />} />
-          <Route path="/files/:folderId" element={<FilesPage />} />
-          <Route path="/workspaces" element={<WorkspacesPage />} />
-          <Route path="/automations" element={<AutomationsPage />} />
-          <Route path="/settings/drives" element={<SettingsPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/shared" element={<SharedLinksPage />} />
-          <Route path="/trash" element={<TrashPage />} />
-          <Route path="/starred" element={<StarredPage />} />
-          <Route path="/admin/users" element={<AdminUsersPage />} />
-        </Route>
-      </Routes>
+      <Suspense fallback={<PageFallback />}>
+        <Routes>
+          <Route path="/home" element={<LandingPage />} />
+          <Route path="/privacy" element={<PrivacyPolicyPage />} />
+          <Route path="/terms" element={<TermsOfServicePage />} />
+          <Route path="/setup" element={isSetup ? <Navigate to="/login" /> : <SetupPage />} />
+          <Route path="/login" element={!isSetup ? <Navigate to="/setup" /> : <LoginPage />} />
+          <Route path="/shared/:id" element={<PublicSharedPage />} />
+          <Route
+            element={
+              <SetupGuard isSetup={isSetup}>
+                <AuthGuard>
+                  <AppLayout />
+                  <ToastContainer />
+                </AuthGuard>
+              </SetupGuard>
+            }
+          >
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/search" element={<SearchPage />} />
+            <Route path="/files" element={<FilesPage />} />
+            <Route path="/files/:folderId" element={<FilesPage />} />
+            <Route path="/workspaces" element={<WorkspacesPage />} />
+            <Route path="/automations" element={<AutomationsPage />} />
+            <Route path="/settings/drives" element={<SettingsPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/shared" element={<SharedLinksPage />} />
+            <Route path="/trash" element={<TrashPage />} />
+            <Route path="/starred" element={<StarredPage />} />
+            <Route path="/admin/users" element={<AdminUsersPage />} />
+          </Route>
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 };

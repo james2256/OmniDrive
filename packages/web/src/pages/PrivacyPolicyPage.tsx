@@ -5,7 +5,7 @@ export function PrivacyPolicyPage() {
 
   return (
     <PublicPageLayout title="Privacy Policy">
-      <p className="text-sm text-stone-500">Effective date: {effectiveDate}</p>
+      <p className="text-sm text-stone-600">Effective date: {effectiveDate}</p>
 
       <section className="space-y-4">
         <h2 className="text-xl font-semibold text-stone-900">1. Introduction</h2>

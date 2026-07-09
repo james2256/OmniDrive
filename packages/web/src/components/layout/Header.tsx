@@ -51,11 +51,15 @@ export const Header: React.FC = () => {
       <div className="flex items-center gap-2 px-1 sm:px-2 text-stone-600 flex-shrink-0">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center font-medium cursor-pointer hover:bg-blue-700 select-none overflow-hidden flex-shrink-0">
+            <button
+              type="button"
+              aria-label="Account menu"
+              className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center font-medium cursor-pointer hover:bg-blue-700 select-none overflow-hidden flex-shrink-0"
+            >
               {user?.avatarUrl ? (
-                <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
+                <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
               ) : (
-                <span>{getInitials(user?.name || 'User')}</span>
+                <span aria-hidden="true">{getInitials(user?.name || 'User')}</span>
               )}
             </button>
           </DropdownMenuTrigger>

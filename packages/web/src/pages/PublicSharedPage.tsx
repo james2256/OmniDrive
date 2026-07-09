@@ -94,8 +94,13 @@ export function PublicSharedPage() {
 
           <form onSubmit={handlePasswordSubmit}>
             <div className="mb-4">
+              <label htmlFor="shared-password" className="sr-only">
+                Password
+              </label>
               <input
+                id="shared-password"
                 type="password"
+                autoComplete="current-password"
                 className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-xl text-stone-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                 placeholder="Enter password"
                 value={password}
@@ -103,9 +108,11 @@ export function PublicSharedPage() {
                 autoFocus
               />
             </div>
-            
+
             {passwordError && (
-              <p className="text-red-500 text-sm mb-4">{passwordError}</p>
+              <p role="alert" className="text-red-600 text-sm mb-4">
+                {passwordError}
+              </p>
             )}
 
             <button
@@ -151,8 +158,8 @@ export function PublicSharedPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-stone-50 p-4 sm:p-6">
+    <main className="min-h-screen flex items-center justify-center bg-stone-50 p-4 sm:p-6">
       {renderContent()}
-    </div>
+    </main>
   );
 }

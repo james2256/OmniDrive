@@ -14,7 +14,7 @@ describe('securityHeaders', () => {
     expect(res.headers.get('X-XSS-Protection')).toBe('0');
     expect(res.headers.get('Referrer-Policy')).toBe('strict-origin-when-cross-origin');
     expect(res.headers.get('Permissions-Policy')).toBe('camera=(), microphone=(), geolocation=()');
-    expect(res.headers.get('Content-Security-Policy')).toContain("default-src 'self'");
+    expect(res.headers.get('Content-Security-Policy')).toContain("default-src 'none'");
     expect(res.headers.get('Content-Security-Policy')).toContain("frame-ancestors 'none'");
   });
 });

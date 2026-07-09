@@ -14,7 +14,7 @@ export const securityHeaders = createMiddleware(async (c, next) => {
     c.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   }
 
-  // CSP — allow self + the frontend origin for cross-origin SPA fetch
+  // API responses are JSON/XML only — tight CSP; SPA security headers live in Pages `_headers`
   const frontendUrl = c.env?.FRONTEND_URL || '';
   const apiOrigin = frontendUrl ? new URL(frontendUrl).origin : '';
   const connectSrc = apiOrigin && apiOrigin !== new URL(c.req.url).origin
@@ -22,6 +22,6 @@ export const securityHeaders = createMiddleware(async (c, next) => {
     : "'self'";
   c.header(
     'Content-Security-Policy',
-    `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src ${connectSrc}; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; object-src 'none'`
+    `default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'; connect-src ${connectSrc}`
   );
 });

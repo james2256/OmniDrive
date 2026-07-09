@@ -4,6 +4,7 @@ import { corsMiddleware } from './middleware/cors';
 import { securityHeaders } from './middleware/security-headers';
 import { csrfGuard } from './middleware/csrf-guard';
 import { rateLimiter } from './middleware/rate-limiter';
+import { AppError } from './middleware/error-handler';
 import { runScheduledSync } from './services/sync';
 import { runLifecycleExpiration, cleanupOrphanMultipartUploads } from './services/s3-lifecycle';
 import { AuditService } from './services/audit.service';
@@ -23,12 +24,10 @@ import { AutomationEngine } from './services/automation.service';
 
 export const app = new Hono<AppContext>({ strict: false });
 
-// Global middleware (order matters)
+// Global middleware (order matters): security → CORS → CSRF → rate limits (below)
 app.use('*', securityHeaders);
 app.use('*', corsMiddleware());
 app.use('/api/*', csrfGuard);
-
-import { AppError } from './middleware/error-handler';
 
 function escapeXml(str: string): string {
   return str.replace(/[<>&'"]/g, (c) => {

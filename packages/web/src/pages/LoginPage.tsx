@@ -31,11 +31,19 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-[100dvh] flex items-center justify-center bg-surface px-4">
+    <main className="min-h-[100dvh] flex items-center justify-center bg-surface px-4">
       <div className="w-full max-w-sm">
         <div className="bg-card border border-stone-200 rounded-2xl shadow-sm p-10 text-center">
           <div className="flex flex-col items-center justify-center mb-1">
-            <img src="/logo.png?v=2" alt="AzaDrive" className="w-16 h-16 object-contain mb-3" />
+            <img
+              src="/logo.png?v=2"
+              alt="AzaDrive"
+              width={64}
+              height={64}
+              fetchPriority="high"
+              decoding="async"
+              className="w-16 h-16 object-contain mb-3"
+            />
             <h1 className="text-3xl font-bold text-stone-900">AzaDrive</h1>
           </div>
           <p className="text-stone-600 text-sm mb-8">
@@ -158,6 +166,6 @@ export function LoginPage() {
           </p>
         </div>
       </div>
-    </div>
+    </main>
   );
 }
