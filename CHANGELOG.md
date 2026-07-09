@@ -36,6 +36,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Added root `llms.txt` (PageSpeed Agentic Browsing): SPA fallback was serving `index.html` at `/llms.txt`, which failed the required markdown H1 check. Static file follows [llmstxt.org](https://llmstxt.org/) (`# AzaDrive` + summary + page links).
+- Added root `robots.txt` and `sitemap.xml` (PageSpeed SEO): missing static files caused the SPA `index.html` to be appended after Cloudflare Content-Signal rules, producing 17 robots.txt syntax errors. Public URLs listed in sitemap; auth-gated and API paths disallowed.
+- Login page accessibility (PageSpeed): associate form labels via `htmlFor`/`id`, raise muted text from `stone-400`/`stone-500` to `stone-600` (AA contrast on cream cards), and style legal/toggle links with permanent underline + `blue-700` so they do not rely on color alone.
 - Production `/api/*` and `/s3/*` requests silently returned the SPA's `index.html` instead of the Worker's JSON response: `_redirects` cannot proxy external domains (Cloudflare Pages limitation), so the `*.workers.dev` proxy rules never took effect. Replaced with Cloudflare Pages Functions (`functions/api/[[path]].ts`, `functions/s3/[[path]].ts`) that forward the request to the Worker, scoped via `_routes.json` so only those two paths invoke a Function.
 - Restored the `sessions` table to the schema baseline (`schema.sql` and `0001_initial_schema.sql`); it was missing after the migration consolidation, which would break authentication on a fresh install.
 - Upload router falls back to the drive with the most free space when the preferred drive is full.
