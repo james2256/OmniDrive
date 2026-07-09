@@ -15,31 +15,38 @@ export const filesRouter = new Hono<AppContext>({ strict: false });
 filesRouter.use('*', authGuard);
 
 // GET /api/files/recent
+// Access via ownership OR workspace membership. Use EXISTS (not JOIN workspace_members):
+// joining members multiplies each file by member count (e.g. 6 members → 6 identical rows
+// on Home Recent). EXISTS keeps one row per file.
 filesRouter.get('/recent', async (c) => {
   const userId = c.get('userId');
   const db = c.env.DB;
 
   const { results: fileRows } = await db.prepare(`
-    SELECT DISTINCT f.*, d.email as driveEmail 
+    SELECT f.*, d.email as driveEmail
     FROM files f
     JOIN drive_accounts d ON f.drive_account_id = d.id
-    LEFT JOIN workspace_members wm ON f.workspace_id = wm.workspace_id
-    WHERE (f.user_id = ? OR wm.user_id = ?)
-      AND f.is_trashed = 0
-    ORDER BY COALESCE(f.google_modified_at, f.synced_at, f.updated_at) DESC LIMIT 20
+    WHERE f.is_trashed = 0
+      AND (
+        f.user_id = ?
+        OR EXISTS (
+          SELECT 1 FROM workspace_members wm
+          WHERE wm.workspace_id = f.workspace_id AND wm.user_id = ?
+        )
+      )
+    ORDER BY COALESCE(f.google_modified_at, f.synced_at, f.updated_at) DESC
+    LIMIT 20
   `).bind(userId, userId).all<Record<string, unknown> & { driveEmail: string }>();
 
   const { results: folderRows } = await db.prepare(`
-    SELECT DISTINCT f.*, w.name as ws_name 
+    SELECT f.*, w.name as ws_name
     FROM workspace_folders f
-    LEFT JOIN workspace_members wm ON f.workspace_id = wm.workspace_id
+    JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ?
     LEFT JOIN workspaces w ON f.workspace_id = w.id
-    WHERE wm.user_id = ?
-    ORDER BY f.updated_at DESC LIMIT 20
+    ORDER BY f.updated_at DESC
+    LIMIT 20
   `).bind(userId).all();
 
-  // Need to import mapFolderRow if not already in scope, but we can inline the mapping if needed
-  // Let's use mapFileRow and a simple folder mapper
   const folders = folderRows.map((f: any) => ({
     id: f.id,
     workspaceId: f.workspace_id,
@@ -135,13 +142,19 @@ filesRouter.get('/search', async (c) => {
   
   const db = c.env.DB;
   
+  // EXISTS avoids row multiplication from multi-member workspaces (same bug as /recent).
   let sql = `
-    SELECT DISTINCT f.*, d.email as driveEmail 
+    SELECT f.*, d.email as driveEmail
     FROM files f
     JOIN drive_accounts d ON f.drive_account_id = d.id
-    LEFT JOIN workspace_members wm ON f.workspace_id = wm.workspace_id
-    WHERE (f.user_id = ? OR wm.user_id = ?)
-      AND f.is_trashed = 0
+    WHERE f.is_trashed = 0
+      AND (
+        f.user_id = ?
+        OR EXISTS (
+          SELECT 1 FROM workspace_members wm
+          WHERE wm.workspace_id = f.workspace_id AND wm.user_id = ?
+        )
+      )
   `;
   const binds: any[] = [userId, userId];
 
