@@ -323,3 +323,36 @@ docker-compose.yml
 | `upstream` | `abilfida/OmniDrive` | Fetch updates (opsional) |
 
 Lisensi MIT mengizinkan modifikasi independen. Lihat `AGENTS.md` untuk workflow development.
+---
+
+## The One Way (Code Conventions)
+
+OmniDrive has **one pattern** for each concern. Don't introduce alternatives.
+
+| Concern | The One Way | Don't |
+|---------|-------------|-------|
+| **Routes** | `new Hono<AppContext>()` per feature, mounted via `app.route()` | Don't use Express-style `app.get()` at the root level |
+| **DB access** | `c.env.DB.prepare(sql).bind(...).first()/all()/run()` in routes | Don't create a DB connection outside of `c.env.DB` |
+| **Errors** | `throw new AppError(status, message)` | Don't `return c.json({error}, 400)` — bypasses error handler |
+| **Logging** | `console.log/error` (structured logger available in `lib/logger.ts`) | Don't use `console.info` or `process.stdout` |
+| **Validation** | Inline checks (`if (!x) throw new AppError(400, ...)`) | Don't add a validation library yet (future: Zod) |
+| **Types** | Use `unknown` or proper types | Don't use `any` (60 existing — fix incrementally) |
+| **Comments** | `// ponytail: <reason>` for deliberate tech debt | Don't use `// TODO:` — use a GitHub issue instead |
+| **IDs** | `crypto.randomUUID()` via `lib/id.ts` | Don't use `Date.now()` or custom ID schemes |
+| **Auth** | `authGuard` middleware + `c.get('userId')` | Don't read the session cookie manually in routes |
+| **RBAC** | `getWorkspaceRole()` + `hasPermission(role, 'editor')` | Don't hardcode role checks (`if (role === 'owner')`) |
+
+### Why "The One Way"?
+
+Consistency reduces cognitive load. When every file follows the same pattern:
+- New developers find things faster
+- Code review is quicker (pattern violations stand out)
+- Refactoring is safer (all instances look the same)
+- Bugs are easier to spot (anything different is suspicious)
+
+### When to change "The One Way"
+
+Only via an ADR (see `docs/adr/`). If you think a pattern should change:
+1. Write an ADR proposing the change
+2. Discuss in a GitHub issue
+3. If accepted, update this table and migrate existing code
