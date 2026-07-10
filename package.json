@@ -14,10 +14,11 @@
     "packages/web"
   ],
   "scripts": {
+    "setup": "bash bin/setup.sh",
     "dev": "concurrently -n worker,web -c blue,green \"npm:dev:worker\" \"npm:dev:web\"",
     "dev:worker": "npm run dev --prefix packages/worker",
     "dev:web": "npm run dev --prefix packages/web -- --host 0.0.0.0",
-    "test": "npm run test --prefix packages/worker",
+    "test": "npm run test --prefix packages/worker && npm run test --prefix packages/web",
     "typecheck": "npm run build --prefix packages/worker -- --dry-run && npm run build --prefix packages/web",
     "migrate:remote": "npm run db:migrate:remote --prefix packages/worker",
     "deploy:code": "npm run build --prefix packages/worker && npm run deploy --prefix packages/worker && npm run build --prefix packages/web && npm run deploy --prefix packages/web",

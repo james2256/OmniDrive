@@ -1,3 +1,16 @@
+# AGENTS.md — Guide for AI Agents
+
+> **English summary**: This document is in Indonesian. Key rules for AI agents:
+> - **Never read** `.env`, `.dev.vars`, or any file containing secrets. Verify via `wrangler secret list` or `.env.example`.
+> - **Never run** dev servers (`npm run dev`, `wrangler dev`, `vite`) or deploy commands (`wrangler deploy`, `npm run deploy:*`). These affect the maintainer's production environment.
+> - **Do** run tests (`npm test`) and typecheck (`npm run typecheck`).
+> - **Do** use `// ponytail: <reason>` for deliberate technical-debt markers (always include WHY).
+> - **Do** follow the "0-cost" principle: stay within Cloudflare Workers free tier.
+> - For the full guide (in Indonesian), see the sections below.
+> - For contributor onboarding in English, see `CONTRIBUTING.md`.
+
+---
+
 # AGENTS.md — Panduan untuk AI Agent
 
 Dokumen ini menjelaskan cara bekerja di repo **OmniDrive** (fork, berasal dari [`abilfida/OmniDrive`](https://github.com/abilfida/OmniDrive)).
