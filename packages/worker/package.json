@@ -22,7 +22,7 @@
     "node-cron": "^4.2.1"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20250530.0",
+    "@cloudflare/workers-types": "^5.20260710.1",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^25.9.3",
     "@types/node-cron": "^3.0.11",
