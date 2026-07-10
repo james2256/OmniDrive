@@ -99,7 +99,7 @@ omnidrive/
 └── package.json         # Monorepo root (npm workspaces)
 ```
 
-The backend and frontend communicate via REST API. In development, Vite's dev server proxies `/api/*` requests to the local Worker on port 8787.
+The backend and frontend communicate via REST API. In development, Vite's dev server proxies `/api/*` requests to the local Worker on port 8888.
 
 ## Prerequisites
 
@@ -115,7 +115,7 @@ The backend and frontend communicate via REST API. In development, Vite's dev se
 Before running the deployment wizard, ensure you have a Google OAuth App configured:
 1. Go to [Google Cloud Console](https://console.cloud.google.com/) → APIs & Services → Credentials
 2. Create an **OAuth 2.0 Client ID** (Web application type)
-3. Add `http://localhost:8787/api/auth/google/callback` as an authorized redirect URI (if running locally) or your production domain callback.
+3. Add `http://localhost:8888/api/auth/google/callback` as an authorized redirect URI (if running locally) or your production domain callback.
 4. Keep the Client ID and Client Secret handy.
 
 ### 2. Run the Interactive Setup (Quickstart)
