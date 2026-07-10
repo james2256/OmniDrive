@@ -21,7 +21,9 @@
     "typecheck": "npm run build --prefix packages/worker -- --dry-run && npm run build --prefix packages/web",
     "migrate:remote": "npm run db:migrate:remote --prefix packages/worker",
     "deploy:code": "npm run build --prefix packages/worker && npm run deploy --prefix packages/worker && npm run build --prefix packages/web && npm run deploy --prefix packages/web",
-    "deploy:full": "npm run db:migrate:remote --prefix packages/worker && npm run deploy:code"
+    "deploy:full": "npm run db:migrate:remote --prefix packages/worker && npm run deploy:code",
+    "build:web": "npm run build --prefix packages/web",
+    "build:worker": "npm run build --prefix packages/worker"
   },
   "devDependencies": {
     "@clack/prompts": "^1.5.1",
