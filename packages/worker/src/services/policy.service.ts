@@ -1,4 +1,5 @@
 import type { D1Database } from '@cloudflare/workers-types';
+import { GoogleDriveService } from './google-drive';
 
 export class PolicyService {
   constructor(private db: D1Database) {}
@@ -37,11 +38,17 @@ export class PolicyService {
     await this.db.prepare('UPDATE workspaces SET used_bytes = COALESCE(used_bytes, 0) + ? WHERE id = ?').bind(sizeDelta, workspaceId).run();
   }
 
-  async processAutoDeleteRetentionPolicies(googleClientId: string, googleClientSecret: string) {
+  async processAutoDeleteRetentionPolicies(
+    googleClientId: string,
+    googleClientSecret: string,
+    encryptionKey: string,
+  ) {
     // 1. Get all auto_delete policies
     const { results: policies } = await this.db.prepare(
       `SELECT * FROM workspace_policies WHERE policy_type = 'data_retention' AND json_extract(config, '$.action') = 'auto_delete'`
     ).all<{ id: string, workspace_id: string, target_type: string, target_id: string | null, config: string }>();
+
+    const driveService = new GoogleDriveService(this.db, googleClientId, googleClientSecret, encryptionKey);
 
     for (const policy of policies) {
       const config = JSON.parse(policy.config) as { action: string, days: number };
@@ -66,16 +73,17 @@ export class PolicyService {
 
       const { results: expiredFiles } = await this.db.prepare(query).bind(...binds).all<{ id: string, user_id: string, google_file_id: string, size: number, workspace_id: string, driveId: string }>();
 
-      if (expiredFiles.length > 0) {
-        // dynamic import or require is hard in workers without proper structure. 
-        // We will just do a simple db delete for now and rely on sync to reflect drive state, 
-        // or just delete from DB and update quota. Ideally we would call GoogleDriveService.
-        for (const file of expiredFiles) {
-          // In a real app we would call driveService.deleteFile(file.driveId, file.google_file_id) here
-          // We will just remove from DB and update quota for this implementation
-          await this.db.prepare('DELETE FROM files WHERE id = ?').bind(file.id).run();
-          await this.updateWorkspaceStorage(file.workspace_id, -file.size);
+      for (const file of expiredFiles) {
+        // Delete from Google Drive first (404 is OK — file may already be gone)
+        try {
+          await driveService.deleteFile(file.driveId, file.google_file_id);
+        } catch (e) {
+          console.error(`Retention: failed to delete file ${file.google_file_id} from Google Drive:`, e);
+          // Continue anyway — still remove the DB row so quota is accurate
         }
+        // Then remove from DB and update quota
+        await this.db.prepare('DELETE FROM files WHERE id = ?').bind(file.id).run();
+        await this.updateWorkspaceStorage(file.workspace_id, -file.size);
       }
     }
   }

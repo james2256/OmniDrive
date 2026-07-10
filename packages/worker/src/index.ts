@@ -131,7 +131,7 @@ export default {
 
     // Data retention policies
     const policyService = new PolicyService(env.DB);
-    ctx.waitUntil(policyService.processAutoDeleteRetentionPolicies(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET));
+    ctx.waitUntil(policyService.processAutoDeleteRetentionPolicies(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, env.TOKEN_ENCRYPTION_KEY));
 
     // Expired session cleanup (D1 has no auto-expiry unlike KV TTL)
     ctx.waitUntil(env.DB.prepare('DELETE FROM sessions WHERE expires_at < ?').bind(Date.now()).run());
