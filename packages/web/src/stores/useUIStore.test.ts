@@ -3,7 +3,14 @@ import { useUIStore } from './useUIStore';
 
 describe('useUIStore', () => {
   beforeEach(() => {
-    useUIStore.setState({ isSidebarOpen: true, isInfoPanelOpen: false, viewMode: 'list', theme: 'light' });
+    useUIStore.setState({
+      isSidebarOpen: true,
+      isInfoPanelOpen: false,
+      viewMode: 'list',
+      theme: 'light',
+      sortField: 'name',
+      sortDirection: 'asc',
+    });
   });
 
   it('toggles sidebar', () => {
@@ -24,5 +31,18 @@ describe('useUIStore', () => {
   it('sets theme', () => {
     useUIStore.getState().setTheme('dark');
     expect(useUIStore.getState().theme).toBe('dark');
+  });
+
+  it('toggles sort direction on same field', () => {
+    useUIStore.getState().toggleSort('name');
+    expect(useUIStore.getState().sortDirection).toBe('desc');
+    useUIStore.getState().toggleSort('name');
+    expect(useUIStore.getState().sortDirection).toBe('asc');
+  });
+
+  it('switches sort field with sensible default direction', () => {
+    useUIStore.getState().toggleSort('modified');
+    expect(useUIStore.getState().sortField).toBe('modified');
+    expect(useUIStore.getState().sortDirection).toBe('desc');
   });
 });

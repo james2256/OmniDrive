@@ -3,18 +3,23 @@ import { GoogleDriveService } from '../src/services/google-drive';
 
 describe('GoogleDriveService Move Operations', () => {
   let service: GoogleDriveService;
-  let mockKv: any;
+  let mockDb: any;
 
   beforeEach(() => {
-    mockKv = {
-      get: vi.fn().mockResolvedValue(JSON.stringify({
-        accessToken: 'fake-access-token',
-        refreshToken: 'fake-refresh-token',
-        expiresAt: Date.now() + 3600_000,
+    const tokens = JSON.stringify({
+      accessToken: 'fake-access-token',
+      refreshToken: 'fake-refresh-token',
+      expiresAt: Date.now() + 3600_000,
+    });
+    mockDb = {
+      prepare: vi.fn(() => ({
+        bind: vi.fn(() => ({
+          first: vi.fn().mockResolvedValue({ encrypted_tokens: tokens }),
+          run: vi.fn().mockResolvedValue(undefined),
+        })),
       })),
-      put: vi.fn().mockResolvedValue(undefined),
     };
-    service = new GoogleDriveService(mockKv, 'client-id', 'client-secret');
+    service = new GoogleDriveService(mockDb, 'client-id', 'client-secret');
     globalThis.fetch = vi.fn();
   });
 
@@ -42,6 +47,17 @@ describe('GoogleDriveService Move Operations', () => {
             emailAddress: 'test@example.com'
           })
         })
+      );
+    });
+  });
+
+  describe('revokeTokens', () => {
+    it('revokes refresh token via Google endpoint', async () => {
+      (globalThis.fetch as any).mockResolvedValue({ ok: true });
+      await service.revokeTokens('driveAccountId');
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        'https://oauth2.googleapis.com/revoke?token=fake-refresh-token',
+        { method: 'POST' }
       );
     });
   });

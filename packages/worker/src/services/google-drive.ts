@@ -1,4 +1,8 @@
+import type { D1Database } from '@cloudflare/workers-types';
 import type { OAuthTokens, QuotaCache } from '../types/index';
+import { parseStorageQuota, QUOTA_CACHE_VERSION } from '../lib/storage-quota';
+
+const QUOTA_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 const DRIVE_API = 'https://www.googleapis.com/drive/v3';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -35,7 +39,7 @@ export class GoogleDriveService {
   private encryptionKey?: string;
 
   constructor(
-    private kv: KVNamespace,
+    private db: D1Database,
     private clientId: string,
     private clientSecret: string,
     encryptionKey?: string
@@ -45,34 +49,78 @@ export class GoogleDriveService {
 
   // ─── Token Management ───
 
-  async getValidToken(driveAccountId: string): Promise<string> {
-    // Try tokens: prefix first (new), fallback to oauth: (legacy)
-    const raw = await this.kv.get(`tokens:${driveAccountId}`) ?? await this.kv.get(`oauth:${driveAccountId}`);
-    if (!raw) {
-      throw new Error(`No tokens found for drive ${driveAccountId}`);
-    }
+  private async loadTokens(driveAccountId: string): Promise<OAuthTokens> {
+    const row = await this.db.prepare('SELECT encrypted_tokens FROM drive_tokens WHERE drive_account_id = ?')
+      .bind(driveAccountId).first<{ encrypted_tokens: string }>();
+    if (!row?.encrypted_tokens) throw new Error(`No tokens found for drive ${driveAccountId}`);
 
-    let tokensJson = raw;
+    let tokensJson = row.encrypted_tokens;
     if (this.encryptionKey) {
-      try {
-        const { decryptOrPassthrough } = await import('../lib/crypto');
-        tokensJson = await decryptOrPassthrough(raw, this.encryptionKey);
-      } catch {
-        // Fallback to raw if decrypt fails
-      }
+      const { decryptOrPassthrough } = await import('../lib/crypto');
+      tokensJson = await decryptOrPassthrough(row.encrypted_tokens, this.encryptionKey);
     }
+    return JSON.parse(tokensJson) as OAuthTokens;
+  }
 
-    const tokens: OAuthTokens = JSON.parse(tokensJson);
-
-    // Return cached token if not expired (with 60s buffer)
+  async getValidToken(driveAccountId: string): Promise<string> {
+    const tokens = await this.loadTokens(driveAccountId);
+    if (tokens.authType === 'service_account' && tokens.serviceAccount) {
+      if (tokens.expiresAt > Date.now() + 60_000) {
+        return tokens.accessToken;
+      }
+      return this.refreshServiceAccountToken(driveAccountId, tokens);
+    }
     if (tokens.expiresAt > Date.now() + 60_000) {
       return tokens.accessToken;
     }
-
-    // Refresh the token
+    if (!tokens.refreshToken) {
+      throw new Error(`No refresh token for drive ${driveAccountId}`);
+    }
     return this.refreshToken(driveAccountId, tokens.refreshToken);
   }
 
+  private async persistTokens(driveAccountId: string, tokens: import('../types/env').OAuthTokens): Promise<void> {
+    const serialized = JSON.stringify(tokens);
+    const encryptedTokens = this.encryptionKey
+      ? await (await import('../lib/crypto')).encrypt(serialized, this.encryptionKey)
+      : serialized;
+    await this.db.prepare(
+      'INSERT INTO drive_tokens (drive_account_id, encrypted_tokens, updated_at) VALUES (?, ?, ?) ' +
+      'ON CONFLICT(drive_account_id) DO UPDATE SET encrypted_tokens = excluded.encrypted_tokens, updated_at = excluded.updated_at'
+    ).bind(driveAccountId, encryptedTokens, Date.now()).run();
+  }
+
+  private async refreshServiceAccountToken(
+    driveAccountId: string,
+    tokens: import('../types/env').OAuthTokens
+  ): Promise<string> {
+    if (!tokens.serviceAccount) {
+      throw new Error(`No service account credentials for drive ${driveAccountId}`);
+    }
+    const { fetchServiceAccountAccessToken } = await import('../lib/google-service-account');
+    const refreshed = await fetchServiceAccountAccessToken(tokens.serviceAccount);
+    const nextTokens = {
+      ...tokens,
+      accessToken: refreshed.accessToken,
+      expiresAt: refreshed.expiresAt,
+    };
+    await this.persistTokens(driveAccountId, nextTokens);
+    return refreshed.accessToken;
+  }
+
+  // ponytail: best-effort revoke on disconnect; Google ignores already-revoked tokens
+  async revokeTokens(driveAccountId: string): Promise<void> {
+    try {
+      const tokens = await this.loadTokens(driveAccountId);
+      const token = tokens.refreshToken || tokens.accessToken;
+      if (!token) return;
+      await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(token)}`, { method: 'POST' });
+    } catch {
+      // disconnect still proceeds if revoke fails
+    }
+  }
+
+  // ponytail: last-write-wins refresh — sync is mostly serial (activeSyncs guard); add single-flight lock if races become a problem
   private async refreshToken(driveAccountId: string, refreshToken: string): Promise<string> {
     const response = await fetch(TOKEN_URL, {
       method: 'POST',
@@ -93,33 +141,39 @@ export class GoogleDriveService {
     const data: { access_token: string; expires_in: number } = await response.json();
 
     // Update KV with new access token (keep existing refresh token)
-    const newTokens = JSON.stringify({
+    const existing = await this.loadTokens(driveAccountId);
+    const nextTokens = {
+      ...existing,
       accessToken: data.access_token,
       refreshToken,
       expiresAt: Date.now() + data.expires_in * 1000,
-    } satisfies OAuthTokens);
-
-    if (this.encryptionKey) {
-      const { encrypt } = await import('../lib/crypto');
-      const encrypted = await encrypt(newTokens, this.encryptionKey);
-      await this.kv.put(`tokens:${driveAccountId}`, encrypted);
-    } else {
-      await this.kv.put(`oauth:${driveAccountId}`, newTokens);
-    }
+    } satisfies import('../types/env').OAuthTokens;
+    await this.persistTokens(driveAccountId, nextTokens);
 
     return data.access_token;
   }
 
   // ─── Quota ───
 
+  /**
+   * Google omits storageQuota.limit for Google Workspace pooled storage and
+   * service accounts (returned only "if applicable"). `hasLimit` tells callers
+   * whether `total` is a real Google-reported limit or the unlimited fallback,
+   * so they avoid overwriting a user-set override / stored value with the 1 TiB
+   * ceiling when Google provides no real limit.
+   */
   async getQuota(
     driveAccountId: string
-  ): Promise<{ total: number; used: number }> {
-    // Check KV cache first
-    const cached = await this.kv.get(`quota:${driveAccountId}`);
-    if (cached) {
-      const quota: QuotaCache = JSON.parse(cached);
-      return { total: quota.total, used: quota.used };
+  ): Promise<{ total: number; used: number; hasLimit: boolean }> {
+    // Check D1 cache first. Cache entries carry the schema version so stale
+    // pre-usageInDrive entries (which stored account-wide usage) are ignored.
+    const cacheRow = await this.db.prepare('SELECT payload, updated_at FROM quota_cache WHERE drive_account_id = ?')
+      .bind(driveAccountId).first<{ payload: string; updated_at: number }>();
+    if (cacheRow && Date.now() - cacheRow.updated_at < QUOTA_CACHE_TTL_MS) {
+      const quota: QuotaCache = JSON.parse(cacheRow.payload);
+      if (quota.v === QUOTA_CACHE_VERSION && quota.total > 0) {
+        return { total: quota.total, used: quota.used, hasLimit: quota.hasLimit };
+      }
     }
 
     // Fetch from Google Drive API
@@ -133,20 +187,30 @@ export class GoogleDriveService {
     }
 
     const data: {
-      storageQuota: { limit?: string; usage?: string };
+      storageQuota: { limit?: string; usageInDrive?: string; usage?: string };
     } = await response.json();
 
-    const total = parseInt(data.storageQuota.limit ?? '0', 10);
-    const used = parseInt(data.storageQuota.usage ?? '0', 10);
-
-    // Cache in KV (5-min TTL)
-    await this.kv.put(
-      `quota:${driveAccountId}`,
-      JSON.stringify({ total, used, updatedAt: new Date().toISOString() } satisfies QuotaCache),
-      { expirationTtl: 300 }
+    const hasLimit = data.storageQuota.limit != null && data.storageQuota.limit !== '';
+    const { total, used } = parseStorageQuota(
+      data.storageQuota.limit,
+      data.storageQuota.usageInDrive,
+      data.storageQuota.usage
     );
 
-    return { total, used };
+    // Cache in D1 (5-min TTL enforced by updated_at check above)
+    const payload = JSON.stringify({
+        v: QUOTA_CACHE_VERSION,
+        total,
+        used,
+        hasLimit,
+        updatedAt: new Date().toISOString(),
+      } satisfies QuotaCache);
+    await this.db.prepare(
+      'INSERT INTO quota_cache (drive_account_id, payload, updated_at) VALUES (?, ?, ?) ' +
+      'ON CONFLICT(drive_account_id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at'
+    ).bind(driveAccountId, payload, Date.now()).run();
+
+    return { total, used, hasLimit };
   }
 
   // ─── Folder Operations ───
@@ -206,7 +270,7 @@ export class GoogleDriveService {
     const token = await this.getValidToken(driveAccountId);
 
     const response = await fetch(
-      `https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable`,
+      `https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true`,
       {
         method: 'POST',
         headers: {
@@ -242,7 +306,7 @@ export class GoogleDriveService {
     const token = await this.getValidToken(driveAccountId);
     const fields = 'id,name,mimeType,size,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum';
 
-    const response = await fetch(`${DRIVE_API}/files/${googleFileId}?fields=${fields}`, {
+    const response = await fetch(`${DRIVE_API}/files/${googleFileId}?fields=${fields}&supportsAllDrives=true`, {
       headers: { Authorization: `Bearer ${token}` },
     });
 
@@ -500,7 +564,6 @@ export class GoogleDriveService {
       modifiedTime: string;
     }>
   > {
-    const token = await this.getValidToken(driveAccountId);
     const fields = 'files(id,name,mimeType,size,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum)';
     const q = encodeURIComponent(`'${folderId}' in parents and trashed = false`);
 
@@ -508,6 +571,7 @@ export class GoogleDriveService {
     let pageToken: string | undefined;
 
     do {
+      const token = await this.getValidToken(driveAccountId);
       const url = `${DRIVE_API}/files?q=${q}&fields=nextPageToken,${fields}${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
       const response = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
@@ -531,7 +595,6 @@ export class GoogleDriveService {
     driveAccountId: string,
     folderId: string
   ): Promise<{ files: GDriveFile[]; folders: GDriveFolder[] }> {
-    const token = await this.getValidToken(driveAccountId);
     const fields =
       'nextPageToken,files(id,name,mimeType,size,parents,trashed,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum)';
     const q = encodeURIComponent(`'${folderId}' in parents and trashed = false`);
@@ -541,6 +604,7 @@ export class GoogleDriveService {
     let pageToken: string | undefined;
 
     do {
+      const token = await this.getValidToken(driveAccountId);
       const url = `${DRIVE_API}/files?q=${q}&fields=${fields}${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
       const response = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
@@ -567,51 +631,10 @@ export class GoogleDriveService {
     return { files: allFiles, folders: allFolders };
   }
 
-  // ─── Full Drive Contents (All files + folders recursively) ───
-
-  async listAllFilesAndFolders(
-    driveAccountId: string
-  ): Promise<{ files: GDriveFile[]; folders: GDriveFolder[] }> {
-    const token = await this.getValidToken(driveAccountId);
-    const fields =
-      'nextPageToken,files(id,name,mimeType,size,parents,trashed,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum)';
-    const q = encodeURIComponent(`trashed = false`);
-
-    const allFiles: GDriveFile[] = [];
-    const allFolders: GDriveFolder[] = [];
-    let pageToken: string | undefined;
-
-    do {
-      const url = `${DRIVE_API}/files?q=${q}&fields=${fields}${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
-      const response = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to list folder contents: ${await response.text()}`);
-      }
-
-      const data: { files: GDriveFile[]; nextPageToken?: string } = await response.json();
-
-      for (const item of data.files) {
-        if (item.mimeType === 'application/vnd.google-apps.folder') {
-          allFolders.push({ id: item.id, name: item.name, parents: item.parents });
-        } else if (item.mimeType !== 'application/vnd.google-apps.shortcut') {
-          allFiles.push(item);
-        }
-      }
-
-      pageToken = data.nextPageToken;
-    } while (pageToken);
-
-    return { files: allFiles, folders: allFolders };
-  }
-
   async *iterateAllFilesAndFolders(
     driveAccountId: string,
     startPageToken?: string
   ): AsyncGenerator<{ files: GDriveFile[]; folders: GDriveFolder[]; nextPageToken?: string }, void, unknown> {
-    const token = await this.getValidToken(driveAccountId);
     const fields =
       'nextPageToken,files(id,name,mimeType,size,parents,trashed,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum)';
     const q = encodeURIComponent(`trashed = false`);
@@ -619,6 +642,7 @@ export class GoogleDriveService {
     let pageToken: string | undefined = startPageToken;
 
     do {
+      const token = await this.getValidToken(driveAccountId);
       const url = `${DRIVE_API}/files?q=${q}&fields=${fields}${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
       const response = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },

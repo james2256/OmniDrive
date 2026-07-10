@@ -4,6 +4,7 @@ import { useToastStore } from '../stores/toastStore';
 import { FileGrid } from '../components/files/FileGrid';
 import { api } from '../lib/api';
 import type { FileEntry } from '../types';
+import { FilePreviewModal } from '../components/FilePreviewModal';
 
 export function TrashPage() {
   const { drives } = useDriveStore();
@@ -11,6 +12,7 @@ export function TrashPage() {
   
   const [results, setResults] = useState<FileEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
 
   const fetchTrash = useCallback(async () => {
     setIsLoading(true);
@@ -56,9 +58,9 @@ export function TrashPage() {
   }, [drives]);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-gray-800">Trash</h1>
+        <h1 className="text-2xl font-semibold text-stone-800">Trash</h1>
       </div>
 
       {isLoading ? (
@@ -66,14 +68,14 @@ export function TrashPage() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
         </div>
       ) : results.length > 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="bg-card rounded-xl border border-stone-200 overflow-hidden">
           <FileGrid
             files={results}
             subfolders={[]}
             getDriveInfo={getDriveInfo}
             onShare={() => {}}
             onMoveDrive={() => {}}
-            onPreviewFile={() => {}}
+            onPreviewFile={setPreviewFile}
             isTargetShared={() => false}
             viewMode="list"
             isTrashView={true}
@@ -82,10 +84,15 @@ export function TrashPage() {
           />
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center py-20 text-gray-500">
+        <div className="flex flex-col items-center justify-center py-20 text-stone-500">
           <p className="text-lg">Your trash is empty.</p>
         </div>
       )}
+      <FilePreviewModal
+        open={!!previewFile}
+        file={previewFile ?? undefined}
+        onClose={() => setPreviewFile(null)}
+      />
     </div>
   );
 }

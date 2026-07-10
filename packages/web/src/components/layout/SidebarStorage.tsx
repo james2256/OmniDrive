@@ -50,9 +50,9 @@ export const SidebarStorage: React.FC = () => {
   const totalPct = Math.min((aggregate.totalUsed / aggregate.totalQuota) * 100, 100);
 
   return (
-    <div className="px-4 py-3 mt-1 border-t border-gray-200 dark:border-gray-800">
+    <div className="px-4 py-3 mt-1 border-t border-stone-200 dark:border-stone-800">
       {/* Stacked Category Bar */}
-      <div className="h-2 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden mb-3 flex">
+      <div className="h-2 w-full bg-stone-100 dark:bg-stone-800 rounded-full overflow-hidden mb-3 flex">
         {data.map((item, idx) => {
           const pct = aggregate.totalUsed > 0 ? (item.value / aggregate.totalUsed) * 100 : 0;
           return pct > 0 ? (
@@ -74,9 +74,9 @@ export const SidebarStorage: React.FC = () => {
             <div key={idx} className="flex justify-between text-xs">
               <div className="flex items-center gap-1.5">
                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
-                <span className="text-gray-600 dark:text-gray-400">{item.name}</span>
+                <span className="text-stone-600 dark:text-stone-400">{item.name}</span>
               </div>
-              <span className="text-gray-500 text-[10px]">
+              <span className="text-stone-500 text-[10px]">
                 {formatFileSize(item.value)} ({pct.toFixed(1)}%)
               </span>
             </div>
@@ -86,18 +86,18 @@ export const SidebarStorage: React.FC = () => {
 
       <div className="mb-3">
         <div className="flex justify-between text-xs mb-1">
-          <span className="font-medium text-gray-700 dark:text-gray-300">Storage</span>
-          <span className="text-gray-500">
+          <span className="font-medium text-stone-700 dark:text-stone-300">Storage</span>
+          <span className="text-stone-500">
             {totalPct.toFixed(1)}%
           </span>
         </div>
-        <div className="h-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden mb-1">
+        <div className="h-2 w-full bg-stone-200 dark:bg-stone-700 rounded-full overflow-hidden mb-1">
           <div
             className="h-full bg-blue-500 rounded-full transition-all"
             style={{ width: `${totalPct}%` }}
           />
         </div>
-        <p className="text-[10px] text-gray-500">
+        <p className="text-[10px] text-stone-500">
           {formatFileSize(aggregate.totalUsed)} of {formatFileSize(aggregate.totalQuota)} used
         </p>
       </div>

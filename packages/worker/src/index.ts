@@ -4,7 +4,9 @@ import { corsMiddleware } from './middleware/cors';
 import { securityHeaders } from './middleware/security-headers';
 import { csrfGuard } from './middleware/csrf-guard';
 import { rateLimiter } from './middleware/rate-limiter';
+import { AppError } from './middleware/error-handler';
 import { runScheduledSync } from './services/sync';
+import { runLifecycleExpiration, cleanupOrphanMultipartUploads } from './services/s3-lifecycle';
 import { AuditService } from './services/audit.service';
 import { PolicyService } from './services/policy.service';
 
@@ -22,12 +24,10 @@ import { AutomationEngine } from './services/automation.service';
 
 export const app = new Hono<AppContext>({ strict: false });
 
-// Global middleware (order matters)
+// Global middleware (order matters): security → CORS → CSRF → rate limits (below)
 app.use('*', securityHeaders);
 app.use('*', corsMiddleware());
 app.use('/api/*', csrfGuard);
-
-import { AppError } from './middleware/error-handler';
 
 function escapeXml(str: string): string {
   return str.replace(/[<>&'"]/g, (c) => {
@@ -49,9 +49,6 @@ app.onError((err, c) => {
   
   if (status >= 500) {
     console.error('Unhandled server error:', err);
-  } else {
-    // Optional: Just log 4xx errors as info if needed, or suppress
-    // console.info(`[${status}] ${message}`);
   }
   
   if (c.req.path.startsWith('/s3')) {
@@ -90,7 +87,18 @@ app.use('/api/shared/:id/verify', rateLimiter({
     return `${ip}:${id}`;
   },
 }));
+app.use('/api/shared/:id/download', rateLimiter({
+  windowMs: 60_000,
+  maxRequests: 20,
+  keyFn: (c: any) => {
+    const ip = c.req.header('CF-Connecting-IP') ?? c.req.header('X-Real-IP') ?? 'unknown';
+    const id = c.req.param('id') ?? 'unknown';
+    return `${ip}:${id}`;
+  },
+}));
 app.use('/api/*', rateLimiter({ windowMs: 60_000, maxRequests: 100 }));
+// ponytail: S3 rate limit — /s3 bypasses /api/* catch-all, needs its own limiter
+app.use('/s3/*', rateLimiter({ windowMs: 60_000, maxRequests: 100 }));
 
 app.route('/api/auth', authRouter);
 app.route('/api/drives', drivesRouter);
@@ -110,9 +118,10 @@ app.get('/api/health', (c) => {
 
 export default {
   fetch: app.fetch,
-  async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext) {
-    console.log('Cron triggered:', event.cron);
+  async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext) {
     ctx.waitUntil(runScheduledSync(env));
+    ctx.waitUntil(runLifecycleExpiration(env));
+    ctx.waitUntil(cleanupOrphanMultipartUploads(env));
     const engine = new AutomationEngine(env);
     ctx.waitUntil(engine.processCronTrigger(ctx));
 
@@ -122,7 +131,14 @@ export default {
 
     // Data retention policies
     const policyService = new PolicyService(env.DB);
-    ctx.waitUntil(policyService.processAutoDeleteRetentionPolicies(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, env.KV));
+    ctx.waitUntil(policyService.processAutoDeleteRetentionPolicies(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET));
+
+    // Expired session cleanup (D1 has no auto-expiry unlike KV TTL)
+    ctx.waitUntil(env.DB.prepare('DELETE FROM sessions WHERE expires_at < ?').bind(Date.now()).run());
+
+    // Cleanup expired OAuth states (10-min TTL) + stale quota cache (>1h old)
+    ctx.waitUntil(env.DB.prepare('DELETE FROM oauth_states WHERE created_at < ?').bind(Date.now() - 10 * 60 * 1000).run());
+    ctx.waitUntil(env.DB.prepare('DELETE FROM quota_cache WHERE updated_at < ?').bind(Date.now() - 60 * 60 * 1000).run());
   },
 } satisfies ExportedHandler<Env>;
 

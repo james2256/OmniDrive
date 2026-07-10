@@ -207,7 +207,8 @@ export const s3AuthMiddleware: MiddlewareHandler = async (c, next) => {
       if (c.req.method === 'GET' || c.req.method === 'HEAD' || c.req.method === 'DELETE') {
         payloadHash = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
       } else {
-        payloadHash = 'UNSIGNED-PAYLOAD';
+        // ponytail: require x-amz-content-sha256 on PUT/POST — prevents body substitution
+        return returnXmlError(c, 'InvalidRequest', 'x-amz-content-sha256 header is required for PUT/POST requests');
       }
     }
     
@@ -296,15 +297,12 @@ export const s3AuthMiddleware: MiddlewareHandler = async (c, next) => {
         canonicalRequest: result.canonical,
         stringToSign: result.stringToSign
       });
+      // ponytail: do NOT echo CanonicalRequest/StringToSign to client — that's a signing oracle
       return returnXmlError(
         c,
         'SignatureDoesNotMatch',
         'The request signature we calculated does not match the signature you provided. Check your key and signing method.',
-        403,
-        {
-          CanonicalRequest: result.canonical,
-          StringToSign: result.stringToSign
-        }
+        403
       );
     }
     
@@ -312,6 +310,8 @@ export const s3AuthMiddleware: MiddlewareHandler = async (c, next) => {
     c.set('s3WorkspaceId', cred.workspace_id || null);
     await next();
   } catch (err: any) {
-    return returnXmlError(c, 'SignatureDoesNotMatch', 'Signature verification failed: ' + err.message);
+    console.error('S3 signature verification error:', err.message);
+    // ponytail: generic message — err.message may leak decryption internals
+    return returnXmlError(c, 'SignatureDoesNotMatch', 'Signature verification failed');
   }
 };

@@ -1,0 +1,27 @@
+# OmniDrive
+
+> Unified multi-Google Drive storage gateway. Connect multiple Google Drive accounts and manage files from one dashboard, with team workspaces, shared links, automation, and an S3-compatible API. Runs on Cloudflare Workers, D1, and Pages.
+
+OmniDrive is a self-hostable edge storage gateway (fork of OmniDrive). It is not a consumer cloud provider; it sits in front of Google Drive accounts you connect via OAuth.
+
+## Pages
+
+- [Home](https://omnidrive-7w1.pages.dev/home): Public product landing page
+- [App / Login](https://omnidrive-7w1.pages.dev/login): Sign in or register (invitation code required for new accounts)
+- [Terms of Service](https://omnidrive-7w1.pages.dev/terms): Legal terms
+- [Privacy Policy](https://omnidrive-7w1.pages.dev/privacy): Privacy policy
+
+## Product
+
+- Multi-drive accounts via Google OAuth
+- Unified file browsing across connected drives
+- Team workspaces with RBAC, quotas, and audit logging
+- Password-protected shared links with optional expiry and download limits
+- Automation rules (auto-move / auto-delete by name or extension)
+- Background sync via Google Drive Changes API
+- S3-compatible object storage API (path-style; workspaces as buckets)
+
+## Optional
+
+- [Source (maintainer fork)](https://github.com/asmaraputra/OmniDrive): Application source code
+- [Upstream OmniDrive](https://github.com/abilfida/OmniDrive): Original open-source project

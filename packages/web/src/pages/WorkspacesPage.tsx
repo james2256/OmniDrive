@@ -3,9 +3,11 @@ import { api } from '../lib/api';
 import type { WorkspaceFolder, FileEntry, DriveFolder, BreadcrumbItem } from '../types';
 import { WorkspaceSidebar } from '../components/workspaces/WorkspaceSidebar';
 import { WorkspaceMainView } from '../components/workspaces/WorkspaceMainView';
+import { CreateFolderModal } from '../components/CreateFolderModal';
 import { useToastStore } from '../stores/toastStore';
 import { useSelectionStore, type SelectedItem } from '../stores/useSelectionStore';
 import { useUIStore } from '../stores/useUIStore';
+import { FilePreviewModal } from '../components/FilePreviewModal';
 
 export function WorkspacesPage() {
   const [folders, setFolders] = useState<WorkspaceFolder[]>([]);
@@ -14,12 +16,15 @@ export function WorkspacesPage() {
   const [subfolders, setSubfolders] = useState<WorkspaceFolder[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [retentionTargetId, setRetentionTargetId] = useState<string | null>(null);
+  const [createModal, setCreateModal] = useState<{ parentId: string | null; title: string } | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const addToast = useToastStore(state => state.addToast);
   const { clearSelection, toggleSelection } = useSelectionStore();
   const setIsInfoPanelOpen = useUIStore(s => s.setIsInfoPanelOpen);
+  const [wsSidebarOpen, setWsSidebarOpen] = useState(false);
+  const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
 
   const fetchTree = useCallback(async () => {
     try {
@@ -72,17 +77,9 @@ export function WorkspacesPage() {
     return () => { ignore = true; };
   }, [activeFolderId, clearSelection, fetchContents]);
 
-  const handleCreateFolder = async (parentId?: string | null) => {
-    const promptMessage = parentId ? 'New subfolder name:' : 'New workspace name:';
-    const name = prompt(promptMessage);
-    if (name?.trim()) {
-      try {
-        await api.createFolder(name.trim(), parentId === null ? undefined : parentId);
-        fetchTree();
-      } catch {
-        addToast('error', 'Failed to create workspace');
-      }
-    }
+  const openCreateModal = (parentId?: string | null) => {
+    const title = parentId ? 'New Folder' : 'New Workspace';
+    setCreateModal({ parentId: parentId ?? null, title });
   };
 
   const handleRename = async (id: string) => {
@@ -146,7 +143,7 @@ export function WorkspacesPage() {
   }, [activeFolder, folders]);
 
   const getDriveInfo = useCallback(() => ({ drive: null as any, index: 0 }), []);
-  const onPreviewFile = useCallback(() => {}, []);
+  const onPreviewFile = useCallback((file: FileEntry) => setPreviewFile(file), []);
   const onShare = useCallback(() => {}, []);
   const onRenameFile = useCallback(() => {}, []);
   const onMoveDrive = useCallback(() => {}, []);
@@ -211,43 +208,62 @@ export function WorkspacesPage() {
   ]);
 
   return (
-    <div className="flex h-full w-full overflow-hidden bg-white">
-      <WorkspaceSidebar 
-        folders={folders}
-        activeFolderId={activeFolderId}
-        onSelect={setActiveFolderId} 
-        onRename={handleRename}
-        onDelete={handleDelete}
-        onNewSubfolder={handleCreateFolder}
-      />
+    <div className="flex h-full w-full overflow-hidden bg-card relative">
+      {/* Mobile drawer for workspace tree */}
+      {wsSidebarOpen && (
+        <div className="md:hidden fixed inset-0 z-40 bg-black/40" onClick={() => setWsSidebarOpen(false)} aria-hidden />
+      )}
+      <div className={`${wsSidebarOpen ? 'fixed left-0 top-0 bottom-0 z-50 shadow-xl' : 'hidden'} md:relative md:block md:shadow-none md:z-auto`}>
+        <WorkspaceSidebar
+          folders={folders}
+          activeFolderId={activeFolderId}
+          onSelect={(id) => { setActiveFolderId(id); setWsSidebarOpen(false); }}
+          onRename={handleRename}
+          onDelete={handleDelete}
+          onNewSubfolder={openCreateModal}
+        />
+      </div>
       <WorkspaceMainView
         activeFolder={activeFolder}
         path={breadcrumbPath}
-        onCreateFolder={() => activeFolder && handleCreateFolder(activeFolder.id)}
-        onCreateRootFolder={() => handleCreateFolder(null)}
+        onCreateFolder={() => activeFolder && openCreateModal(activeFolder.id)}
+        onCreateRootFolder={() => openCreateModal(null)}
         onSync={handleSync}
         isSyncing={isSyncing}
         fileTabProps={fileTabProps as any}
+        onToggleSidebar={() => setWsSidebarOpen(true)}
+      />
+      <CreateFolderModal
+        open={!!createModal}
+        parentId={createModal?.parentId ?? null}
+        title={createModal?.title ?? 'New Folder'}
+        onClose={() => setCreateModal(null)}
+        onSuccess={fetchTree}
+      />
+      <FilePreviewModal
+        open={!!previewFile}
+        file={previewFile ?? undefined}
+        onClose={() => setPreviewFile(null)}
       />
       {retentionTargetId && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full">
+          <div className="bg-card rounded-lg shadow-lg p-6 max-w-md w-full">
             <h3 className="text-lg font-bold mb-4">Set Retention Policy</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Action</label>
-                <select id="retentionAction" className="w-full border-gray-300 rounded p-2 text-sm border">
+                <label className="block text-sm font-medium text-stone-700 mb-1">Action</label>
+                <select id="retentionAction" className="w-full border-stone-300 rounded p-2 text-sm border">
                   <option value="auto_delete">Auto-Delete (Retention limit)</option>
                   <option value="prevent_deletion">Prevent Deletion (Legal Hold)</option>
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Days</label>
-                <input id="retentionDays" type="number" defaultValue={30} className="w-full border-gray-300 rounded p-2 text-sm border" />
+                <label className="block text-sm font-medium text-stone-700 mb-1">Days</label>
+                <input id="retentionDays" type="number" defaultValue={30} className="w-full border-stone-300 rounded p-2 text-sm border" />
               </div>
             </div>
             <div className="mt-6 flex justify-end gap-3">
-              <button className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded" onClick={() => setRetentionTargetId(null)}>Cancel</button>
+              <button className="px-4 py-2 text-sm text-stone-600 hover:bg-stone-100 rounded" onClick={() => setRetentionTargetId(null)}>Cancel</button>
               <button className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700" onClick={async () => {
                 const action = (document.getElementById('retentionAction') as HTMLSelectElement).value;
                 const days = parseInt((document.getElementById('retentionDays') as HTMLInputElement).value, 10);

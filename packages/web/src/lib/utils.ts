@@ -30,6 +30,15 @@ export function formatRelativeTime(dateString: string): string {
 
 
 
+/** Short label for a connected drive account — local-part only (no @domain). */
+export function formatDriveLabel(email?: string | null): string {
+  if (!email) return 'Unknown';
+  const at = email.indexOf('@');
+  const local = at > 0 ? email.slice(0, at) : email;
+  if (local.length <= 16) return local;
+  return `${local.slice(0, 14)}…`;
+}
+
 export function getDriveColor(index: number): string {
   const colors = [
     'var(--drive-1)',

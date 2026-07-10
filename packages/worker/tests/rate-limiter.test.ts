@@ -49,4 +49,26 @@ describe('rateLimiter', () => {
     expect(res1.status).toBe(200);
     expect(res2.status).toBe(200);
   });
+
+  it('does not double-count when two limiters overlap on the same route', async () => {
+    // Reproduces the production setup: a specific limiter on '/api/auth/login'
+    // plus the catch-all '/api/*' limiter. Both match the same request, but
+    // they must maintain independent buckets so a single request isn't counted
+    // twice against either budget.
+    const app = new Hono();
+    app.use('/api/auth/login', rateLimiter({ windowMs: 60_000, maxRequests: 5 }));
+    app.use('/api/*', rateLimiter({ windowMs: 60_000, maxRequests: 100 }));
+    app.post('/api/auth/login', (c) => c.json({ ok: true }));
+
+    // 5 login requests should all pass — previously each request incremented
+    // both limiters' shared store, so 5 × 2 = 10 >= maxRequests(5) triggered 429.
+    for (let i = 0; i < 5; i++) {
+      const res = await app.request('/api/auth/login', {
+        method: 'POST',
+        headers: { 'X-Real-IP': '1.2.3.4', 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      expect(res.status).toBe(200);
+    }
+  });
 });

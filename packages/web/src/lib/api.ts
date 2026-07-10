@@ -1,6 +1,18 @@
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
 import type { WorkspaceFolder } from '../types';
 
+export function getFilePreviewUrl(fileId: string): string {
+  return `${API_BASE}/api/files/${fileId}/preview`;
+}
+
+export async function fetchFilePreviewBlob(fileId: string): Promise<Blob> {
+  const response = await fetch(getFilePreviewUrl(fileId), { credentials: 'include' });
+  if (!response.ok) {
+    throw new ApiError(response.status, 'Failed to load preview');
+  }
+  return response.blob();
+}
+
 class ApiError extends Error {
   constructor(
     public status: number,
@@ -35,7 +47,17 @@ export const api = {
   login: (data: any) => request<{ success: boolean; user: import('../types').User }>('/api/auth/login', { method: 'POST', body: JSON.stringify(data) }),
   register: (data: any) => request<{ success: boolean; user: import('../types').User }>('/api/auth/register', { method: 'POST', body: JSON.stringify(data) }),
   getUser: () => request<{ user: import('../types').User }>('/api/auth/me'),
+  // OAuth initiation: backend returns the Google auth URL as JSON (the SPA
+  // performs the redirect). Called via credentialed fetch so the session
+  // cookie is sent; the backend stores userId in the KV OAuth state.
+  getGoogleOAuthUrl: () => request<{ url: string }>('/api/auth/google'),
+  getDriveConnectUrl: () => request<{ url: string }>('/api/drives/connect'),
   logout: () => request<{ success: boolean }>('/api/auth/logout', { method: 'POST' }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<{ success: boolean }>('/api/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
 
   getInvitations: () => request<{ invitations: any[] }>('/api/admin/invitations'),
   createInvitation: (code: string, max_uses: number) => request<{ success: boolean, invitation: any }>('/api/admin/invitations', { method: 'POST', body: JSON.stringify({ code, max_uses }) }),
@@ -55,12 +77,8 @@ export const api = {
   triggerSync: (id: string) => request<{ success: boolean }>(`/api/drives/${id}/sync`, { method: 'POST' }),
   getDriveFolderContents: (driveId: string, googleFolderId: string) =>
     request<import('../types').DriveFolderContents>(`/api/drives/${driveId}/folders/${googleFolderId}`),
-  syncDriveFolder: (driveId: string, googleFolderId: string) =>
-    request<import('../types').DriveFolderContents>(`/api/drives/${driveId}/folders/${googleFolderId}/sync`, { method: 'POST' }),
-
 
   // Folders
-  getRootContents: () => request<import('../types').FolderContents>('/api/folders/'),
   getFolderContents: (id: string, cursor?: string, limit?: number, driveId?: string) => {
     const params = new URLSearchParams();
     if (cursor) params.set('cursor', cursor);
@@ -96,16 +114,53 @@ export const api = {
   getFile: (id: string) => request<import('../types').FileEntry>(`/api/files/${id}`),
   searchFiles: (query: string) =>
     request<{ files: import('../types').FileEntry[]; query: string }>(`/api/files/search?q=${encodeURIComponent(query)}`),
-  initiateUpload: (data: { name: string; mimeType: string; size: number; driveAccountId?: string; workspaceFolderId?: string }) =>
+  initiateUpload: (data: { name: string; mimeType: string; size: number; driveAccountId?: string; parentFolderId?: string }) =>
     request<import('../types').UploadInitResponse>('/api/files/upload/init', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  confirmUpload: (data: { googleFileId: string; driveAccountId: string; workspaceFolderId?: string }) =>
+  confirmUpload: (data: { googleFileId: string; driveAccountId: string; parentFolderId?: string }) =>
     request<{ file: import('../types').FileEntry }>('/api/files/upload/finalize', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+
+  // Upload file bytes via Worker proxy (bypasses Google CORS restriction)
+  uploadViaProxy: (uploadUrl: string, file: File, onProgress?: (percent: number) => void) => {
+    return new Promise<{ id: string }>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) onProgress?.(Math.round((e.loaded / e.total) * 100));
+      });
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const result = JSON.parse(xhr.responseText);
+            if (!result.id) {
+              reject(new Error(`Upload response missing file ID`));
+            } else {
+              resolve(result);
+            }
+          } catch (err) {
+            reject(new Error(`Upload response not valid JSON: ${xhr.responseText.substring(0, 100)}`));
+          }
+        } else if (xhr.status === 308) {
+          // Google resumable upload incomplete - need to resume
+          reject(new Error(`Upload incomplete, Google returned 308 Resume Incomplete`));
+        } else {
+          reject(new Error(`Upload proxy failed: ${xhr.status} - ${xhr.responseText.substring(0, 100)}`));
+        }
+      });
+      xhr.addEventListener('error', () => reject(new Error('Upload network error')));
+      xhr.open('PUT', `${API_BASE}/api/files/upload/proxy`);
+      xhr.withCredentials = true;
+      xhr.setRequestHeader('X-Upload-Url', uploadUrl);
+      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+      // Google resumable single-chunk upload requires Content-Range header
+      xhr.setRequestHeader('Content-Range', `bytes 0-${file.size - 1}/${file.size}`);
+      xhr.send(file);
+    });
+  },
   moveFile: (id: string, workspaceFolderId: string | null) =>
     request<{ success: boolean }>(`/api/files/${id}/move`, {
       method: 'PATCH',
@@ -138,7 +193,7 @@ export const api = {
   starFolder: (id: string) => request<{ success: boolean }>(`/api/folders/${id}/star`, { method: 'POST' }),
   unstarFolder: (id: string) => request<{ success: boolean }>(`/api/folders/${id}/unstar`, { method: 'POST' }),
 
-  // Recent files (uses root contents, sorted by date)
+  // Recent files (sorted by Google modified date)
   getRecentFiles: () =>
     request<{ files: import('../types').FileEntry[], folders: import('../types').WorkspaceFolder[] }>('/api/files/recent'),
     
@@ -157,8 +212,6 @@ export const api = {
   // Audit Logs
   getWorkspaceAuditLogs: (workspaceId: string) =>
     request<{ logs: import('../types').AuditLog[] }>(`/api/workspaces/${workspaceId}/audit-logs`),
-  getAdminAuditLogs: () =>
-    request<{ logs: import('../types').AuditLog[] }>('/api/admin/audit-logs'),
 
   // Policies
   getWorkspacePolicies: (workspaceId: string) =>

@@ -1,0 +1,6 @@
+# API/S3 proxying to the Worker is handled by Pages Functions
+# (functions/api/[[path]].ts, functions/s3/[[path]].ts) — _redirects
+# cannot proxy external domains (Cloudflare Pages limitation), so those
+# routes must NOT be listed here or they silently fall through to the
+# SPA below instead of the Worker.
+/*      /index.html  200

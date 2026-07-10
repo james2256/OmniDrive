@@ -7,23 +7,31 @@ import { authGuard } from '../middleware/auth-guard';
 import { mapSharedLinkRow, type SharedLink } from '../types';
 import { generateId } from '../lib/id';
 import { GoogleDriveService } from '../services/google-drive';
-import { validateWebhookUrl } from '../lib/validation';
+import { validateWebhookUrlAsync } from '../lib/validation';
+import { hashSharedPassword, verifySharedPassword } from '../lib/password';
 
 
 export const sharedRouter = new Hono<AppContext>({ strict: false });
 
-function timingSafeEqualStr(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return result === 0;
-}
-
-async function validateSharedLink(c: Context<AppContext>, link: SharedLink): Promise<{ ok: boolean; status?: number; error?: string; requiresPassword?: boolean }> {
+async function validateSharedLink(c: Context<AppContext>, link: SharedLink): Promise<{ ok: boolean; status?: number; error?: string; requiresPassword?: boolean; requiresEmail?: boolean }> {
   if (link.expiresAt && new Date(link.expiresAt) < new Date()) {
     return { ok: false, status: 410, error: 'Link expired' };
+  }
+
+  // requireEmail gate: visitor must have submitted an email (signed JWT cookie)
+  if (link.requireEmail) {
+    const emailCookie = getCookie(c, `shared_email_${link.id}`);
+    if (!emailCookie) {
+      return { ok: false, status: 403, error: 'Email required', requiresEmail: true };
+    }
+    try {
+      const payload = await verify(emailCookie, c.env.JWT_SECRET, 'HS256');
+      if (payload.id !== link.id || typeof payload.email !== 'string' || !payload.email) {
+        return { ok: false, status: 403, error: 'Email required', requiresEmail: true };
+      }
+    } catch {
+      return { ok: false, status: 403, error: 'Email required', requiresEmail: true };
+    }
   }
   
   const requiresPassword = !!link.passwordHash;
@@ -63,6 +71,11 @@ sharedRouter.post('/', authGuard, async (c) => {
     return c.json({ error: 'targetType and targetId are required' }, 400);
   }
 
+  // ponytail: allowUploads not yet implemented — refuse to store a false promise
+  if (allowUploads) {
+    return c.json({ error: 'Uploads via shared links are not yet supported' }, 400);
+  }
+
   const db = c.env.DB;
 
   // Verify ownership of target
@@ -70,47 +83,20 @@ sharedRouter.post('/', authGuard, async (c) => {
     const file = await db.prepare('SELECT id FROM files WHERE id = ? AND user_id = ?').bind(targetId, userId).first();
     if (!file) return c.json({ error: 'You do not own this file' }, 403);
   } else if (targetType === 'folder') {
-    const folder = await db.prepare('SELECT id FROM workspace_folders WHERE id = ?').bind(targetId).first();
+    const folder = await db.prepare('SELECT f.id FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ? WHERE f.id = ?').bind(userId, targetId).first();
     if (!folder) return c.json({ error: 'You do not own this folder' }, 403);
   }
 
   // Validate webhook URL if provided
   if (webhookUrl) {
-    const webhookError = validateWebhookUrl(webhookUrl);
+    const webhookError = await validateWebhookUrlAsync(webhookUrl);
     if (webhookError) return c.json({ error: webhookError }, 400);
   }
   
   let passwordHash = null;
   
   if (password) {
-    const encoder = new TextEncoder();
-    const passwordData = encoder.encode(password);
-    const salt = crypto.getRandomValues(new Uint8Array(16));
-    
-    const keyMaterial = await crypto.subtle.importKey(
-      'raw',
-      passwordData,
-      { name: 'PBKDF2' },
-      false,
-      ['deriveBits']
-    );
-
-    const hashBuffer = await crypto.subtle.deriveBits(
-      {
-        name: 'PBKDF2',
-        salt: salt,
-        iterations: 100000,
-        hash: 'SHA-256'
-      },
-      keyMaterial,
-      256
-    );
-
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const saltArray = Array.from(salt);
-    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    const saltHex = saltArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    passwordHash = `${saltHex}:${hashHex}`;
+    passwordHash = await hashSharedPassword(password);
   }
 
   let id = '';
@@ -188,8 +174,13 @@ sharedRouter.put('/:id', authGuard, async (c) => {
     password
   } = body;
 
+  // ponytail: allowUploads not yet implemented — refuse to store a false promise
+  if (allowUploads) {
+    return c.json({ error: 'Uploads via shared links are not yet supported' }, 400);
+  }
+
   if (webhookUrl && webhookUrl !== existing.webhook_url) {
-    const webhookError = validateWebhookUrl(webhookUrl);
+    const webhookError = await validateWebhookUrlAsync(webhookUrl);
     if (webhookError) return c.json({ error: webhookError }, 400);
   }
   
@@ -199,34 +190,7 @@ sharedRouter.put('/:id', authGuard, async (c) => {
     if (password === null || password === '') {
       passwordHash = null;
     } else {
-      const encoder = new TextEncoder();
-      const passwordData = encoder.encode(password);
-      const salt = crypto.getRandomValues(new Uint8Array(16));
-      
-      const keyMaterial = await crypto.subtle.importKey(
-        'raw',
-        passwordData,
-        { name: 'PBKDF2' },
-        false,
-        ['deriveBits']
-      );
-
-      const hashBuffer = await crypto.subtle.deriveBits(
-        {
-          name: 'PBKDF2',
-          salt: salt,
-          iterations: 100000,
-          hash: 'SHA-256'
-        },
-        keyMaterial,
-        256
-      );
-
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const saltArray = Array.from(salt);
-      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-      const saltHex = saltArray.map(b => b.toString(16).padStart(2, '0')).join('');
-      passwordHash = `${saltHex}:${hashHex}`;
+      passwordHash = await hashSharedPassword(password);
     }
   }
   
@@ -274,7 +238,7 @@ sharedRouter.get('/:id/meta', async (c) => {
   
   const validation = await validateSharedLink(c, link);
   if (!validation.ok) {
-    return c.json({ error: validation.error, requiresPassword: validation.requiresPassword }, validation.status as any);
+    return c.json({ error: validation.error, requiresPassword: validation.requiresPassword, requiresEmail: validation.requiresEmail }, validation.status as any);
   }
   
   c.executionCtx.waitUntil(
@@ -312,46 +276,71 @@ sharedRouter.post('/:id/verify', async (c) => {
   const row = await db.prepare('SELECT * FROM shared_links WHERE id = ?').bind(id).first();
   if (!row) return c.json({ error: 'Link not found' }, 404);
   const link = mapSharedLinkRow(row as Record<string, unknown>);
-  
-  if (!link.passwordHash) return c.json({ error: 'Link does not require password' }, 400);
-  
-  const [saltHex, storedHashHex] = link.passwordHash.split(':');
-  
-  const saltMatch = saltHex.match(/.{1,2}/g);
-  if (!saltMatch) return c.json({ error: 'Invalid salt format' }, 500);
-  const salt = new Uint8Array(saltMatch.map(byte => parseInt(byte, 16)));
-  
-  const encoder = new TextEncoder();
-  const passwordData = encoder.encode(password);
-  
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    passwordData,
-    { name: 'PBKDF2' },
-    false,
-    ['deriveBits']
-  );
 
-  const hashBuffer = await crypto.subtle.deriveBits(
-    {
-      name: 'PBKDF2',
-      salt: salt,
-      iterations: 100000,
-      hash: 'SHA-256'
-    },
-    keyMaterial,
-    256
-  );
-
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  
-  if (!timingSafeEqualStr(storedHashHex, hashHex)) {
-    return c.json({ error: 'Invalid password' }, 401);
+  // ponytail: check expiry before minting token — prevents password oracle on expired links
+  if (link.expiresAt && new Date(link.expiresAt) < new Date()) {
+    return c.json({ error: 'Link expired' }, 410);
   }
   
+  if (!link.passwordHash) return c.json({ error: 'Link does not require password' }, 400);
+
+  const lockKey = `shared_verify_lock:${id}`;
+  const failKey = `shared_verify_fail:${id}`;
+  if (await c.env.KV.get(lockKey)) {
+    return c.json({ error: 'Too many failed attempts. Try again later.' }, 429);
+  }
+  
+  const valid = await verifySharedPassword(password, link.passwordHash);
+  if (!valid) {
+    // ponytail: per-link lockout stops distributed brute-force beyond IP rate limit.
+    const failed = Number(await c.env.KV.get(failKey) || '0') + 1;
+    if (failed >= 20) {
+      await c.env.KV.put(lockKey, '1', { expirationTtl: 15 * 60 });
+      await c.env.KV.delete(failKey);
+    } else {
+      await c.env.KV.put(failKey, String(failed), { expirationTtl: 15 * 60 });
+    }
+    return c.json({ error: 'Invalid password' }, 401);
+  }
+
+  await c.env.KV.delete(failKey);
   const token = await sign({ id, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 }, c.env.JWT_SECRET, 'HS256');
   setCookie(c, `shared_session_${id}`, token, { path: '/', httpOnly: true, secure: true, sameSite: 'None', maxAge: 60 * 60 * 24 });
+  return c.json({ success: true });
+});
+
+// Email gate for requireEmail links — ponytail: no password needed, just record the email
+sharedRouter.post('/:id/email', async (c) => {
+  const id = c.req.param('id');
+  let body;
+  try {
+    body = await c.req.json();
+  } catch (e) {
+    return c.json({ error: 'Invalid JSON body' }, 400);
+  }
+  const { email } = body;
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return c.json({ error: 'Valid email is required' }, 400);
+  }
+
+  const db = c.env.DB;
+  const row = await db.prepare('SELECT * FROM shared_links WHERE id = ?').bind(id).first();
+  if (!row) return c.json({ error: 'Link not found' }, 404);
+  const link = mapSharedLinkRow(row as Record<string, unknown>);
+  if (!link.requireEmail) return c.json({ error: 'This link does not require email' }, 400);
+  if (link.expiresAt && new Date(link.expiresAt) < new Date()) {
+    return c.json({ error: 'Link expired' }, 410);
+  }
+
+  const emailToken = await sign(
+    { id, email, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 },
+    c.env.JWT_SECRET,
+    'HS256',
+  );
+  setCookie(c, `shared_email_${id}`, emailToken, { path: '/', httpOnly: true, secure: true, sameSite: 'None', maxAge: 60 * 60 * 24 });
+  c.executionCtx.waitUntil(
+    db.prepare('INSERT INTO shared_link_logs (shared_link_id, action, metadata) VALUES (?, ?, ?)').bind(id, 'email_access', JSON.stringify({ email })).run()
+  );
   return c.json({ success: true });
 });
 
@@ -372,74 +361,77 @@ sharedRouter.get('/:id/download', async (c) => {
     return c.text('Downloads are disabled for this link', 403);
   }
 
-  if (link.maxDownloads !== null && link.maxDownloads !== undefined && link.downloadCount >= link.maxDownloads) {
-    return c.text('Maximum download limit reached', 403);
+  if (link.targetType !== 'file') {
+    return c.text('Folder download not supported yet', 400);
   }
 
-  // Increment download count
-  c.executionCtx.waitUntil(
-    db.prepare('UPDATE shared_links SET download_count = download_count + 1 WHERE id = ?').bind(id).run()
+  const file = await db.prepare('SELECT * FROM files WHERE id = ? AND user_id = ?').bind(link.targetId, link.userId).first();
+  if (!file) return c.text('File not found', 404);
+
+  const driveAccount = await db.prepare('SELECT * FROM drive_accounts WHERE id = ? AND user_id = ?').bind(file.drive_account_id, link.userId).first();
+  if (!driveAccount) return c.text('Drive account not found', 404);
+
+  const driveService = new GoogleDriveService(
+    c.env.DB,
+    c.env.GOOGLE_CLIENT_ID,
+    c.env.GOOGLE_CLIENT_SECRET,
+    c.env.TOKEN_ENCRYPTION_KEY
   );
+
+  let stream: ReadableStream<Uint8Array>;
+  let finalMimeType = (file.mime_type as string) || 'application/octet-stream';
+  let finalFileName = file.name as string;
+
+  try {
+    const downloadResult = await driveService.downloadFile(
+      file.drive_account_id as string,
+      file.google_file_id as string,
+      file.mime_type as string
+    );
+    stream = downloadResult.stream;
+
+    if (downloadResult.exportedMimeType && downloadResult.exportedExtension) {
+      finalMimeType = downloadResult.exportedMimeType;
+      finalFileName = `${finalFileName}${downloadResult.exportedExtension}`;
+    }
+  } catch (e: any) {
+    console.error('Download error:', e);
+    return c.text('Failed to download file', 502);
+  }
+
+  // ponytail: increment only after Google fetch succeeds — failed downloads don't burn quota
+  if (link.maxDownloads !== null && link.maxDownloads !== undefined) {
+    const updateResult = await db.prepare(
+      'UPDATE shared_links SET download_count = download_count + 1 WHERE id = ? AND (max_downloads IS NULL OR download_count < max_downloads) RETURNING download_count'
+    ).bind(id).first<{ download_count: number }>();
+    if (!updateResult) {
+      return c.text('Maximum download limit reached', 403);
+    }
+  } else {
+    c.executionCtx.waitUntil(
+      db.prepare('UPDATE shared_links SET download_count = download_count + 1 WHERE id = ?').bind(id).run()
+    );
+  }
 
   c.executionCtx.waitUntil(
     db.prepare('INSERT INTO shared_link_logs (shared_link_id, action) VALUES (?, ?)').bind(id, 'download').run()
   );
 
-  // Trigger webhook async if exists
   if (link.webhookUrl) {
     c.executionCtx.waitUntil(
       fetch(link.webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'download', linkId: id })
-      }).catch(() => {}) // Fire and forget
+      }).catch(() => {})
     );
   }
 
-  if (link.targetType === 'file') {
-    const file = await db.prepare('SELECT * FROM files WHERE id = ? AND user_id = ?').bind(link.targetId, link.userId).first();
-    if (!file) return c.text('File not found', 404);
-
-    const driveAccount = await db.prepare('SELECT * FROM drive_accounts WHERE id = ? AND user_id = ?').bind(file.drive_account_id, link.userId).first();
-    if (!driveAccount) return c.text('Drive account not found', 404);
-
-    const driveService = new GoogleDriveService(
-      c.env.KV,
-      c.env.GOOGLE_CLIENT_ID,
-      c.env.GOOGLE_CLIENT_SECRET,
-      c.env.TOKEN_ENCRYPTION_KEY
-    );
-
-    let stream: ReadableStream<Uint8Array>;
-    let finalMimeType = (file.mime_type as string) || 'application/octet-stream';
-    let finalFileName = file.name as string;
-
-    try {
-      const downloadResult = await driveService.downloadFile(
-        file.drive_account_id as string,
-        file.google_file_id as string,
-        file.mime_type as string
-      );
-      stream = downloadResult.stream;
-      
-      if (downloadResult.exportedMimeType && downloadResult.exportedExtension) {
-        finalMimeType = downloadResult.exportedMimeType;
-        finalFileName = `${finalFileName}${downloadResult.exportedExtension}`;
-      }
-    } catch (e: any) {
-      console.error('Download error:', e);
-      return c.text('Failed to download file', 502);
-    }
-    
-    c.header('Content-Type', finalMimeType);
-    c.header('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(finalFileName)}`);
-    if (file.size && !finalFileName.endsWith('.pdf') && !finalFileName.endsWith('.xlsx')) {
-      // Exported files don't have a reliable pre-known size
-      c.header('Content-Length', String(file.size));
-    }
-    
-    return c.body(stream);
-  } else {
-    return c.text('Folder download not supported yet', 400);
+  c.header('Content-Type', finalMimeType);
+  c.header('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(finalFileName)}`);
+  if (file.size && !finalFileName.endsWith('.pdf') && !finalFileName.endsWith('.xlsx')) {
+    c.header('Content-Length', String(file.size));
   }
+
+  return c.body(stream);
 });

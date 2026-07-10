@@ -2,20 +2,19 @@
   "name": "@omnidrive/worker",
   "private": true,
   "scripts": {
-    "dev": "wrangler dev --port ${WORKER_PORT:-8787}",
+    "dev": "wrangler dev --port 8888",
     "build": "wrangler deploy --dry-run --outdir=dist",
     "build:node": "esbuild src/node-server.ts --bundle --platform=node --outfile=dist/node-server.cjs --external:better-sqlite3",
     "deploy": "wrangler deploy",
     "test": "vitest run",
     "test:watch": "vitest",
-    "db:migrate:local": "wrangler d1 execute omnidrive --local --file=src/db/schema.sql",
-    "db:migrate:remote": "wrangler d1 execute omnidrive --remote --file=src/db/schema.sql",
+    "db:migrate:local": "wrangler d1 migrations apply omnidrive --local",
+    "db:migrate:remote": "wrangler d1 migrations apply omnidrive --remote",
     "db:reset:local": "node scripts/reset.mjs --local",
     "db:reset:remote": "node scripts/reset.mjs --remote"
   },
   "dependencies": {
     "@hono/node-server": "^2.0.4",
-    "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.10.0",
     "dotenv": "^17.4.2",
     "hono": "^4.7.0",
@@ -23,12 +22,11 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250530.0",
-    "@types/bcryptjs": "^2.4.6",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^25.9.3",
     "@types/node-cron": "^3.0.11",
     "esbuild": "^0.27.7",
     "vitest": "^3.2.0",
-    "wrangler": "^4.14.0"
+    "wrangler": "^4.105.0"
   }
 }

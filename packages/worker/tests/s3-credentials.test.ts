@@ -13,18 +13,16 @@ const mockSessionData = {
 describe('S3 Credentials API', () => {
   it('handles creation, listing and deletion', async () => {
     // 1. Setup mock KV and DB
-    const kvStore: Record<string, string> = {
-      [`session:${mockSessionCookie}`]: JSON.stringify(mockSessionData),
+    const mockKv = {
+      get: vi.fn().mockResolvedValue(null),
+      put: vi.fn(),
+      delete: vi.fn(),
     };
 
-    const mockKv = {
-      get: vi.fn(async (key: string) => kvStore[key] || null),
-      put: vi.fn(async (key: string, val: string) => {
-        kvStore[key] = val;
-      }),
-      delete: vi.fn(async (key: string) => {
-        delete kvStore[key];
-      }),
+    const sessionRow = {
+      data: JSON.stringify(mockSessionData),
+      expires_at: Date.now() + 86_400_000,
+      touched_at: Date.now() - 7_200_000,
     };
 
     let insertedData: any = null;
@@ -32,6 +30,9 @@ describe('S3 Credentials API', () => {
 
     const mockDb = {
       prepare: vi.fn((sql: string) => {
+        if (sql.includes('FROM sessions')) {
+          return { bind: vi.fn(() => ({ first: vi.fn().mockResolvedValue(sessionRow), run: vi.fn() })) };
+        }
         return {
           bind: vi.fn((...args: any[]) => {
             return {
@@ -149,14 +150,16 @@ describe('S3 Credentials API', () => {
 
   it('enforces manager/owner permissions when scoping key to a workspace', async () => {
     // Setup mock KV and DB
-    const kvStore: Record<string, string> = {
-      [`session:${mockSessionCookie}`]: JSON.stringify(mockSessionData),
+    const mockKv = {
+      get: vi.fn().mockResolvedValue(null),
+      put: vi.fn(),
+      delete: vi.fn(),
     };
 
-    const mockKv = {
-      get: vi.fn(async (key: string) => kvStore[key] || null),
-      put: vi.fn(async () => {}),
-      delete: vi.fn(async () => {}),
+    const sessionRow = {
+      data: JSON.stringify(mockSessionData),
+      expires_at: Date.now() + 86_400_000,
+      touched_at: Date.now() - 7_200_000,
     };
 
     let userRoleInWorkspace: string | null = null;
@@ -164,6 +167,9 @@ describe('S3 Credentials API', () => {
 
     const mockDb = {
       prepare: vi.fn((sql: string) => {
+        if (sql.includes('FROM sessions')) {
+          return { bind: vi.fn(() => ({ first: vi.fn().mockResolvedValue(sessionRow), run: vi.fn() })) };
+        }
         return {
           bind: vi.fn((...args: any[]) => {
             return {

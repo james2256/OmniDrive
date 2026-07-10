@@ -1,4 +1,4 @@
-# Omnidrive
+# OmniDrive
 
 **Gateway penyimpanan multi-Google Drive terpadu yang dibangun di atas Cloudflare Workers.**
 
@@ -10,9 +10,9 @@
 
 ---
 
-## Apa itu Omnidrive?
+## Apa itu OmniDrive?
 
-Omnidrive memungkinkan kamu menghubungkan beberapa akun Google Drive dan mengelola semua file dari satu dashboard. Semuanya berjalan di jaringan edge Cloudflare — Workers untuk API, D1 untuk database, dan KV untuk penyimpanan sesi — sehingga tidak perlu server tradisional.
+OmniDrive memungkinkan kamu menghubungkan beberapa akun Google Drive dan mengelola semua file dari satu dashboard. Semuanya berjalan di jaringan edge Cloudflare — Workers untuk API, D1 untuk database, dan KV untuk penyimpanan sesi — sehingga tidak perlu server tradisional.
 
 ## Fitur
 
@@ -25,11 +25,11 @@ Omnidrive memungkinkan kamu menghubungkan beberapa akun Google Drive dan mengelo
 - **⚡ Aturan Automasi** — Pindahkan atau hapus file otomatis berdasarkan pola nama atau ekstensi
 - **🔄 Sinkronisasi Latar Belakang Tangguh** — Sinkronisasi otomatis via Google Drive Changes API (cron setiap 30 menit). Dilengkapi pemrosesan chunk yang aman dari OOM (OOM-safe) menggunakan generator, sinkronisasi yang dapat dilanjutkan (resume-able) setelah restart via `next_page_token`, upsert atomik untuk performa tinggi, dan penanganan graceful shutdown (SIGTERM) untuk mencegah sinkronisasi berjalan bersamaan.
 - **🌙 Mode Gelap** — UI tema gelap modern dengan sidebar workspace hierarkis ala Notion
-- **☁️ S3 Object Storage API** — API kompatibel S3 yang memungkinkan klien seperti rclone, aws-cli, dan boto3 terhubung langsung ke workspace Omnidrive sebagai bucket S3
+- **☁️ S3 Object Storage API** — API kompatibel S3 yang memungkinkan klien seperti rclone, aws-cli, dan boto3 terhubung langsung ke workspace OmniDrive sebagai bucket S3
 
 ## Keamanan
 
-Omnidrive mengimplementasikan model keamanan yang tangguh untuk melindungi file dan data kamu:
+OmniDrive mengimplementasikan model keamanan yang tangguh untuk melindungi file dan data kamu:
 - **Enkripsi Token**: Token Google OAuth dienkripsi saat istirahat (at rest) menggunakan AES-256-GCM.
 - **Proteksi CSRF & SSRF**: Semua endpoint mutasi dilindungi dari Cross-Site Request Forgery, dan webhook divalidasi untuk mencegah Server-Side Request Forgery.
 - **Rate Limiting**: Rate limiter bawaan dengan sliding window melindungi autentikasi dan endpoint publik dari serangan brute-force.
@@ -39,7 +39,7 @@ Omnidrive mengimplementasikan model keamanan yang tangguh untuk melindungi file 
 
 ## S3 Object Storage API
 
-Omnidrive menyediakan API kompatibel S3 Object Storage. Klien S3 apa pun (rclone, aws-cli, boto3, AWS SDK) dapat terhubung menggunakan path-style access.
+OmniDrive menyediakan API kompatibel S3 Object Storage. Klien S3 apa pun (rclone, aws-cli, boto3, AWS SDK) dapat terhubung menggunakan path-style access.
 
 **Cara kerja:**
 - Setiap **Workspace** dipetakan sebagai satu **Bucket**
@@ -59,7 +59,7 @@ endpoint = https://<url-worker-kamu>/s3
 force_path_style = true
 ```
 
-**Operasi yang didukung:** ListBuckets, ListObjectsV2, GetObject, PutObject (single-part), HeadObject, DeleteObject, dan Multipart Upload lengkap (Initiate, UploadPart, CompleteMultipartUpload, AbortMultipartUpload).
+**Operasi yang didukung:** ListBuckets, ListObjectsV2, GetObject, PutObject (single-part), HeadObject, DeleteObject, Multipart Upload lengkap (Initiate, UploadPart, CompleteMultipartUpload, AbortMultipartUpload), dan Bucket Lifecycle (Put/Get/DeleteBucketLifecycleConfiguration — objek yang kadaluarsa dipindahkan ke trash Google Drive, recoverable ~30 hari).
 
 
 ## Tech Stack
@@ -122,7 +122,6 @@ Sebelum menjalankan wizard instalasi, pastikan kamu sudah mengonfigurasi Google 
 ### 2. Jalankan Setup Interaktif (Quickstart)
 
 Omnidrive dilengkapi dengan wizard instalasi otomatis yang mengatur environment, menyiapkan database, dan menjalankan aplikasi untuk kamu. Kamu dapat menjalankannya langsung melalui remote script:
-
 ```bash
 curl -fsSL https://raw.githubusercontent.com/abilfida/omnidrive/main/deploy.sh | bash
 ```
@@ -180,7 +179,7 @@ Jika kamu tidak menggunakan script `deploy.sh`, kamu bisa mendeploy secara manua
 
 ## Variabel Environment
 
-Omnidrive menggunakan **satu file `.env` terpusat** di root project untuk mengelola konfigurasi Web dan Worker secara bersamaan.
+OmniDrive menggunakan **satu file `.env` terpusat** di root project untuk mengelola konfigurasi Web dan Worker secara bersamaan.
 
 ### Konfigurasi Global (set di `/.env`)
 

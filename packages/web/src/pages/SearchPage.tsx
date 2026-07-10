@@ -59,15 +59,15 @@ export function SearchPage() {
   }, [drives]);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-gray-800">
+        <h1 className="text-2xl font-semibold text-stone-800">
           {query ? `Search results for "${query}"` : 'Search'}
         </h1>
       </div>
 
       {!query ? (
-        <div className="flex flex-col items-center justify-center py-20 text-gray-500">
+        <div className="flex flex-col items-center justify-center py-20 text-stone-500">
           <p className="text-lg">Please enter a search term.</p>
         </div>
       ) : isLoading ? (
@@ -75,7 +75,7 @@ export function SearchPage() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
         </div>
       ) : results.length > 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="bg-card rounded-xl border border-stone-200 overflow-hidden">
           <FileGrid
             files={results}
             subfolders={[]}
@@ -88,18 +88,17 @@ export function SearchPage() {
           />
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center py-20 text-gray-500">
+        <div className="flex flex-col items-center justify-center py-20 text-stone-500">
           <p className="text-lg">No files found matching '{query}'.</p>
         </div>
       )}
 
-      {shareTarget && (
-        <ShareModal
-          targetType={shareTarget.type}
-          targetId={shareTarget.id}
-          onClose={() => setShareTarget(null)}
-        />
-      )}
+      <ShareModal
+        open={!!shareTarget}
+        targetType={shareTarget?.type ?? 'file'}
+        targetId={shareTarget?.id ?? ''}
+        onClose={() => setShareTarget(null)}
+      />
 
       {moveDriveFiles.length > 0 && (
         <MoveDriveModal
@@ -117,12 +116,11 @@ export function SearchPage() {
         />
       )}
 
-      {previewFile && (
-        <FilePreviewModal
-          file={previewFile}
-          onClose={() => setPreviewFile(null)}
-        />
-      )}
+      <FilePreviewModal
+        open={!!previewFile}
+        file={previewFile ?? undefined}
+        onClose={() => setPreviewFile(null)}
+      />
     </div>
   );
 }

@@ -7,5 +7,7 @@ describe('Files Router', () => {
     expect(routes).toContain('GET /trash');
     expect(routes).toContain('POST /:id/restore');
     expect(routes).toContain('DELETE /:id/permanent');
+    expect(routes).toContain('GET /:id/preview');
+    expect(routes).toContain('GET /:id/download');
   });
 });

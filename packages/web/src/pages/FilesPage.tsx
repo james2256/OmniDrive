@@ -10,6 +10,7 @@ import { FilePreviewModal } from '../components/FilePreviewModal';
 import { ShareModal } from '../components/ShareModal';
 import { MoveDriveModal } from '../components/MoveDriveModal';
 import { AddToWorkspaceModal } from '../components/workspaces/AddToWorkspaceModal';
+import { CreateFolderModal } from '../components/CreateFolderModal';
 import { Upload, FolderPlus, X, LayoutGrid, List, Info } from 'lucide-react';
 import { useToastStore } from '../stores/toastStore';
 import { useSharedStore } from '../stores/sharedStore';
@@ -33,7 +34,9 @@ export function FilesPage() {
   const [shareTarget, setShareTarget] = useState<{ id: string, type: 'file' | 'folder' } | null>(null);
   const [moveDriveFiles, setMoveDriveFiles] = useState<FileEntry[]>([]);
   const [workspaceTarget, setWorkspaceTarget] = useState<FileEntry | null>(null);
+  const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isConnecting, setIsConnecting] = useState(false);
   const { viewMode, setViewMode, isInfoPanelOpen, toggleInfoPanel, setIsInfoPanelOpen } = useUIStore();
   const { clearSelection, toggleSelection, selectedItems } = useSelectionStore();
 
@@ -41,6 +44,18 @@ export function FilesPage() {
     clearSelection();
     toggleSelection({ type, item } as SelectedItem);
     setIsInfoPanelOpen(true);
+  };
+
+  const handleConnectGoogle = async () => {
+    if (isConnecting) return;
+    setIsConnecting(true);
+    try {
+      const { url } = await api.getGoogleOAuthUrl();
+      window.location.href = url;
+    } catch (e) {
+      setIsConnecting(false);
+      addToast('error', e instanceof Error ? e.message : 'Failed to start Google OAuth');
+    }
   };
 
   const { fetchSharedLinks, isTargetShared } = useSharedStore();
@@ -74,16 +89,8 @@ export function FilesPage() {
     }
   };
 
-  const handleCreateFolder = async () => {
-    const name = prompt('New folder name:');
-    if (name?.trim()) {
-      try {
-        await api.createFolder(name.trim(), folderId === 'root' ? undefined : folderId);
-        refresh();
-      } catch {
-        addToast('error', 'Failed to create folder');
-      }
-    }
+  const handleCreateFolder = () => {
+    setShowCreateFolder(true);
   };
 
   const getDriveInfo = (driveAccountId?: string) => {
@@ -109,61 +116,65 @@ export function FilesPage() {
           }}
         />
 
-        <div className="flex items-center justify-between mb-6 flex-wrap gap-4 px-4 pt-4">
-            <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-3 px-4 pt-4">
+            <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden order-2 md:order-1">
               <Breadcrumb items={breadcrumb} driveId={driveIdParam || undefined} />
             </div>
 
-            <div className="flex gap-2 items-center">
-              <div className="relative">
+            <div className="flex gap-2 items-center flex-wrap order-1 md:order-2">
+              <div className="relative w-32 sm:w-48">
                 <input
                   type="text"
-                  placeholder="Filter files..."
+                  placeholder="Filter..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-48 pl-3 pr-8 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-3 pr-8 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 {searchQuery && (
                   <button
                     type="button"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 p-1"
                     onClick={() => setSearchQuery('')}
+                    aria-label="Clear filter"
                   >
                     <X size={14} />
                   </button>
                 )}
               </div>
-              
-              <div className="flex items-center border border-gray-300 rounded-md overflow-hidden bg-white mr-1">
-                <button 
+
+              <div className="flex items-center border border-stone-300 rounded-md overflow-hidden bg-card mr-1">
+                <button
                   onClick={() => setViewMode('list')}
-                  className={`p-1.5 ${viewMode === 'list' ? 'bg-[#c2e7ff] text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}
+                  className={`p-2 ${viewMode === 'list' ? 'bg-blue-100 text-stone-900' : 'text-stone-600 hover:bg-stone-50'}`}
                   title="List layout"
+                  aria-label="List layout"
                 >
                   <List size={18} />
                 </button>
-                <button 
+                <button
                   onClick={() => setViewMode('grid')}
-                  className={`p-1.5 ${viewMode === 'grid' ? 'bg-[#c2e7ff] text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}
+                  className={`p-2 ${viewMode === 'grid' ? 'bg-blue-100 text-stone-900' : 'text-stone-600 hover:bg-stone-50'}`}
                   title="Grid layout"
+                  aria-label="Grid layout"
                 >
                   <LayoutGrid size={18} />
                 </button>
               </div>
-              
-              <button 
+
+              <button
                 onClick={toggleInfoPanel}
-                className={`p-1.5 rounded-full mr-1 ${isInfoPanelOpen ? 'bg-[#c2e7ff] text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
+                className={`p-2 rounded-full mr-1 ${isInfoPanelOpen ? 'bg-blue-100 text-stone-900' : 'text-stone-600 hover:bg-stone-100'}`}
                 title="View details"
+                aria-label="View details"
               >
                 <Info size={20} />
               </button>
 
-              <button className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50" onClick={handleCreateFolder}>
-                <FolderPlus size={16} /> New Folder
+              <button className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-stone-700 bg-card border border-stone-300 rounded-md hover:bg-stone-50" onClick={handleCreateFolder}>
+                <FolderPlus size={16} /> <span className="hidden sm:inline">New Folder</span>
               </button>
-              <button className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700" onClick={() => setShowModal(true)}>
-                <Upload size={16} /> Upload
+              <button className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700" onClick={() => setShowModal(true)}>
+                <Upload size={16} /> <span>Upload</span>
               </button>
             </div>
           </div>
@@ -171,21 +182,25 @@ export function FilesPage() {
         {isLoading || isDrivesLoading ? (
           <div className="flex flex-col items-center justify-center p-16">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4" />
-            <p className="text-gray-500">Loading folder contents...</p>
+            <p className="text-stone-500">Loading folder contents...</p>
           </div>
         ) : drives.length === 0 ? (
-          <div className="text-center p-12 text-gray-500 border rounded-lg bg-white m-4 flex flex-col items-center shadow-sm">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-               <Info size={24} className="text-gray-400" />
+          <div className="text-center p-12 text-stone-500 border rounded-lg bg-card m-4 flex flex-col items-center shadow-sm">
+            <div className="w-16 h-16 bg-stone-100 rounded-full flex items-center justify-center mb-4">
+               <Info size={24} className="text-stone-400" />
             </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Google Drive Connected</h3>
+            <h3 className="text-lg font-medium text-stone-900 mb-2">No Google Drive Connected</h3>
             <p className="mb-6 max-w-sm text-center">You need to connect at least one Google Drive account to start using OmniDrive.</p>
-            <a href={`${import.meta.env.VITE_API_URL || ''}/api/auth/google`} className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow-sm transition-colors">
-              Connect Google Drive Now
-            </a>
+            <button
+              onClick={handleConnectGoogle}
+              disabled={isConnecting}
+              className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow-sm transition-colors disabled:opacity-60"
+            >
+              {isConnecting ? 'Connecting…' : 'Connect Google Drive Now'}
+            </button>
           </div>
         ) : (
-          <div className="flex-1 overflow-auto bg-white rounded-lg border border-gray-200 m-4 shadow-sm">
+          <div className="flex-1 overflow-auto bg-card rounded-lg border border-stone-200 m-4 shadow-sm">
             <FileGrid
               files={filteredFiles}
               subfolders={filteredSubfolders}
@@ -204,43 +219,46 @@ export function FilesPage() {
           </div>
         )}
 
-        {/* Modals */}
-        {showModal && <UploadModal folderId={folderId} onClose={() => setShowModal(false)} onSuccess={() => { setShowModal(false); refresh(); }} />}
-        {previewFile && <FilePreviewModal file={previewFile} onClose={() => setPreviewFile(null)} />}
-        {shareTarget && (
-          <ShareModal
-            targetType={shareTarget.type}
-            targetId={shareTarget.id}
-            onClose={() => setShareTarget(null)}
-          />
-        )}
-        {moveDriveFiles.length > 0 && (
-          <MoveDriveModal
-            files={moveDriveFiles}
-            onClose={() => setMoveDriveFiles([])}
-            onSuccess={() => {
-              setMoveDriveFiles([]);
-              clearSelection();
-              refresh();
-            }}
-            onError={(err) => {
-              console.error(err);
-              addToast('error', 'Failed to move file(s)');
-              setMoveDriveFiles([]);
-            }}
-          />
-        )}
-        {workspaceTarget && (
-          <AddToWorkspaceModal
-            file={workspaceTarget}
-            onClose={() => setWorkspaceTarget(null)}
-            onSuccess={() => {
-              setWorkspaceTarget(null);
-              addToast('success', 'Added to workspace');
-              refresh();
-            }}
-          />
-        )}
+        {/* Modals — always mounted so Radix Dialog can play enter/exit animations */}
+        <CreateFolderModal
+          open={showCreateFolder}
+          parentId={folderId === 'root' ? null : folderId}
+          title="New Folder"
+          onClose={() => setShowCreateFolder(false)}
+          onSuccess={refresh}
+        />
+        <UploadModal open={showModal} folderId={folderId} onClose={() => setShowModal(false)} onSuccess={() => { setShowModal(false); refresh(); }} />
+        <FilePreviewModal open={!!previewFile} file={previewFile ?? undefined} onClose={() => setPreviewFile(null)} />
+        <ShareModal
+          open={!!shareTarget}
+          targetType={shareTarget?.type ?? 'file'}
+          targetId={shareTarget?.id ?? ''}
+          onClose={() => setShareTarget(null)}
+        />
+        <MoveDriveModal
+          files={moveDriveFiles}
+          onClose={() => setMoveDriveFiles([])}
+          onSuccess={() => {
+            setMoveDriveFiles([]);
+            clearSelection();
+            refresh();
+          }}
+          onError={(err) => {
+            console.error(err);
+            addToast('error', 'Failed to move file(s)');
+            setMoveDriveFiles([]);
+          }}
+        />
+        <AddToWorkspaceModal
+          open={!!workspaceTarget}
+          file={workspaceTarget ?? undefined}
+          onClose={() => setWorkspaceTarget(null)}
+          onSuccess={() => {
+            setWorkspaceTarget(null);
+            addToast('success', 'Added to workspace');
+            refresh();
+          }}
+        />
       </div>
     </DropZone>
   );

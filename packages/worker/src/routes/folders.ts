@@ -129,8 +129,8 @@ foldersRouter.get('/:id?', async (c) => {
       
       breadcrumb = [{ id: null, name: 'Home' }, { id: ws.id as string, name: ws.name as string }];
     } else {
-      const folder = await db.prepare('SELECT f.*, w.name as ws_name FROM workspace_folders f JOIN workspaces w ON f.workspace_id = w.id WHERE f.id = ?').bind(folderId).first();
-      if (!folder) throw new AppError(404, 'Folder not found');
+      const folder = await db.prepare('SELECT f.*, w.name as ws_name FROM workspace_folders f JOIN workspaces w ON f.workspace_id = w.id JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ? WHERE f.id = ?').bind(userId, folderId).first();
+      if (!folder) throw new AppError(404, 'Folder not found or no access');
       
       currentFolder = { id: folder.id, workspaceId: folder.workspace_id, name: folder.name, parentId: folder.parent_id || folder.workspace_id, icon: folder.icon || '📁', color: folder.color || '#4A90D9', isStarred: !!folder.is_starred, metadata: folder.metadata, createdAt: folder.created_at as string, updatedAt: folder.updated_at as string, lastSyncedAt: folder.last_synced_at as string | null, syncStatus: folder.sync_status as string | null };
       
@@ -220,13 +220,13 @@ foldersRouter.post('/', async (c) => {
     return c.json({ id: workspaceId, name, parentId: null });
   }
 
-  const ws = await db.prepare('SELECT id FROM workspaces WHERE id = ?').bind(parentId).first();
+  const ws = await db.prepare('SELECT w.id FROM workspaces w JOIN workspace_members wm ON w.id = wm.workspace_id WHERE w.id = ? AND wm.user_id = ?').bind(parentId, userId).first();
   let workspaceId = parentId;
   let actualParentId = null;
 
   if (!ws) {
-    const folder = await db.prepare('SELECT workspace_id FROM workspace_folders WHERE id = ?').bind(parentId).first<{ workspace_id: string }>();
-    if (!folder) throw new AppError(404, 'Parent not found');
+    const folder = await db.prepare('SELECT f.workspace_id FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ? WHERE f.id = ?').bind(userId, parentId).first<{ workspace_id: string }>();
+    if (!folder) throw new AppError(404, 'Parent not found or no access');
     workspaceId = folder.workspace_id;
     actualParentId = parentId;
   }
@@ -238,16 +238,21 @@ foldersRouter.post('/', async (c) => {
 });
 
 foldersRouter.put('/:id', async (c) => {
+  const userId = c.get('userId');
   const folderId = c.req.param('id');
   const body = await c.req.json();
   const { name, parentId, icon, color } = body;
   const db = c.env.DB;
   
-  const ws = await db.prepare('SELECT id FROM workspaces WHERE id = ?').bind(folderId).first();
+  const ws = await db.prepare('SELECT id FROM workspaces WHERE id = ? AND owner_id = ?').bind(folderId, userId).first();
   if (ws) {
     if (name) await db.prepare('UPDATE workspaces SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(name, folderId).run();
     return c.json({ success: true });
   }
+
+  // Verify folder membership before any update
+  const folderMember = await db.prepare('SELECT f.id FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ? WHERE f.id = ?').bind(userId, folderId).first();
+  if (!folderMember) throw new AppError(404, 'Folder not found or no access');
 
   const updateFields: string[] = [];
   const params: any[] = [];
@@ -280,13 +285,19 @@ foldersRouter.put('/:id', async (c) => {
 });
 
 foldersRouter.post('/:id/star', async (c) => {
+  const userId = c.get('userId');
   const folderId = c.req.param('id');
+  const member = await c.env.DB.prepare('SELECT f.id FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ? WHERE f.id = ?').bind(userId, folderId).first();
+  if (!member) throw new AppError(404, 'Folder not found or no access');
   await c.env.DB.prepare('UPDATE workspace_folders SET is_starred = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(folderId).run();
   return c.json({ success: true });
 });
 
 foldersRouter.post('/:id/unstar', async (c) => {
+  const userId = c.get('userId');
   const folderId = c.req.param('id');
+  const member = await c.env.DB.prepare('SELECT f.id FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ? WHERE f.id = ?').bind(userId, folderId).first();
+  if (!member) throw new AppError(404, 'Folder not found or no access');
   await c.env.DB.prepare('UPDATE workspace_folders SET is_starred = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(folderId).run();
   return c.json({ success: true });
 });
@@ -302,6 +313,9 @@ foldersRouter.delete('/:id', async (c) => {
     return c.json({ success: true });
   }
   
+  // Verify folder membership before delete
+  const folder = await db.prepare('SELECT f.id FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ? WHERE f.id = ?').bind(userId, folderId).first();
+  if (!folder) throw new AppError(404, 'Folder not found or no access');
   await db.prepare('DELETE FROM workspace_folders WHERE id = ?').bind(folderId).run();
   return c.json({ success: true });
 });
@@ -314,11 +328,11 @@ foldersRouter.post('/:id/files', async (c) => {
   
   if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) return c.json({ success: true });
   
-  const ws = await db.prepare('SELECT id FROM workspaces WHERE id = ?').bind(folderId).first();
+  const ws = await db.prepare('SELECT w.id FROM workspaces w JOIN workspace_members wm ON w.id = wm.workspace_id WHERE w.id = ? AND wm.user_id = ?').bind(folderId, userId).first();
   let workspaceId = folderId;
   let workspaceFolderId = null;
   if (!ws) {
-    const f = await db.prepare('SELECT workspace_id FROM workspace_folders WHERE id = ?').bind(folderId).first<{ workspace_id: string }>();
+    const f = await db.prepare('SELECT f.workspace_id FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ? WHERE f.id = ?').bind(userId, folderId).first<{ workspace_id: string }>();
     if (f) {
       workspaceId = f.workspace_id;
       workspaceFolderId = folderId;
@@ -349,10 +363,10 @@ foldersRouter.post('/:id/sync', async (c) => {
   `).bind(folderId, folderId, userId).all();
   
   if (results && results.length > 0) {
-    const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+    const driveService = new GoogleDriveService(c.env.DB, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
     for (const row of results) {
        const drive = mapDriveRow(row as any);
-       c.executionCtx.waitUntil(syncDriveAccount(drive, db, c.env.KV, driveService).catch(console.error));
+       c.executionCtx.waitUntil(syncDriveAccount(drive, db, driveService).catch(console.error));
     }
   }
   

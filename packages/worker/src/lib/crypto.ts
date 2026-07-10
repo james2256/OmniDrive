@@ -1,16 +1,22 @@
 const ALGORITHM = 'AES-GCM';
 const IV_LENGTH = 12; // 96-bit IV for AES-GCM
+const KEY_VERSION = 'v1'; // ponytail: versioned ciphertext for future key rotation
 
 async function getKey(secret: string): Promise<CryptoKey> {
+  // ponytail: HKDF-SHA256 via Web Crypto — replaces the old truncate+zero-pad approach.
+  // No extra dep, proper entropy diffusion even for short secrets.
   const encoder = new TextEncoder();
-  const raw = encoder.encode(secret).slice(0, 32);
-  // AES requires key of exactly 16, 24, or 32 bytes — pad to 32
-  const keyBytes = new Uint8Array(32);
-  keyBytes.set(raw);
-  return crypto.subtle.importKey(
+  const baseKey = await crypto.subtle.importKey(
     'raw',
-    keyBytes,
-    { name: ALGORITHM },
+    encoder.encode(secret),
+    { name: 'HKDF' },
+    false,
+    ['deriveKey']
+  );
+  return crypto.subtle.deriveKey(
+    { name: 'HKDF', hash: 'SHA-256', salt: encoder.encode('omnidrive-token-v1'), info: new Uint8Array(0) },
+    baseKey,
+    { name: ALGORITHM, length: 256 },
     false,
     ['encrypt', 'decrypt']
   );
@@ -27,17 +33,19 @@ export async function encrypt(plaintext: string, secret: string): Promise<string
     encoder.encode(plaintext)
   );
 
-  // Format: base64(iv + ciphertext)
+  // Format: version:base64(iv + ciphertext)
   const combined = new Uint8Array(iv.length + ciphertext.byteLength);
   combined.set(iv, 0);
   combined.set(new Uint8Array(ciphertext), iv.length);
 
-  return btoa(String.fromCharCode(...combined));
+  return `${KEY_VERSION}:${btoa(String.fromCharCode(...combined))}`;
 }
 
 export async function decrypt(encoded: string, secret: string): Promise<string> {
   const key = await getKey(secret);
-  const combined = Uint8Array.from(atob(encoded), c => c.charCodeAt(0));
+  // Strip version prefix if present (v1:), otherwise treat as legacy base64
+  const raw = encoded.includes(':') ? encoded.split(':').slice(1).join(':') : encoded;
+  const combined = Uint8Array.from(atob(raw), c => c.charCodeAt(0));
 
   const iv = combined.slice(0, IV_LENGTH);
   const ciphertext = combined.slice(IV_LENGTH);
@@ -52,10 +60,15 @@ export async function decrypt(encoded: string, secret: string): Promise<string> 
 }
 
 export async function decryptOrPassthrough(value: string, secret: string): Promise<string> {
+  // ponytail: only accept plaintext with explicit 'plain:' marker — bare values are rejected
+  if (value.startsWith('plain:')) {
+    console.warn('decryptOrPassthrough: falling back to explicit plaintext marker');
+    return value.slice(6);
+  }
   try {
     return await decrypt(value, secret);
-  } catch {
-    // Value is not encrypted (legacy plain-text token) — return as-is
-    return value;
+  } catch (e) {
+    console.error('decryptOrPassthrough: decryption failed and no plain: marker', e);
+    throw new Error('Failed to decrypt value — no valid plaintext marker found');
   }
 }

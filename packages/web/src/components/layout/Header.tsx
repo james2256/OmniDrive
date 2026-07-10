@@ -14,47 +14,64 @@ import { Omnibar } from './Omnibar';
 
 export const Header: React.FC = () => {
   const toggleSidebar = useUIStore((state) => state.toggleSidebar);
+  const toggleMobileSidebar = useUIStore((state) => state.toggleMobileSidebar);
   const { user, logout } = useAuthStore();
 
   const getInitials = (name: string) => name ? name.charAt(0).toUpperCase() : 'U';
 
   return (
-    <header className="flex items-center justify-between px-2 py-2 bg-surface h-16 w-full gap-4">
-      <div className="flex items-center min-w-[240px] px-2 gap-4">
-        <button 
-          onClick={toggleSidebar}
-          className="p-2 hover:bg-gray-200 rounded-full text-gray-700 transition-colors"
+    <header className="flex items-center justify-between px-2 py-2 bg-surface h-16 w-full gap-2 sm:gap-4">
+      <div className="flex items-center min-w-0 px-2 gap-3 sm:gap-4">
+        {/* Mobile: drawer toggle; Desktop: collapse rail */}
+        <button
+          onClick={toggleMobileSidebar}
+          className="md:hidden p-2 hover:bg-stone-200 rounded-full text-stone-700 transition-colors flex-shrink-0"
+          aria-label="Open menu"
         >
           <Menu size={24} />
         </button>
-        <div className="flex items-center gap-2">
-          <img src="/logo.png" alt="OmniDrive" className="w-8 h-8 object-contain flex-shrink-0" />
-          <span className="text-xl text-gray-700 font-medium tracking-wide">OmniDrive</span>
+        <button
+          onClick={toggleSidebar}
+          className="hidden md:flex p-2 hover:bg-stone-200 rounded-full text-stone-700 transition-colors flex-shrink-0"
+          aria-label="Toggle sidebar"
+        >
+          <Menu size={24} />
+        </button>
+        <div className="flex items-center gap-2 min-w-0">
+          <img src="/logo.png?v=2" alt="OmniDrive" className="w-8 h-8 object-contain flex-shrink-0" />
+          <span className="text-xl text-stone-700 font-medium tracking-wide hidden sm:inline">OmniDrive</span>
         </div>
       </div>
-      
-      <Omnibar />
-      
-      <div className="flex items-center gap-2 px-2 text-gray-600">
+
+      {/* Omnibar: flex-1 fills remaining; hidden on very small screens to avoid overflow */}
+      <div className="hidden sm:block flex-1 min-w-0 max-w-[720px]">
+        <Omnibar />
+      </div>
+
+      <div className="flex items-center gap-2 px-1 sm:px-2 text-stone-600 flex-shrink-0">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-medium cursor-pointer hover:bg-blue-700 select-none overflow-hidden">
+            <button
+              type="button"
+              aria-label="Account menu"
+              className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center font-medium cursor-pointer hover:bg-blue-700 select-none overflow-hidden flex-shrink-0"
+            >
               {user?.avatarUrl ? (
-                <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
+                <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
               ) : (
-                <span>{getInitials(user?.name || 'User')}</span>
+                <span aria-hidden="true">{getInitials(user?.name || 'User')}</span>
               )}
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56 bg-white shadow-xl rounded-xl border border-gray-200">
+          <DropdownMenuContent align="end" className="w-56 bg-card shadow-xl rounded-xl border border-stone-200">
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col space-y-1 py-1">
-                <p className="text-sm font-medium leading-none text-gray-800">{user?.name || 'User'}</p>
-                <p className="text-xs leading-none text-gray-500">{user?.email || 'user@example.com'}</p>
+                <p className="text-sm font-medium leading-none text-stone-800">{user?.name || 'User'}</p>
+                <p className="text-xs leading-none text-stone-500">{user?.email || 'user@example.com'}</p>
               </div>
             </DropdownMenuLabel>
-            <DropdownMenuSeparator className="bg-gray-200" />
-            <DropdownMenuItem 
+            <DropdownMenuSeparator className="bg-stone-200" />
+            <DropdownMenuItem
               className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50"
               onClick={() => logout()}
             >

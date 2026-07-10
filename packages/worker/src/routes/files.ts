@@ -3,8 +3,8 @@ import type { AppContext } from '../types/env';
 import { generateId } from '../lib/id';
 import { authGuard } from '../middleware/auth-guard';
 import { AppError } from '../middleware/error-handler';
-import { DriveService } from '../services/drive.service';
 import { GoogleDriveService } from '../services/google-drive';
+import { resolveDrivesWithQuota } from '../services/drive-quota';
 import { UploadRouter } from '../services/upload-router';
 import { AutomationEngine } from '../services/automation.service';
 import { PolicyService } from '../services/policy.service';
@@ -15,31 +15,38 @@ export const filesRouter = new Hono<AppContext>({ strict: false });
 filesRouter.use('*', authGuard);
 
 // GET /api/files/recent
+// Access via ownership OR workspace membership. Use EXISTS (not JOIN workspace_members):
+// joining members multiplies each file by member count (e.g. 6 members → 6 identical rows
+// on Home Recent). EXISTS keeps one row per file.
 filesRouter.get('/recent', async (c) => {
   const userId = c.get('userId');
   const db = c.env.DB;
 
   const { results: fileRows } = await db.prepare(`
-    SELECT DISTINCT f.*, d.email as driveEmail 
+    SELECT f.*, d.email as driveEmail
     FROM files f
     JOIN drive_accounts d ON f.drive_account_id = d.id
-    LEFT JOIN workspace_members wm ON f.workspace_id = wm.workspace_id
-    WHERE (f.user_id = ? OR wm.user_id = ?)
-      AND f.is_trashed = 0
-    ORDER BY f.updated_at DESC LIMIT 20
+    WHERE f.is_trashed = 0
+      AND (
+        f.user_id = ?
+        OR EXISTS (
+          SELECT 1 FROM workspace_members wm
+          WHERE wm.workspace_id = f.workspace_id AND wm.user_id = ?
+        )
+      )
+    ORDER BY COALESCE(f.google_modified_at, f.synced_at, f.updated_at) DESC
+    LIMIT 20
   `).bind(userId, userId).all<Record<string, unknown> & { driveEmail: string }>();
 
   const { results: folderRows } = await db.prepare(`
-    SELECT DISTINCT f.*, w.name as ws_name 
+    SELECT f.*, w.name as ws_name
     FROM workspace_folders f
-    LEFT JOIN workspace_members wm ON f.workspace_id = wm.workspace_id
+    JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ?
     LEFT JOIN workspaces w ON f.workspace_id = w.id
-    WHERE wm.user_id = ?
-    ORDER BY f.updated_at DESC LIMIT 20
+    ORDER BY f.updated_at DESC
+    LIMIT 20
   `).bind(userId).all();
 
-  // Need to import mapFolderRow if not already in scope, but we can inline the mapping if needed
-  // Let's use mapFileRow and a simple folder mapper
   const folders = folderRows.map((f: any) => ({
     id: f.id,
     workspaceId: f.workspace_id,
@@ -135,13 +142,19 @@ filesRouter.get('/search', async (c) => {
   
   const db = c.env.DB;
   
+  // EXISTS avoids row multiplication from multi-member workspaces (same bug as /recent).
   let sql = `
-    SELECT DISTINCT f.*, d.email as driveEmail 
+    SELECT f.*, d.email as driveEmail
     FROM files f
     JOIN drive_accounts d ON f.drive_account_id = d.id
-    LEFT JOIN workspace_members wm ON f.workspace_id = wm.workspace_id
-    WHERE (f.user_id = ? OR wm.user_id = ?)
-      AND f.is_trashed = 0
+    WHERE f.is_trashed = 0
+      AND (
+        f.user_id = ?
+        OR EXISTS (
+          SELECT 1 FROM workspace_members wm
+          WHERE wm.workspace_id = f.workspace_id AND wm.user_id = ?
+        )
+      )
   `;
   const binds: any[] = [userId, userId];
 
@@ -159,6 +172,7 @@ filesRouter.get('/search', async (c) => {
     try {
       const meta = JSON.parse(metadataRaw);
       for (const [key, value] of Object.entries(meta)) {
+        if (!/^[a-zA-Z0-9_.]+$/.test(key)) continue; // ponytail: L11 — reject JSON-path injection
         sql += ` AND json_extract(f.metadata, '$.' || ?) = ?`;
         binds.push(key, String(value));
       }
@@ -231,13 +245,13 @@ filesRouter.patch('/:id/rename', async (c) => {
 filesRouter.patch('/:id/move', async (c) => {
   const userId = c.get('userId');
   const fileId = c.req.param('id');
-  const { folderId } = await c.req.json();
+  const { workspaceFolderId } = await c.req.json();
 
-  const folder = await c.env.DB.prepare('SELECT workspace_id FROM workspace_folders WHERE id = ?').bind(folderId).first<{ workspace_id: string }>();
-  if (!folder && folderId) throw new AppError(404, 'Folder not found');
+  const folder = await c.env.DB.prepare('SELECT f.workspace_id FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ? WHERE f.id = ?').bind(userId, workspaceFolderId).first<{ workspace_id: string }>(); // ponytail: L10 — verify target-workspace membership
+  if (!folder && workspaceFolderId) throw new AppError(404, 'Folder not found');
 
   await c.env.DB.prepare('UPDATE files SET workspace_folder_id = ?, workspace_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?')
-    .bind(folderId, folder?.workspace_id || null, fileId, userId).run();
+    .bind(workspaceFolderId, folder?.workspace_id || null, fileId, userId).run();
 
   return c.json({ success: true });
 });
@@ -278,7 +292,7 @@ filesRouter.post('/:id/move-drive', async (c) => {
     throw new AppError(404, 'Target drive not found or unauthorized');
   }
 
-  const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+  const driveService = new GoogleDriveService(c.env.DB, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
 
   let sharePermissionId: string | null = null;
   let copySuccessId: string | null = null;
@@ -346,11 +360,65 @@ filesRouter.post('/:id/move-drive', async (c) => {
 });
 
 // Initialize upload (returns Google Drive Resumable URL)
+// Proxy direct-to-Google upload bytes through Worker (Google resumable endpoints
+// don't set CORS headers, so browser can't PUT directly)
+filesRouter.put('/upload/proxy', async (c) => {
+  const uploadUrl = c.req.header('X-Upload-Url');
+  if (!uploadUrl) throw new AppError(400, 'Missing X-Upload-Url header');
+
+  const contentLength = c.req.header('Content-Length');
+  const contentType = c.req.header('Content-Type') || 'application/octet-stream';
+  const contentRange = c.req.header('Content-Range');
+
+  const headers: Record<string, string> = {
+    'Content-Type': contentType,
+  };
+  if (contentLength) headers['Content-Length'] = contentLength;
+  if (contentRange) headers['Content-Range'] = contentRange;
+
+  // Stream the request body straight to Google instead of buffering it in RAM
+  // (arrayBuffer() would hold the whole file, crashing the Worker's 128MB limit
+  // on large uploads). duplex: 'half' is required to send a streaming body.
+  // ponytail: `as any` — RequestInit's type lacks `duplex`, which the Workers runtime supports.
+  const googleResponse = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers,
+    body: c.req.raw.body,
+    duplex: 'half',
+  } as any);
+
+  const responseBody = await googleResponse.text();
+
+  const cleanHeaders = new Headers();
+  googleResponse.headers.forEach((v, k) => {
+    if (!['access-control-allow-origin', 'access-control-allow-credentials'].includes(k.toLowerCase())) {
+      cleanHeaders.set(k, v);
+    }
+  });
+
+  return new Response(responseBody, {
+    status: googleResponse.status,
+    headers: cleanHeaders,
+  });
+});
+
 filesRouter.post('/upload/init', async (c) => {
   const userId = c.get('userId');
-  const { name, mimeType, size, folderId, workspaceId } = await c.req.json();
-  console.log(`Init upload for folder: ${folderId}`); // prevent unused var error
+  // parentFolderId is the Google Drive folder id the user is currently viewing
+  // ('root' at top level), NOT a workspace_folders id. It controls where the
+  // resumable upload's `parents` point, so files land in the right Drive folder.
+  const { name, mimeType, size, parentFolderId, workspaceId, driveAccountId } = await c.req.json();
   const db = c.env.DB;
+
+  if (workspaceId) {
+    // IDOR/quota guard: workspaceId comes from the request body, so verify the
+    // caller is an editor of that workspace before touching its quota.
+    const { getWorkspaceRole, hasPermission } = await import('../middleware/rbac');
+    const role = await getWorkspaceRole(db, workspaceId, userId);
+    if (!role || !hasPermission(role, 'editor')) {
+      throw new AppError(403, 'Forbidden');
+    }
+  }
 
   if (workspaceId && size) {
     const policyService = new PolicyService(db);
@@ -360,55 +428,76 @@ filesRouter.post('/upload/init', async (c) => {
     }
   }
 
-  // 1. Get all drives to calculate routing
-  const { results: driveRows } = await db.prepare('SELECT * FROM drive_accounts WHERE user_id = ?').bind(userId).all();
-  if (driveRows.length === 0) throw new AppError(400, 'No connected drives');
-
-  const drives = driveRows.map(mapDriveRow).map((d) => ({
-    ...d,
-    freeSpace: Math.max(0, d.totalQuota - d.usedQuota),
-    usagePercent: d.totalQuota > 0 ? (d.usedQuota / d.totalQuota) * 100 : 0
-  }));
-
-  // 2. Select target drive using UploadRouter
-  const router = new UploadRouter(drives);
-  const targetDrive = router.selectDriveForUpload(size);
-
-  // 3. Get token for target drive
-  const tokenJson = await c.env.KV.get(`tokens:${targetDrive.id}`);
-  if (!tokenJson) throw new AppError(401, 'Drive token missing');
-  const tokens = JSON.parse(tokenJson);
-
-  // 4. Create resumable upload session in Google Drive
-  const driveService = new DriveService(c.env, targetDrive.id, tokens);
-  
-  // Note: we place it in root or a specific Omnidrive hidden folder inside Google Drive.
-  // For simplicity, we just put it in root of that specific Drive.
-  const uploadUrl = await driveService.createResumableUploadSession({
-    name,
-    mimeType,
+  const drives = await resolveDrivesWithQuota(c.env, db, userId, (driveId, total, used) => {
+    c.executionCtx.waitUntil(
+      db.prepare('UPDATE drive_accounts SET total_quota = ?, used_quota = ?, quota_updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+        .bind(total, used, driveId)
+        .run()
+    );
   });
+  if (drives.length === 0) throw new AppError(400, 'No connected drives');
 
-  // 5. Return the URL so the client can stream bytes directly to Google
+  const driveIds = drives.map(d => d.id);
+  const tokenRows = await c.env.DB.prepare(
+    `SELECT DISTINCT drive_account_id FROM drive_tokens WHERE drive_account_id IN (${driveIds.map(() => '?').join(',')})`
+  ).bind(...driveIds).all();
+  if (!tokenRows.results?.length) {
+    throw new AppError(400, 'Google Drive session expired. Disconnect and reconnect your account in Settings.');
+  }
+
+  const router = new UploadRouter(drives);
+  const targetDrive = router.selectDriveForUpload(size, driveAccountId);
+
+  const gDrive = new GoogleDriveService(c.env.DB, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+  // parentFolderId (current view) wins; fall back to the drive's configured root folder, then Google 'root'.
+  const uploadParent = parentFolderId || targetDrive.rootFolderId || 'root';
+  let uploadUrl: string;
+  try {
+    uploadUrl = await gDrive.initiateResumableUpload(targetDrive.id, name, mimeType, uploadParent);
+  } catch (err) {
+    const msg = (err as Error).message || '';
+    console.error('upload/init initiateResumableUpload failed', { driveId: targetDrive.id, uploadParent, msg });
+    // Auth/refresh failures → 401 so the client can prompt reconnect; upstream Google errors → 502.
+    const status = /token|refresh|No tokens|expired/i.test(msg) ? 401 : 502;
+    throw new AppError(status, `Failed to start resumable upload: ${msg}`);
+  }
+
+  // Return the URL so the client can stream bytes to Google via the proxy.
   return c.json({
     uploadUrl,
     driveAccountId: targetDrive.id,
-    googleFolderId: targetDrive.rootFolderId,
+    googleFolderId: uploadParent,
   });
 });
 
 filesRouter.post('/upload/finalize', async (c) => {
   const userId = c.get('userId');
-  const { googleFileId, driveAccountId, virtualFolderId, workspaceFolderId, workspaceId } = await c.req.json();
+  // parentFolderId is the Google Drive folder id ('root' at top level) the file
+  // was uploaded into. It goes into files.google_parent_id so the file appears in
+  // the folder the user is viewing (drives.ts lists files by google_parent_id).
+  // Do NOT put it in workspace_folder_id — that column is FK→workspace_folders and
+  // 'root'/a Google folder id is not a workspace folder, which throws a FK
+  // constraint violation (the previous 500 root cause).
+  const { googleFileId, driveAccountId, parentFolderId, workspaceFolderId, workspaceId } = await c.req.json();
 
   if (!googleFileId || !driveAccountId) {
     throw new AppError(400, 'Missing required fields: googleFileId, driveAccountId');
   }
 
-  const finalFolderId = workspaceFolderId || virtualFolderId;
-
   // Verify drive belongs to user
   const db = c.env.DB;
+
+  if (workspaceId) {
+    // IDOR/quota guard: workspaceId comes from the request body. Verify the
+    // caller is an editor before attaching the file to the workspace or
+    // mutating its stored byte count.
+    const { getWorkspaceRole, hasPermission } = await import('../middleware/rbac');
+    const role = await getWorkspaceRole(db, workspaceId, userId);
+    if (!role || !hasPermission(role, 'editor')) {
+      throw new AppError(403, 'Forbidden');
+    }
+  }
+
   const drive = await db.prepare('SELECT id FROM drive_accounts WHERE id = ? AND user_id = ?')
     .bind(driveAccountId, userId).first();
     
@@ -417,21 +506,31 @@ filesRouter.post('/upload/finalize', async (c) => {
   }
 
   // Fetch file metadata from Google Drive
-  const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
-  const gFile = await driveService.getFile(driveAccountId, googleFileId);
+  const driveService = new GoogleDriveService(c.env.DB, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+  let gFile;
+  try {
+    gFile = await driveService.getFile(driveAccountId, googleFileId);
+  } catch (err) {
+    console.error('Upload finalize getFile error:', err, 'FileID:', googleFileId, 'DriveID:', driveAccountId);
+    throw new AppError(400, 'Failed to fetch uploaded file from Google Drive');
+  }
 
   const id = generateId();
   const fileSize = parseInt(gFile.size || '0', 10);
+  // Only set workspace_folder_id when a genuine workspace folder id is provided
+  // (workspace upload context). The Drive-folder view passes parentFolderId only.
+  const wsFolder = workspaceFolderId || null;
+  const googleParent = parentFolderId || null;
   
   await db.prepare(`
     INSERT INTO files (
-      id, user_id, drive_account_id, workspace_id, workspace_folder_id, 
-      google_file_id, name, mime_type, size, thumbnail_url, web_view_link, web_content_link,
+      id, user_id, drive_account_id, workspace_id, workspace_folder_id,
+      google_file_id, google_parent_id, name, mime_type, size, thumbnail_url, web_view_link, web_content_link,
       google_created_at, google_modified_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
-    id, userId, driveAccountId, workspaceId || null, finalFolderId || null,
-    gFile.id, gFile.name, gFile.mimeType, fileSize,
+    id, userId, driveAccountId, workspaceId || null, wsFolder,
+    gFile.id, googleParent, gFile.name, gFile.mimeType, fileSize,
     gFile.thumbnailLink || null, gFile.webViewLink || null, gFile.webContentLink || null,
     gFile.createdTime, gFile.modifiedTime
   ).run();
@@ -442,7 +541,7 @@ filesRouter.post('/upload/finalize', async (c) => {
   }
 
   // Invalidate quota cache
-  await c.env.KV.delete(`quota:${driveAccountId}`);
+  await c.env.DB.prepare('DELETE FROM quota_cache WHERE drive_account_id = ?').bind(driveAccountId).run();
 
   const created = await db.prepare('SELECT * FROM files WHERE id = ?').bind(id).first();
 
@@ -527,7 +626,7 @@ filesRouter.delete('/:id/permanent', async (c) => {
     }
   }
 
-  const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+  const driveService = new GoogleDriveService(c.env.DB, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
   
   try {
     await driveService.deleteFile(file.driveId, file.google_file_id);
@@ -570,6 +669,69 @@ filesRouter.patch('/:id/metadata', async (c) => {
   return c.json({ success: true });
 });
 
+function isPreviewableImageMime(mime: string): boolean {
+  return mime.startsWith('image/') || mime === 'application/vnd.google-apps.photo';
+}
+
+// GET /api/files/:id/preview — inline image stream for authenticated preview
+filesRouter.get('/:id/preview', async (c) => {
+  const userId = c.get('userId');
+  const fileId = c.req.param('id');
+  const db = c.env.DB;
+
+  const file = await db.prepare('SELECT * FROM files WHERE id = ?').bind(fileId).first<any>();
+  if (!file) throw new AppError(404, 'File not found');
+
+  if (file.workspace_id) {
+    const { getWorkspaceRole, hasPermission } = await import('../middleware/rbac');
+    const role = await getWorkspaceRole(db, file.workspace_id, userId);
+    if (!role || !hasPermission(role, 'viewer')) {
+      throw new AppError(403, 'Forbidden');
+    }
+  } else if (file.user_id !== userId) {
+    throw new AppError(403, 'Forbidden');
+  }
+
+  const mimeType = (file.mime_type as string) || '';
+  if (!isPreviewableImageMime(mimeType)) {
+    throw new AppError(415, 'Preview not available for this file type');
+  }
+
+  const driveService = new GoogleDriveService(
+    c.env.DB,
+    c.env.GOOGLE_CLIENT_ID,
+    c.env.GOOGLE_CLIENT_SECRET,
+    c.env.TOKEN_ENCRYPTION_KEY
+  );
+
+  let stream: ReadableStream<Uint8Array>;
+  let finalMimeType = mimeType === 'application/vnd.google-apps.photo' ? 'image/jpeg' : mimeType;
+
+  try {
+    const downloadResult = await driveService.downloadFile(
+      file.drive_account_id as string,
+      file.google_file_id as string,
+      file.mime_type as string
+    );
+    stream = downloadResult.stream;
+    if (downloadResult.exportedMimeType) {
+      finalMimeType = downloadResult.exportedMimeType;
+    }
+  } catch (e: any) {
+    console.error('Preview error:', e);
+    return c.text('Failed to load preview', 502);
+  }
+
+  c.header('Content-Type', finalMimeType);
+  c.header('Content-Disposition', 'inline');
+  c.header('Cache-Control', 'private, max-age=300');
+  if (file.size) {
+    c.header('Content-Length', String(file.size));
+  }
+
+  return c.body(stream);
+});
+
 // GET /api/files/:id/download
 filesRouter.get('/:id/download', async (c) => {
   const userId = c.get('userId');
@@ -590,7 +752,7 @@ filesRouter.get('/:id/download', async (c) => {
   }
 
   const driveService = new GoogleDriveService(
-    c.env.KV,
+    c.env.DB,
     c.env.GOOGLE_CLIENT_ID,
     c.env.GOOGLE_CLIENT_SECRET,
     c.env.TOKEN_ENCRYPTION_KEY

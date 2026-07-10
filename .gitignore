@@ -28,3 +28,17 @@ Thumbs.db
 
 # Internal Documentation
 docs/
+
+# Local IDE / agent artifacts
+mcps/
+terminals/
+.pi-subagents/
+.superpowers/
+prompt.md
+*.patch
+diff.txt
+git_show.txt
+
+# Local D1/SQLite artifacts
+*.sqlite
+packages/worker/data/

@@ -30,9 +30,18 @@ export const useDriveStore = create<DriveState>((set) => ({
 
   removeDrive: async (id: string) => {
     await api.disconnectDrive(id);
-    set((state) => ({
-      drives: state.drives.filter((d) => d.id !== id),
-    }));
+    set((state) => {
+      const drives = state.drives.filter((d) => d.id !== id);
+      return {
+        drives,
+        aggregate: {
+          totalQuota: drives.reduce((sum, d) => sum + d.totalQuota, 0),
+          totalUsed: drives.reduce((sum, d) => sum + d.usedQuota, 0),
+          totalFree: drives.reduce((sum, d) => sum + d.freeSpace, 0),
+          driveCount: drives.length,
+        },
+      };
+    });
   },
 
   triggerSync: async (id: string) => {

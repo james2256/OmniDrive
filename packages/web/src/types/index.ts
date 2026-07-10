@@ -21,9 +21,11 @@ export interface DriveAccount {
   rootFolderId: string | null;
   totalQuota: number;
   usedQuota: number;
+  quotaOverride: number | null;
   freeSpace: number;
   usagePercent: number;
   syncStatus?: 'idle' | 'syncing' | 'error';
+  health?: 'connected' | 'auth_expired' | 'error';
   lastSyncedAt?: string | null;
   quotaUpdatedAt: string | null;
   createdAt: string;
@@ -144,6 +146,7 @@ export interface Toast {
   id: string;
   type: ToastType;
   message: string;
+  removing?: boolean;
 }
 
 export interface AuditLog {

@@ -18,25 +18,56 @@ export function SetupPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-900 via-blue-900 to-slate-900 px-4">
-      <div className="relative w-full max-w-sm">
-        <div className="bg-white rounded-3xl shadow-2xl p-10 text-center">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome to OmniDrive</h1>
-          <p className="text-gray-500 text-sm mb-6">Create the first Super Admin account to get started.</p>
-          {errorMsg && <div className="mb-4 text-red-600 text-sm">{errorMsg}</div>}
+    <main className="min-h-[100dvh] flex items-center justify-center bg-surface px-4">
+      <div className="w-full max-w-sm">
+        <div className="bg-card border border-stone-200 rounded-2xl shadow-sm p-10 text-center">
+          <h1 className="text-3xl font-bold text-stone-900 mb-2">Welcome to OmniDrive</h1>
+          <p className="text-stone-600 text-sm mb-6">Create the first Super Admin account to get started.</p>
+          {errorMsg && (
+            <div role="alert" className="mb-4 text-red-700 text-sm">
+              {errorMsg}
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="flex flex-col gap-4 text-left">
             <div>
-              <label className="block text-sm font-medium mb-1">Admin Username</label>
-              <input type="text" required value={username} onChange={e => setUsername(e.target.value)} className="w-full px-4 py-2 border rounded-xl" />
+              <label htmlFor="setup-username" className="block text-sm font-medium text-stone-700 mb-1">
+                Admin Username
+              </label>
+              <input
+                id="setup-username"
+                name="username"
+                type="text"
+                autoComplete="username"
+                required
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full px-4 py-2 border border-stone-300 rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-primary"
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Admin Password</label>
-              <input type="password" required value={password} onChange={e => setPassword(e.target.value)} className="w-full px-4 py-2 border rounded-xl" />
+              <label htmlFor="setup-password" className="block text-sm font-medium text-stone-700 mb-1">
+                Admin Password
+              </label>
+              <input
+                id="setup-password"
+                name="password"
+                type="password"
+                autoComplete="new-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-2 border border-stone-300 rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-primary"
+              />
             </div>
-            <button type="submit" className="w-full py-3 bg-blue-600 text-white rounded-xl mt-4">Complete Setup</button>
+            <button
+              type="submit"
+              className="w-full py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors mt-4"
+            >
+              Complete Setup
+            </button>
           </form>
         </div>
       </div>
-    </div>
+    </main>
   );
 }

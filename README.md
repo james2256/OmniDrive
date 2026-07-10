@@ -1,4 +1,4 @@
-# Omnidrive
+# OmniDrive
 
 **Unified multi-Google Drive storage gateway built on Cloudflare Workers.**
 
@@ -10,9 +10,9 @@
 
 ---
 
-## What is Omnidrive?
+## What is OmniDrive?
 
-Omnidrive lets you connect multiple Google Drive accounts and manage all your files from a single dashboard. It runs entirely on Cloudflare's edge network — Workers for the API, D1 for the database, and KV for session storage — so there's no traditional server to maintain.
+OmniDrive lets you connect multiple Google Drive accounts and manage all your files from a single dashboard. It runs entirely on Cloudflare's edge network — Workers for the API, D1 for the database, and KV for session storage — so there's no traditional server to maintain.
 
 ## Features
 
@@ -29,7 +29,7 @@ Omnidrive lets you connect multiple Google Drive accounts and manage all your fi
 
 ## Security
 
-Omnidrive implements a robust security model to protect your files and data:
+OmniDrive implements a robust security model to protect your files and data:
 - **Token Encryption**: Google OAuth tokens are encrypted at rest using AES-256-GCM.
 - **CSRF & SSRF Protection**: All mutating endpoints are protected against Cross-Site Request Forgery, and webhooks are validated against Server-Side Request Forgery.
 - **Rate Limiting**: Built-in sliding window rate limiters protect authentication and public endpoints from brute-force attacks.
@@ -39,7 +39,7 @@ Omnidrive implements a robust security model to protect your files and data:
 
 ## S3 Object Storage API
 
-Omnidrive exposes an S3-compatible Object Storage API. Any S3 client (rclone, aws-cli, boto3, AWS SDK) can connect to it using path-style access.
+OmniDrive exposes an S3-compatible Object Storage API. Any S3 client (rclone, aws-cli, boto3, AWS SDK) can connect to it using path-style access.
 
 **How it works:**
 - Each **Workspace** is a **Bucket**
@@ -59,7 +59,7 @@ endpoint = https://<your-worker-url>/s3
 force_path_style = true
 ```
 
-**Supported operations:** ListBuckets, ListObjectsV2, GetObject, PutObject (single-part), HeadObject, DeleteObject, and full Multipart Upload (Initiate, UploadPart, CompleteMultipartUpload, AbortMultipartUpload).
+**Supported operations:** ListBuckets, ListObjectsV2, GetObject, PutObject (single-part), HeadObject, DeleteObject, full Multipart Upload (Initiate, UploadPart, CompleteMultipartUpload, AbortMultipartUpload), and Bucket Lifecycle (Put/Get/DeleteBucketLifecycleConfiguration — expired objects are moved to Google Drive trash, recoverable ~30 days).
 
 ## Tech Stack
 
@@ -120,7 +120,7 @@ Before running the deployment wizard, ensure you have a Google OAuth App configu
 
 ### 2. Run the Interactive Setup (Quickstart)
 
-Omnidrive includes a fully automated deployment wizard that configures your environment, sets up databases, and starts the application for you. You can run it directly via remote script:
+OmniDrive includes a fully automated deployment wizard that configures your environment, sets up databases, and starts the application for you. You can run it directly via remote script:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/abilfida/omnidrive/main/deploy.sh | bash
@@ -179,7 +179,7 @@ If you prefer not to use the `deploy.sh` script, you can deploy manually:
 
 ## Environment Variables
 
-Omnidrive uses a **single centralized `.env` file** at the root of the project to manage both Web and Worker configurations.
+OmniDrive uses a **single centralized `.env` file** at the root of the project to manage both Web and Worker configurations.
 
 ### Global Configuration (set in `/.env`)
 

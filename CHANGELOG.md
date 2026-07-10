@@ -2,7 +2,92 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+
+- Change password for the signed-in user: `POST /api/auth/change-password` (current + new password) and Account form on Settings; other sessions are revoked, current session kept.
+- Pages `_headers`: long-cache immutable `/assets/*`, baseline security headers on static SPA.
+- Drive account badges (`DriveBadge`) in the file browser: colored label with shortened username, optional **Drive** column when multiple accounts are connected, and **Stored on** field in the details panel; full email shown on hover.
+- Image preview via `GET /api/files/:id/preview` and updated `FilePreviewModal` in Workspaces, Trash, and Starred.
+- OmniDrive logo and optimized favicon assets for Google OAuth brand verification.
+- Public pages `/home`, `/privacy`, and `/terms` for OAuth consent screen requirements.
+- Mobile-responsive layout: drawer sidebar and info panel, wrapped toolbars, and touch-friendly bulk actions.
+- Home dashboard bento grid redesign with storage hero, category donut chart, and quick-access tiles.
+- Drive identity color tokens (`--drive-1` through `--drive-5`).
+- S3 bucket lifecycle configuration API; cron moves expired objects to trash instead of hard-deleting.
+- `tailwindcss-animate` plugin with expand/collapse and modal enter/exit animations across 15 components.
+- Dev-only Agentation annotation component in `main.tsx`.
+- AI agent documentation navigation map in `AGENTS.md`.
+- Linux Mint dual-boot setup: `scripts/setup-linux.sh`, `scripts/sync-config-from-windows.sh`, `LINUX-SETUP.md` (agent prompt + maintainer guide), and `.gitattributes` (`eol=lf`) for Windows HDD + Linux SSD workflow.
+
+### Changed
+
+- Route-level code splitting + vendor chunks (`react` / `router` / `recharts`) so login LCP no longer downloads the full app shell + charts.
+- Login/setup/public shared shells use `<main>` landmarks; setup/shared password labels; account menu `aria-label`; legal muted text raised to stone-600 for AA contrast.
+- Worker API CSP tightened to `default-src 'none'` (JSON/XML only); SPA headers remain on Pages.
+- Migrated D1 schema management to wrangler native migrations (`wrangler d1 migrations apply`) with a single idempotent baseline (`0001_initial_schema.sql`), removing dead numbered migrations and resolving the duplicate `0008` numbering collision.
+- Migrated OAuth state, encrypted tokens, and quota cache from KV to D1 (`0009`, `0010`); KV retained only for shared-link rate limits.
+- Migrated session storage from KV to D1; existing KV sessions expire within 7 days (one-time re-login required).
+- Rebranded user-facing strings from OmniDrive to OmniDrive; production frontend URL set to `https://omnidrive-7w1.pages.dev` (infrastructure identifiers unchanged).
+- Recalibrated brand palette to cobalt accent (`#2563EB`) and cool slate surface (`#F1F5F9`).
+- Adopted Claude-inspired warm canvas design system (ref: [getdesign.md/claude](https://getdesign.md/claude/design-md)): cream canvas floor `#faf9f5`, grounded cream cards `#efe9de` (darker than floor), warm surface `#f5f0e8`, warm ink text `#141413`. Cobalt `#2563EB` retained as brand CTA/accent (override of Claude's coral `#cc785c`). Cards are grounded panels (darker than floor), not floating white cards.
+- All elevated surfaces (modals, dropdowns, context menus, inputs, InfoPanel, toasts, UI primitives) migrated from `bg-white` to `bg-card` — no pure white `#FFFFFF` remains in the app chrome.
+- All borders migrated from cool `border-gray-*` to warm `border-stone-*` (150 occurrences); all secondary backgrounds/hover states migrated from `bg-gray-*` to `bg-stone-*` (92 occurrences).
+- All text colors migrated from cool `text-gray-*` to warm `text-stone-*` (365 occurrences) for full warm-tone consistency — zero cool gray remains in the UI.
+
+### Fixed
+
+- Home **Recent** (and search) no longer lists the same file once per workspace member: `/api/files/recent` and `/api/files/search` now use `EXISTS` for membership instead of `LEFT JOIN workspace_members`, which multiplied rows (e.g. 1 file × 6 members → 6 identical rows).
+- Added root `llms.txt` (PageSpeed Agentic Browsing): SPA fallback was serving `index.html` at `/llms.txt`, which failed the required markdown H1 check. Static file follows [llmstxt.org](https://llmstxt.org/) (`# OmniDrive` + summary + page links).
+- Added root `robots.txt` and `sitemap.xml` (PageSpeed SEO): missing static files caused the SPA `index.html` to be appended after Cloudflare Content-Signal rules, producing 17 robots.txt syntax errors. Public URLs listed in sitemap; auth-gated and API paths disallowed.
+- Login page accessibility (PageSpeed): associate form labels via `htmlFor`/`id`, raise muted text from `stone-400`/`stone-500` to `stone-600` (AA contrast on cream cards), and style legal/toggle links with permanent underline + `blue-700` so they do not rely on color alone.
+- Production `/api/*` and `/s3/*` requests silently returned the SPA's `index.html` instead of the Worker's JSON response: `_redirects` cannot proxy external domains (Cloudflare Pages limitation), so the `*.workers.dev` proxy rules never took effect. Replaced with Cloudflare Pages Functions (`functions/api/[[path]].ts`, `functions/s3/[[path]].ts`) that forward the request to the Worker, scoped via `_routes.json` so only those two paths invoke a Function.
+- Restored the `sessions` table to the schema baseline (`schema.sql` and `0001_initial_schema.sql`); it was missing after the migration consolidation, which would break authentication on a fresh install.
+- Upload router falls back to the drive with the most free space when the preferred drive is full.
+- Account health badges (`reconnect needed`, `unreachable`) on connected drives in Settings.
+- Unified auth and dashboard visuals to match core app design tokens.
+- Password hashing switched from bcrypt to PBKDF2 (Web Crypto) for Workers CPU limits.
+- Production deploy targets updated for Cloudflare Worker and Pages under the `asmaraputra` account.
+- Google Drive file/folder move logic and tests.
+
+### Removed
+
+- Dead code and local artifacts: unused `AdvancedShareModal`, `DriveFolderBrowser`, legacy `DriveService`, unused `errorHandler` middleware, unused `listAllFilesAndFolders` in `GoogleDriveService`, stale API client methods (`getRootContents`, `getAdminAuditLogs`, `syncDriveFolder`), `bcryptjs`/`@radix-ui/react-popover` dependencies, one-off `optimize-logo.mjs`, and scratch files (diff dumps, DB export, agent run dirs).
+- Manual storage capacity override UI and `PATCH /api/drives/:id/quota` endpoint (`quota_override` column kept read-only for compatibility).
+- Dev smoke-test scripts, one-off migration scripts, debug `console.log` calls, and local test artifacts.
+
+### Fixed
+
+- `PATCH /api/files/:id/move` now reads `workspaceFolderId` from the request body (matching the frontend API client) instead of the mismatched `folderId` field that silently ignored folder targets.
+- Google Drive sync generators refresh OAuth tokens per page (`iterateAllFilesAndFolders`, `listFolderContents`, `listFilesInFolder`) so long-running syncs survive token expiry mid-stream.
+- Shared-link password hashing unified in `password.ts` (`hashSharedPassword` / `verifySharedPassword`): new links use 10k PBKDF2 iterations with `shared:<iterations>:<salt>:<hash>` format; legacy `salt:hash` (100k) hashes still verify.
+- `require_email` shared-link gate cookies are now signed JWTs (`shared_email_<id>`) instead of raw email strings, preventing forged cookie bypass.
+- Upload finalize error responses no longer leak internal Google file or drive account IDs to clients (details remain in server logs only).
+- Upload proxy (`PUT /api/files/upload/proxy`) streams the request body straight to Google instead of buffering it with `arrayBuffer()`, avoiding the Worker 128MB memory limit crash on large files.
+- IDOR/quota abuse on uploads: `POST /api/files/upload/init` and `POST /api/files/upload/finalize` now require the caller to be an editor of the `workspaceId` in the request body before checking quota or attaching a file, preventing users from inflating or writing to workspaces they don't belong to.
+- Orphan S3 multipart uploads (never Completed/Aborted) are now reaped by the cron: `cleanupOrphanMultipartUploads` deletes the temp Google Drive folder and the `s3_multipart_uploads` row (parts cascade) for uploads older than 24h, preventing leaked temp folders and stale D1 rows.
+- Admin-created users could not log in: `POST /api/admin/users` now hashes passwords with PBKDF2 (same as register/login) instead of bcrypt.
+- Registration invitation codes: atomic consume after username/email validation (no race on `max_uses`, no slot burned on duplicate username).
+- Shared link downloads: `download_count` increments only after Google fetch succeeds, so failed downloads no longer consume `maxDownloads` quota.
+- Workspace `force-sync` background job now runs real drive sync via `syncDriveAccount` (was a no-op stub).
+- Drive sync and lazy folder sync use D1 `batch()` for upserts (per Cloudflare docs: fewer round-trips, transactional chunks of 100 statements).
+- **Session hilang setelah tab ditutup (~5 menit):** frontend production memanggil API langsung ke `*.workers.dev` sementara SPA di `omnidrive-7w1.pages.dev`, sehingga cookie `omnidrive_sid` menjadi third-party dan sering dihapus browser. Perbaikan: proxy same-origin `/api` dan `/s3` lewat Cloudflare Pages `_redirects`, `VITE_API_URL` kosong (relative path), cookie session `SameSite=Lax`, dan Vite dev proxy untuk `/api` + `/s3`. Session D1 tetap 7 hari.
+- Login failed with HTTP 500 when the `is_super_admin` column was missing from migrated databases (`0008` migration).
+- Login failed with HTTP 500 due to bcrypt CPU timeout on Cloudflare Workers.
+- Upload failed with HTTP 500 from invalid `workspace_folder_id` foreign key; uploads now use `parentFolderId` and correct `google_parent_id`.
+- Upload failed on service accounts and shared drives missing `supportsAllDrives=true`.
+- Per-drive storage display used account-wide Google quota instead of Drive-only usage.
+- Rate limiter double-counted login requests against the global API bucket (premature HTTP 429).
+- New folder and workspace creation used browser `prompt()`; replaced with `CreateFolderModal`.
+- Dialogs appeared dark when the OS used dark mode despite the app having no dark theme (`darkMode: 'class'`).
+
+### Security
+
+- Remediated 36 findings from the security audit (6 high, 15 medium, 15 low), including IDOR in workspace folders, S3 RBAC bypass, CSP and HSTS headers, HKDF-based encryption, session revocation, and related hardening. See `SECURITY_AUDIT.md` for the full report.
 
 ## [0.9.7] - 2026-06-24
 
@@ -189,12 +274,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - Removed stray closing div causing build errors in `FilesPage`
   - Fixed broken and orphaned tests in `InviteUserModal` and `WorkspaceTabs` to ensure test suite integrity
 
-### Changed (UI)
+### Changed
 
-- **Aesthetics & Usability:**
-  - Improved file and folder icons for a more polished and enterprise look
-  - Increased spacing between icons and file names for better readability
-  - Ensured the navigation toolbar remains visible during active file selection
+- Improved file and folder icons for a more polished and enterprise look.
+- Increased spacing between icons and file names for better readability.
+- Ensured the navigation toolbar remains visible during active file selection.
 
 ## [0.5.0] - 2026-06-11
 
@@ -302,3 +386,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Dashboard with aggregate storage stats across all drives
 - File preview modal for images and documents
 - Settings page for managing connected drives
+
+[unreleased]: https://github.com/james2256/OmniDrive/compare/v0.9.7...HEAD
+[0.9.7]: https://github.com/james2256/OmniDrive/compare/v0.9.6...v0.9.7
+[0.9.6]: https://github.com/james2256/OmniDrive/compare/v0.9.5...v0.9.6
+[0.9.5]: https://github.com/james2256/OmniDrive/compare/v0.9.4...v0.9.5
+[0.9.4]: https://github.com/james2256/OmniDrive/compare/v0.9.3...v0.9.4
+[0.9.3]: https://github.com/james2256/OmniDrive/compare/v0.9.2...v0.9.3
+[0.9.2]: https://github.com/james2256/OmniDrive/compare/v0.9.1...v0.9.2
+[0.9.1]: https://github.com/james2256/OmniDrive/compare/v0.9.0...v0.9.1
+[0.9.0]: https://github.com/james2256/OmniDrive/compare/v0.8.15...v0.9.0
+[0.8.15]: https://github.com/james2256/OmniDrive/compare/v0.8.14...v0.8.15
+[0.8.14]: https://github.com/james2256/OmniDrive/compare/v0.8.13...v0.8.14
+[0.8.13]: https://github.com/james2256/OmniDrive/compare/v0.8.12...v0.8.13
+[0.8.12]: https://github.com/james2256/OmniDrive/compare/v0.8.10...v0.8.12
+[0.8.10]: https://github.com/james2256/OmniDrive/compare/v0.6.0...v0.8.10
+[0.6.0]: https://github.com/james2256/OmniDrive/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/james2256/OmniDrive/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/james2256/OmniDrive/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/james2256/OmniDrive/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/james2256/OmniDrive/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/james2256/OmniDrive/releases/tag/v0.1.0

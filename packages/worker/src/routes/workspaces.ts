@@ -3,6 +3,7 @@ import type { AppContext } from '../types/env';
 import { authGuard } from '../middleware/auth-guard';
 import { generateId } from '../lib/id';
 import { getWorkspaceRole, hasPermission } from '../middleware/rbac';
+import { validateEmail } from '../lib/validation';
 import { AuditService } from '../services/audit.service';
 
 export const workspacesRouter = new Hono<AppContext>({ strict: false });
@@ -64,6 +65,9 @@ workspacesRouter.post('/:id/members', async (c) => {
     return c.json({ error: 'Email is required' }, 400);
   }
 
+  const emailError = validateEmail(email);
+  if (emailError) return c.json({ error: emailError }, 400);
+
   const currentUserRole = await getWorkspaceRole(db, workspaceId, userId);
   if (!currentUserRole || !hasPermission(currentUserRole, 'manager')) {
     return c.json({ error: 'Forbidden' }, 403);
@@ -118,6 +122,20 @@ workspacesRouter.delete('/:id/members/:targetUserId', async (c) => {
   const currentUserRole = await getWorkspaceRole(db, workspaceId, userId);
   if (!currentUserRole || !hasPermission(currentUserRole, 'manager')) {
     return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  // Only owners can remove other owners; managers cannot remove owners
+  const targetRole = await getWorkspaceRole(db, workspaceId, targetUserId);
+  if (targetRole === 'owner' && currentUserRole !== 'owner') {
+    return c.json({ error: 'Only an owner can remove another owner' }, 403);
+  }
+
+  // Prevent removing the last owner — would orphan the workspace
+  if (targetRole === 'owner') {
+    const { count } = await db.prepare('SELECT COUNT(*) as count FROM workspace_members WHERE workspace_id = ? AND role = ?').bind(workspaceId, 'owner').first<{ count: number }>() || { count: 0 };
+    if (count <= 1) {
+      return c.json({ error: 'Cannot remove the last owner of the workspace' }, 400);
+    }
   }
 
   await db.prepare('DELETE FROM workspace_members WHERE workspace_id = ? AND user_id = ?').bind(workspaceId, targetUserId).run();
@@ -187,6 +205,13 @@ workspacesRouter.post('/:id/policies', async (c) => {
 
   if (!targetType || !policyType || !config) {
     return c.json({ error: 'Missing required fields' }, 400);
+  }
+
+  // ponytail: validate config.max_bytes is a non-negative number for storage_quota
+  if (policyType === 'storage_quota') {
+    if (typeof config.max_bytes !== 'number' || config.max_bytes < 0 || isNaN(config.max_bytes)) {
+      return c.json({ error: 'config.max_bytes must be a non-negative number' }, 400);
+    }
   }
 
   if (policyType === 'storage_quota' && targetType !== 'workspace') {

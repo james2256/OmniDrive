@@ -53,35 +53,35 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({ onActionComplete, 
   };
 
   return (
-    <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center justify-between bg-white/80 backdrop-blur-md border border-gray-200 text-gray-800 rounded-full shadow-2xl px-6 py-3 min-w-[500px]">
-      <div className="flex items-center gap-4 border-r border-gray-200 pr-4">
-        <button onClick={clearSelection} disabled={isProcessing} className="p-1.5 hover:bg-gray-100 text-gray-500 rounded-full transition-colors">
+    <div className="fixed bottom-4 left-2 right-2 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-50 flex flex-wrap items-center gap-2 bg-card/80 backdrop-blur-md border border-stone-200 text-stone-800 rounded-2xl sm:rounded-full shadow-2xl px-4 py-3 animate-in fade-in-0 slide-in-from-bottom-5 duration-300">
+      <div className="flex items-center gap-3 sm:border-r sm:border-stone-200 sm:pr-4">
+        <button onClick={clearSelection} disabled={isProcessing} className="p-2 hover:bg-stone-100 text-stone-500 rounded-full transition-colors" aria-label="Clear selection">
           <X size={18} />
         </button>
         <span className="font-medium text-sm text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full">{selectedItems.length} selected</span>
       </div>
-      <div className="flex items-center gap-2 pl-2">
-        <button onClick={handleDelete} disabled={isProcessing} className="flex items-center gap-2 px-3 py-1.5 hover:bg-red-50 text-gray-600 hover:text-red-600 rounded-full transition-colors text-sm font-medium" title="Delete selected items">
-          <Trash2 size={16} /> Delete
+      <div className="flex flex-wrap items-center gap-1 sm:gap-2 sm:pl-2">
+        <button onClick={handleDelete} disabled={isProcessing} className="flex items-center gap-2 px-3 py-2 hover:bg-red-50 text-stone-600 hover:text-red-600 rounded-full transition-colors text-sm font-medium" title="Delete selected items">
+          <Trash2 size={16} /> <span>Delete</span>
         </button>
-        <button onClick={onMoveRequested} disabled={isProcessing} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-100 text-gray-600 rounded-full transition-colors text-sm font-medium" title="Move selected items">
-          <Folder size={16} /> Move
+        <button onClick={onMoveRequested} disabled={isProcessing} className="flex items-center gap-2 px-3 py-2 hover:bg-stone-100 text-stone-600 rounded-full transition-colors text-sm font-medium" title="Move selected items">
+          <Folder size={16} /> <span>Move</span>
         </button>
-        <button 
-          onClick={onMoveDriveRequested} 
-          disabled={isProcessing || !allFiles} 
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-full transition-colors text-sm font-medium ${!allFiles ? 'opacity-50 cursor-not-allowed text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`} 
+        <button
+          onClick={onMoveDriveRequested}
+          disabled={isProcessing || !allFiles}
+          className={`flex items-center gap-2 px-3 py-2 rounded-full transition-colors text-sm font-medium ${!allFiles ? 'opacity-50 cursor-not-allowed text-stone-400' : 'hover:bg-stone-100 text-stone-600'}`}
           title={!allFiles ? 'Can only move files to another drive' : 'Move to another drive'}
         >
-          <HardDrive size={16} /> Move Drive
+          <HardDrive size={16} /> <span>Move Drive</span>
         </button>
-        <button 
-          onClick={onWorkspaceRequested} 
-          disabled={isProcessing || !allFiles} 
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-full transition-colors text-sm font-medium ${!allFiles ? 'opacity-50 cursor-not-allowed text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`} 
+        <button
+          onClick={onWorkspaceRequested}
+          disabled={isProcessing || !allFiles}
+          className={`flex items-center gap-2 px-3 py-2 rounded-full transition-colors text-sm font-medium ${!allFiles ? 'opacity-50 cursor-not-allowed text-stone-400' : 'hover:bg-stone-100 text-stone-600'}`}
           title={!allFiles ? 'Can only add files to Workspace' : 'Add to Workspace'}
         >
-          <Star size={16} /> Workspace
+          <Star size={16} /> <span>Workspace</span>
         </button>
       </div>
     </div>

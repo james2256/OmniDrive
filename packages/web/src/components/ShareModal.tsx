@@ -1,15 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Copy, Check, Share2, Calendar, Lock, Settings, ChevronDown, ChevronUp } from 'lucide-react';
+import { Copy, Check, Share2, Calendar, Lock, Settings, ChevronDown, ChevronUp } from 'lucide-react';
 import { createSharedLink } from '../lib/api';
 import { useSharedStore } from '../stores/sharedStore';
+import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 
 interface ShareModalProps {
+  open: boolean;
   targetType: 'file' | 'folder';
   targetId: string;
   onClose: () => void;
 }
 
-export function ShareModal({ targetType, targetId, onClose }: ShareModalProps) {
+export function ShareModal({ open, targetType, targetId, onClose }: ShareModalProps) {
   const [password, setPassword] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -18,7 +20,7 @@ export function ShareModal({ targetType, targetId, onClose }: ShareModalProps) {
   const [maxDownloads, setMaxDownloads] = useState('');
   const [requireEmail, setRequireEmail] = useState(false);
   const [webhookUrl, setWebhookUrl] = useState('');
-  
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [sharedUrl, setSharedUrl] = useState('');
@@ -86,16 +88,13 @@ export function ShareModal({ targetType, targetId, onClose }: ShareModalProps) {
   const currentDateTime = new Date().toISOString().slice(0, 16);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/50 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-full" onClick={(e) => e.stopPropagation()}>
-        <div className="flex justify-between items-center p-5 border-b border-gray-100 shrink-0">
-          <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md p-0 gap-0 rounded-2xl overflow-hidden flex flex-col max-h-full">
+        <div className="flex items-center p-5 border-b border-stone-100 shrink-0">
+          <DialogTitle className="text-lg font-semibold text-stone-800 flex items-center gap-2">
             <Share2 size={20} className="text-blue-500" />
             Share {targetType === 'file' ? 'File' : 'Folder'}
-          </h2>
-          <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors shrink-0" onClick={onClose}>
-            <X size={18} />
-          </button>
+          </DialogTitle>
         </div>
 
         <div className="p-6 overflow-y-auto">
@@ -108,113 +107,115 @@ export function ShareModal({ targetType, targetId, onClose }: ShareModalProps) {
           {!sharedUrl ? (
             <form onSubmit={handleShare} className="flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
-                  <Lock size={14} className="text-gray-400" /> Password (optional)
+                <label className="text-sm font-medium text-stone-700 flex items-center gap-1.5">
+                  <Lock size={14} className="text-stone-400" /> Password (optional)
                 </label>
                 <input
                   type="password"
                   placeholder="Leave blank for no password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
+                  className="px-3 py-2 bg-card border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
                 />
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
-                  <Calendar size={14} className="text-gray-400" /> Expiration Date (optional)
+                <label className="text-sm font-medium text-stone-700 flex items-center gap-1.5">
+                  <Calendar size={14} className="text-stone-400" /> Expiration Date (optional)
                 </label>
                 <input
                   type="datetime-local"
                   value={expiresAt}
                   min={currentDateTime}
                   onChange={(e) => setExpiresAt(e.target.value)}
-                  className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
+                  className="px-3 py-2 bg-card border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
                 />
               </div>
 
               <div className="pt-2">
-                <button 
-                  type="button" 
-                  onClick={() => setShowAdvanced(!showAdvanced)} 
-                  className="flex items-center text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors"
+                <button
+                  type="button"
+                  onClick={() => setShowAdvanced(!showAdvanced)}
+                  className="flex items-center text-sm font-medium text-stone-600 hover:text-stone-800 transition-colors"
                 >
                   <Settings size={14} className="mr-1.5" />
                   Advanced Settings
                   {showAdvanced ? <ChevronUp size={14} className="ml-1" /> : <ChevronDown size={14} className="ml-1" />}
                 </button>
 
-                {showAdvanced && (
-                  <div className="flex flex-col gap-3 mt-3 p-4 bg-gray-50 rounded-xl border border-gray-200">
-                    <label className="flex items-center gap-2.5 text-sm text-gray-700 cursor-pointer">
-                      <input 
-                        type="checkbox" 
-                        checked={allowDownloads} 
-                        onChange={(e) => setAllowDownloads(e.target.checked)} 
-                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer" 
-                      />
-                      <span className="select-none">Allow Downloads</span>
-                    </label>
-                    
-                    {targetType === 'folder' && (
-                      <label className="flex items-center gap-2.5 text-sm text-gray-700 cursor-pointer">
-                        <input 
-                          type="checkbox" 
-                          checked={allowUploads} 
-                          onChange={(e) => setAllowUploads(e.target.checked)} 
-                          className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer" 
+                <div className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${showAdvanced ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                  <div className="overflow-hidden">
+                    <div className="flex flex-col gap-3 mt-3 p-4 bg-stone-50 rounded-xl border border-stone-200">
+                      <label className="flex items-center gap-2.5 text-sm text-stone-700 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={allowDownloads}
+                          onChange={(e) => setAllowDownloads(e.target.checked)}
+                          className="w-4 h-4 rounded border-stone-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                         />
-                        <span className="select-none">Allow Uploads (Public Drop folder)</span>
+                        <span className="select-none">Allow Downloads</span>
                       </label>
-                    )}
 
-                    <label className="flex items-center gap-2.5 text-sm text-gray-700 cursor-pointer">
-                      <input 
-                        type="checkbox" 
-                        checked={requireEmail} 
-                        onChange={(e) => setRequireEmail(e.target.checked)} 
-                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer" 
-                      />
-                      <span className="select-none">Require Email to View</span>
-                    </label>
+                      {targetType === 'folder' && (
+                        <label className="flex items-center gap-2.5 text-sm text-stone-700 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={allowUploads}
+                            onChange={(e) => setAllowUploads(e.target.checked)}
+                            className="w-4 h-4 rounded border-stone-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          />
+                          <span className="select-none">Allow Uploads (Public Drop folder)</span>
+                        </label>
+                      )}
 
-                    <div className="flex flex-col gap-1.5 mt-2">
-                      <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Max Downloads</label>
-                      <input 
-                        type="number" 
-                        min="1" 
-                        value={maxDownloads} 
-                        onChange={(e) => setMaxDownloads(e.target.value)} 
-                        placeholder="e.g. 10 (Leave blank for unlimited)" 
-                        className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                      />
-                    </div>
+                      <label className="flex items-center gap-2.5 text-sm text-stone-700 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={requireEmail}
+                          onChange={(e) => setRequireEmail(e.target.checked)}
+                          className="w-4 h-4 rounded border-stone-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <span className="select-none">Require Email to View</span>
+                      </label>
 
-                    <div className="flex flex-col gap-1.5 mt-2">
-                      <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Webhook URL</label>
-                      <input 
-                        type="url" 
-                        value={webhookUrl} 
-                        onChange={(e) => setWebhookUrl(e.target.value)} 
-                        placeholder="e.g. https://your-api.com/webhook" 
-                        className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                      />
+                      <div className="flex flex-col gap-1.5 mt-2">
+                        <label className="text-xs font-semibold text-stone-600 uppercase tracking-wide">Max Downloads</label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={maxDownloads}
+                          onChange={(e) => setMaxDownloads(e.target.value)}
+                          placeholder="e.g. 10 (Leave blank for unlimited)"
+                          className="px-3 py-2 bg-card border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+
+                      <div className="flex flex-col gap-1.5 mt-2">
+                        <label className="text-xs font-semibold text-stone-600 uppercase tracking-wide">Webhook URL</label>
+                        <input
+                          type="url"
+                          value={webhookUrl}
+                          onChange={(e) => setWebhookUrl(e.target.value)}
+                          placeholder="e.g. https://your-api.com/webhook"
+                          className="px-3 py-2 bg-card border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
                     </div>
                   </div>
-                )}
+                </div>
               </div>
 
-              <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-gray-100">
-                <button 
-                  type="button" 
-                  className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors" 
+              <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-stone-100">
+                <button
+                  type="button"
+                  className="px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-100 rounded-lg transition-colors"
                   onClick={onClose}
                 >
                   Cancel
                 </button>
-                <button 
-                  type="submit" 
-                  className="flex items-center justify-center min-w-[100px] px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" 
+                <button
+                  type="submit"
+                  className="flex items-center justify-center min-w-[100px] px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={loading}
                 >
                   {loading ? (
@@ -227,7 +228,7 @@ export function ShareModal({ targetType, targetId, onClose }: ShareModalProps) {
             </form>
           ) : (
             <div className="flex flex-col gap-4">
-              <p className="text-sm text-gray-600 bg-blue-50 p-3 rounded-lg border border-blue-100">
+              <p className="text-sm text-stone-600 bg-blue-50 p-3 rounded-lg border border-blue-100">
                 Anyone with this link can access the {targetType}.
               </p>
               <div className="flex gap-2">
@@ -235,20 +236,20 @@ export function ShareModal({ targetType, targetId, onClose }: ShareModalProps) {
                   type="text"
                   readOnly
                   value={sharedUrl}
-                  className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600 focus:outline-none"
+                  className="flex-1 px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-600 focus:outline-none"
                   onClick={(e) => e.currentTarget.select()}
                 />
-                <button 
-                  className="flex items-center justify-center w-10 h-10 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shrink-0" 
-                  onClick={copyToClipboard} 
+                <button
+                  className="flex items-center justify-center w-10 h-10 text-stone-700 bg-card border border-stone-300 rounded-lg hover:bg-stone-50 transition-colors shrink-0"
+                  onClick={copyToClipboard}
                   title="Copy to clipboard"
                 >
                   {copied ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
                 </button>
               </div>
-              <div className="flex justify-end mt-4 pt-4 border-t border-gray-100">
-                <button 
-                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors" 
+              <div className="flex justify-end mt-4 pt-4 border-t border-stone-100">
+                <button
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
                   onClick={onClose}
                 >
                   Done
@@ -257,8 +258,7 @@ export function ShareModal({ targetType, targetId, onClose }: ShareModalProps) {
             </div>
           )}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
-

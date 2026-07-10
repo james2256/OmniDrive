@@ -3,8 +3,8 @@ import type { AppContext } from '../types/env';
 import { authGuard } from '../middleware/auth-guard';
 import { AppError } from '../middleware/error-handler';
 import { generateId } from '../lib/id';
-import * as bcrypt from 'bcryptjs';
-import { validatePassword } from '../lib/validation';
+import { hashPassword } from '../lib/password';
+import { validatePassword, validateEmail } from '../lib/validation';
 
 export const adminRouter = new Hono<AppContext>({ strict: false });
 
@@ -27,16 +27,27 @@ adminRouter.get('/invitations', async (c) => {
 
 adminRouter.post('/invitations', async (c) => {
   const { code, max_uses } = await c.req.json();
-  if (!code) throw new AppError(400, 'Code is required');
-  
+
+  // ponytail: server-generates a high-entropy code when none given; user-supplied
+  // codes must be >= 12 chars so short guessable invites can't be brute-forced.
+  let finalCode: string;
+  if (code) {
+    if (typeof code !== 'string' || code.trim().length < 12) {
+      throw new AppError(400, 'Invitation code must be at least 12 characters');
+    }
+    finalCode = code.trim();
+  } else {
+    finalCode = generateId().replace(/-/g, '');
+  }
+
   const id = generateId();
   const userId = c.get('userId');
   
   await c.env.DB.prepare(
     'INSERT INTO invitation_codes (id, code, created_by, max_uses) VALUES (?, ?, ?, ?)'
-  ).bind(id, code, userId, max_uses || 1).run();
+  ).bind(id, finalCode, userId, max_uses || 1).run();
   
-  return c.json({ success: true, invitation: { id, code, created_by: userId, max_uses: max_uses || 1, used_count: 0 } });
+  return c.json({ success: true, invitation: { id, code: finalCode, created_by: userId, max_uses: max_uses || 1, used_count: 0 } });
 });
 
 adminRouter.delete('/invitations/:id', async (c) => {
@@ -69,12 +80,14 @@ adminRouter.post('/users', async (c) => {
   if (existing) throw new AppError(400, 'Username already exists');
 
   if (email) {
+    const emailError = validateEmail(email);
+    if (emailError) throw new AppError(400, emailError);
     const existingEmail = await c.env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
     if (existingEmail) throw new AppError(400, 'Email already exists');
   }
 
   const id = generateId();
-  const passwordHash = await bcrypt.hash(password, 10);
+  const passwordHash = await hashPassword(password);
   const isSuperAdmin = role === 'super_admin' ? 1 : 0;
 
   await c.env.DB.prepare(

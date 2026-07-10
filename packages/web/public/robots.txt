@@ -1,0 +1,22 @@
+# OmniDrive — https://omnidrive-7w1.pages.dev
+# Cloudflare may prepend Content-Signal / bot rules above this file.
+
+User-agent: *
+Allow: /
+
+# API and object storage — not for HTML crawlers
+Disallow: /api/
+Disallow: /s3/
+
+# Auth-gated app shell (SPA returns login/redirect; avoid soft-404 indexing)
+Disallow: /files
+Disallow: /settings
+Disallow: /workspaces
+Disallow: /automations
+Disallow: /trash
+Disallow: /starred
+Disallow: /admin/
+Disallow: /search
+Disallow: /setup
+
+Sitemap: https://omnidrive-7w1.pages.dev/sitemap.xml

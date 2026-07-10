@@ -28,8 +28,15 @@ export type AppContext = {
   };
 };
 
+export interface ServiceAccountKey {
+  clientEmail: string;
+  privateKey: string;
+}
+
 export interface OAuthTokens {
   accessToken: string;
   refreshToken?: string;
   expiresAt: number;
+  authType?: 'oauth' | 'service_account';
+  serviceAccount?: ServiceAccountKey;
 }

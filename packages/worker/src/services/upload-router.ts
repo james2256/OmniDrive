@@ -7,8 +7,10 @@ export class UploadRouter {
   /**
    * Selects the best drive account for a new upload.
    * Logic:
-   * 1. If preferredDriveId is provided, use it (fail if not enough space).
-   * 2. Otherwise, pick the drive with the most absolute free space.
+   * 1. If preferredDriveId is provided and has room, use it.
+   * 2. Otherwise (no preference, or preferred is full) spill over to the
+   *    drive with the most absolute free space.
+   * ponytail: no single drive fits => throw. Cross-drive split is striping (skipped).
    */
   selectDriveForUpload(fileSize: number, preferredDriveId?: string): DriveWithQuota {
     if (this.drives.length === 0) {
@@ -20,13 +22,13 @@ export class UploadRouter {
       if (!drive) {
         throw new AppError(404, 'Preferred drive account not found');
       }
-      if (drive.freeSpace < fileSize) {
-        throw new AppError(400, 'Insufficient quota in preferred drive');
+      if (drive.freeSpace >= fileSize) {
+        return drive;
       }
-      return drive;
+      // Preferred drive is full: fall through to spillover instead of failing.
     }
 
-    // Sort by most free space descending
+    // Auto-select / spillover: pick the drive with the most free space.
     const sorted = [...this.drives].sort((a, b) => b.freeSpace - a.freeSpace);
     const bestDrive = sorted[0];
 

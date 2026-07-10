@@ -7,8 +7,20 @@ import { getMD5HashingStream } from '../lib/crypto-s3';
 import { UploadRouter } from '../services/upload-router';
 import { mapDriveRow } from '../types';
 import { createHash } from 'node:crypto';
+import { hasPermission } from '../middleware/rbac';
+import { parseLifecycleXml, serializeLifecycleXml } from '../services/s3-lifecycle';
 
 export const s3Router = new Hono<AppContext>({ strict: false });
+
+// ponytail: S3 RBAC — read ops require viewer, write ops require editor.
+// Enforced here instead of middleware because workspace is resolved per-handler.
+function requireS3Role(c: any, role: string | undefined, write: boolean): Response | null {
+  const needed = write ? 'editor' : 'viewer';
+  if (!role || !hasPermission(role, needed)) {
+    return xmlError(c, 'AccessDenied', `Insufficient permissions: ${needed} role required`, 403);
+  }
+  return null;
+}
 
 function parseSqliteDate(dateStr: string | number): Date {
   if (typeof dateStr === 'number') {
@@ -105,7 +117,7 @@ s3Router.on(['GET', 'HEAD'], '/:bucket', async (c) => {
 
   // Resolve Workspace by Bucket Name
   const workspace = await db.prepare(`
-    SELECT w.id FROM workspaces w
+    SELECT w.id, wm.role FROM workspaces w
     JOIN workspace_members wm ON w.id = wm.workspace_id
     WHERE w.name = ? AND wm.user_id = ?
       AND (? IS NULL OR w.id = ?)
@@ -119,6 +131,21 @@ s3Router.on(['GET', 'HEAD'], '/:bucket', async (c) => {
       return c.body(null, 404);
     }
     return c.text(`<?xml version="1.0" encoding="UTF-8"?><Error><Code>${escapeXml(errorCode)}</Code><Message>${escapeXml(errorMessage)}</Message></Error>`, 404, { 'Content-Type': 'application/xml' });
+  }
+
+  const rbacDenied = requireS3Role(c, workspace.role, false);
+  if (rbacDenied) return rbacDenied;
+
+  // GET /s3/:bucket?lifecycle -> GetBucketLifecycleConfiguration
+  if (c.req.method === 'GET' && c.req.query('lifecycle') !== undefined) {
+    const { results } = await db.prepare(
+      'SELECT prefix, expiration_days, enabled FROM s3_lifecycle_rules WHERE workspace_id = ?'
+    ).bind(workspace.id).all<{ prefix: string; expiration_days: number; enabled: number }>();
+    if (!results?.length) {
+      return xmlError(c, 'NoSuchLifecycleConfiguration', 'The lifecycle configuration does not exist.', 404);
+    }
+    const rules = results.map((r) => ({ prefix: r.prefix, days: r.expiration_days, enabled: r.enabled === 1 }));
+    return c.text(serializeLifecycleXml(rules), 200, { 'Content-Type': 'application/xml' });
   }
 
   if (c.req.method === 'HEAD') {
@@ -198,6 +225,54 @@ ${contentsXml}${prefixesXml}</ListBucketResult>`;
   return c.text(xml, 200, { 'Content-Type': 'application/xml' });
 });
 
+// Resolve a bucket (workspace) for bucket-level subresource ops.
+async function resolveBucket(c: any, needWrite: boolean): Promise<{ workspace: any } | Response> {
+  const userId = c.get('userId');
+  const s3WorkspaceId = c.get('s3WorkspaceId') || null;
+  const bucketName = c.req.param('bucket');
+  const workspace = await c.env.DB.prepare(`
+    SELECT w.id, wm.role FROM workspaces w
+    JOIN workspace_members wm ON w.id = wm.workspace_id
+    WHERE w.name = ? AND wm.user_id = ?
+      AND (? IS NULL OR w.id = ?)
+  `).bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId).first<any>();
+  if (!workspace) return xmlError(c, 'NoSuchBucket', 'Bucket not found', 404);
+  const denied = requireS3Role(c, workspace.role, needWrite);
+  if (denied) return denied;
+  return { workspace };
+}
+
+// PUT /s3/:bucket?lifecycle -> PutBucketLifecycleConfiguration (replaces all rules)
+s3Router.put('/:bucket', async (c) => {
+  if (c.req.query('lifecycle') === undefined) {
+    return xmlError(c, 'NotImplemented', 'Only the ?lifecycle subresource is supported on buckets.', 501);
+  }
+  const resolved = await resolveBucket(c, true);
+  if (resolved instanceof Response) return resolved;
+  const { workspace } = resolved;
+
+  const rules = parseLifecycleXml(await c.req.text());
+  const db = c.env.DB;
+  await db.prepare('DELETE FROM s3_lifecycle_rules WHERE workspace_id = ?').bind(workspace.id).run();
+  for (const r of rules) {
+    await db.prepare(
+      'INSERT OR REPLACE INTO s3_lifecycle_rules (id, workspace_id, prefix, expiration_days, enabled) VALUES (?, ?, ?, ?, ?)'
+    ).bind(generateId(), workspace.id, r.prefix, r.days, r.enabled ? 1 : 0).run();
+  }
+  return c.body(null, 200);
+});
+
+// DELETE /s3/:bucket?lifecycle -> DeleteBucketLifecycleConfiguration
+s3Router.delete('/:bucket', async (c) => {
+  if (c.req.query('lifecycle') === undefined) {
+    return xmlError(c, 'NotImplemented', 'Only the ?lifecycle subresource is supported on buckets.', 501);
+  }
+  const resolved = await resolveBucket(c, true);
+  if (resolved instanceof Response) return resolved;
+  await c.env.DB.prepare('DELETE FROM s3_lifecycle_rules WHERE workspace_id = ?').bind(resolved.workspace.id).run();
+  return c.body(null, 204);
+});
+
 // Helpers to resolve virtual folders dynamically
 async function getWorkspaceFolder(db: any, workspaceId: string, folderPath: string): Promise<string | null | undefined> {
   if (!folderPath) return null;
@@ -249,13 +324,16 @@ s3Router.on('HEAD', '/:bucket/:key{.+}', async (c) => {
   const db = c.env.DB;
 
   const workspace = await db.prepare(`
-    SELECT w.id FROM workspaces w
+    SELECT w.id, wm.role FROM workspaces w
     JOIN workspace_members wm ON w.id = wm.workspace_id
     WHERE w.name = ? AND wm.user_id = ?
       AND (? IS NULL OR w.id = ?)
   `).bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId).first<any>();
 
   if (!workspace) return c.text('Not Found', 404);
+
+  const rbacDenied = requireS3Role(c, workspace.role, false);
+  if (rbacDenied) return rbacDenied;
 
   const pathParts = key.split('/');
   const fileName = pathParts.pop();
@@ -287,13 +365,16 @@ s3Router.get('/:bucket/:key{.+}', async (c) => {
   const db = c.env.DB;
 
   const workspace = await db.prepare(`
-    SELECT w.id FROM workspaces w
+    SELECT w.id, wm.role FROM workspaces w
     JOIN workspace_members wm ON w.id = wm.workspace_id
     WHERE w.name = ? AND wm.user_id = ?
       AND (? IS NULL OR w.id = ?)
   `).bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId).first<any>();
 
   if (!workspace) return c.text('Bucket not found', 404);
+
+  const rbacDenied = requireS3Role(c, workspace.role, false);
+  if (rbacDenied) return rbacDenied;
 
   // Split S3 key to locate file
   const pathParts = key.split('/');
@@ -319,7 +400,7 @@ s3Router.get('/:bucket/:key{.+}', async (c) => {
   }
 
   const driveService = new GoogleDriveService(
-    c.env.KV,
+    c.env.DB,
     c.env.GOOGLE_CLIENT_ID,
     c.env.GOOGLE_CLIENT_SECRET,
     c.env.TOKEN_ENCRYPTION_KEY
@@ -341,13 +422,16 @@ s3Router.delete('/:bucket/:key{.+}', async (c) => {
   const db = c.env.DB;
 
   const workspace = await db.prepare(`
-    SELECT w.id FROM workspaces w
+    SELECT w.id, wm.role FROM workspaces w
     JOIN workspace_members wm ON w.id = wm.workspace_id
     WHERE w.name = ? AND wm.user_id = ?
       AND (? IS NULL OR w.id = ?)
   `).bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId).first<any>();
 
   if (!workspace) return c.text('Bucket not found', 404);
+
+  const rbacDenied = requireS3Role(c, workspace.role, true);
+  if (rbacDenied) return rbacDenied;
 
   const uploadId = c.req.query('uploadId');
   if (uploadId) {
@@ -360,7 +444,7 @@ s3Router.delete('/:bucket/:key{.+}', async (c) => {
     }
 
     const driveService = new GoogleDriveService(
-      c.env.KV,
+      c.env.DB,
       c.env.GOOGLE_CLIENT_ID,
       c.env.GOOGLE_CLIENT_SECRET,
       c.env.TOKEN_ENCRYPTION_KEY
@@ -392,7 +476,7 @@ s3Router.delete('/:bucket/:key{.+}', async (c) => {
   if (!file) return xmlError(c, 'NoSuchKey', `The specified key does not exist.`, 404);
 
   const driveService = new GoogleDriveService(
-    c.env.KV,
+    c.env.DB,
     c.env.GOOGLE_CLIENT_ID,
     c.env.GOOGLE_CLIENT_SECRET,
     c.env.TOKEN_ENCRYPTION_KEY
@@ -422,13 +506,16 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
   const db = c.env.DB;
 
   const workspace = await db.prepare(`
-    SELECT w.id FROM workspaces w
+    SELECT w.id, wm.role FROM workspaces w
     JOIN workspace_members wm ON w.id = wm.workspace_id
     WHERE w.name = ? AND wm.user_id = ?
       AND (? IS NULL OR w.id = ?)
   `).bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId).first<any>();
 
   if (!workspace) return c.text('Bucket not found', 404);
+
+  const rbacDenied = requireS3Role(c, workspace.role, true);
+  if (rbacDenied) return rbacDenied;
 
   const contentLength = parseInt(c.req.header('Content-Length') || '0', 10);
   const mimeType = c.req.header('Content-Type') || 'application/octet-stream';
@@ -455,7 +542,7 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
 
   // 3. Perform Direct Google Drive Upload
   const driveService = new GoogleDriveService(
-    c.env.KV,
+    c.env.DB,
     c.env.GOOGLE_CLIENT_ID,
     c.env.GOOGLE_CLIENT_SECRET,
     c.env.TOKEN_ENCRYPTION_KEY
@@ -544,7 +631,7 @@ async function handleUploadPart(c: any, uploadId: string, partNumber: number): P
   const pipedStream = bodyStream.pipeThrough(hashingStream);
 
   const driveService = new GoogleDriveService(
-    c.env.KV,
+    c.env.DB,
     c.env.GOOGLE_CLIENT_ID,
     c.env.GOOGLE_CLIENT_SECRET,
     c.env.TOKEN_ENCRYPTION_KEY
@@ -593,7 +680,7 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
   const db = c.env.DB;
 
   const workspace = await db.prepare(`
-    SELECT w.id FROM workspaces w
+    SELECT w.id, wm.role FROM workspaces w
     JOIN workspace_members wm ON w.id = wm.workspace_id
     WHERE w.name = ? AND wm.user_id = ?
       AND (? IS NULL OR w.id = ?)
@@ -601,8 +688,11 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
 
   if (!workspace) return c.text('Bucket not found', 404);
 
+  const rbacDenied = requireS3Role(c, workspace.role, true);
+  if (rbacDenied) return rbacDenied;
+
   const driveService = new GoogleDriveService(
-    c.env.KV,
+    c.env.DB,
     c.env.GOOGLE_CLIENT_ID,
     c.env.GOOGLE_CLIENT_SECRET,
     c.env.TOKEN_ENCRYPTION_KEY

@@ -20,7 +20,7 @@ export function QuotaBar({ used, total, color, showLabel = true }: QuotaBarProps
 
   return (
     <div>
-      <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+      <div className="h-1.5 w-full bg-stone-100 rounded-full overflow-hidden">
         <div
           className="h-full rounded-full transition-all"
           style={{
@@ -30,7 +30,7 @@ export function QuotaBar({ used, total, color, showLabel = true }: QuotaBarProps
         />
       </div>
       {showLabel && (
-        <div className="flex justify-between mt-1.5 text-xs text-gray-400">
+        <div className="flex justify-between mt-1.5 text-xs text-stone-400">
           <span>{formatFileSize(used)} used</span>
           <span>{formatFileSize(total)} total</span>
         </div>
