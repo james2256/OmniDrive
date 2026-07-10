@@ -43,13 +43,13 @@ export class D1PreparedStatementWrapper {
     });
   }
 
-  async run(): Promise<{ success: boolean }> {
+  async run(): Promise<{ success: boolean; meta: { changes: number; lastRowId?: number | string } }> {
     return new Promise((resolve, reject) => {
       setImmediate(() => {
         try {
           const stmt = this.db.prepare(this.query);
-          stmt.run(...this.params);
-          resolve({ success: true });
+          const info = stmt.run(...this.params);
+          resolve({ success: true, meta: { changes: info.changes, lastRowId: info.lastInsertRowid } });
         } catch (e) {
           reject(e);
         }
