@@ -25,6 +25,7 @@ export type AppContext = {
     userId: string;
     session: SessionData;
     s3WorkspaceId?: string | null;
+    requestId: string;
   };
 };
 

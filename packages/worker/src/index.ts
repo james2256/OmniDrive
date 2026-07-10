@@ -5,6 +5,7 @@ import { securityHeaders } from './middleware/security-headers';
 import { csrfGuard } from './middleware/csrf-guard';
 import { rateLimiter } from './middleware/rate-limiter';
 import { AppError } from './middleware/error-handler';
+import { createLogger } from './lib/logger';
 import { runScheduledSync } from './services/sync';
 import { runLifecycleExpiration, cleanupOrphanMultipartUploads } from './services/s3-lifecycle';
 import { AuditService } from './services/audit.service';
@@ -24,9 +25,20 @@ import { AutomationEngine } from './services/automation.service';
 
 export const app = new Hono<AppContext>({ strict: false });
 
-// Global middleware (order matters): security → CORS → CSRF → rate limits (below)
+// Global middleware (order matters): security → CORS → requestId → CSRF → rate limits (below)
 app.use('*', securityHeaders);
 app.use('*', corsMiddleware());
+
+// Request ID middleware — generates or reuses a correlation ID for every request.
+// Sets c.set('requestId') so the logger can include it in every log line.
+// Also sets the X-Request-Id response header so clients can correlate.
+app.use('*', async (c, next) => {
+  const requestId = c.req.header('x-request-id') ?? crypto.randomUUID();
+  c.set('requestId', requestId);
+  c.header('X-Request-Id', requestId);
+  await next();
+});
+
 app.use('/api/*', csrfGuard);
 
 function escapeXml(str: string): string {
@@ -46,11 +58,19 @@ app.onError((err, c) => {
   const isAppError = err instanceof AppError || err.name === 'AppError';
   const status = isAppError ? (err as any).status : 500;
   const message = isAppError ? err.message : 'Internal server error';
-  
+
+  // Structured error logging with requestId for correlation
+  const requestId = c.get('requestId') as string | undefined;
+  const logger = createLogger({ requestId, userId: c.get('userId') as string | undefined });
   if (status >= 500) {
-    console.error('Unhandled server error:', err);
+    logger.error('Unhandled server error', {
+      error: err.message,
+      stack: err.stack,
+      path: c.req.path,
+      method: c.req.method,
+    });
   }
-  
+
   if (c.req.path.startsWith('/s3')) {
     let s3Code = 'InternalError';
     if (status === 400) s3Code = 'InvalidRequest';
