@@ -26,8 +26,9 @@ Thumbs.db
 # Logs
 *.log
 
-# Internal Documentation
-docs/
+# Internal Documentation (but allow ADRs which are project docs)
+docs/*
+!docs/adr/
 
 # Local IDE / agent artifacts
 mcps/

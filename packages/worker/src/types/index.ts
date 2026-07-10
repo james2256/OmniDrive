@@ -103,11 +103,9 @@ export interface SharedLink {
 
 // ─── KV Types ───
 
-export interface OAuthTokens {
-  accessToken: string;
-  refreshToken: string;
-  expiresAt: number; // unix timestamp ms
-}
+// OAuthTokens is defined in types/env.ts (the canonical version with
+// authType and serviceAccount fields). Re-exported here for convenience.
+export type { OAuthTokens } from './env';
 
 export interface QuotaCache {
   v?: number;

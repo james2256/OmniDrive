@@ -348,7 +348,7 @@ Kode undangan registrasi user baru.
 
 ### `sessions`
 
-Session login user (migrasi dari KV ke D1 via `0009`).
+Session login user (migrated from KV to D1 in the baseline migration `0001_initial_schema.sql`).
 
 | Kolom | Tipe | Keterangan |
 |-------|------|------------|
@@ -364,7 +364,7 @@ Cleanup: cron `*/30` di `index.ts` menghapus baris `WHERE expires_at < now`.
 
 ### `oauth_states`
 
-PKCE verifier + userId untuk OAuth round-trip (migrasi dari KV via `0010`). TTL 10 menit, dibersihkan cron.
+PKCE verifier + userId untuk OAuth round-trip (migrated from KV to D1 in the baseline migration `0001_initial_schema.sql`). TTL 10 menit, dibersihkan cron.
 
 | Kolom | Tipe | Keterangan |
 |-------|------|------------|
@@ -375,7 +375,7 @@ PKCE verifier + userId untuk OAuth round-trip (migrasi dari KV via `0010`). TTL 
 
 ### `drive_tokens`
 
-OAuth tokens terenkripsi per drive account (migrasi dari KV via `0010`). Auto-delete saat drive dihapus (ON DELETE CASCADE).
+OAuth tokens terenkripsi per drive account (migrated from KV to D1 in the baseline migration `0001_initial_schema.sql`). Auto-delete saat drive dihapus (ON DELETE CASCADE).
 
 | Kolom | Tipe | Keterangan |
 |-------|------|------------|
@@ -385,7 +385,7 @@ OAuth tokens terenkripsi per drive account (migrasi dari KV via `0010`). Auto-de
 
 ### `quota_cache`
 
-Cache hasil `storageQuota` Google Drive API (migrasi dari KV via `0010`). TTL 5 menit via `updated_at` check di kode.
+Cache hasil `storageQuota` Google Drive API (migrated from KV to D1 in the baseline migration `0001_initial_schema.sql`). TTL 5 menit via `updated_at` check di kode.
 
 | Kolom | Tipe | Keterangan |
 |-------|------|------------|
@@ -474,7 +474,7 @@ make reset-remote
 
 ## KV Store (Bukan D1)
 
-Mulai migrasi `0010`, hampir semua data sudah pindah ke D1. KV hanya menyimpan **rate-limit counter shared link** (volume rendah, TTL semantics convenient):
+Setelah migrasi KV→D1 (baseline `0001_initial_schema.sql`), hampir semua data sudah pindah ke D1. KV hanya menyimpan **rate-limit counter shared link** (volume rendah, TTL semantics convenient):
 
 | Key pattern | Isi |
 |-------------|-----|
