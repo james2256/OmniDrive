@@ -19,7 +19,12 @@
     "dev:worker": "npm run dev --prefix packages/worker",
     "dev:web": "npm run dev --prefix packages/web -- --host 0.0.0.0",
     "test": "npm run test --prefix packages/worker && npm run test --prefix packages/web",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "typecheck": "npm run build --prefix packages/worker -- --dry-run && npm run build --prefix packages/web",
+    "validate": "npm run lint && npm run typecheck && npm test",
     "migrate:remote": "npm run db:migrate:remote --prefix packages/worker",
     "deploy:code": "npm run build --prefix packages/worker && npm run deploy --prefix packages/worker && npm run build --prefix packages/web && npm run deploy --prefix packages/web",
     "deploy:full": "npm run db:migrate:remote --prefix packages/worker && npm run deploy:code",
@@ -28,8 +33,13 @@
   },
   "devDependencies": {
     "@clack/prompts": "^1.5.1",
+    "@eslint/js": "^9.39.4",
     "concurrently": "^9.1.0",
+    "eslint": "^9.39.4",
+    "eslint-config-prettier": "^9.1.2",
     "picocolors": "^1.1.1",
-    "typescript": "^5.7.0"
+    "prettier": "^3.9.5",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.63.0"
   }
 }

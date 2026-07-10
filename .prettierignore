@@ -1,0 +1,9 @@
+**/dist/**
+**/node_modules/**
+**/.wrangler/**
+**/build/**
+**/coverage/**
+**/*.min.js
+**/package-lock.json
+**/yarn.lock
+**/pnpm-lock.yaml

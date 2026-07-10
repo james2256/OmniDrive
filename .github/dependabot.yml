@@ -1,0 +1,62 @@
+version: 2
+
+updates:
+  # Worker npm dependencies
+  - package-ecosystem: npm
+    directory: /packages/worker
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - worker
+    commit-message:
+      prefix: 'chore(deps-worker)'
+    groups:
+      # Group minor/patch updates together to reduce PR noise
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  # Web npm dependencies
+  - package-ecosystem: npm
+    directory: /packages/web
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - web
+    commit-message:
+      prefix: 'chore(deps-web)'
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  # Root npm dependencies
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+    commit-message:
+      prefix: 'chore(deps)'
+
+  # GitHub Actions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    labels:
+      - dependencies
+      - github-actions
+    commit-message:
+      prefix: 'chore(deps-ci)'
