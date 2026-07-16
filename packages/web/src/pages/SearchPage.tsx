@@ -58,6 +58,31 @@ export function SearchPage() {
     return { drive: drives[index], index };
   }, [drives]);
 
+  const handleToggleStar = async (id: string, type: 'file' | 'folder', currentStarStatus: boolean) => {
+    try {
+      if (type === 'file') {
+        if (currentStarStatus) {
+          await api.unstarFile(id);
+          addToast('success', 'File unstarred');
+        } else {
+          await api.starFile(id);
+          addToast('success', 'File starred');
+        }
+      } else {
+        if (currentStarStatus) {
+          await api.unstarFolder(id);
+          addToast('success', 'Folder unstarred');
+        } else {
+          await api.starFolder(id);
+          addToast('success', 'Folder starred');
+        }
+      }
+      fetchResults(query);
+    } catch {
+      addToast('error', 'Failed to update star status');
+    }
+  };
+
   return (
     <div className="p-4 sm:p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -83,6 +108,7 @@ export function SearchPage() {
             onShare={(id, type) => setShareTarget({ id, type })}
             onMoveDrive={(file) => setMoveDriveFiles([file])}
             onPreviewFile={setPreviewFile}
+            onToggleStar={handleToggleStar}
             isTargetShared={isTargetShared}
             viewMode="list"
           />

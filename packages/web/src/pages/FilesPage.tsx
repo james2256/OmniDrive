@@ -89,6 +89,31 @@ export function FilesPage() {
     }
   };
 
+  const handleToggleStar = async (id: string, type: 'file' | 'folder', currentStarStatus: boolean) => {
+    try {
+      if (type === 'file') {
+        if (currentStarStatus) {
+          await api.unstarFile(id);
+          addToast('success', 'File unstarred');
+        } else {
+          await api.starFile(id);
+          addToast('success', 'File starred');
+        }
+      } else {
+        if (currentStarStatus) {
+          await api.unstarFolder(id);
+          addToast('success', 'Folder unstarred');
+        } else {
+          await api.starFolder(id);
+          addToast('success', 'Folder starred');
+        }
+      }
+      refresh();
+    } catch {
+      addToast('error', 'Failed to update star status');
+    }
+  };
+
   const handleCreateFolder = () => {
     setShowCreateFolder(true);
   };
@@ -213,6 +238,7 @@ export function FilesPage() {
               onMoveDrive={(file) => setMoveDriveFiles([file])}
               onAddToWorkspace={setWorkspaceTarget}
               onViewInfo={handleViewInfo}
+              onToggleStar={handleToggleStar}
               isTargetShared={isTargetShared}
               errorDrives={errorDrives}
             />

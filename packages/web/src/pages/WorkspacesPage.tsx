@@ -160,6 +160,31 @@ export function WorkspacesPage() {
     }
   }, [addToast]);
 
+  const onToggleStar = useCallback(async (id: string, type: 'file' | 'folder', currentStarStatus: boolean) => {
+    try {
+      if (type === 'file') {
+        if (currentStarStatus) {
+          await api.unstarFile(id);
+          addToast('success', 'File unstarred');
+        } else {
+          await api.starFile(id);
+          addToast('success', 'File starred');
+        }
+      } else {
+        if (currentStarStatus) {
+          await api.unstarFolder(id);
+          addToast('success', 'Folder unstarred');
+        } else {
+          await api.starFolder(id);
+          addToast('success', 'Folder starred');
+        }
+      }
+      if (activeFolderId) fetchContents(activeFolderId);
+    } catch {
+      addToast('error', 'Failed to update star status');
+    }
+  }, [addToast, activeFolderId, fetchContents]);
+
   const handleSetRetentionPolicy = useCallback((id: string, type: 'file' | 'folder') => {
     if (type === 'folder') {
       setRetentionTargetId(id);
@@ -182,6 +207,7 @@ export function WorkspacesPage() {
     onRenameFile,
     onDeleteFile,
     onMoveDrive,
+    onToggleStar,
     isTargetShared,
     errorDrives,
     onViewInfo: handleViewInfo,
@@ -198,6 +224,7 @@ export function WorkspacesPage() {
     onRenameFile,
     onDeleteFile,
     onMoveDrive,
+    onToggleStar,
     isTargetShared,
     errorDrives,
     handleViewInfo,

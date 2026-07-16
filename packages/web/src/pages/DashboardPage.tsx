@@ -92,6 +92,31 @@ export function DashboardPage() {
     api.getFileCategoryOverview().then(setCategory).catch(() => setCategory(null));
   }, []);
 
+  const handleToggleStar = async (id: string, type: 'file' | 'folder', currentStarStatus: boolean) => {
+    try {
+      if (type === 'file') {
+        if (currentStarStatus) {
+          await api.unstarFile(id);
+          addToast('success', 'File unstarred');
+        } else {
+          await api.starFile(id);
+          addToast('success', 'File starred');
+        }
+      } else {
+        if (currentStarStatus) {
+          await api.unstarFolder(id);
+          addToast('success', 'Folder unstarred');
+        } else {
+          await api.starFolder(id);
+          addToast('success', 'Folder starred');
+        }
+      }
+      refreshRecent();
+    } catch {
+      addToast('error', 'Failed to update star status');
+    }
+  };
+
   useEffect(() => {
     fetchDrives();
     fetchSharedLinks();
@@ -377,6 +402,7 @@ export function DashboardPage() {
                 onShare={(id, type) => setShareTarget({ id, type })}
                 onMoveDrive={(file) => setMoveDriveFiles([file])}
                 onPreviewFile={setPreviewFile}
+                onToggleStar={handleToggleStar}
                 isTargetShared={isTargetShared}
                 viewMode="list"
               />
