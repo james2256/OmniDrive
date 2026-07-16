@@ -8,7 +8,7 @@ import { resolveDrivesWithQuota } from '../services/drive-quota';
 import { UploadRouter } from '../services/upload-router';
 import { AutomationEngine } from '../services/automation.service';
 import { PolicyService } from '../services/policy.service';
-import { mapDriveRow, mapFileRow, mapFolderRow } from '../types';
+import { mapFileRow, mapFolderRow } from '../types';
 
 export const filesRouter = new Hono<AppContext>({ strict: false });
 
@@ -546,7 +546,7 @@ filesRouter.post('/upload/finalize', async (c) => {
   const created = await db.prepare('SELECT * FROM files WHERE id = ?').bind(id).first();
 
   const engine = new AutomationEngine(c.env);
-  c.executionCtx.waitUntil(engine.processEventTrigger({ ...created, user_id: userId } as any, c.executionCtx));
+  c.executionCtx.waitUntil(engine.processEventTrigger({ ...created, user_id: userId } as any, c.executionCtx as any));
 
   return c.json({ file: mapFileRow(created!), success: true }, 201);
 });

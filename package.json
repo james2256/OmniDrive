@@ -22,7 +22,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "npm run build --prefix packages/worker -- --dry-run && npm run build --prefix packages/web",
+    "typecheck": "tsc -p packages/worker/tsconfig.json --noEmit && tsc -p packages/web/tsconfig.json --noEmit",
     "migrate:remote": "npm run db:migrate:remote --prefix packages/worker",
     "deploy:code": "npm run build --prefix packages/worker && npm run deploy --prefix packages/worker && npm run build --prefix packages/web && npm run deploy --prefix packages/web",
     "deploy:full": "npm run db:migrate:remote --prefix packages/worker && npm run deploy:code",

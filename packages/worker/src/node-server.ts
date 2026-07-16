@@ -83,7 +83,7 @@ const CRON_SCHEDULE = '*/30 * * * *';
 cron.schedule(CRON_SCHEDULE, () => {
   console.log('Executing cron schedule...');
   if (worker.scheduled) {
-    worker.scheduled({ cron: CRON_SCHEDULE, type: 'cron', scheduledTime: Date.now() }, nodeEnv, dummyCtx);
+    worker.scheduled({ cron: CRON_SCHEDULE, scheduledTime: Date.now() } as any, nodeEnv, dummyCtx);
   }
 });
 

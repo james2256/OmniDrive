@@ -37,7 +37,7 @@ export class PolicyService {
     await this.db.prepare('UPDATE workspaces SET used_bytes = COALESCE(used_bytes, 0) + ? WHERE id = ?').bind(sizeDelta, workspaceId).run();
   }
 
-  async processAutoDeleteRetentionPolicies(googleClientId: string, googleClientSecret: string) {
+  async processAutoDeleteRetentionPolicies(_googleClientId: string, _googleClientSecret: string) {
     // 1. Get all auto_delete policies
     const { results: policies } = await this.db.prepare(
       `SELECT * FROM workspace_policies WHERE policy_type = 'data_retention' AND json_extract(config, '$.action') = 'auto_delete'`

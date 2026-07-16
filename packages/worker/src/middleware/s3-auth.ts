@@ -275,7 +275,8 @@ export const s3AuthMiddleware: MiddlewareHandler = async (c, next) => {
       for (const aeVal of acceptEncodingValues) {
         const overrides = signedHeadersList.includes('accept-encoding')
           ? { 'accept-encoding': aeVal }
-          : {};
+          
+          : {} as any;
           
         const testResult = checkSignatureForPath(pathCandidate, overrides);
         if (testResult.valid) {
