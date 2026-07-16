@@ -1,0 +1,8 @@
+**/node_modules/**
+**/dist/**
+**/.wrangler/**
+**/build/**
+**/coverage/**
+**/*.min.js
+**/package-lock.json
+**/bun.lock
