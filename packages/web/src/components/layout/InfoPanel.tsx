@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useSelectionStore } from '../../stores/useSelectionStore';
 import { formatFileSize, formatRelativeTime } from '../../lib/utils';
+import { api } from '../../lib/api';
 import { FileIcon } from '../files/FileIcon';
 import { DriveBadge } from '../DriveBadge';
 import { X, File, Folder, Loader2, RefreshCw } from 'lucide-react';
@@ -27,7 +28,6 @@ export const InfoPanel: React.FC = () => {
     if (!singleSelection || singleSelection.type !== 'folder') return;
     setIsSyncing(true);
     try {
-      const { api } = await import('../../lib/api');
       const driveId = (singleSelection.item as any).driveAccountId || '';
       await api.forceSyncFolder(singleSelection.item.id!, driveId);
       addToast('success', 'Sync queued. Data will update shortly.');
@@ -186,7 +186,6 @@ export const InfoPanel: React.FC = () => {
                 const value = (form.elements.namedItem('metaValue') as HTMLInputElement).value;
                 if (!key || !value || !item) return;
 
-                const { api } = await import('../../lib/api');
                 const currentMeta = typeof (item as any).metadata === 'string' ? JSON.parse((item as any).metadata || '{}') : ((item as any).metadata || {});
                 const newMeta = { ...currentMeta, [key]: value };
 
