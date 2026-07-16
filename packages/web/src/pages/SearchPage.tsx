@@ -35,7 +35,7 @@ export function SearchPage() {
       const data = await api.searchFiles(q);
       if (signal?.aborted) return;
       setResults(data.files);
-    } catch (error) {
+    } catch {
       if (signal?.aborted) return;
       addToast('error', 'Failed to perform search');
     } finally {

@@ -74,7 +74,7 @@ export function SettingsPage() {
         (w: any) => w.role === 'manager' || w.role === 'owner'
       );
       setWorkspaces(filtered);
-    } catch (err) {
+    } catch {
       addToast('error', 'Failed to load S3 key data');
     } finally {
       setLoadingS3(false);
@@ -111,7 +111,7 @@ export function SettingsPage() {
       // Refresh list
       loadData();
       addToast('success', 'S3 API key created successfully');
-    } catch (err) {
+    } catch {
       addToast('error', 'Failed to create S3 API key');
     } finally {
       setIsCreatingKey(false);

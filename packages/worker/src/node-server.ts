@@ -25,13 +25,13 @@ if (isNewDb) {
   const schemaPath = path.join(process.cwd(), 'src/db/schema.sql');
   if (fs.existsSync(schemaPath)) {
     d1.exec(fs.readFileSync(schemaPath, 'utf-8'));
-    console.log('Database schema initialized.');
+    console.warn('Database schema initialized.');
   }
 } else {
   // Migration for existing DB
   try {
     d1.exec("ALTER TABLE sync_state ADD COLUMN next_page_token TEXT;");
-  } catch (e) {
+  } catch {
     // Ignore if column already exists
   }
 }
@@ -67,7 +67,7 @@ app.get('*', (c) => {
   try {
     const indexHtml = fs.readFileSync(indexPath, 'utf-8');
     return c.html(indexHtml);
-  } catch (err) {
+  } catch {
     return c.text('index.html not found in ' + staticDir, 404);
   }
 });
@@ -81,14 +81,14 @@ const dummyCtx = {
 // Setup Cron Schedule
 const CRON_SCHEDULE = '*/30 * * * *';
 cron.schedule(CRON_SCHEDULE, () => {
-  console.log('Executing cron schedule...');
+  console.warn('Executing cron schedule...');
   if (worker.scheduled) {
     worker.scheduled({ cron: CRON_SCHEDULE, scheduledTime: Date.now() } as any, nodeEnv, dummyCtx);
   }
 });
 
 const port = parseInt(process.env.PORT || '8080', 10);
-console.log(`Starting Node server on port ${port}...`);
+console.warn(`Starting Node server on port ${port}...`);
 
 const server = serve({
   fetch: (req) => app.fetch(req, nodeEnv, dummyCtx),
@@ -96,10 +96,10 @@ const server = serve({
 });
 
 function shutdown(signal: string) {
-  console.log(`${signal} received. Initiating graceful shutdown...`);
+  console.warn(`${signal} received. Initiating graceful shutdown...`);
   setShuttingDown();
   server.close(() => {
-    console.log('HTTP server closed. Exiting process.');
+    console.warn('HTTP server closed. Exiting process.');
     process.exit(0);
   });
 }

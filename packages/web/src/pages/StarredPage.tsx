@@ -21,7 +21,7 @@ export function StarredPage() {
       const data = await api.getStarred();
       setFiles(data.files);
       setFolders(data.folders);
-    } catch (error) {
+    } catch {
       addToast('error', 'Failed to load starred items');
     } finally {
       setIsLoading(false);
@@ -54,7 +54,7 @@ export function StarredPage() {
           addToast('success', 'Folder starred');
         }
       }
-    } catch (error) {
+    } catch {
       addToast('error', 'Failed to update star status');
     }
   };

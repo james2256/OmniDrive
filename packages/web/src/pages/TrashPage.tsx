@@ -19,7 +19,7 @@ export function TrashPage() {
     try {
       const data = await api.getTrashFiles();
       setResults(data.files);
-    } catch (error) {
+    } catch {
       addToast('error', 'Failed to load trash');
     } finally {
       setIsLoading(false);
@@ -35,7 +35,7 @@ export function TrashPage() {
       await api.restoreFile(fileId);
       addToast('success', 'File restored successfully');
       fetchTrash();
-    } catch (error) {
+    } catch {
       addToast('error', 'Failed to restore file');
     }
   };
@@ -45,7 +45,7 @@ export function TrashPage() {
       await api.deleteFilePermanent(fileId);
       addToast('success', 'File permanently deleted');
       fetchTrash();
-    } catch (error) {
+    } catch {
       addToast('error', 'Failed to permanently delete file');
     }
   };

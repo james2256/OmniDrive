@@ -176,7 +176,7 @@ filesRouter.get('/search', async (c) => {
         sql += ` AND json_extract(f.metadata, '$.' || ?) = ?`;
         binds.push(key, String(value));
       }
-    } catch (e) {
+    } catch {
       // ignore invalid json
     }
   }

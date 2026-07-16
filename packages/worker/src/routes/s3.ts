@@ -59,7 +59,7 @@ function getFileETag(file: { id: string; metadata?: string | null }): string {
       if (meta && typeof meta === 'object' && meta.md5) {
         return meta.md5;
       }
-    } catch (e) {
+    } catch {
       // ignore
     }
   }

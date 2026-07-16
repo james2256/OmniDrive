@@ -60,7 +60,7 @@ export function useMergedDrive(folderId: string, driveIdParam: string | null) {
         setFiles(data.files);
         setBreadcrumb(data.breadcrumb || [{ id: 'root', name: 'All Files' }]);
       }
-    } catch (err) {
+    } catch {
       if (abortSignal?.aborted) return;
       addToast('error', 'Failed to load folder contents');
     } finally {

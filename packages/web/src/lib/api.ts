@@ -141,7 +141,7 @@ export const api = {
             } else {
               resolve(result);
             }
-          } catch (err) {
+          } catch {
             reject(new Error(`Upload response not valid JSON: ${xhr.responseText.substring(0, 100)}`));
           }
         } else if (xhr.status === 308) {

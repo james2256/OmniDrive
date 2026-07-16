@@ -46,7 +46,7 @@ async function validateSharedLink(c: Context<AppContext>, link: SharedLink): Pro
       if (payload.id === link.id) {
         return { ok: true };
       }
-    } catch (e) {
+    } catch {
       // Invalid token
     }
   }
@@ -62,7 +62,7 @@ sharedRouter.post('/', authGuard, async (c) => {
   let body;
   try {
     body = await c.req.json();
-  } catch (e) {
+  } catch {
     return c.json({ error: 'Invalid JSON body' }, 400);
   }
 
@@ -153,7 +153,7 @@ sharedRouter.put('/:id', authGuard, async (c) => {
   let body;
   try {
     body = await c.req.json();
-  } catch (e) {
+  } catch {
     return c.json({ error: 'Invalid JSON body' }, 400);
   }
 
@@ -264,7 +264,7 @@ sharedRouter.post('/:id/verify', async (c) => {
   let body;
   try {
     body = await c.req.json();
-  } catch (e) {
+  } catch {
     return c.json({ error: 'Invalid JSON body' }, 400);
   }
   
@@ -315,7 +315,7 @@ sharedRouter.post('/:id/email', async (c) => {
   let body;
   try {
     body = await c.req.json();
-  } catch (e) {
+  } catch {
     return c.json({ error: 'Invalid JSON body' }, 400);
   }
   const { email } = body;

@@ -66,7 +66,7 @@ function parseRule(row: Record<string, unknown>): ParsedRule | null {
       conditions,
       actions
     };
-  } catch (error) {
+  } catch {
     return null; // Skip malformed rules
   }
 }

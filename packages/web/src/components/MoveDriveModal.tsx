@@ -43,7 +43,7 @@ export function MoveDriveModal({ files, onClose, onSuccess, onError }: MoveDrive
         try {
           await api.moveFileToDrive(file.id, drive.id);
           successCount++;
-        } catch (e) {
+        } catch {
           failCount++;
         }
       }
