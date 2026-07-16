@@ -16,7 +16,7 @@ function calculateSigV4({
   queryParams = {},
   headers = {},
   payload = '',
-  accessKeyId = ACCESS_KEY_ID,
+  _accessKeyId = ACCESS_KEY_ID,
   secretAccessKey = SECRET_ACCESS_KEY,
   region = 'us-east-1',
   service = 's3',

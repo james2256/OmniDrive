@@ -248,7 +248,7 @@ export const s3AuthMiddleware: MiddlewareHandler = async (c, next) => {
     };
 
     // Accept-Encoding permutation setup
-    let acceptEncodingValues = [c.req.header('accept-encoding') || ''];
+    const acceptEncodingValues = [c.req.header('accept-encoding') || ''];
     if (signedHeadersList.includes('accept-encoding')) {
       // Add common fallbacks that proxies might have appended to or modified
       acceptEncodingValues.push('gzip');

@@ -24,7 +24,7 @@ export const SidebarStorage: React.FC = () => {
           { name: 'Archives', value: res.archives, color: '#6366f1' },  // indigo
         ];
         
-        let sorted = allCategories.filter(c => c.value > 0).sort((a, b) => b.value - a.value);
+        const sorted = allCategories.filter(c => c.value > 0).sort((a, b) => b.value - a.value);
         
         let displayCategories: CategoryData[] = [];
         let othersValue = res.others || 0;

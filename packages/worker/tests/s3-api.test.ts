@@ -15,7 +15,7 @@ function calculateSigV4({
   queryParams = {},
   headers = {},
   payload = '',
-  accessKeyId = ACCESS_KEY_ID,
+  _accessKeyId = ACCESS_KEY_ID,
   secretAccessKey = SECRET_ACCESS_KEY,
   region = 'us-east-1',
   service = 's3',
@@ -450,7 +450,7 @@ describe('S3 API compatibility endpoints', () => {
       amzDate
     });
 
-    const queryString = `prefix=documents%2F&delimiter=%2F&X-Amz-Signature=${signature}`;
+    const _queryString = `prefix=documents%2F&delimiter=%2F&X-Amz-Signature=${signature}`;
     const authHeader = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
     const res = await app.request(`${path}?prefix=documents/&delimiter=/`, {
@@ -488,7 +488,7 @@ describe('S3 API compatibility endpoints', () => {
     const dateStr = '20260621';
     
     let path = '/s3/';
-    let headers = {
+    const headers = {
       'host': 'localhost:8787',
       'x-amz-date': amzDate,
       'x-amz-content-sha256': sha256('')
@@ -793,7 +793,7 @@ describe('S3 API compatibility endpoints', () => {
                 if (done) break;
               }
             } else if (typeof init.body[Symbol.asyncIterator] === 'function') {
-              for await (const _ of init.body) {}
+              for await (const _ of init.body) { void _; }
             }
           }
           return {
@@ -917,7 +917,7 @@ describe('S3 API compatibility endpoints', () => {
                 if (done) break;
               }
             } else if (typeof init.body[Symbol.asyncIterator] === 'function') {
-              for await (const _ of init.body) {}
+              for await (const _ of init.body) { void _; }
             }
           }
           return {
@@ -1091,7 +1091,7 @@ describe('S3 API compatibility endpoints', () => {
                 if (done) break;
               }
             } else if (typeof init.body[Symbol.asyncIterator] === 'function') {
-              for await (const _ of init.body) {}
+              for await (const _ of init.body) { void _; }
             }
           }
           return {

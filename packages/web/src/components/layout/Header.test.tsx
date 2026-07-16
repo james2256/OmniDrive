@@ -1,8 +1,7 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import { MemoryRouter, useNavigate } from 'react-router-dom';
+import { MemoryRouter } from 'react-router-dom';
 import { Header } from './Header';
-import { useToastStore } from '../../stores/toastStore';
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom');
