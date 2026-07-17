@@ -79,7 +79,7 @@ export class GoogleDriveService {
     return this.refreshToken(driveAccountId, tokens.refreshToken);
   }
 
-  private async persistTokens(driveAccountId: string, tokens: import('../types/env').OAuthTokens): Promise<void> {
+  private async persistTokens(driveAccountId: string, tokens: OAuthTokens): Promise<void> {
     const serialized = JSON.stringify(tokens);
     const encryptedTokens = this.encryptionKey
       ? await (await import('../lib/crypto')).encrypt(serialized, this.encryptionKey)
@@ -92,7 +92,7 @@ export class GoogleDriveService {
 
   private async refreshServiceAccountToken(
     driveAccountId: string,
-    tokens: import('../types/env').OAuthTokens
+    tokens: OAuthTokens
   ): Promise<string> {
     if (!tokens.serviceAccount) {
       throw new Error(`No service account credentials for drive ${driveAccountId}`);
@@ -147,7 +147,7 @@ export class GoogleDriveService {
       accessToken: data.access_token,
       refreshToken,
       expiresAt: Date.now() + data.expires_in * 1000,
-    } satisfies import('../types/env').OAuthTokens;
+    } satisfies OAuthTokens;
     await this.persistTokens(driveAccountId, nextTokens);
 
     return data.access_token;

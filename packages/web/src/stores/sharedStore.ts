@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { getSharedLinks, SharedLink } from '../lib/api';
+import { getSharedLinks } from '../lib/api';
+import type { SharedLink } from '../lib/api';
 
 interface SharedState {
   sharedLinks: SharedLink[];

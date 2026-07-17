@@ -39,7 +39,7 @@ export function evaluateCondition(file: AutomationFile, conditions: RuleConditio
   const evalFile = { ...file };
   if (!evalFile.extension && evalFile.name) {
     const parts = evalFile.name.split('.');
-    evalFile.extension = parts.length > 1 ? parts.pop()!.toLowerCase() : '';
+    evalFile.extension = parts.length > 1 ? (parts.pop() || '').toLowerCase() : '';
   }
 
   return conditions.every(cond => {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { getSharedLinks, deleteSharedLink, SharedLink } from '../lib/api';
+import { getSharedLinks, deleteSharedLink } from '../lib/api';
+import type { SharedLink } from '../lib/api';
 import { Link, FileText, Folder, Eye, Download, Trash2, Copy, Check, Clock, Settings } from 'lucide-react';
 import { useToastStore } from '../stores/toastStore';
 import { EditShareModal } from '../components/EditShareModal';

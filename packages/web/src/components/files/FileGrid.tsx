@@ -95,7 +95,7 @@ const ItemContextMenuContent: React.FC<{
           </ContextMenuItem>
         )}
         {type === 'file' && file && native && file.webViewLink && (
-          <ContextMenuItem onClick={() => window.open(file.webViewLink!, '_blank', 'noopener,noreferrer')}>
+          <ContextMenuItem onClick={() => window.open(file.webViewLink || '', '_blank', 'noopener,noreferrer')}>
             <ExternalLink className="mr-2 h-4 w-4" /> Open in Google
           </ContextMenuItem>
         )}

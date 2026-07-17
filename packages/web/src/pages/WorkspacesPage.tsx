@@ -137,7 +137,7 @@ export function WorkspacesPage() {
     let current = activeFolder;
     while (current) {
       path.unshift({ id: current.id, name: current.name });
-      current = folders.find(f => f.id === current!.parentId) || null;
+      current = folders.find(f => f.id === current?.parentId) || null;
     }
     return path;
   }, [activeFolder, folders]);

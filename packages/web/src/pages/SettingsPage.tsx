@@ -83,7 +83,7 @@ export function SettingsPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
 
   const handleCreateKey = async (e: React.FormEvent) => {
     e.preventDefault();

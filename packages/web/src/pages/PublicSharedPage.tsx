@@ -1,6 +1,8 @@
-import { useEffect, useState, useCallback, ReactNode } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import type { ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
-import { getSharedMeta, verifySharedPassword, SharedMetaResponse } from '../lib/api';
+import { getSharedMeta, verifySharedPassword } from '../lib/api';
+import type { SharedMetaResponse } from '../lib/api';
 import { formatFileSize } from '../lib/utils';
 import { FileIcon } from '../components/files/FileIcon';
 import { Lock, Download, AlertCircle, Loader2, Folder } from 'lucide-react';

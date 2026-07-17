@@ -3,7 +3,7 @@ import { HardDrive, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { useDriveStore } from '../stores/driveStore';
 import { api } from '../lib/api';
-import { FileEntry, DriveAccount } from '../types';
+import type { FileEntry, DriveAccount } from '../types';
 import { formatFileSize } from '../lib/utils';
 import { useToastStore } from '../stores/toastStore';
 

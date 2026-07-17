@@ -563,7 +563,7 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
   // Initiate resumable session
   const uploadUrl = await driveService.initiateResumableUpload(
     targetDrive.id,
-    fileName!,
+    fileName || '',
     mimeType,
     targetDrive.rootFolderId || 'root'
   );
@@ -759,7 +759,7 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
     // Initiate final file upload in Google Drive
     const finalUploadUrl = await driveService.initiateResumableUpload(
       upload.drive_account_id,
-      fileName!,
+      fileName || '',
       'application/octet-stream',
       destFolderId
     );
@@ -783,7 +783,7 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
         if (done) {
           currentReader = null;
           currentPartIndex++;
-          return this.pull!(controller);
+          return (this.pull || (() => Promise.resolve()))(controller);
         }
         if (value) controller.enqueue(value);
       },

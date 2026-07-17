@@ -38,7 +38,7 @@ export function WorkspaceSidebar({
       if (!map.has(parentId)) {
         map.set(parentId, []);
       }
-      map.get(parentId)!.push(f);
+      (map.get(parentId) || []).push(f);
     });
     return map;
   }, [folders]);

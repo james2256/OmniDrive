@@ -1,4 +1,5 @@
-import { useState, ComponentProps } from 'react';
+import { useState } from 'react';
+import type { ComponentProps } from 'react';
 import { FolderPlus, RefreshCw, ChevronRight, PanelLeft } from 'lucide-react';
 import type { WorkspaceFolder, BreadcrumbItem } from '../../types';
 import { WorkspaceFilesTab } from './WorkspaceFilesTab';

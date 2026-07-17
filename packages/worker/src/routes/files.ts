@@ -336,7 +336,7 @@ filesRouter.post('/:id/move-drive', async (c) => {
 
     const updatedFile = await db.prepare('SELECT * FROM files WHERE id = ?').bind(fileId).first<Record<string, unknown>>();
     
-    return c.json({ file: mapFileRow(updatedFile!), success: true });
+    return c.json({ file: mapFileRow((updatedFile as Record<string, unknown>)), success: true });
   } catch (error) {
     console.error('Move drive failed:', error);
     
@@ -548,7 +548,7 @@ filesRouter.post('/upload/finalize', async (c) => {
   const engine = new AutomationEngine(c.env);
   c.executionCtx.waitUntil(engine.processEventTrigger({ ...created, user_id: userId } as any, c.executionCtx as any));
 
-  return c.json({ file: mapFileRow(created!), success: true }, 201);
+  return c.json({ file: mapFileRow((created as Record<string, unknown>)), success: true }, 201);
 });
 
 // GET /api/files/trash

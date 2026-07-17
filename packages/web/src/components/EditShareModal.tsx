@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Calendar, Lock, Settings, ChevronDown, ChevronUp } from 'lucide-react';
-import { updateSharedLink, SharedLink } from '../lib/api';
+import { updateSharedLink } from '../lib/api';
+import type { SharedLink } from '../lib/api';
 import { useSharedStore } from '../stores/sharedStore';
 import { useToastStore } from '../stores/toastStore';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';

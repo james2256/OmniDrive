@@ -1,5 +1,5 @@
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
-import type { WorkspaceFolder } from '../types';
+import type { User, DriveAccount, AggregateQuota, DriveFolderContents, FolderContents, FileEntry, UploadInitResponse, WorkspaceFolder, AuditLog, WorkspacePolicy } from '../types';
 
 export function getFilePreviewUrl(fileId: string): string {
   return `${API_BASE}/api/files/${fileId}/preview`;
@@ -44,9 +44,9 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 export const api = {
   // Auth
   getSetupStatus: () => request<{ isSetup: boolean }>('/api/auth/setup-status'),
-  login: (data: any) => request<{ success: boolean; user: import('../types').User }>('/api/auth/login', { method: 'POST', body: JSON.stringify(data) }),
-  register: (data: any) => request<{ success: boolean; user: import('../types').User }>('/api/auth/register', { method: 'POST', body: JSON.stringify(data) }),
-  getUser: () => request<{ user: import('../types').User }>('/api/auth/me'),
+  login: (data: any) => request<{ success: boolean; user: User }>('/api/auth/login', { method: 'POST', body: JSON.stringify(data) }),
+  register: (data: any) => request<{ success: boolean; user: User }>('/api/auth/register', { method: 'POST', body: JSON.stringify(data) }),
+  getUser: () => request<{ user: User }>('/api/auth/me'),
   // OAuth initiation: backend returns the Google auth URL as JSON (the SPA
   // performs the redirect). Called via credentialed fetch so the session
   // cookie is sent; the backend stores userId in the KV OAuth state.
@@ -62,12 +62,12 @@ export const api = {
   getInvitations: () => request<{ invitations: any[] }>('/api/admin/invitations'),
   createInvitation: (code: string, max_uses: number) => request<{ success: boolean, invitation: any }>('/api/admin/invitations', { method: 'POST', body: JSON.stringify({ code, max_uses }) }),
   deleteInvitation: (id: string) => request<{ success: boolean }>(`/api/admin/invitations/${id}`, { method: 'DELETE' }),
-  getAdminUsers: () => request<{ users: import('../types').User[] }>('/api/admin/users'),
-  adminCreateUser: (data: any) => request<{ success: boolean; user: import('../types').User }>('/api/admin/users', { method: 'POST', body: JSON.stringify(data) }),
+  getAdminUsers: () => request<{ users: User[] }>('/api/admin/users'),
+  adminCreateUser: (data: any) => request<{ success: boolean; user: User }>('/api/admin/users', { method: 'POST', body: JSON.stringify(data) }),
 
   // Drives
   getDrives: () =>
-    request<{ drives: import('../types').DriveAccount[]; aggregate: import('../types').AggregateQuota }>('/api/drives/'),
+    request<{ drives: DriveAccount[]; aggregate: AggregateQuota }>('/api/drives/'),
   disconnectDrive: (id: string) => request<{ success: boolean }>(`/api/drives/${id}`, { method: 'DELETE' }),
   addServiceAccount: (credentials: string, folderId: string) =>
     request<{ success: boolean; driveId: string }>('/api/drives/service-account', {
@@ -76,7 +76,7 @@ export const api = {
     }),
   triggerSync: (id: string) => request<{ success: boolean }>(`/api/drives/${id}/sync`, { method: 'POST' }),
   getDriveFolderContents: (driveId: string, googleFolderId: string) =>
-    request<import('../types').DriveFolderContents>(`/api/drives/${driveId}/folders/${googleFolderId}`),
+    request<DriveFolderContents>(`/api/drives/${driveId}/folders/${googleFolderId}`),
 
   // Folders
   getFolderContents: (id: string, cursor?: string, limit?: number, driveId?: string) => {
@@ -85,7 +85,7 @@ export const api = {
     if (limit) params.set('limit', limit.toString());
     if (driveId) params.set('driveId', driveId);
     const query = params.toString() ? `?${params.toString()}` : '';
-    return request<import('../types').FolderContents>(`/api/folders/${id}${query}`);
+    return request<FolderContents>(`/api/folders/${id}${query}`);
   },
   createFolder: (name: string, parentId?: string, icon?: string, color?: string) =>
     request<{ folder: WorkspaceFolder }>('/api/folders', {
@@ -111,16 +111,16 @@ export const api = {
     request<{ success: boolean }>(`/api/folders/${id}/force-sync?driveId=${driveId}`, { method: 'POST' }),
 
   // Files
-  getFile: (id: string) => request<import('../types').FileEntry>(`/api/files/${id}`),
+  getFile: (id: string) => request<FileEntry>(`/api/files/${id}`),
   searchFiles: (query: string) =>
-    request<{ files: import('../types').FileEntry[]; query: string }>(`/api/files/search?q=${encodeURIComponent(query)}`),
+    request<{ files: FileEntry[]; query: string }>(`/api/files/search?q=${encodeURIComponent(query)}`),
   initiateUpload: (data: { name: string; mimeType: string; size: number; driveAccountId?: string; parentFolderId?: string }) =>
-    request<import('../types').UploadInitResponse>('/api/files/upload/init', {
+    request<UploadInitResponse>('/api/files/upload/init', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
   confirmUpload: (data: { googleFileId: string; driveAccountId: string; parentFolderId?: string }) =>
-    request<{ file: import('../types').FileEntry }>('/api/files/upload/finalize', {
+    request<{ file: FileEntry }>('/api/files/upload/finalize', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
@@ -173,21 +173,21 @@ export const api = {
     }),
   deleteFile: (id: string) => request<{ success: boolean }>(`/api/files/${id}`, { method: 'DELETE' }),
   moveFileToDrive: (id: string, targetDriveId: string) =>
-    request<{ file: import('../types').FileEntry }>(`/api/files/${id}/move-drive`, {
+    request<{ file: FileEntry }>(`/api/files/${id}/move-drive`, {
       method: 'POST',
       body: JSON.stringify({ targetDriveId }),
     }),
 
   // Trash
   getTrashFiles: () =>
-    request<{ files: import('../types').FileEntry[] }>('/api/files/trash'),
+    request<{ files: FileEntry[] }>('/api/files/trash'),
   restoreFile: (id: string) =>
     request<{ success: boolean }>(`/api/files/${id}/restore`, { method: 'POST' }),
   deleteFilePermanent: (id: string) =>
     request<{ success: boolean }>(`/api/files/${id}/permanent`, { method: 'DELETE' }),
 
   // Starred Files
-  getStarred: () => request<{ files: import('../types').FileEntry[], folders: import('../types').WorkspaceFolder[] }>('/api/files/starred'),
+  getStarred: () => request<{ files: FileEntry[], folders: WorkspaceFolder[] }>('/api/files/starred'),
   starFile: (id: string) => request<{ success: boolean }>(`/api/files/${id}/star`, { method: 'POST' }),
   unstarFile: (id: string) => request<{ success: boolean }>(`/api/files/${id}/unstar`, { method: 'POST' }),
   starFolder: (id: string) => request<{ success: boolean }>(`/api/folders/${id}/star`, { method: 'POST' }),
@@ -195,7 +195,7 @@ export const api = {
 
   // Recent files (sorted by Google modified date)
   getRecentFiles: () =>
-    request<{ files: import('../types').FileEntry[], folders: import('../types').WorkspaceFolder[] }>('/api/files/recent'),
+    request<{ files: FileEntry[], folders: WorkspaceFolder[] }>('/api/files/recent'),
     
   // Category overview
   getFileCategoryOverview: () =>
@@ -211,13 +211,13 @@ export const api = {
 
   // Audit Logs
   getWorkspaceAuditLogs: (workspaceId: string) =>
-    request<{ logs: import('../types').AuditLog[] }>(`/api/workspaces/${workspaceId}/audit-logs`),
+    request<{ logs: AuditLog[] }>(`/api/workspaces/${workspaceId}/audit-logs`),
 
   // Policies
   getWorkspacePolicies: (workspaceId: string) =>
-    request<{ policies: import('../types').WorkspacePolicy[] }>(`/api/workspaces/${workspaceId}/policies`),
+    request<{ policies: WorkspacePolicy[] }>(`/api/workspaces/${workspaceId}/policies`),
   createWorkspacePolicy: (workspaceId: string, data: { targetType: 'workspace' | 'folder', targetId?: string, policyType: 'storage_quota' | 'data_retention', config: any }) =>
-    request<{ policy: import('../types').WorkspacePolicy }>(`/api/workspaces/${workspaceId}/policies`, {
+    request<{ policy: WorkspacePolicy }>(`/api/workspaces/${workspaceId}/policies`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
@@ -240,7 +240,7 @@ export const api = {
     if (query) params.set('q', query);
     if (workspaceId) params.set('workspaceId', workspaceId);
     if (metadata && Object.keys(metadata).length > 0) params.set('metadata', JSON.stringify(metadata));
-    return request<{ files: import('../types').FileEntry[], query: string }>(`/api/files/search?${params.toString()}`);
+    return request<{ files: FileEntry[], query: string }>(`/api/files/search?${params.toString()}`);
   },
 
   // Workspaces & S3 Credentials
@@ -275,7 +275,7 @@ export interface SharedLink {
 
 export interface SharedMetaResponse {
   type?: 'file' | 'folder';
-  target?: import('../types').FileEntry;
+  target?: FileEntry;
   targetId?: string;
   requiresPassword?: boolean;
 }

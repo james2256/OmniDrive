@@ -17,7 +17,7 @@ export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
 
   useEffect(() => {
     loadPolicies();
-  }, [workspaceId]);
+  }, [workspaceId, loadPolicies]);
 
   const handleSetQuota = async () => {
     if (!quotaInput) return;
@@ -61,7 +61,7 @@ export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
           {maxBytes ? (
             <div className="bg-stone-100 rounded p-4 flex justify-between items-center">
               <span>Quota: <strong>{Math.round(maxBytes / (1024 * 1024 * 1024))} GB</strong></span>
-              <button onClick={() => handleDeletePolicy(quotaPolicy!.id)} className="text-red-600 text-sm hover:underline">Remove Quota</button>
+              <button onClick={() => { if (quotaPolicy?.id) handleDeletePolicy(quotaPolicy.id); }} className="text-red-600 text-sm hover:underline">Remove Quota</button>
             </div>
           ) : (
             <div className="flex gap-2">

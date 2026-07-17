@@ -1,4 +1,5 @@
-import { Context, Hono } from 'hono';
+import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { getCookie, setCookie } from 'hono/cookie';
 import { sign, verify } from 'hono/jwt';
 

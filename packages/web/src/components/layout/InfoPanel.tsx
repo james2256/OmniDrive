@@ -29,7 +29,7 @@ export const InfoPanel: React.FC = () => {
     setIsSyncing(true);
     try {
       const driveId = (singleSelection.item as any).driveAccountId || '';
-      await api.forceSyncFolder(singleSelection.item.id!, driveId);
+      await api.forceSyncFolder(singleSelection.item.id || '', driveId);
       addToast('success', 'Sync queued. Data will update shortly.');
     } catch (err: any) {
       addToast('error', err.message || 'Failed to queue sync.');
@@ -191,9 +191,9 @@ export const InfoPanel: React.FC = () => {
 
                 try {
                   if (type === 'file') {
-                    await api.updateFileMetadata(item.id!, newMeta);
+                    await api.updateFileMetadata(item.id || '', newMeta);
                   } else if ((item as any).workspaceId) {
-                    await api.updateFolderMetadata((item as any).workspaceId, item.id!, newMeta);
+                    await api.updateFolderMetadata((item as any).workspaceId, item.id || '', newMeta);
                   }
                   (item as any).metadata = newMeta;
                   form.reset();
