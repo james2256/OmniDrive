@@ -6,8 +6,6 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue.svg)](https://www.typescriptlang.org/)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-orange.svg)](https://workers.cloudflare.com/)
 
-> 🌐 *Baca dalam [Bahasa Indonesia](README.id.md)*
-
 ---
 
 ## What is OmniDrive?
@@ -94,7 +92,12 @@ omnidrive/
 │           ├── hooks/       # Custom React hooks
 │           ├── lib/         # API client, utilities
 │           └── types/       # TypeScript types
-├── docs/                # Design specs and implementation plans
+├── docs/                # Project documentation
+│   ├── AGENTS.md        # AI agent guide
+│   ├── ARCHITECTURE.md  # System architecture
+│   ├── SCHEMA.md        # D1 database schema
+│   ├── DESIGN.md        # UI/UX design system
+│   └── CHANGELOG.md     # Change history
 ├── Makefile             # Deployment automation
 └── package.json         # Monorepo root (npm workspaces)
 ```

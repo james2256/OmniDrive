@@ -26,9 +26,6 @@ Thumbs.db
 # Logs
 *.log
 
-# Internal Documentation
-docs/
-
 # Local IDE / agent artifacts
 mcps/
 terminals/

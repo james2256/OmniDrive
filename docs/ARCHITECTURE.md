@@ -1,6 +1,6 @@
 # ARCHITECTURE.md — System Architecture
 
-Dokumen arsitektur OmniDrive — gateway penyimpanan multi-Google Drive di Cloudflare Edge.
+OmniDrive architecture document — a multi-Google Drive storage gateway on the Cloudflare Edge.
 
 ## Overview
 
@@ -27,7 +27,7 @@ Dokumen arsitektur OmniDrive — gateway penyimpanan multi-Google Drive di Cloud
 
 ## Monorepo Structure
 
-| Package | Nama npm | Runtime | Entry |
+| Package | npm name | Runtime | Entry |
 |---------|----------|---------|-------|
 | Root | `omnidrive` | — | npm workspaces orchestrator |
 | Worker | `@omnidrive/worker` | Cloudflare Workers / Node (Docker) | `src/index.ts` |
@@ -41,7 +41,7 @@ Dokumen arsitektur OmniDrive — gateway penyimpanan multi-Google Drive di Cloud
 Incoming Request
     │
     ▼
-securityHeaders          ← X-Content-Type-Options, CSP, dll.
+securityHeaders          ← X-Content-Type-Options, CSP, etc.
     │
     ▼
 corsMiddleware           ← Origin whitelist (FRONTEND_URL)
@@ -67,8 +67,8 @@ D1 / KV / Google API
 
 ### Route Modules
 
-| Prefix | Router | Auth | Fungsi |
-|--------|--------|------|--------|
+| Prefix | Router | Auth | Purpose |
+|--------|--------|------|---------|
 | `/api/auth` | `routes/auth.ts` | Partial | Setup, login, register, OAuth, logout |
 | `/api/drives` | `routes/drives.ts` | Required | Connect/disconnect drives, sync, browse |
 | `/api/folders` | `routes/folders.ts` | Required | Workspace folder CRUD, tree |
@@ -83,21 +83,21 @@ D1 / KV / Google API
 
 ### Service Layer
 
-| Service | File | Tanggung jawab |
-|---------|------|---------------|
+| Service | File | Responsibility |
+|---------|------|----------------|
 | `GoogleDriveService` | `services/google-drive.ts` | Google Drive API v3 wrapper |
 | `sync` | `services/sync.ts` | Full + incremental sync via Changes API |
 | `AuthService` | `services/auth.service.ts` | Login, register, session, OAuth |
 | `AutomationEngine` | `services/automation.service.ts` | Rule evaluation & execution |
 | `AuditService` | `services/audit.service.ts` | Workspace audit logging |
 | `PolicyService` | `services/policy.service.ts` | Quota & data retention |
-| `UploadRouter` | `services/upload-router.ts` | Pilih drive terlapang untuk upload; spillover bila preferred drive penuh |
-| `computeDriveQuota` | `lib/storage-quota.ts` | Hitung total/used/free/percent + fallback chain & override |
+| `UploadRouter` | `services/upload-router.ts` | Pick the drive with most free space for upload; spillover if preferred drive is full |
+| `computeDriveQuota` | `lib/storage-quota.ts` | Compute total/used/free/percent + fallback chain & override |
 
 ### Middleware
 
-| Middleware | File | Fungsi |
-|------------|------|--------|
+| Middleware | File | Purpose |
+|------------|------|---------|
 | `authGuard` | `middleware/auth-guard.ts` | Cookie `omnidrive_sid` → D1 session |
 | `csrfGuard` | `middleware/csrf-guard.ts` | CSRF protection |
 | `rateLimiter` | `middleware/rate-limiter.ts` | Sliding window in-memory |
@@ -164,30 +164,30 @@ Cron */30 * * * *
 ### Manual Sync
 
 - Per drive: `POST /api/drives/:id/sync`
-- Per folder: `POST /api/folders/:id/sync` atau `force-sync`
+- Per folder: `POST /api/folders/:id/sync` or `force-sync`
 
 ### Storage Quota & Capacity
 
-Kapasitas tiap drive dihitung di `computeDriveQuota()` (`lib/storage-quota.ts`) dengan prioritas:
+Each drive's capacity is computed in `computeDriveQuota()` (`lib/storage-quota.ts`) with the following priority:
 
-1. `drive_accounts.quota_override` (manual) — **deprecated, tidak ada endpoint/UI yang menulis lagi** (fitur editor kapasitas manual dihapus). Branch tetap dipertahankan read-only agar tidak butuh migrasi drop-kolom.
-2. `storageQuota.limit` dari Google API (bila ada — "if applicable")
+1. `drive_accounts.quota_override` (manual) — **deprecated, no endpoint/UI writes to it anymore** (the manual capacity editor feature was removed). The branch is kept read-only so no drop-column migration is needed.
+2. `storageQuota.limit` from the Google API (if present — "if applicable")
 3. `drive_accounts.total_quota` (cached)
 4. `UNLIMITED_DRIVE_QUOTA_BYTES` (1 TiB fallback)
 
-**Catatan penting:** Google Drive API **tidak** mengembalikan `storageQuota.limit` untuk:
-- Google Workspace pooled storage (akun 5 TB dst.)
-- Service account
+**Important note:** The Google Drive API does **not** return `storageQuota.limit` for:
+- Google Workspace pooled storage (5 TB+ accounts)
+- Service accounts
 
-Akun-akun tersebut akan jatuh ke fallback 1 TiB. (Sebelumnya user bisa set `quota_override` manual via UI Settings, tapi fitur itu dihapus karena memicu bug upload di akun service-account/shared drive.) `getQuota()` mengekspos `hasLimit` agar route tidak menimpa `total_quota` DB dengan nilai fallback saat Google omit limit.
+Those accounts fall back to 1 TiB. (Previously users could set `quota_override` manually via the Settings UI, but that feature was removed because it triggered an upload bug on service-account/shared drives.) `getQuota()` exposes `hasLimit` so routes don't overwrite the DB `total_quota` with the fallback value when Google omits the limit.
 
-Pemakaian (`used`) memakai `storageQuota.usageInDrive` (Drive-only), bukan `usage` (akun-wide: Drive+Gmail+Photos).
+Usage (`used`) uses `storageQuota.usageInDrive` (Drive-only), not `usage` (account-wide: Drive+Gmail+Photos).
 
-Cache quota di KV (`quota:{driveId}`, TTL 5 menit) diberi `QUOTA_CACHE_VERSION` agar entri lama otomatis invalid saat skema berubah.
+The quota cache in KV (`quota:{driveId}`, 5-minute TTL) is tagged with `QUOTA_CACHE_VERSION` so old entries auto-invalidate when the schema changes.
 
 ## S3 Compatibility Layer
 
-Workspace = S3 Bucket. File path dalam workspace = Object key.
+Workspace = S3 Bucket. File path within a workspace = Object key.
 
 ```
 Client (rclone/aws-cli)
@@ -204,9 +204,9 @@ Client (rclone/aws-cli)
 Google Drive API (stream read/write)
 ```
 
-**Multipart upload**: parts buffered as temp files in Google Drive folder → stream-concatenated on complete.
+**Multipart upload**: parts buffered as temp files in a Google Drive folder → stream-concatenated on complete.
 
-**Bucket lifecycle** (`?lifecycle` subresource on `/s3/:bucket`): `PutBucketLifecycleConfiguration` / `GetBucketLifecycleConfiguration` / `DeleteBucketLifecycleConfiguration`. Rule `Expiration/Days` per prefix disimpan di `s3_lifecycle_rules`. Cron `*/30` men-**trash** objek yang lebih tua dari window (recoverable ~30 hari via Google, bukan hard delete). Parser XML regex-based (`services/s3-lifecycle.ts`), tanpa dep XML.
+**Bucket lifecycle** (`?lifecycle` subresource on `/s3/:bucket`): `PutBucketLifecycleConfiguration` / `GetBucketLifecycleConfiguration` / `DeleteBucketLifecycleConfiguration`. Rule `Expiration/Days` per prefix is stored in `s3_lifecycle_rules`. Cron `*/30` **trashes** objects older than the window (recoverable ~30 days via Google, not a hard delete). The XML parser is regex-based (`services/s3-lifecycle.ts`), no XML dependency.
 
 ## Frontend Architecture
 
@@ -233,27 +233,27 @@ Page Component
 
 ### Dev Proxy
 
-Vite dev server proxies `/api/*` ke Worker (`packages/web/vite.config.ts`), sehingga frontend dan backend bisa di port berbeda tanpa CORS issue.
+The Vite dev server proxies `/api/*` to the Worker (`packages/web/vite.config.ts`), so frontend and backend can run on different ports without CORS issues.
 
 ## Scheduled Jobs (Cron)
 
-Trigger: `*/30 * * * *` (setiap 30 menit)
+Trigger: `*/30 * * * *` (every 30 minutes)
 
-| Job | Service | Fungsi |
-|-----|---------|--------|
-| Drive sync | `runScheduledSync()` | Incremental sync semua drives |
-| Automation | `AutomationEngine.processCronTrigger()` | Evaluasi rules |
-| Audit cleanup | `AuditService.cleanupOldLogs(30)` | Hapus log > 30 hari |
+| Job | Service | Purpose |
+|-----|---------|---------|
+| Drive sync | `runScheduledSync()` | Incremental sync for all drives |
+| Automation | `AutomationEngine.processCronTrigger()` | Evaluate rules |
+| Audit cleanup | `AuditService.cleanupOldLogs(30)` | Delete logs older than 30 days |
 | Data retention | `PolicyService.processAutoDeleteRetentionPolicies()` | Auto-delete per policy |
-| S3 lifecycle | `runLifecycleExpiration()` | Trash objek S3 yang lewat `expiration_days` per rule (Option A, recoverable) |
+| S3 lifecycle | `runLifecycleExpiration()` | Trash S3 objects past `expiration_days` per rule (Option A, recoverable) |
 
 ## Security Model
 
-| Threat | Mitigasi |
-|--------|----------|
-| CSRF | Origin/Referer guard pada mutasi |
-| Brute force | Rate limiter pada login/register/verify |
-| IDOR | Ownership scoping di shared links, files, workspaces |
+| Threat | Mitigation |
+|--------|------------|
+| CSRF | Origin/Referer guard on mutations |
+| Brute force | Rate limiter on login/register/verify |
+| IDOR | Ownership scoping on shared links, files, workspaces |
 | Token theft | AES-256-GCM encryption at rest in KV |
 | Role escalation | RBAC middleware, role hierarchy enforcement |
 | SSRF | Webhook URL validation |
@@ -287,8 +287,8 @@ docker-compose.yml
 
 ## Environment & Configuration
 
-| Config | Lokasi | Scope |
-|--------|--------|-------|
+| Config | Location | Scope |
+|--------|----------|-------|
 | `.env` | Root | Dev shared (web + worker) |
 | `.dev.vars` | `packages/worker/` | Wrangler local secrets |
 | `wrangler.toml` | `packages/worker/` | D1/KV bindings, cron, vars |
@@ -296,8 +296,8 @@ docker-compose.yml
 
 ## Testing Strategy
 
-| Area | Lokasi | Framework |
-|------|--------|-----------|
+| Area | Location | Framework |
+|------|----------|-----------|
 | Worker unit tests | `packages/worker/tests/` | Vitest |
 | Worker src tests | `packages/worker/src/tests/` | Vitest |
 | Web component tests | `packages/web/src/**/*.test.tsx` | Vitest + Testing Library |
@@ -306,20 +306,20 @@ docker-compose.yml
 
 ## Extension Points
 
-| Mau tambah... | Mulai dari |
-|---------------|-----------|
-| REST endpoint | `packages/worker/src/routes/` + register di `index.ts` |
-| Background job | `scheduled()` handler di `index.ts` |
-| UI page | `packages/web/src/pages/` + route di `App.tsx` |
+| Want to add... | Start from |
+|----------------|------------|
+| REST endpoint | `packages/worker/src/routes/` + register in `index.ts` |
+| Background job | `scheduled()` handler in `index.ts` |
+| UI page | `packages/web/src/pages/` + route in `App.tsx` |
 | DB table | `schema.sql` + migration file |
 | Middleware | `packages/worker/src/middleware/` |
 | Google API call | `GoogleDriveService` methods |
 
 ## Upstream & Fork
 
-| Remote | Repo | Arah data |
-|--------|------|-----------|
+| Remote | Repo | Data direction |
+|--------|------|----------------|
 | `origin` | `asmaraputra/OmniDrive` | Push development |
-| `upstream` | `abilfida/OmniDrive` | Fetch updates (opsional) |
+| `upstream` | `abilfida/OmniDrive` | Fetch updates (optional) |
 
-Lisensi MIT mengizinkan modifikasi independen. Lihat `AGENTS.md` untuk workflow development.
+The MIT license permits independent modification. See `docs/AGENTS.md` for the development workflow.
