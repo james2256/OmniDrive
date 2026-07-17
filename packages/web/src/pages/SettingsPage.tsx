@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useDriveStore } from '../stores/driveStore';
 import { DriveAccountCard } from '../components/DriveAccountCard';
+import type { S3Credential } from '../lib/api';
 import { useToastStore } from '../stores/toastStore';
 import { Plus, Key, X, Trash2, Copy, Check, AlertTriangle, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
 import { api } from '../lib/api';
 
-const parseSqliteDate = (dateVal: any) => {
+const parseSqliteDate = (dateVal: string | number) => {
   if (!dateVal) return new Date();
   if (typeof dateVal === 'string') {
     const normalized = dateVal.includes(' ') && !dateVal.includes('T')
@@ -25,8 +26,8 @@ export function SettingsPage() {
   const [saCredentials, setSaCredentials] = useState('');
   const [saFolderId, setSaFolderId] = useState('');
 
-  const [s3Keys, setS3Keys] = useState<any[]>([]);
-  const [workspaces, setWorkspaces] = useState<any[]>([]);
+  const [s3Keys, setS3Keys] = useState<S3Credential[]>([]);
+  const [workspaces, setWorkspaces] = useState<{ id: string; name: string; role: string }[]>([]);
   const [loadingS3, setLoadingS3] = useState(false);
 
   const [currentPassword, setCurrentPassword] = useState('');
@@ -71,7 +72,7 @@ export function SettingsPage() {
       setS3Keys(keys);
       // Filter the list of workspaces to only contain items where role === 'manager' || role === 'owner'
       const filtered = (wsData.workspaces || []).filter(
-        (w: any) => w.role === 'manager' || w.role === 'owner'
+        (w: { id: string; name: string; role: string }) => w.role === 'manager' || w.role === 'owner'
       );
       setWorkspaces(filtered);
     } catch {
@@ -418,7 +419,7 @@ export function SettingsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-150">
-                  {s3Keys.map((key) => (
+                  {s3Keys.map((key: S3Credential) => (
                     <tr key={key.id} className="hover:bg-stone-50/50 transition-colors">
                       <td className="px-4 py-3.5 text-sm text-stone-800 font-medium">
                         {key.description || <span className="text-stone-400 italic">No description</span>}
@@ -438,7 +439,7 @@ export function SettingsPage() {
                         )}
                       </td>
                       <td className="px-4 py-3.5 text-xs text-stone-400">
-                        {parseSqliteDate(key.created_at || key.createdAt).toLocaleString()}
+                        {parseSqliteDate(key.created_at || key.createdAt || '').toLocaleString()}
                       </td>
                       <td className="px-4 py-3.5 text-right">
                         <button
@@ -492,7 +493,7 @@ export function SettingsPage() {
                 className="w-full border border-stone-300 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-card"
               >
                 <option value="">Global (All Workspaces)</option>
-                {workspaces.map((w) => (
+                {workspaces.map((w: { id: string; name: string; role: string }) => (
                   <option key={w.id} value={w.id}>
                     Workspace: {w.name}
                   </option>

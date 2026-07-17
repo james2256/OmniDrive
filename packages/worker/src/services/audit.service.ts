@@ -9,7 +9,7 @@ export class AuditService {
     actionType: string;
     resourceId?: string | null;
     resourceName?: string | null;
-    metadata?: any;
+    metadata?: Record<string, unknown>;
   }) {
     const id = generateId();
     await this.db.prepare(

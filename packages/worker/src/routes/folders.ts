@@ -3,10 +3,9 @@ import type { AppContext, Env } from '../types/env';
 import { authGuard } from '../middleware/auth-guard';
 import { AppError } from '../middleware/error-handler';
 import { generateId } from '../lib/id';
-import { mapFileRow, type BreadcrumbItem } from '../types';
+import { mapFileRow, mapDriveRow, type BreadcrumbItem, type WorkspaceFolder, type FileEntry } from '../types';
 import { syncDriveAccount } from '../services/sync';
 import { GoogleDriveService } from '../services/google-drive';
-import { mapDriveRow } from '../types/index';
 import { encodeCursor, decodeCursor } from '../lib/cursor';
 import { syncDriveFolder } from '../services/sync';
 
@@ -40,10 +39,10 @@ foldersRouter.get('/tree', async (c) => {
     WHERE wm.user_id = ? ORDER BY w.name ASC
   `).bind(userId).all();
   
-  const rootFolders = workspaces.map((w: any) => ({
-    id: w.id, workspaceId: w.id, name: w.name, parentId: null, icon: '🏢', color: '#4A90D9', isStarred: false, createdAt: w.created_at, updatedAt: w.updated_at
+  const rootFolders = workspaces.map((w: Record<string, unknown>) => ({
+    id: w.id as string, workspaceId: w.id as string, name: w.name as string, parentId: null, icon: '🏢', color: '#4A90D9', isStarred: false, createdAt: w.created_at as string, updatedAt: w.updated_at as string, lastSyncedAt: null, syncStatus: 'idle'
   }));
-  
+
   const { results: folders } = await db.prepare(`
     SELECT f.* 
     FROM workspace_folders f
@@ -51,7 +50,7 @@ foldersRouter.get('/tree', async (c) => {
     WHERE wm.user_id = ? ORDER BY f.name ASC
   `).bind(userId).all();
   
-  const subFolders = folders.map((f: any) => ({
+  const subFolders = folders.map((f: Record<string, unknown>) => ({
     id: f.id, workspaceId: f.workspace_id, name: f.name, parentId: f.parent_id || f.workspace_id, icon: f.icon || '📁', color: f.color || '#4A90D9', isStarred: !!f.is_starred, metadata: f.metadata, createdAt: f.created_at, updatedAt: f.updated_at
   }));
   
@@ -71,8 +70,8 @@ foldersRouter.get('/:id?', async (c) => {
   let nextCursor: string | null = null;
 
   let currentFolder = null;
-  let subfolders: any[] = [];
-  let files: any[] = [];
+  let subfolders: WorkspaceFolder[] = [];
+  let files: (FileEntry & { driveEmail: string })[] = [];
   let breadcrumb: BreadcrumbItem[] = [];
 
   if (!folderId) {
@@ -83,8 +82,8 @@ foldersRouter.get('/:id?', async (c) => {
       WHERE wm.user_id = ? ORDER BY w.name ASC
     `).bind(userId).all();
     
-    subfolders = workspaces.map((w: any) => ({
-      id: w.id, workspaceId: w.id, name: w.name, parentId: null, icon: '🏢', color: '#4A90D9', isStarred: false, createdAt: w.created_at, updatedAt: w.updated_at
+    subfolders = workspaces.map((w: Record<string, unknown>) => ({
+      id: w.id as string, workspaceId: w.id as string, name: w.name as string, parentId: null, icon: '🏢', color: '#4A90D9', isStarred: false, createdAt: w.created_at as string, updatedAt: w.updated_at as string, lastSyncedAt: null, syncStatus: 'idle'
     }));
   } else {
     const ws = await db.prepare(`
@@ -94,17 +93,17 @@ foldersRouter.get('/:id?', async (c) => {
     `).bind(folderId, userId).first();
 
     if (ws) {
-      currentFolder = { id: ws.id, workspaceId: ws.id, name: ws.name, parentId: null, icon: '🏢', color: '#4A90D9', isStarred: false, createdAt: ws.created_at as string, updatedAt: ws.updated_at as string, lastSyncedAt: null as string | null, syncStatus: 'idle' as string | null };
+      currentFolder = { id: ws.id, workspaceId: ws.id, name: ws.name, parentId: null, icon: '🏢', color: '#4A90D9', isStarred: false, createdAt: ws.created_at as string, updatedAt: ws.updated_at as string, lastSyncedAt: null as string | null, syncStatus: 'idle' as 'idle' | 'syncing' | 'error' };
       
       const { results: subRows } = await db.prepare('SELECT * FROM workspace_folders WHERE workspace_id = ? AND parent_id IS NULL ORDER BY name ASC').bind(folderId).all();
-      subfolders = subRows.map((f: any) => ({ id: f.id, workspaceId: f.workspace_id, name: f.name, parentId: folderId, icon: f.icon || '📁', color: f.color || '#4A90D9', isStarred: !!f.is_starred, metadata: f.metadata, createdAt: f.created_at, updatedAt: f.updated_at }));
+      subfolders = subRows.map((f: Record<string, unknown>) => ({ id: f.id as string, workspaceId: f.workspace_id as string, name: f.name as string, parentId: folderId, icon: (f.icon as string) || '📁', color: (f.color as string) || '#4A90D9', isStarred: !!f.is_starred, metadata: f.metadata as string, createdAt: f.created_at as string, updatedAt: f.updated_at as string, lastSyncedAt: (f.last_synced_at as string) || null, syncStatus: (f.sync_status as 'idle' | 'syncing' | 'error') || 'idle' }));
 
       let sql = `
         SELECT f.*, d.email as driveEmail 
         FROM files f JOIN drive_accounts d ON f.drive_account_id = d.id 
         WHERE f.workspace_id = ? AND f.workspace_folder_id IS NULL AND f.is_trashed = 0
       `;
-      const binds: any[] = [folderId];
+      const binds: (string | number | null)[] = [folderId];
 
       if (cursor && cursor.name !== undefined && cursor.id !== undefined) {
         sql += ` AND (f.name, f.id) > (?, ?)`;
@@ -121,7 +120,7 @@ foldersRouter.get('/:id?', async (c) => {
         fileRows.pop();
       }
 
-      files = fileRows.map((r: any) => ({ ...mapFileRow(r), driveEmail: r.driveEmail }));
+      files = fileRows.map((r: Record<string, unknown>) => ({ ...mapFileRow(r), driveEmail: (r.driveEmail as string) || '' }));
       if (files.length > 0 && hasMore) {
         const lastFile = files[files.length - 1];
         nextCursor = encodeCursor({ name: lastFile.name, id: lastFile.id });
@@ -135,14 +134,14 @@ foldersRouter.get('/:id?', async (c) => {
       currentFolder = { id: folder.id, workspaceId: folder.workspace_id, name: folder.name, parentId: folder.parent_id || folder.workspace_id, icon: folder.icon || '📁', color: folder.color || '#4A90D9', isStarred: !!folder.is_starred, metadata: folder.metadata, createdAt: folder.created_at as string, updatedAt: folder.updated_at as string, lastSyncedAt: folder.last_synced_at as string | null, syncStatus: folder.sync_status as string | null };
       
       const { results: subRows } = await db.prepare('SELECT * FROM workspace_folders WHERE parent_id = ? ORDER BY name ASC').bind(folderId).all();
-      subfolders = subRows.map((f: any) => ({ id: f.id, workspaceId: f.workspace_id, name: f.name, parentId: folderId, icon: f.icon || '📁', color: f.color || '#4A90D9', isStarred: !!f.is_starred, metadata: f.metadata, createdAt: f.created_at, updatedAt: f.updated_at }));
+      subfolders = subRows.map((f: Record<string, unknown>) => ({ id: f.id as string, workspaceId: f.workspace_id as string, name: f.name as string, parentId: folderId, icon: (f.icon as string) || '📁', color: (f.color as string) || '#4A90D9', isStarred: !!f.is_starred, metadata: f.metadata as string, createdAt: f.created_at as string, updatedAt: f.updated_at as string, lastSyncedAt: (f.last_synced_at as string) || null, syncStatus: (f.sync_status as 'idle' | 'syncing' | 'error') || 'idle' }));
 
       let sql = `
         SELECT f.*, d.email as driveEmail 
         FROM files f JOIN drive_accounts d ON f.drive_account_id = d.id 
         WHERE f.workspace_folder_id = ? AND f.is_trashed = 0
       `;
-      const binds: any[] = [folderId];
+      const binds: (string | number | null)[] = [folderId];
 
       if (cursor && cursor.name !== undefined && cursor.id !== undefined) {
         sql += ` AND (f.name, f.id) > (?, ?)`;
@@ -159,7 +158,7 @@ foldersRouter.get('/:id?', async (c) => {
         fileRows.pop();
       }
 
-      files = fileRows.map((r: any) => ({ ...mapFileRow(r), driveEmail: r.driveEmail }));
+      files = fileRows.map((r: Record<string, unknown>) => ({ ...mapFileRow(r), driveEmail: (r.driveEmail as string) || '' }));
       if (files.length > 0 && hasMore) {
         const lastFile = files[files.length - 1];
         nextCursor = encodeCursor({ name: lastFile.name, id: lastFile.id });
@@ -170,7 +169,7 @@ foldersRouter.get('/:id?', async (c) => {
   }
 
   if (currentFolder && currentFolder.id !== currentFolder.workspaceId) {
-    const ws = await db.prepare('SELECT sync_ttl_minutes FROM workspaces WHERE id = ?').bind(currentFolder.workspaceId).first<{sync_ttl_minutes: number}>();
+    const ws = await db.prepare('SELECT sync_ttl_minutes FROM workspaces WHERE id = ?').bind(currentFolder.workspaceId).first() as { sync_ttl_minutes: number };
     const ttlMinutes = ws?.sync_ttl_minutes || 5;
     
     let isExpired = true;
@@ -187,7 +186,7 @@ foldersRouter.get('/:id?', async (c) => {
         FROM files f 
         JOIN drive_accounts d ON f.drive_account_id = d.id 
         WHERE (f.workspace_folder_id = ? OR f.workspace_id = ?) AND f.user_id = ? LIMIT 1
-      `).bind(currentFolder.id, currentFolder.id, userId).all<{ id: string }>();
+      `).bind(currentFolder.id, currentFolder.id, userId).all() as { results: { id: string }[] };
       if (results && results.length > 0) {
         driveId = results[0].id;
       }
@@ -225,7 +224,7 @@ foldersRouter.post('/', async (c) => {
   let actualParentId = null;
 
   if (!ws) {
-    const folder = await db.prepare('SELECT f.workspace_id FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ? WHERE f.id = ?').bind(userId, parentId).first<{ workspace_id: string }>();
+    const folder = await db.prepare('SELECT f.workspace_id FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ? WHERE f.id = ?').bind(userId, parentId).first() as { workspace_id: string };
     if (!folder) throw new AppError(404, 'Parent not found or no access');
     workspaceId = folder.workspace_id;
     actualParentId = parentId;
@@ -255,7 +254,7 @@ foldersRouter.put('/:id', async (c) => {
   if (!folderMember) throw new AppError(404, 'Folder not found or no access');
 
   const updateFields: string[] = [];
-  const params: any[] = [];
+  const params: (string | number | null)[] = [];
 
   if (name !== undefined) {
     updateFields.push('name = ?');
@@ -332,7 +331,7 @@ foldersRouter.post('/:id/files', async (c) => {
   let workspaceId = folderId;
   let workspaceFolderId = null;
   if (!ws) {
-    const f = await db.prepare('SELECT f.workspace_id FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ? WHERE f.id = ?').bind(userId, folderId).first<{ workspace_id: string }>();
+    const f = await db.prepare('SELECT f.workspace_id FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ? WHERE f.id = ?').bind(userId, folderId).first() as { workspace_id: string };
     if (f) {
       workspaceId = f.workspace_id;
       workspaceFolderId = folderId;
@@ -365,7 +364,7 @@ foldersRouter.post('/:id/sync', async (c) => {
   if (results && results.length > 0) {
     const driveService = new GoogleDriveService(c.env.DB, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
     for (const row of results) {
-       const drive = mapDriveRow(row as any);
+       const drive = mapDriveRow(row as unknown as Record<string, unknown>);
        c.executionCtx.waitUntil(syncDriveAccount(drive, db, driveService).catch(console.error));
     }
   }
@@ -386,7 +385,7 @@ foldersRouter.post('/:id/force-sync', async (c) => {
       FROM files f 
       JOIN drive_accounts d ON f.drive_account_id = d.id 
       WHERE (f.workspace_folder_id = ? OR f.workspace_id = ?) AND f.user_id = ? LIMIT 1
-    `).bind(folderId, folderId, userId).all<{ id: string }>();
+    `).bind(folderId, folderId, userId).all() as { results: { id: string }[] };
     if (results && results.length > 0) {
       driveId = results[0].id;
     }
@@ -396,7 +395,7 @@ foldersRouter.post('/:id/force-sync', async (c) => {
     // If still not found, try to look up the user's primary drive or any drive
     const { results } = await db.prepare(`
       SELECT id FROM drive_accounts WHERE user_id = ? ORDER BY is_primary DESC LIMIT 1
-    `).bind(userId).all<{ id: string }>();
+    `).bind(userId).all() as { results: { id: string }[] };
     if (results && results.length > 0) {
       driveId = results[0].id;
     }

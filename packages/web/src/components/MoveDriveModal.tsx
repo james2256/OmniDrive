@@ -11,7 +11,7 @@ interface MoveDriveModalProps {
   files: FileEntry[];
   onClose: () => void;
   onSuccess: () => void;
-  onError: (error: any) => void;
+  onError: (error: unknown) => void;
 }
 
 export function MoveDriveModal({ files, onClose, onSuccess, onError }: MoveDriveModalProps) {

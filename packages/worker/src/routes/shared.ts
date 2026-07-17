@@ -114,8 +114,8 @@ sharedRouter.post('/', authGuard, async (c) => {
       .bind(id, userId, targetType, targetId, passwordHash, expiresAt || null, allowDownloads ? 1 : 0, allowUploads ? 1 : 0, maxDownloads, requireEmail ? 1 : 0, webhookUrl)
       .run();
       success = true;
-    } catch (e: any) {
-      if (e.message && e.message.includes('UNIQUE constraint failed')) {
+    } catch (e: unknown) {
+      if ((e instanceof Error ? e.message : "").includes('UNIQUE constraint failed')) {
         attempts++;
       } else {
         console.error('Error creating shared link:', e);
@@ -239,7 +239,7 @@ sharedRouter.get('/:id/meta', async (c) => {
   
   const validation = await validateSharedLink(c, link);
   if (!validation.ok) {
-    return c.json({ error: validation.error, requiresPassword: validation.requiresPassword, requiresEmail: validation.requiresEmail }, validation.status as any);
+    return c.json({ error: validation.error, requiresPassword: validation.requiresPassword, requiresEmail: validation.requiresEmail }, validation.status as 400 | 401 | 403 | 410 | 500);
   }
   
   c.executionCtx.waitUntil(
@@ -355,7 +355,7 @@ sharedRouter.get('/:id/download', async (c) => {
   
   const validation = await validateSharedLink(c, link);
   if (!validation.ok) {
-    return c.text(validation.error || 'Unauthorized', validation.status as any);
+    return c.text(validation.error || 'Unauthorized', validation.status as 400 | 401 | 403 | 410 | 500);
   }
 
   if (!link.allowDownloads) {
@@ -395,7 +395,7 @@ sharedRouter.get('/:id/download', async (c) => {
       finalMimeType = downloadResult.exportedMimeType;
       finalFileName = `${finalFileName}${downloadResult.exportedExtension}`;
     }
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('Download error:', e);
     return c.text('Failed to download file', 502);
   }
@@ -404,7 +404,7 @@ sharedRouter.get('/:id/download', async (c) => {
   if (link.maxDownloads !== null && link.maxDownloads !== undefined) {
     const updateResult = await db.prepare(
       'UPDATE shared_links SET download_count = download_count + 1 WHERE id = ? AND (max_downloads IS NULL OR download_count < max_downloads) RETURNING download_count'
-    ).bind(id).first<{ download_count: number }>();
+    ).bind(id).first() as { download_count: number };
     if (!updateResult) {
       return c.text('Maximum download limit reached', 403);
     }

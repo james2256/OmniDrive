@@ -1,3 +1,4 @@
+import type { Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
 
 interface RateLimitEntry {
@@ -27,7 +28,7 @@ function cleanup(store: RateLimitStore, windowMs: number) {
 interface RateLimitOptions {
   windowMs: number;
   maxRequests: number;
-  keyFn?: (c: any) => string;
+  keyFn?: (c: Context) => string;
 }
 
 export function rateLimiter(opts: RateLimitOptions) {

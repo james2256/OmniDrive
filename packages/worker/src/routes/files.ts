@@ -1,3 +1,5 @@
+import type { DbFile } from '../services/automation.service';
+import type { ExecutionContext } from '@cloudflare/workers-types';
 import { Hono } from 'hono';
 import type { AppContext } from '../types/env';
 import { generateId } from '../lib/id';
@@ -8,7 +10,7 @@ import { resolveDrivesWithQuota } from '../services/drive-quota';
 import { UploadRouter } from '../services/upload-router';
 import { AutomationEngine } from '../services/automation.service';
 import { PolicyService } from '../services/policy.service';
-import { mapFileRow, mapFolderRow } from '../types';
+import { mapFileRow, mapFolderRow, type FileRow } from '../types';
 
 export const filesRouter = new Hono<AppContext>({ strict: false });
 
@@ -36,7 +38,7 @@ filesRouter.get('/recent', async (c) => {
       )
     ORDER BY COALESCE(f.google_modified_at, f.synced_at, f.updated_at) DESC
     LIMIT 20
-  `).bind(userId, userId).all<Record<string, unknown> & { driveEmail: string }>();
+  `).bind(userId, userId).all() as unknown as { results: Record<string, unknown>[] };
 
   const { results: folderRows } = await db.prepare(`
     SELECT f.*, w.name as ws_name
@@ -47,7 +49,7 @@ filesRouter.get('/recent', async (c) => {
     LIMIT 20
   `).bind(userId).all();
 
-  const folders = folderRows.map((f: any) => ({
+  const folders = folderRows.map((f: Record<string, unknown>) => ({
     id: f.id,
     workspaceId: f.workspace_id,
     name: f.name,
@@ -76,7 +78,7 @@ filesRouter.get('/category-overview', async (c) => {
     FROM files
     WHERE user_id = ? AND is_trashed = 0
     GROUP BY mime_type
-  `).bind(userId).all<{ mime_type: string; total_size: number }>();
+  `).bind(userId).all() as { results: { mime_type: string; total_size: number }[] };
 
   const overview = {
     images: 0,
@@ -156,7 +158,7 @@ filesRouter.get('/search', async (c) => {
         )
       )
   `;
-  const binds: any[] = [userId, userId];
+  const binds: (string | number | null)[] = [userId, userId];
 
   if (query?.trim()) {
     sql += ` AND f.name LIKE ?`;
@@ -183,7 +185,7 @@ filesRouter.get('/search', async (c) => {
 
   sql += ` ORDER BY f.created_at DESC LIMIT 50`;
 
-  const { results } = await db.prepare(sql).bind(...binds).all<Record<string, unknown> & { driveEmail: string }>();
+  const { results } = await db.prepare(sql).bind(...binds).all() as unknown as { results: Record<string, unknown>[] };
 
   return c.json({
     files: results.map((r) => ({
@@ -247,7 +249,7 @@ filesRouter.patch('/:id/move', async (c) => {
   const fileId = c.req.param('id');
   const { workspaceFolderId } = await c.req.json();
 
-  const folder = await c.env.DB.prepare('SELECT f.workspace_id FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ? WHERE f.id = ?').bind(userId, workspaceFolderId).first<{ workspace_id: string }>(); // ponytail: L10 — verify target-workspace membership
+  const folder = await c.env.DB.prepare('SELECT f.workspace_id FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ? WHERE f.id = ?').bind(userId, workspaceFolderId).first() as { workspace_id: string }; // ponytail: L10 — verify target-workspace membership
   if (!folder && workspaceFolderId) throw new AppError(404, 'Folder not found');
 
   await c.env.DB.prepare('UPDATE files SET workspace_folder_id = ?, workspace_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?')
@@ -274,7 +276,7 @@ filesRouter.post('/:id/move-drive', async (c) => {
      FROM files f
      JOIN drive_accounts d ON f.drive_account_id = d.id
      WHERE f.id = ? AND f.user_id = ?`
-  ).bind(fileId, userId).first<{ driveEmail: string; sourceDriveId: string; google_file_id: string; name: string }>();
+  ).bind(fileId, userId).first() as { driveEmail: string; sourceDriveId: string; google_file_id: string; name: string };
 
   if (!file) {
     throw new AppError(404, 'File not found or unauthorized');
@@ -286,7 +288,7 @@ filesRouter.post('/:id/move-drive', async (c) => {
 
   const targetDrive = await db.prepare(
     'SELECT id, email FROM drive_accounts WHERE id = ? AND user_id = ?'
-  ).bind(targetDriveId, userId).first<{ id: string; email: string }>();
+  ).bind(targetDriveId, userId).first() as { id: string; email: string };
 
   if (!targetDrive) {
     throw new AppError(404, 'Target drive not found or unauthorized');
@@ -334,7 +336,7 @@ filesRouter.post('/:id/move-drive', async (c) => {
        WHERE id = ?`
     ).bind(targetDriveId, copiedFile.id, fileId).run();
 
-    const updatedFile = await db.prepare('SELECT * FROM files WHERE id = ?').bind(fileId).first<Record<string, unknown>>();
+    const updatedFile = await db.prepare('SELECT * FROM files WHERE id = ?').bind(fileId).first() as Record<string, unknown>;
     
     return c.json({ file: mapFileRow((updatedFile as Record<string, unknown>)), success: true });
   } catch (error) {
@@ -385,7 +387,7 @@ filesRouter.put('/upload/proxy', async (c) => {
     headers,
     body: c.req.raw.body,
     duplex: 'half',
-  } as any);
+  } as RequestInit & { duplex: 'half' });
 
   const responseBody = await googleResponse.text();
 
@@ -546,7 +548,7 @@ filesRouter.post('/upload/finalize', async (c) => {
   const created = await db.prepare('SELECT * FROM files WHERE id = ?').bind(id).first();
 
   const engine = new AutomationEngine(c.env);
-  c.executionCtx.waitUntil(engine.processEventTrigger({ ...created, user_id: userId } as any, c.executionCtx as any));
+  c.executionCtx.waitUntil(engine.processEventTrigger({ ...created, user_id: userId } as DbFile, c.executionCtx as unknown as ExecutionContext));
 
   return c.json({ file: mapFileRow((created as Record<string, unknown>)), success: true }, 201);
 });
@@ -561,7 +563,7 @@ filesRouter.get('/trash', async (c) => {
      JOIN drive_accounts d ON f.drive_account_id = d.id
      WHERE f.user_id = ? AND f.is_trashed = 1
      ORDER BY f.updated_at DESC`
-  ).bind(userId).all<Record<string, unknown> & { driveEmail: string }>();
+  ).bind(userId).all() as unknown as { results: Record<string, unknown>[] };
 
   return c.json({
     files: results.map((r) => ({
@@ -614,7 +616,7 @@ filesRouter.delete('/:id/permanent', async (c) => {
      FROM files f
      JOIN drive_accounts d ON f.drive_account_id = d.id
      WHERE f.id = ? AND f.user_id = ? AND f.is_trashed = 1`
-  ).bind(fileId, userId).first<{ google_file_id: string; size: number; workspace_id: string; workspace_folder_id: string; driveId: string }>();
+  ).bind(fileId, userId).first() as { google_file_id: string; size: number; workspace_id: string; workspace_folder_id: string; driveId: string };
 
   if (!file) throw new AppError(404, 'File not found in trash');
 
@@ -679,7 +681,7 @@ filesRouter.get('/:id/preview', async (c) => {
   const fileId = c.req.param('id');
   const db = c.env.DB;
 
-  const file = await db.prepare('SELECT * FROM files WHERE id = ?').bind(fileId).first<any>();
+  const file = await db.prepare('SELECT * FROM files WHERE id = ?').bind(fileId).first<FileRow>();
   if (!file) throw new AppError(404, 'File not found');
 
   if (file.workspace_id) {
@@ -717,7 +719,7 @@ filesRouter.get('/:id/preview', async (c) => {
     if (downloadResult.exportedMimeType) {
       finalMimeType = downloadResult.exportedMimeType;
     }
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('Preview error:', e);
     return c.text('Failed to load preview', 502);
   }
@@ -738,7 +740,7 @@ filesRouter.get('/:id/download', async (c) => {
   const fileId = c.req.param('id');
   const db = c.env.DB;
 
-  const file = await db.prepare('SELECT * FROM files WHERE id = ?').bind(fileId).first<any>();
+  const file = await db.prepare('SELECT * FROM files WHERE id = ?').bind(fileId).first() as FileRow;
   if (!file) throw new AppError(404, 'File not found');
 
   if (file.workspace_id) {
@@ -774,7 +776,7 @@ filesRouter.get('/:id/download', async (c) => {
       finalMimeType = downloadResult.exportedMimeType;
       finalFileName = `${finalFileName}${downloadResult.exportedExtension}`;
     }
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('Download error:', e);
     return c.text('Failed to download file', 502);
   }

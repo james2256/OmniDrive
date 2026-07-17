@@ -50,7 +50,7 @@ export class PolicyService {
       const cutoffStr = cutoffDate.toISOString();
 
       let query = '';
-      let binds: any[] = [];
+      let binds: (string | number | null)[] = [];
 
       if (policy.target_type === 'workspace') {
         query = `SELECT f.id, f.user_id, f.google_file_id, f.size, f.workspace_id, d.id as driveId 

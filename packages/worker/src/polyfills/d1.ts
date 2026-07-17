@@ -3,19 +3,19 @@ import Database from 'better-sqlite3';
 export class D1PreparedStatementWrapper {
   private db: Database.Database;
   private query: string;
-  private params: any[];
+  private params: unknown[];
 
-  constructor(db: Database.Database, query: string, params: any[] = []) {
+  constructor(db: Database.Database, query: string, params: unknown[] = []) {
     this.db = db;
     this.query = query;
     this.params = params;
   }
 
-  bind(...values: any[]) {
+  bind(...values: unknown[]) {
     return new D1PreparedStatementWrapper(this.db, this.query, values);
   }
 
-  async first<T = any>(): Promise<T | null> {
+  async first<T = Record<string, unknown>>(): Promise<T | null> {
     return new Promise((resolve, reject) => {
       setImmediate(() => {
         try {
@@ -29,7 +29,7 @@ export class D1PreparedStatementWrapper {
     });
   }
 
-  async all<T = any>(): Promise<{ results: T[] }> {
+  async all<T = Record<string, unknown>>(): Promise<{ results: T[] }> {
     return new Promise((resolve, reject) => {
       setImmediate(() => {
         try {

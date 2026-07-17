@@ -1,4 +1,6 @@
 export interface User {
+  username?: string;
+  userId?: string;
   id: string;
   googleId: string;
   email: string;
@@ -42,6 +44,7 @@ export interface Workspace {
   id: string;
   name: string;
   ownerId: string;
+  role?: string;
   usedBytes?: number;
   syncTtlMinutes: number;
   createdAt: string;
@@ -169,4 +172,11 @@ export interface WorkspacePolicy {
   config: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AutomationRule {
+  id: string;
+  name: string;
+  triggerType: string;
+  isActive: boolean;
 }

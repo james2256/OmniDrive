@@ -349,6 +349,7 @@ export interface WorkspaceRow {
   used_bytes: number;
   created_at: string;
   updated_at: string;
+  s3_key?: string;
   sync_ttl_minutes: number;
 }
 
@@ -363,6 +364,7 @@ export interface WorkspaceFolderRow {
   metadata: string;
   created_at: string;
   updated_at: string;
+  s3_key?: string;
   last_synced_at: string | null;
   sync_status: 'idle' | 'syncing' | 'error';
 }
@@ -389,4 +391,146 @@ export interface FileRow {
   synced_at: string;
   last_synced_at: string | null;
   sync_status: 'idle' | 'syncing' | 'error';
+  updated_at: string;
+  s3_key?: string;
+}
+
+// ─── D1 Row Types (matching schema.sql exactly) ───
+
+export interface UserRow {
+  id: string;
+  username: string;
+  password_hash: string;
+  google_id: string | null;
+  email: string | null;
+  name: string | null;
+  avatar_url: string | null;
+  is_super_admin: number;
+  created_at: string;
+  updated_at: string;
+  s3_key?: string;
+}
+
+export interface DriveAccountRow {
+  id: string;
+  user_id: string;
+  google_account_id: string;
+  email: string;
+  name: string | null;
+  type: string;
+  is_primary: number;
+  root_folder_id: string | null;
+  total_quota: number;
+  used_quota: number;
+  quota_override: number | null;
+  quota_updated_at: string | null;
+  created_at: string;
+}
+
+export interface DriveFolderRow {
+  id: string;
+  drive_account_id: string;
+  google_folder_id: string;
+  google_parent_id: string | null;
+  name: string;
+  is_synced: number;
+  synced_at: string | null;
+  created_at: string;
+}
+
+export interface SharedLinkRow {
+  id: string;
+  user_id: string;
+  target_type: 'file' | 'folder';
+  target_id: string;
+  password_hash: string | null;
+  expires_at: string | null;
+  allow_downloads: number;
+  allow_uploads: number;
+  max_downloads: number | null;
+  require_email: number;
+  webhook_url: string | null;
+  view_count: number;
+  download_count: number;
+  created_at: string;
+}
+
+export interface InvitationCodeRow {
+  id: string;
+  code: string;
+  created_by: string;
+  max_uses: number;
+  used_count: number;
+  expires_at: string | null;
+  created_at: string;
+}
+
+export interface S3CredentialRow {
+  id: string;
+  user_id: string;
+  access_key_id: string;
+  secret_key_enc: string;
+  description: string | null;
+  workspace_id: string | null;
+  created_at: string;
+}
+
+export interface S3MultipartUploadRow {
+  upload_id: string;
+  user_id: string;
+  workspace_id: string;
+  key: string;
+  drive_account_id: string;
+  temp_folder_id: string;
+  created_at: string;
+}
+
+export interface AuditLogRow {
+  id: string;
+  workspace_id: string | null;
+  actor_id: string;
+  action_type: string;
+  resource_id: string | null;
+  resource_name: string | null;
+  metadata: string | null;
+  created_at: string;
+}
+
+export interface AutomationRuleRow {
+  id: string;
+  user_id: string;
+  name: string;
+  trigger_type: string;
+  trigger_config: string | null;
+  conditions: string | null;
+  actions: string | null;
+  is_active: number;
+  created_at: string;
+  updated_at: string;
+  s3_key?: string;
+}
+
+export interface WorkspacePolicyRow {
+  id: string;
+  workspace_id: string;
+  target_type: 'workspace' | 'folder';
+  target_id: string | null;
+  policy_type: 'storage_quota' | 'data_retention';
+  config: string;
+  created_at: string;
+  updated_at: string;
+  s3_key?: string;
+}
+
+export interface S3MultipartPartRow {
+  upload_id: string;
+  part_number: number;
+  google_file_id: string;
+  etag: string;
+  size: number;
+  created_at: string;
+}
+
+export interface WorkspaceWithRoleRow extends WorkspaceRow {
+  role: string;
 }

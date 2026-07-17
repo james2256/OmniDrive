@@ -1,9 +1,11 @@
-import type { MiddlewareHandler } from 'hono';
+import type { Context, MiddlewareHandler } from 'hono';
+import type { AppContext } from '../types/env';
+import type { S3CredentialRow } from '../types';
 import { timingSafeEqual } from 'node:crypto';
 import { decrypt } from '../lib/crypto';
 import { hmacSha256, sha256 } from '../lib/crypto-s3';
 
-function returnXmlError(c: any, code: string, message: string, status = 403, extraFields: Record<string, string> = {}) {
+function returnXmlError(c: Context<AppContext>, code: string, message: string, status: 400 | 401 | 403 | 404 | 500 = 403, extraFields: Record<string, string> = {}) {
   let xml = `<?xml version="1.0" encoding="UTF-8"?>
 <Error>
   <Code>${code}</Code>
@@ -27,7 +29,7 @@ function awsEncode(str: string): string {
     .replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
 }
 
-export const s3AuthMiddleware: MiddlewareHandler = async (c, next) => {
+export const s3AuthMiddleware: MiddlewareHandler<AppContext> = async (c, next) => {
   const authHeader = c.req.header('Authorization');
   let isPresigned = false;
   
@@ -98,7 +100,7 @@ export const s3AuthMiddleware: MiddlewareHandler = async (c, next) => {
   
   // Look up credentials in the database
   const db = c.env.DB;
-  const cred = await db.prepare('SELECT * FROM s3_credentials WHERE access_key_id = ?').bind(accessKeyId).first();
+  const cred = await db.prepare('SELECT * FROM s3_credentials WHERE access_key_id = ?').bind(accessKeyId).first() as S3CredentialRow | null;
   if (!cred) {
     return returnXmlError(c, 'InvalidAccessKeyId', 'The AWS Access Key Id you provided does not exist in our records.');
   }
@@ -276,7 +278,7 @@ export const s3AuthMiddleware: MiddlewareHandler = async (c, next) => {
         const overrides = signedHeadersList.includes('accept-encoding')
           ? { 'accept-encoding': aeVal }
           
-          : {} as any;
+          : {} as Record<string, string>;
           
         const testResult = checkSignatureForPath(pathCandidate, overrides);
         if (testResult.valid) {
@@ -309,9 +311,9 @@ export const s3AuthMiddleware: MiddlewareHandler = async (c, next) => {
     
     c.set('userId', cred.user_id);
     c.set('s3WorkspaceId', cred.workspace_id || null);
-    await next();
-  } catch (err: any) {
-    console.error('S3 signature verification error:', err.message);
+    return await next();
+  } catch (err: unknown) {
+    console.error('S3 signature verification error:', (err instanceof Error ? err.message : String(err)));
     // ponytail: generic message — err.message may leak decryption internals
     return returnXmlError(c, 'SignatureDoesNotMatch', 'Signature verification failed');
   }

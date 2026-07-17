@@ -27,7 +27,7 @@ export class AuthService {
       throw new AppError(401, 'Failed to exchange authorization code');
     }
 
-    const data = await response.json() as any;
+    const data = await response.json() as unknown as { access_token: string; refresh_token?: string; expires_in: number };
     return {
       accessToken: data.access_token,
       refreshToken: data.refresh_token,
@@ -35,7 +35,7 @@ export class AuthService {
     };
   }
 
-  async fetchUserInfo(accessToken: string): Promise<{ id: string; email: string; name: string; picture: string }> {
+  async fetchUserInfo(accessToken: string): Promise<{ id: string; email: string; name: string; picture?: string }> {
     const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
@@ -44,6 +44,6 @@ export class AuthService {
       throw new AppError(401, 'Failed to fetch user info from Google');
     }
 
-    return response.json() as any;
+    return (await response.json()) as unknown as { id: string; email: string; name: string; picture?: string };
   }
 }

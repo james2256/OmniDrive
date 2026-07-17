@@ -13,7 +13,7 @@ adminRouter.use('*', authGuard);
 // Middleware to protect admin routes
 adminRouter.use('*', async (c, next) => {
   const userId = c.get('userId');
-  const user = await c.env.DB.prepare('SELECT is_super_admin FROM users WHERE id = ?').bind(userId).first<{ is_super_admin: number }>();
+  const user = await c.env.DB.prepare('SELECT is_super_admin FROM users WHERE id = ?').bind(userId).first() as { is_super_admin: number };
   if (!user || user.is_super_admin !== 1) {
     throw new AppError(403, 'Forbidden: Super Admin access required');
   }

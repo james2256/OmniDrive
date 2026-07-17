@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useSelectionStore } from '../../stores/useSelectionStore';
 import { formatFileSize, formatRelativeTime } from '../../lib/utils';
+import type { FileEntry } from '../../types';
 import { api } from '../../lib/api';
 import { FileIcon } from '../files/FileIcon';
 import { DriveBadge } from '../DriveBadge';
@@ -28,11 +29,11 @@ export const InfoPanel: React.FC = () => {
     if (!singleSelection || singleSelection.type !== 'folder') return;
     setIsSyncing(true);
     try {
-      const driveId = (singleSelection.item as any).driveAccountId || '';
+      const driveId = (singleSelection.item as unknown as FileEntry & { driveAccountId?: string }).driveAccountId || '';
       await api.forceSyncFolder(singleSelection.item.id || '', driveId);
       addToast('success', 'Sync queued. Data will update shortly.');
-    } catch (err: any) {
-      addToast('error', err.message || 'Failed to queue sync.');
+    } catch (err: unknown) {
+      addToast('error', (err instanceof Error ? err.message : 'Failed to queue sync.'));
     } finally {
       setIsSyncing(false);
     }
@@ -145,7 +146,7 @@ export const InfoPanel: React.FC = () => {
                 <div className="flex flex-col">
                   <dt className="text-stone-500 mb-0.5 text-xs">Last Synced</dt>
                   <dd className="text-stone-800">
-                    {(item as any).lastSyncedAt ? formatRelativeTime((item as any).lastSyncedAt) : 'Never'}
+                    {(item as unknown as FileEntry & { workspaceId?: string; lastSyncedAt?: string }).lastSyncedAt ? formatRelativeTime((item as unknown as FileEntry & { workspaceId?: string; lastSyncedAt?: string }).lastSyncedAt) : 'Never'}
                   </dd>
                 </div>
               )}
@@ -169,7 +170,7 @@ export const InfoPanel: React.FC = () => {
             <h4 className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">Tags & Metadata</h4>
             {item && ('metadata' in item && item.metadata) ? (
               <div className="flex flex-wrap gap-2 mb-3">
-                {Object.entries(typeof (item as any).metadata === 'string' ? JSON.parse((item as any).metadata) : (item as any).metadata).map(([k, v]) => (
+                {Object.entries(typeof (item as unknown as FileEntry & { workspaceId?: string; lastSyncedAt?: string }).metadata === 'string' ? JSON.parse(String((item as unknown as FileEntry & { workspaceId?: string; lastSyncedAt?: string }).metadata) || '{}') : (item as unknown as FileEntry & { workspaceId?: string; lastSyncedAt?: string }).metadata).map(([k, v]) => (
                   <div key={k} className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full flex items-center">
                     <span className="font-semibold mr-1">{k}:</span> {v as string}
                   </div>
@@ -186,16 +187,16 @@ export const InfoPanel: React.FC = () => {
                 const value = (form.elements.namedItem('metaValue') as HTMLInputElement).value;
                 if (!key || !value || !item) return;
 
-                const currentMeta = typeof (item as any).metadata === 'string' ? JSON.parse((item as any).metadata || '{}') : ((item as any).metadata || {});
+                const currentMeta = typeof (item as unknown as FileEntry & { workspaceId?: string; lastSyncedAt?: string }).metadata === 'string' ? JSON.parse(String((item as unknown as FileEntry & { workspaceId?: string; lastSyncedAt?: string }).metadata) || '{}') : ((item as unknown as FileEntry & { workspaceId?: string; lastSyncedAt?: string }).metadata as Record<string, string> || {});
                 const newMeta = { ...currentMeta, [key]: value };
 
                 try {
                   if (type === 'file') {
                     await api.updateFileMetadata(item.id || '', newMeta);
-                  } else if ((item as any).workspaceId) {
-                    await api.updateFolderMetadata((item as any).workspaceId, item.id || '', newMeta);
+                  } else if ((item as unknown as FileEntry & { workspaceId?: string; lastSyncedAt?: string }).workspaceId) {
+                    await api.updateFolderMetadata((item as unknown as FileEntry & { workspaceId?: string; lastSyncedAt?: string }).workspaceId, item.id || '', newMeta);
                   }
-                  (item as any).metadata = newMeta;
+                  (item as unknown as FileEntry & { workspaceId?: string; lastSyncedAt?: string }).metadata = newMeta;
                   form.reset();
                 } catch (err) {
                   console.error(err);

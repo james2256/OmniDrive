@@ -35,7 +35,7 @@ export async function buildDriveBreadcrumb(db: D1Database, driveId: string, goog
       )
       SELECT id, name FROM breadcrumb_path ORDER BY lvl DESC
     `;
-    const { results } = await db.prepare(query).bind(driveId, googleFolderId, driveId).all<{ id: string, name: string }>();
+    const { results } = await db.prepare(query).bind(driveId, googleFolderId, driveId).all() as { results: { id: string, name: string }[] };
     for (const row of results) {
       path.push({ id: row.id, name: row.name });
     }

@@ -12,8 +12,8 @@ export function SetupPage() {
     try {
       await api.register({ username, password });
       window.location.href = '/';
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Setup failed');
+    } catch (err: unknown) {
+      setErrorMsg((err instanceof Error ? err.message : 'Setup failed'));
     }
   };
 

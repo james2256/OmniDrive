@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { setCookie, deleteCookie, getCookie } from 'hono/cookie';
 import { hashPassword, verifyPassword } from '../lib/password';
 import type { AppContext, SessionData } from '../types/env';
+import type { UserRow } from '../types';
 import { AuthService } from '../services/auth.service';
 import { AppError } from '../middleware/error-handler';
 import { generateId } from '../lib/id';
@@ -17,7 +18,7 @@ import { SESSION_TTL_MS, sessionCookieOptions, sessionDeleteCookieOptions } from
 export const authRouter = new Hono<AppContext>({ strict: false });
 
 authRouter.get('/setup-status', async (c) => {
-  const result = await c.env.DB.prepare('SELECT COUNT(*) as count FROM users').first<{ count: number }>();
+  const result = await c.env.DB.prepare('SELECT COUNT(*) as count FROM users').first() as { count: number };
   c.header('Cache-Control', 'no-cache, no-store, must-revalidate');
   return c.json({ isSetup: (result?.count || 0) > 0 });
 });
@@ -32,7 +33,7 @@ authRouter.post('/register', async (c) => {
   const db = c.env.DB;
 
   // Check setup status
-  const setupRes = await db.prepare('SELECT COUNT(*) as count FROM users').first<{ count: number }>();
+  const setupRes = await db.prepare('SELECT COUNT(*) as count FROM users').first() as { count: number };
   const isSetup = (setupRes?.count || 0) > 0;
 
   const existing = await db.prepare('SELECT id FROM users WHERE username = ?').bind(username).first();
@@ -50,7 +51,7 @@ authRouter.post('/register', async (c) => {
     // ponytail: atomic consume — no TOCTOU race; only after username/email checks pass
     const consumed = await db.prepare(
       'UPDATE invitation_codes SET used_count = used_count + 1 WHERE code = ? AND (max_uses <= 0 OR used_count < max_uses) RETURNING id'
-    ).bind(invitation_code).first<{ id: string }>();
+    ).bind(invitation_code).first() as { id: string };
     if (!consumed) {
       const inv = await db.prepare('SELECT id FROM invitation_codes WHERE code = ?').bind(invitation_code).first();
       if (!inv) throw new AppError(400, 'Invalid invitation code');
@@ -58,7 +59,7 @@ authRouter.post('/register', async (c) => {
     }
   } else {
     // ponytail: optional BOOTSTRAP_TOKEN — if set, first registration requires it instead of being fully open
-    const bootstrapToken = (c.env as any).BOOTSTRAP_TOKEN;
+    const bootstrapToken = c.env.BOOTSTRAP_TOKEN;
     if (bootstrapToken) {
       if (invitation_code !== bootstrapToken) {
         throw new AppError(403, 'Bootstrap token required for first registration');
@@ -91,7 +92,7 @@ authRouter.post('/login', async (c) => {
   const { username, password } = await c.req.json();
   if (!username || !password) throw new AppError(400, 'Username and password required');
 
-  const user = await c.env.DB.prepare('SELECT id, username, password_hash, email, name, avatar_url, is_super_admin FROM users WHERE username = ?').bind(username).first<any>();
+  const user = await c.env.DB.prepare('SELECT id, username, password_hash, email, name, avatar_url, is_super_admin FROM users WHERE username = ?').bind(username).first() as UserRow;
   if (!user || !(await verifyPassword(password, user.password_hash))) {
     throw new AppError(401, 'Invalid credentials');
   }
@@ -174,7 +175,7 @@ authRouter.get('/callback', async (c) => {
 
   // Retrieve PKCE verifier + userId from D1 (authoritative single-use state)
   const stateRow = await c.env.DB.prepare('SELECT code_verifier, user_id FROM oauth_states WHERE state = ?')
-    .bind(state).first<{ code_verifier: string; user_id: string }>();
+    .bind(state).first() as { code_verifier: string; user_id: string };
   if (!stateRow) throw new AppError(400, 'OAuth state expired');
   await c.env.DB.prepare('DELETE FROM oauth_states WHERE state = ?').bind(state).run();
 
@@ -194,10 +195,10 @@ authRouter.get('/callback', async (c) => {
   await db.prepare('UPDATE users SET google_id = ? WHERE id = ?')
     .bind(googleUser.id, targetUserId).run();
 
-  let drive = await db.prepare('SELECT id FROM drive_accounts WHERE google_account_id = ? AND user_id = ?').bind(googleUser.id, targetUserId).first<{ id: string }>();
+  let drive = await db.prepare('SELECT id FROM drive_accounts WHERE google_account_id = ? AND user_id = ?').bind(googleUser.id, targetUserId).first() as { id: string };
   if (!drive) {
     const driveId = generateId();
-    const res = await db.prepare('SELECT COUNT(*) as count FROM drive_accounts WHERE user_id = ?').bind(targetUserId).first<{ count: number }>();
+    const res = await db.prepare('SELECT COUNT(*) as count FROM drive_accounts WHERE user_id = ?').bind(targetUserId).first() as { count: number };
     const isPrimary = (res && res.count === 0) ? 1 : 0;
 
     await db.prepare(
@@ -245,7 +246,7 @@ authRouter.post('/change-password', authGuard, async (c) => {
   const userId = c.get('userId');
   const user = await c.env.DB.prepare('SELECT password_hash FROM users WHERE id = ?')
     .bind(userId)
-    .first<{ password_hash: string }>();
+    .first() as { password_hash: string };
   if (!user) throw new AppError(404, 'User not found');
 
   if (!(await verifyPassword(currentPassword, user.password_hash))) {

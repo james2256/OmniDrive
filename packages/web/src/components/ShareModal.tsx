@@ -63,8 +63,8 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
       });
       setSharedUrl(resp.url);
       useSharedStore.getState().fetchSharedLinks();
-    } catch (err: any) {
-      setError(err.message || 'Failed to create shared link');
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : 'Failed to create shared link'));
     } finally {
       setLoading(false);
     }

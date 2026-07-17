@@ -49,7 +49,7 @@ export const App = () => {
     setIsSetup(null);
     api.getSetupStatus()
       .then((res) => setIsSetup(res.isSetup))
-      .catch((err) => setSetupError(err.message || 'Failed to connect to server'));
+      .catch((err) => setSetupError((err instanceof Error ? err.message : 'Failed to connect to server')));
   };
 
   useEffect(() => {

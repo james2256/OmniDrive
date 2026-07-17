@@ -3,6 +3,7 @@ import { useAuthStore } from '../stores/authStore';
 import { ShieldAlert, Plus, MoreVertical } from 'lucide-react';
 import type { User } from '../types';
 import { api } from '../lib/api';
+import type { Invitation } from '../lib/api';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,8 +41,8 @@ const AddUserModal: React.FC<{ open: boolean, onClose: () => void, onSuccess: ()
         role
       });
       onSuccess();
-    } catch (err: any) {
-      setError(err.message || 'Failed to create user');
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : 'Failed to create user'));
     } finally {
       setLoading(false);
     }
@@ -74,7 +75,7 @@ const AddUserModal: React.FC<{ open: boolean, onClose: () => void, onSuccess: ()
             </div>
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-1">Role</label>
-              <select value={role} onChange={e => setRole(e.target.value as any)} className="w-full px-3 py-2 border border-stone-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none">
+              <select value={role} onChange={e => setRole(e.target.value as 'super_admin' | 'member')} className="w-full px-3 py-2 border border-stone-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none">
                 <option value="member">Member</option>
                 <option value="super_admin">Super Admin</option>
               </select>
@@ -100,7 +101,7 @@ export const AdminUsersPage: React.FC = () => {
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
 
   // Invitations Tab State
-  const [invitations, setInvitations] = useState<any[]>([]);
+  const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [inviteCode, setInviteCode] = useState('');
   const [inviteMaxUses, setInviteMaxUses] = useState(1);
 
@@ -108,8 +109,8 @@ export const AdminUsersPage: React.FC = () => {
     try {
       const res = await api.getAdminUsers();
       setUsers(res.users);
-    } catch (e: any) {
-      alert(e.message || 'Failed to load users');
+    } catch (e: unknown) {
+      alert((e instanceof Error ? e.message : 'Failed to load users'));
       console.error(e);
     }
   };
@@ -118,8 +119,8 @@ export const AdminUsersPage: React.FC = () => {
     try {
       const res = await api.getInvitations();
       setInvitations(res.invitations);
-    } catch (e: any) {
-      alert(e.message || 'Failed to load invitations');
+    } catch (e: unknown) {
+      alert((e instanceof Error ? e.message : 'Failed to load invitations'));
       console.error(e);
     }
   };
@@ -164,8 +165,8 @@ export const AdminUsersPage: React.FC = () => {
       setInviteCode('');
       setInviteMaxUses(1);
       loadInvitations();
-    } catch (e: any) {
-      alert(e.message || 'An error occurred while creating invitation');
+    } catch (e: unknown) {
+      alert((e instanceof Error ? e.message : 'An error occurred while creating invitation'));
       console.error(e);
     }
   };
@@ -174,8 +175,8 @@ export const AdminUsersPage: React.FC = () => {
     try {
       await api.deleteInvitation(id);
       loadInvitations();
-    } catch (e: any) {
-      alert(e.message || 'An error occurred while deleting invitation');
+    } catch (e: unknown) {
+      alert((e instanceof Error ? e.message : 'An error occurred while deleting invitation'));
       console.error(e);
     }
   };
@@ -233,7 +234,7 @@ export const AdminUsersPage: React.FC = () => {
                           <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-medium overflow-hidden">
                             {userItem.avatarUrl ? <img src={userItem.avatarUrl} alt="" className="w-full h-full object-cover" /> : (userItem.name || userItem.email || '?').charAt(0).toUpperCase()}
                           </div>
-                          <span className="text-sm font-medium text-stone-900">{userItem.name || (userItem as any).username || 'Unknown'}</span>
+                          <span className="text-sm font-medium text-stone-900">{userItem.name || userItem.username || 'Unknown'}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4 text-sm text-stone-500">{userItem.email || '-'}</td>
@@ -248,7 +249,7 @@ export const AdminUsersPage: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-stone-500">
-                        {((userItem as any).username !== (user as any)?.username && userItem.id !== user?.id && userItem.id !== (user as any)?.userId) && (
+                        {(userItem.username !== user?.username && userItem.id !== user?.id && userItem.id !== user?.userId) && (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <button className="p-1 hover:bg-stone-200 rounded text-stone-500">
@@ -304,7 +305,7 @@ export const AdminUsersPage: React.FC = () => {
                 {invitations.length === 0 ? (
                   <li className="p-4 text-stone-500 text-center">No invitation codes found.</li>
                 ) : (
-                  invitations.map(inv => (
+                  invitations.map((inv: Invitation) => (
                     <li key={inv.id} className="flex items-center justify-between p-4 hover:bg-stone-50">
                       <div>
                         <span className="font-semibold text-stone-800">{inv.code}</span>

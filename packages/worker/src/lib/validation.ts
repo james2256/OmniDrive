@@ -87,7 +87,7 @@ export async function validateWebhookUrlAsync(url: string): Promise<string | nul
       headers: { 'Accept': 'application/dns-json' },
     });
     if (!dohResponse.ok) return null; // If DoH fails, don't block — basic checks already passed
-    const dohData = await dohResponse.json() as any;
+    const dohData = await dohResponse.json() as { Status: number; Answer?: { data: string }[] };
     const answers = dohData.Answer || [];
     for (const answer of answers) {
       const resolvedIp = answer.data;

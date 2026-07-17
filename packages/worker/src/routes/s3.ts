@@ -1,3 +1,4 @@
+import type { Context } from 'hono';
 import { Hono } from 'hono';
 import { s3AuthMiddleware } from '../middleware/s3-auth';
 import type { AppContext } from '../types/env';
@@ -5,7 +6,8 @@ import { GoogleDriveService } from '../services/google-drive';
 import { generateId } from '../lib/id';
 import { getMD5HashingStream } from '../lib/crypto-s3';
 import { UploadRouter } from '../services/upload-router';
-import { mapDriveRow } from '../types';
+import { mapDriveRow, type WorkspaceRow, type FileRow, type DriveAccountRow, type S3MultipartUploadRow, type S3MultipartPartRow, type WorkspaceFolderRow, type WorkspaceWithRoleRow } from '../types';
+import type { DriveAccount } from '../types';
 import { createHash } from 'node:crypto';
 import { hasPermission } from '../middleware/rbac';
 import { parseLifecycleXml, serializeLifecycleXml } from '../services/s3-lifecycle';
@@ -14,7 +16,7 @@ export const s3Router = new Hono<AppContext>({ strict: false });
 
 // ponytail: S3 RBAC — read ops require viewer, write ops require editor.
 // Enforced here instead of middleware because workspace is resolved per-handler.
-function requireS3Role(c: any, role: string | undefined, write: boolean): Response | null {
+function requireS3Role(c: Context, role: string | undefined, write: boolean): Response | null {
   const needed = write ? 'editor' : 'viewer';
   if (!role || !hasPermission(role, needed)) {
     return xmlError(c, 'AccessDenied', `Insufficient permissions: ${needed} role required`, 403);
@@ -66,9 +68,9 @@ function getFileETag(file: { id: string; metadata?: string | null }): string {
   return file.id;
 }
 
-function xmlError(c: any, code: string, message: string, status: number): Response {
+function xmlError(c: Context, code: string, message: string, status: number): Response {
   const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<Error>\n  <Code>${escapeXml(code)}</Code>\n  <Message>${escapeXml(message)}</Message>\n</Error>`;
-  return c.text(xml, status, { 'Content-Type': 'application/xml' });
+  return c.text(xml, status as 400 | 401 | 403 | 404 | 500, { 'Content-Type': 'application/xml' });
 }
 
 s3Router.use('*', s3AuthMiddleware);
@@ -85,7 +87,7 @@ s3Router.get('/', async (c) => {
     JOIN workspace_members wm ON w.id = wm.workspace_id
     WHERE wm.user_id = ?
       AND (? IS NULL OR w.id = ?)
-  `).bind(userId, s3WorkspaceId, s3WorkspaceId).all<any>();
+  `).bind(userId, s3WorkspaceId, s3WorkspaceId).all() as { results: WorkspaceRow[] };
 
   let bucketsXml = '';
   for (const ws of workspaces) {
@@ -121,7 +123,7 @@ s3Router.on(['GET', 'HEAD'], '/:bucket', async (c) => {
     JOIN workspace_members wm ON w.id = wm.workspace_id
     WHERE w.name = ? AND wm.user_id = ?
       AND (? IS NULL OR w.id = ?)
-  `).bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId).first() as any
+  `).bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId).first() as WorkspaceWithRoleRow
 
   if (!workspace) {
     const errorCode = 'NoSuchBucket';
@@ -140,7 +142,7 @@ s3Router.on(['GET', 'HEAD'], '/:bucket', async (c) => {
   if (c.req.method === 'GET' && c.req.query('lifecycle') !== undefined) {
     const { results } = await db.prepare(
       'SELECT prefix, expiration_days, enabled FROM s3_lifecycle_rules WHERE workspace_id = ?'
-    ).bind(workspace.id).all<{ prefix: string; expiration_days: number; enabled: number }>();
+    ).bind(workspace.id).all() as { results: { prefix: string; expiration_days: number; enabled: number }[] };
     if (!results?.length) {
       return xmlError(c, 'NoSuchLifecycleConfiguration', 'The lifecycle configuration does not exist.', 404);
     }
@@ -170,13 +172,13 @@ s3Router.on(['GET', 'HEAD'], '/:bucket', async (c) => {
     LEFT JOIN folder_path fp ON f.workspace_folder_id = fp.id
     WHERE f.workspace_id = ? AND f.is_trashed = 0
       AND COALESCE(fp.path, '') || f.name LIKE ?
-  `).bind(workspace.id, workspace.id, workspace.id, prefix + '%').all<any>();
+  `).bind(workspace.id, workspace.id, workspace.id, prefix + '%').all() as { results: FileRow[] };
 
   let contentsXml = '';
   const commonPrefixesSet = new Set<string>();
 
   for (const file of files) {
-    const key = file.s3_key;
+    const key = file.s3_key || '';
     if (!key.startsWith(prefix)) continue;
 
     if (delimiter === '/') {
@@ -189,7 +191,7 @@ s3Router.on(['GET', 'HEAD'], '/:bucket', async (c) => {
         // Immediate File
         contentsXml += `  <Contents>
     <Key>${escapeXml(key)}</Key>
-    <LastModified>${escapeXml(parseSqliteDate(file.updated_at).toISOString())}</LastModified>
+    <LastModified>${escapeXml(parseSqliteDate(file.updated_at || new Date().toISOString()).toISOString())}</LastModified>
     <ETag>"${escapeXml(getFileETag(file))}"</ETag>
     <Size>${file.size}</Size>
     <StorageClass>STANDARD</StorageClass>
@@ -199,7 +201,7 @@ s3Router.on(['GET', 'HEAD'], '/:bucket', async (c) => {
       // Recursive List (No Delimiter)
       contentsXml += `  <Contents>
     <Key>${escapeXml(key)}</Key>
-    <LastModified>${escapeXml(parseSqliteDate(file.updated_at).toISOString())}</LastModified>
+    <LastModified>${escapeXml(parseSqliteDate(file.updated_at || new Date().toISOString()).toISOString())}</LastModified>
     <ETag>"${escapeXml(getFileETag(file))}"</ETag>
     <Size>${file.size}</Size>
     <StorageClass>STANDARD</StorageClass>
@@ -226,7 +228,7 @@ ${contentsXml}${prefixesXml}</ListBucketResult>`;
 });
 
 // Resolve a bucket (workspace) for bucket-level subresource ops.
-async function resolveBucket(c: any, needWrite: boolean): Promise<{ workspace: any } | Response> {
+async function resolveBucket(c: Context, needWrite: boolean): Promise<{ workspace: WorkspaceRow } | Response> {
   const userId = c.get('userId');
   const s3WorkspaceId = c.get('s3WorkspaceId') || null;
   const bucketName = c.req.param('bucket');
@@ -235,7 +237,7 @@ async function resolveBucket(c: any, needWrite: boolean): Promise<{ workspace: a
     JOIN workspace_members wm ON w.id = wm.workspace_id
     WHERE w.name = ? AND wm.user_id = ?
       AND (? IS NULL OR w.id = ?)
-  `).bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId).first() as any
+  `).bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId).first() as WorkspaceWithRoleRow
   if (!workspace) return xmlError(c, 'NoSuchBucket', 'Bucket not found', 404);
   const denied = requireS3Role(c, workspace.role, needWrite);
   if (denied) return denied;
@@ -274,7 +276,7 @@ s3Router.delete('/:bucket', async (c) => {
 });
 
 // Helpers to resolve virtual folders dynamically
-async function getWorkspaceFolder(db: any, workspaceId: string, folderPath: string): Promise<string | null | undefined> {
+async function getWorkspaceFolder(db: D1Database, workspaceId: string, folderPath: string): Promise<string | null | undefined> {
   if (!folderPath) return null;
   const segments = folderPath.split('/').filter(Boolean);
   let parentId: string | null = null;
@@ -282,14 +284,14 @@ async function getWorkspaceFolder(db: any, workspaceId: string, folderPath: stri
     const existing = await db.prepare(`
       SELECT id FROM workspace_folders 
       WHERE workspace_id = ? AND name = ? AND (parent_id = ? OR (parent_id IS NULL AND ? IS NULL))
-    `).bind(workspaceId, name, parentId, parentId).first() as any
+    `).bind(workspaceId, name, parentId, parentId).first() as WorkspaceFolderRow
     if (!existing) return undefined;
     parentId = existing.id;
   }
   return parentId;
 }
 
-async function getOrCreateWorkspaceFolder(db: any, workspaceId: string, folderPath: string): Promise<string | null> {
+async function getOrCreateWorkspaceFolder(db: D1Database, workspaceId: string, folderPath: string): Promise<string | null> {
   if (!folderPath) return null;
   const segments = folderPath.split('/').filter(Boolean);
   let parentId: string | null = null;
@@ -298,7 +300,7 @@ async function getOrCreateWorkspaceFolder(db: any, workspaceId: string, folderPa
     const existing = await db.prepare(`
       SELECT id FROM workspace_folders 
       WHERE workspace_id = ? AND name = ? AND (parent_id = ? OR (parent_id IS NULL AND ? IS NULL))
-    `).bind(workspaceId, name, parentId, parentId).first() as any
+    `).bind(workspaceId, name, parentId, parentId).first() as WorkspaceFolderRow
 
     if (existing) {
       parentId = existing.id;
@@ -328,7 +330,7 @@ s3Router.on('HEAD', '/:bucket/:key{.+}', async (c) => {
     JOIN workspace_members wm ON w.id = wm.workspace_id
     WHERE w.name = ? AND wm.user_id = ?
       AND (? IS NULL OR w.id = ?)
-  `).bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId).first() as any
+  `).bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId).first() as WorkspaceWithRoleRow
 
   if (!workspace) return c.text('Not Found', 404);
 
@@ -346,7 +348,7 @@ s3Router.on('HEAD', '/:bucket/:key{.+}', async (c) => {
     SELECT * FROM files 
     WHERE workspace_id = ? AND name = ? AND (workspace_folder_id = ? OR (workspace_folder_id IS NULL AND ? IS NULL))
       AND is_trashed = 0
-  `).bind(workspace.id, fileName, folderId, folderId).first() as any
+  `).bind(workspace.id, fileName, folderId, folderId).first() as FileRow
 
   if (!file) return c.text('Not Found', 404);
 
@@ -369,7 +371,7 @@ s3Router.get('/:bucket/:key{.+}', async (c) => {
     JOIN workspace_members wm ON w.id = wm.workspace_id
     WHERE w.name = ? AND wm.user_id = ?
       AND (? IS NULL OR w.id = ?)
-  `).bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId).first() as any
+  `).bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId).first() as WorkspaceWithRoleRow
 
   if (!workspace) return c.text('Bucket not found', 404);
 
@@ -388,7 +390,7 @@ s3Router.get('/:bucket/:key{.+}', async (c) => {
     SELECT * FROM files 
     WHERE workspace_id = ? AND name = ? AND (workspace_folder_id = ? OR (workspace_folder_id IS NULL AND ? IS NULL))
       AND is_trashed = 0
-  `).bind(workspace.id, fileName, folderId, folderId).first() as any
+  `).bind(workspace.id, fileName, folderId, folderId).first() as FileRow
 
   if (!file) return xmlError(c, 'NoSuchKey', `The specified key does not exist.`, 404);
 
@@ -426,7 +428,7 @@ s3Router.delete('/:bucket/:key{.+}', async (c) => {
     JOIN workspace_members wm ON w.id = wm.workspace_id
     WHERE w.name = ? AND wm.user_id = ?
       AND (? IS NULL OR w.id = ?)
-  `).bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId).first() as any
+  `).bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId).first() as WorkspaceWithRoleRow
 
   if (!workspace) return c.text('Bucket not found', 404);
 
@@ -436,7 +438,7 @@ s3Router.delete('/:bucket/:key{.+}', async (c) => {
   const uploadId = c.req.query('uploadId');
   if (uploadId) {
     const upload = await db.prepare('SELECT * FROM s3_multipart_uploads WHERE upload_id = ? AND user_id = ? AND workspace_id = ?')
-      .bind(uploadId, userId, workspace.id).first() as any
+      .bind(uploadId, userId, workspace.id).first<S3MultipartUploadRow>()
     if (!upload) {
       const errorCode = 'NoSuchUpload';
       const errorMessage = 'The specified multipart upload does not exist.';
@@ -471,7 +473,7 @@ s3Router.delete('/:bucket/:key{.+}', async (c) => {
     SELECT * FROM files 
     WHERE workspace_id = ? AND name = ? AND (workspace_folder_id = ? OR (workspace_folder_id IS NULL AND ? IS NULL))
       AND is_trashed = 0
-  `).bind(workspace.id, fileName, folderId, folderId).first() as any
+  `).bind(workspace.id, fileName, folderId, folderId).first() as FileRow
 
   if (!file) return xmlError(c, 'NoSuchKey', `The specified key does not exist.`, 404);
 
@@ -510,7 +512,7 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
     JOIN workspace_members wm ON w.id = wm.workspace_id
     WHERE w.name = ? AND wm.user_id = ?
       AND (? IS NULL OR w.id = ?)
-  `).bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId).first() as any
+  `).bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId).first() as WorkspaceWithRoleRow
 
   if (!workspace) return c.text('Bucket not found', 404);
 
@@ -521,10 +523,10 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
   const mimeType = c.req.header('Content-Type') || 'application/octet-stream';
 
   // 1. Select target Drive using UploadRouter
-  const { results: driveRows } = await db.prepare('SELECT * FROM drive_accounts WHERE user_id = ?').bind(userId).all() as any;
+  const { results: driveRows } = await db.prepare('SELECT * FROM drive_accounts WHERE user_id = ?').bind(userId).all() as { results: Record<string, unknown>[] };
   if (driveRows.length === 0) return c.text('No connected drives', 400);
 
-  const drives = driveRows.map(mapDriveRow).map((d: any) => ({
+  const drives = driveRows.map((r) => mapDriveRow(r)).map((d: DriveAccount) => ({
     ...d,
     freeSpace: Math.max(0, d.totalQuota - d.usedQuota),
     usagePercent: d.totalQuota > 0 ? (d.usedQuota / d.totalQuota) * 100 : 0
@@ -558,7 +560,7 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
     SELECT id, drive_account_id, google_file_id FROM files
     WHERE workspace_id = ? AND name = ? AND (workspace_folder_id = ? OR (workspace_folder_id IS NULL AND ? IS NULL))
       AND is_trashed = 0
-  `).bind(workspace.id, fileName, folderId || null, folderId || null).first() as any
+  `).bind(workspace.id, fileName, folderId || null, folderId || null).first() as FileRow
 
   // Initiate resumable session
   const uploadUrl = await driveService.initiateResumableUpload(
@@ -572,7 +574,7 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
   const response = await fetch(uploadUrl, {
     method: 'PUT',
     headers: { 'Content-Length': String(contentLength) },
-    body: pipedStream as any
+    body: pipedStream
   });
 
   if (!response.ok) return c.text('Upload to Google Drive failed', 502);
@@ -610,7 +612,7 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
 });
 
 // Helper to upload a part
-async function handleUploadPart(c: any, uploadId: string, partNumber: number): Promise<Response> {
+async function handleUploadPart(c: Context, uploadId: string, partNumber: number): Promise<Response> {
   const userId = c.get('userId');
   const s3WorkspaceId = c.get('s3WorkspaceId') || null;
   const db = c.env.DB;
@@ -619,7 +621,7 @@ async function handleUploadPart(c: any, uploadId: string, partNumber: number): P
     SELECT * FROM s3_multipart_uploads 
     WHERE upload_id = ? AND user_id = ?
       AND (? IS NULL OR workspace_id = ?)
-  `).bind(uploadId, userId, s3WorkspaceId, s3WorkspaceId).first() as any
+  `).bind(uploadId, userId, s3WorkspaceId, s3WorkspaceId).first() as S3MultipartUploadRow
   if (!upload) return c.text('Invalid uploadId', 404);
 
   const contentLength = parseInt(c.req.header('Content-Length') || '0', 10);
@@ -649,7 +651,7 @@ async function handleUploadPart(c: any, uploadId: string, partNumber: number): P
   const response = await fetch(uploadUrl, {
     method: 'PUT',
     headers: { 'Content-Length': String(contentLength) },
-    body: pipedStream as any
+    body: pipedStream
   });
 
   if (!response.ok) return c.text('Failed uploading part to Google Drive', 502);
@@ -684,7 +686,7 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
     JOIN workspace_members wm ON w.id = wm.workspace_id
     WHERE w.name = ? AND wm.user_id = ?
       AND (? IS NULL OR w.id = ?)
-  `).bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId).first() as any
+  `).bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId).first() as WorkspaceWithRoleRow
 
   if (!workspace) return c.text('Bucket not found', 404);
 
@@ -703,9 +705,9 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
     const uploadId = generateId();
     
     // Choose target drive
-    const { results: driveRows } = await db.prepare('SELECT * FROM drive_accounts WHERE user_id = ?').bind(userId).all() as any;
+    const { results: driveRows } = await db.prepare('SELECT * FROM drive_accounts WHERE user_id = ?').bind(userId).all() as { results: DriveAccountRow[] };
     if (driveRows.length === 0) return c.text('No connected drives', 400);
-    const targetDrive = mapDriveRow(driveRows[0]);
+    const targetDrive = mapDriveRow(driveRows[0] as unknown as Record<string, unknown>);
 
     // Create temp folder inside Google Drive
     const tempFolderName = `.omnidrive_multipart_${uploadId}`;
@@ -733,14 +735,14 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
       SELECT * FROM s3_multipart_uploads 
       WHERE upload_id = ? AND user_id = ?
         AND (? IS NULL OR workspace_id = ?)
-    `).bind(uploadId, userId, s3WorkspaceId, s3WorkspaceId).first() as any
+    `).bind(uploadId, userId, s3WorkspaceId, s3WorkspaceId).first<S3MultipartUploadRow>()
     if (!upload) return c.text('Upload session not found', 404);
 
     // Get all parts ordered by part_number
     const { results: parts } = await db.prepare(`
       SELECT * FROM s3_multipart_parts 
       WHERE upload_id = ? ORDER BY part_number ASC
-    `).bind(uploadId).all<any>();
+    `).bind(uploadId).all() as { results: S3MultipartPartRow[] };
 
     if (parts.length === 0) return c.text('No parts found to complete upload', 400);
 
@@ -753,7 +755,7 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
     const totalSize = parts.reduce((acc, p) => acc + p.size, 0);
 
     // Fetch drive account to get its root folder ID
-    const driveAccount = await db.prepare('SELECT * FROM drive_accounts WHERE id = ?').bind(upload.drive_account_id).first() as any
+    const driveAccount = await db.prepare('SELECT * FROM drive_accounts WHERE id = ?').bind(upload.drive_account_id).first() as DriveAccountRow
     const destFolderId = driveAccount?.root_folder_id || 'root';
 
     // Initiate final file upload in Google Drive
@@ -795,7 +797,7 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
     const response = await fetch(finalUploadUrl, {
       method: 'PUT',
       headers: { 'Content-Length': String(totalSize) },
-      body: finalStream as any
+      body: finalStream
     });
 
     if (!response.ok) return c.text('Final concatenation failed', 502);
@@ -808,7 +810,7 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
       SELECT id, drive_account_id, google_file_id FROM files
       WHERE workspace_id = ? AND name = ? AND (workspace_folder_id = ? OR (workspace_folder_id IS NULL AND ? IS NULL))
         AND is_trashed = 0
-    `).bind(workspace.id, fileName, folderId || null, folderId || null).first() as any
+    `).bind(workspace.id, fileName, folderId || null, folderId || null).first() as FileRow
 
     // If the file exists, delete it from Google Drive and remove its D1 row to prevent duplicates
     if (existingFile) {

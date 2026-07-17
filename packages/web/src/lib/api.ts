@@ -1,5 +1,11 @@
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
-import type { User, DriveAccount, AggregateQuota, DriveFolderContents, FolderContents, FileEntry, UploadInitResponse, WorkspaceFolder, AuditLog, WorkspacePolicy } from '../types';
+import type { User, DriveAccount, AutomationRule, AggregateQuota, DriveFolderContents, FolderContents, FileEntry, UploadInitResponse, WorkspaceFolder, AuditLog, WorkspacePolicy } from '../types';
+
+interface RegisterPayload extends LoginPayload { name?: string; email?: string; invitation_code?: string; }
+export interface Invitation { id: string; code: string; max_uses: number; used_count: number; expires_at: string | null; created_at: string; }
+interface AdminCreateUserPayload { username: string; password: string; name?: string; email?: string; role?: string; }
+export interface S3Credential { id: string; description: string | null; access_key_id: string; accessKeyId: string; workspace_id: string | null; workspaceId: string | null; workspace_name?: string | null; workspaceName?: string | null; created_at: string; createdAt: string; }
+interface LoginPayload { username: string; password: string; }
 
 export function getFilePreviewUrl(fileId: string): string {
   return `${API_BASE}/api/files/${fileId}/preview`;
@@ -44,8 +50,8 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 export const api = {
   // Auth
   getSetupStatus: () => request<{ isSetup: boolean }>('/api/auth/setup-status'),
-  login: (data: any) => request<{ success: boolean; user: User }>('/api/auth/login', { method: 'POST', body: JSON.stringify(data) }),
-  register: (data: any) => request<{ success: boolean; user: User }>('/api/auth/register', { method: 'POST', body: JSON.stringify(data) }),
+  login: (data: LoginPayload) => request<{ success: boolean; user: User }>('/api/auth/login', { method: 'POST', body: JSON.stringify(data) }),
+  register: (data: RegisterPayload) => request<{ success: boolean; user: User }>('/api/auth/register', { method: 'POST', body: JSON.stringify(data) }),
   getUser: () => request<{ user: User }>('/api/auth/me'),
   // OAuth initiation: backend returns the Google auth URL as JSON (the SPA
   // performs the redirect). Called via credentialed fetch so the session
@@ -59,11 +65,11 @@ export const api = {
       body: JSON.stringify({ currentPassword, newPassword }),
     }),
 
-  getInvitations: () => request<{ invitations: any[] }>('/api/admin/invitations'),
-  createInvitation: (code: string, max_uses: number) => request<{ success: boolean, invitation: any }>('/api/admin/invitations', { method: 'POST', body: JSON.stringify({ code, max_uses }) }),
+  getInvitations: () => request<{ invitations: Invitation[] }>('/api/admin/invitations'),
+  createInvitation: (code: string, max_uses: number) => request<{ success: boolean, invitation: Invitation }>('/api/admin/invitations', { method: 'POST', body: JSON.stringify({ code, max_uses }) }),
   deleteInvitation: (id: string) => request<{ success: boolean }>(`/api/admin/invitations/${id}`, { method: 'DELETE' }),
   getAdminUsers: () => request<{ users: User[] }>('/api/admin/users'),
-  adminCreateUser: (data: any) => request<{ success: boolean; user: User }>('/api/admin/users', { method: 'POST', body: JSON.stringify(data) }),
+  adminCreateUser: (data: AdminCreateUserPayload) => request<{ success: boolean; user: User }>('/api/admin/users', { method: 'POST', body: JSON.stringify(data) }),
 
   // Drives
   getDrives: () =>
@@ -202,7 +208,7 @@ export const api = {
     request<{ images: number; videos: number; documents: number; audio: number; archives: number; others: number }>('/api/files/category-overview'),
 
   // Automations
-  getAutomations: () => request<{ rules: any[] }>('/api/automations'),
+  getAutomations: () => request<{ rules: AutomationRule[] }>('/api/automations'),
   toggleAutomation: (id: string, is_active: boolean) =>
     request<{ success: boolean }>(`/api/automations/${id}/toggle`, {
       method: 'PATCH',
@@ -216,7 +222,7 @@ export const api = {
   // Policies
   getWorkspacePolicies: (workspaceId: string) =>
     request<{ policies: WorkspacePolicy[] }>(`/api/workspaces/${workspaceId}/policies`),
-  createWorkspacePolicy: (workspaceId: string, data: { targetType: 'workspace' | 'folder', targetId?: string, policyType: 'storage_quota' | 'data_retention', config: any }) =>
+  createWorkspacePolicy: (workspaceId: string, data: { targetType: 'workspace' | 'folder', targetId?: string, policyType: 'storage_quota' | 'data_retention', config: Record<string, unknown> }) =>
     request<{ policy: WorkspacePolicy }>(`/api/workspaces/${workspaceId}/policies`, {
       method: 'POST',
       body: JSON.stringify(data),
@@ -245,7 +251,7 @@ export const api = {
 
   // Workspaces & S3 Credentials
   getWorkspaces: () => request<{ workspaces: { id: string; name: string; role: string }[] }>('/api/workspaces'),
-  getS3Credentials: () => request<any[]>('/api/s3-credentials'),
+  getS3Credentials: () => request<S3Credential[]>('/api/s3-credentials'),
   createS3Credential: (description: string, workspaceId?: string) =>
     request<{ id: string; accessKeyId: string; secretAccessKey: string; description: string; createdAt: string }>('/api/s3-credentials', {
       method: 'POST',

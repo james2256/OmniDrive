@@ -64,8 +64,8 @@ export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
       useSharedStore.getState().fetchSharedLinks();
       addToast('success', 'Shared link settings updated successfully');
       onClose();
-    } catch (err: any) {
-      setError(err.message || 'Failed to update shared link');
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : 'Failed to update shared link'));
     } finally {
       setLoading(false);
     }

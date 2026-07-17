@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import type { FileGrid } from '../components/files/FileGrid';
+import type { ComponentProps } from 'react';
 import { api } from '../lib/api';
-import type { WorkspaceFolder, FileEntry, DriveFolder, BreadcrumbItem } from '../types';
+import type { WorkspaceFolder, FileEntry, DriveFolder, BreadcrumbItem, DriveAccount } from '../types';
 import { WorkspaceSidebar } from '../components/workspaces/WorkspaceSidebar';
 import { WorkspaceMainView } from '../components/workspaces/WorkspaceMainView';
 import { CreateFolderModal } from '../components/CreateFolderModal';
@@ -142,7 +144,7 @@ export function WorkspacesPage() {
     return path;
   }, [activeFolder, folders]);
 
-  const getDriveInfo = useCallback(() => ({ drive: null as any, index: 0 }), []);
+  const getDriveInfo = useCallback(() => ({ drive: null as unknown as DriveAccount, index: 0 }), []);
   const onPreviewFile = useCallback((file: FileEntry) => setPreviewFile(file), []);
   const onShare = useCallback(() => {}, []);
   const onRenameFile = useCallback(() => {}, []);
@@ -257,7 +259,7 @@ export function WorkspacesPage() {
         onCreateRootFolder={() => openCreateModal(null)}
         onSync={handleSync}
         isSyncing={isSyncing}
-        fileTabProps={fileTabProps as any}
+        fileTabProps={fileTabProps as ComponentProps<typeof FileGrid>}
         onToggleSidebar={() => setWsSidebarOpen(true)}
       />
       <CreateFolderModal

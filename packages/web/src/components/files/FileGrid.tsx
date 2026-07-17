@@ -1,5 +1,6 @@
 import React from 'react';
 import type { FileEntry, DriveFolder, WorkspaceFolder } from '../../types';
+import type { DriveAccount } from '../../types';
 import { formatFileSize, formatRelativeTime } from '../../lib/utils';
 import { DriveBadge } from '../DriveBadge';
 import { FileIcon } from './FileIcon';
@@ -154,7 +155,7 @@ const ItemContextMenuContent: React.FC<{
 export interface FileGridProps {
   files: FileEntry[];
   subfolders: (DriveFolder | WorkspaceFolder)[];
-  getDriveInfo: (driveAccountId?: string) => { drive: any, index: number };
+  getDriveInfo: (driveAccountId?: string) => { drive: DriveAccount | null, index: number };
   onNavigateFolder?: (folderId: string, driveId: string) => void;
   onToggleStar?: (id: string, type: 'file' | 'folder', currentStarStatus: boolean) => void;
   onPreviewFile?: (file: FileEntry) => void;

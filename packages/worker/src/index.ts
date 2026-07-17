@@ -1,3 +1,4 @@
+import type { Context } from 'hono';
 import { Hono } from 'hono';
 import type { AppContext, Env } from './types/env';
 import { corsMiddleware } from './middleware/cors';
@@ -44,7 +45,7 @@ function escapeXml(str: string): string {
 
 app.onError((err, c) => {
   const isAppError = err instanceof AppError || err.name === 'AppError';
-  const status = isAppError ? (err as any).status : 500;
+  const status = isAppError ? (err as AppError).status : 500;
   const message = isAppError ? err.message : 'Internal server error';
   
   if (status >= 500) {
@@ -59,8 +60,8 @@ app.onError((err, c) => {
     else if (status === 405) s3Code = 'MethodNotAllowed';
     else if (status === 409) s3Code = 'Conflict';
 
-    if (typeof (err as any).code === 'string' && (err as any).code) {
-      s3Code = (err as any).code;
+    if (typeof (err as unknown as Record<string, unknown>).code === 'string' && (err as unknown as Record<string, unknown>).code) {
+      s3Code = (err as unknown as Record<string, unknown>).code as string;
     }
 
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -69,10 +70,10 @@ app.onError((err, c) => {
   <Message>${escapeXml(message)}</Message>
 </Error>`;
     c.header('Content-Type', 'application/xml');
-    return c.text(xml, status as any);
+    return c.text(xml, status as 400 | 401 | 403 | 404 | 405 | 409 | 500);
   }
   
-  return c.json({ error: message }, status as any);
+  return c.json({ error: message }, status as 400 | 401 | 403 | 404 | 500);
 });
 
 // Rate limiters — applied before auth to protect login/register
@@ -81,7 +82,7 @@ app.use('/api/auth/register', rateLimiter({ windowMs: 600_000, maxRequests: 10 }
 app.use('/api/shared/:id/verify', rateLimiter({
   windowMs: 60_000,
   maxRequests: 5,
-  keyFn: (c: any) => {
+  keyFn: (c: Context) => {
     const ip = c.req.header('CF-Connecting-IP') ?? c.req.header('X-Real-IP') ?? 'unknown';
     const id = c.req.param('id') ?? 'unknown';
     return `${ip}:${id}`;
@@ -90,7 +91,7 @@ app.use('/api/shared/:id/verify', rateLimiter({
 app.use('/api/shared/:id/download', rateLimiter({
   windowMs: 60_000,
   maxRequests: 20,
-  keyFn: (c: any) => {
+  keyFn: (c: Context) => {
     const ip = c.req.header('CF-Connecting-IP') ?? c.req.header('X-Real-IP') ?? 'unknown';
     const id = c.req.param('id') ?? 'unknown';
     return `${ip}:${id}`;

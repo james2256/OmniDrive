@@ -29,7 +29,7 @@ export interface GDriveFolder {
 }
 
 export class GoogleDriveError extends Error {
-  constructor(public status: number, message: string, public data?: any) {
+  constructor(public status: number, message: string, public data?: unknown) {
     super(message);
     this.name = 'GoogleDriveError';
   }
@@ -567,7 +567,7 @@ export class GoogleDriveService {
     const fields = 'files(id,name,mimeType,size,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum)';
     const q = encodeURIComponent(`'${folderId}' in parents and trashed = false`);
 
-    const allFiles: Array<any> = [];
+    const allFiles: Array<GDriveFile> = [];
     let pageToken: string | undefined;
 
     do {
@@ -581,7 +581,7 @@ export class GoogleDriveService {
         throw new Error(`Failed to list files: ${await response.text()}`);
       }
 
-      const data: { files: any[]; nextPageToken?: string } = await response.json();
+      const data: { files: GDriveFile[]; nextPageToken?: string } = await response.json();
       allFiles.push(...data.files);
       pageToken = data.nextPageToken;
     } while (pageToken);
@@ -614,7 +614,7 @@ export class GoogleDriveService {
         throw new Error(`Failed to list folder contents: ${await response.text()}`);
       }
 
-      const data: { files: any[]; nextPageToken?: string } = await response.json();
+      const data: { files: GDriveFile[]; nextPageToken?: string } = await response.json();
       
       for (const file of data.files) {
         if (file.mimeType === 'application/vnd.google-apps.shortcut') continue;

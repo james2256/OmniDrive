@@ -81,7 +81,7 @@ workspacesRouter.post('/:id/members', async (c) => {
     return c.json({ error: 'Cannot assign a role equal to or higher than your own' }, 403);
   }
 
-  const targetUser = await db.prepare('SELECT id FROM users WHERE email = ?').bind(email).first<{ id: string }>();
+  const targetUser = await db.prepare('SELECT id FROM users WHERE email = ?').bind(email).first() as { id: string };
   if (!targetUser) {
     return c.json({ error: 'User not found' }, 404);
   }
@@ -99,8 +99,8 @@ workspacesRouter.post('/:id/members', async (c) => {
       resourceName: email,
       metadata: { role }
     });
-  } catch (e: any) {
-    if (e.message.includes('UNIQUE constraint failed')) {
+  } catch (e: unknown) {
+    if ((e instanceof Error ? e.message : String(e)).includes('UNIQUE constraint failed')) {
       return c.json({ error: 'User is already a member' }, 409);
     }
     throw e;
@@ -132,7 +132,7 @@ workspacesRouter.delete('/:id/members/:targetUserId', async (c) => {
 
   // Prevent removing the last owner — would orphan the workspace
   if (targetRole === 'owner') {
-    const { count } = await db.prepare('SELECT COUNT(*) as count FROM workspace_members WHERE workspace_id = ? AND role = ?').bind(workspaceId, 'owner').first<{ count: number }>() || { count: 0 };
+    const { count } = await db.prepare('SELECT COUNT(*) as count FROM workspace_members WHERE workspace_id = ? AND role = ?').bind(workspaceId, 'owner').first() as { count: number } || { count: 0 };
     if (count <= 1) {
       return c.json({ error: 'Cannot remove the last owner of the workspace' }, 400);
     }
@@ -200,7 +200,7 @@ workspacesRouter.post('/:id/policies', async (c) => {
     targetType?: 'workspace' | 'folder';
     targetId?: string;
     policyType?: 'storage_quota' | 'data_retention';
-    config?: any;
+    config?: Record<string, unknown>;
   }>();
 
   if (!targetType || !policyType || !config) {

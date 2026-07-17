@@ -6,6 +6,7 @@ export interface Env {
   FRONTEND_URL: string;
   WORKER_URL: string;
   JWT_SECRET: string;
+  BOOTSTRAP_TOKEN?: string;
   TOKEN_ENCRYPTION_KEY: string;
 }
 

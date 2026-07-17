@@ -45,8 +45,8 @@ export function CreateFolderModal({ open, parentId, title, onClose, onSuccess }:
       addToast('success', `${entityLabel} created successfully`);
       onSuccess();
       onClose();
-    } catch (err: any) {
-      setError(err.message || `Failed to create ${entityLabel.toLowerCase()}`);
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : `Failed to create ${entityLabel.toLowerCase()}`));
     } finally {
       setLoading(false);
     }

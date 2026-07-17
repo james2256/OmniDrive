@@ -1,3 +1,4 @@
+import type { D1Database, KVNamespace, ScheduledController } from '@cloudflare/workers-types';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import * as fs from 'fs';
@@ -44,8 +45,8 @@ const kv = new KVNamespaceWrapper(path.join(dataDir, 'kv.sqlite'));
 
 // Construct Cloudflare Env mock
 const nodeEnv: Env = {
-  DB: d1 as any,
-  KV: kv as any,
+  DB: d1 as unknown as D1Database,
+  KV: kv as unknown as KVNamespace,
   FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:8080',
   WORKER_URL: process.env.WORKER_URL || 'http://localhost:8080',
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || '',
@@ -74,16 +75,16 @@ app.get('*', (c) => {
 
 // Construct a dummy execution context for waitUntil
 const dummyCtx = {
-  waitUntil: (promise: Promise<any>) => promise.catch(console.error),
+  waitUntil: (promise: Promise<unknown>) => promise.catch(console.error),
   passThroughOnException: () => {}
-} as any;
+} as unknown as ExecutionContext;
 
 // Setup Cron Schedule
 const CRON_SCHEDULE = '*/30 * * * *';
 cron.schedule(CRON_SCHEDULE, () => {
   console.warn('Executing cron schedule...');
   if (worker.scheduled) {
-    worker.scheduled({ cron: CRON_SCHEDULE, scheduledTime: Date.now() } as any, nodeEnv, dummyCtx);
+    worker.scheduled({ cron: CRON_SCHEDULE, scheduledTime: Date.now() } as unknown as ScheduledController, nodeEnv, dummyCtx as unknown as ExecutionContext);
   }
 });
 
@@ -91,7 +92,7 @@ const port = parseInt(process.env.PORT || '8080', 10);
 console.warn(`Starting Node server on port ${port}...`);
 
 const server = serve({
-  fetch: (req) => app.fetch(req, nodeEnv, dummyCtx),
+  fetch: (req) => app.fetch(req, nodeEnv, dummyCtx as unknown as ExecutionContext),
   port
 });
 

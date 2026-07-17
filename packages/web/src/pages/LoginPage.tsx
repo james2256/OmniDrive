@@ -25,8 +25,8 @@ export function LoginPage() {
         await api.login({ username, password });
       }
       window.location.href = '/';
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Authentication failed');
+    } catch (err: unknown) {
+      setErrorMsg((err instanceof Error ? err.message : 'Authentication failed'));
     }
   };
 
