@@ -114,16 +114,23 @@ drivesRouter.get('/', async (c) => {
       // storageQuota.limit for Google Workspace pooled storage and service
       // accounts (it is returned only "if applicable"); persisting the 1 TiB
       // fallback there would clobber a user-set override on next refresh.
-      if (quota.hasLimit) {
-        c.executionCtx.waitUntil(
-          db.prepare('UPDATE drive_accounts SET total_quota = ?, used_quota = ?, quota_updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-            .bind(quota.total, quota.used, drive.id).run()
-        );
-      } else {
-        c.executionCtx.waitUntil(
-          db.prepare('UPDATE drive_accounts SET used_quota = ?, quota_updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-            .bind(quota.used, drive.id).run()
-        );
+      // Skip the write entirely when nothing changed — saves D1 rows-written quota.
+      const quotaChanged = quota.hasLimit
+        ? (drive.totalQuota !== quota.total || drive.usedQuota !== quota.used)
+        : (drive.usedQuota !== quota.used);
+
+      if (quotaChanged) {
+        if (quota.hasLimit) {
+          c.executionCtx.waitUntil(
+            db.prepare('UPDATE drive_accounts SET total_quota = ?, used_quota = ?, quota_updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+              .bind(quota.total, quota.used, drive.id).run()
+          );
+        } else {
+          c.executionCtx.waitUntil(
+            db.prepare('UPDATE drive_accounts SET used_quota = ?, quota_updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+              .bind(quota.used, drive.id).run()
+          );
+        }
       }
 
       const computed = computeDriveQuota(drive, { total: quota.hasLimit ? quota.total : 0, used: quota.used });

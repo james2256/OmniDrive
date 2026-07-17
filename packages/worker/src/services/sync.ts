@@ -216,6 +216,9 @@ async function performInitialSync(
   // loadTokens D1 read (1, cache miss on first call). Subsequent pages skip loadTokens
   // thanks to the in-memory token cache in GoogleDriveService.
   let subrequestCount = 4;
+  // Save the checkpoint every 5 pages (or before pausing) to cut D1 writes ~60%.
+  // A crash loses at most 5 pages of progress (500 items to re-sync on next cron).
+  let pagesProcessed = 0;
 
   for await (const chunk of iterator) {
     if (getIsShuttingDown()) {
@@ -232,19 +235,25 @@ async function performInitialSync(
       stmts.push(buildUpsertFileStmt(db, drive, file, parentId));
     }
     await runD1Batch(db, stmts);
+    // 2 subrequests per page: Google API fetch + D1 batch write.
+    subrequestCount += 2;
 
-    if (chunk.nextPageToken) {
+    // Save checkpoint every 5 pages, or before pausing so next_page_token is always
+    // preserved when we stop. Count the save subrequest only when it actually runs.
+    const shouldSave = !!chunk.nextPageToken && (pagesProcessed % 5 === 0 || subrequestCount + 2 >= SUBREQUEST_BUDGET);
+    if (shouldSave) {
       await db
         .prepare('UPDATE sync_state SET next_page_token = ? WHERE drive_account_id = ?')
         .bind(chunk.nextPageToken, drive.id)
         .run();
+      subrequestCount += 1;
     }
-    // 3 subrequests per page: Google API fetch + D1 batch write + next_page_token save.
-    subrequestCount += 3;
+    pagesProcessed++;
 
     // Pause before hitting the Workers 50-subrequest wall. next_page_token is already
-    // saved above, so the next cron cycle resumes cleanly. Only pause if there's more
-    // work to do (nextPageToken present); otherwise let the loop complete naturally.
+    // saved above (if this was a save page) or on the most recent save page. Only
+    // pause if there's more work to do (nextPageToken present); otherwise let the
+    // loop complete naturally.
     if (subrequestCount >= SUBREQUEST_BUDGET && chunk.nextPageToken) {
       return false;
     }
