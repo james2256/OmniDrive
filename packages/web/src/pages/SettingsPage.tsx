@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useDriveStore } from '../stores/driveStore';
 import { DriveAccountCard } from '../components/DriveAccountCard';
 import type { S3Credential } from '../lib/api';
@@ -62,7 +62,7 @@ export function SettingsPage() {
   const [copiedAccessKey, setCopiedAccessKey] = useState(false);
   const [copiedSecretKey, setCopiedSecretKey] = useState(false);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoadingS3(true);
     try {
       const [keys, wsData] = await Promise.all([
@@ -80,7 +80,7 @@ export function SettingsPage() {
     } finally {
       setLoadingS3(false);
     }
-  };
+  }, [addToast]);
 
   useEffect(() => {
     loadData();

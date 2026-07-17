@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import type { WorkspacePolicy } from '../../types';
 
@@ -7,17 +7,17 @@ export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
   const [quotaInput, setQuotaInput] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // We need the workspace object for usedBytes, but since we only have workspaceId here, 
+  // We need the workspace object for usedBytes, but since we only have workspaceId here,
   // we would ideally fetch the workspace details. For this MVP, we will just fetch policies.
-  const loadPolicies = () => {
+  const loadPolicies = useCallback(() => {
     api.getWorkspacePolicies(workspaceId).then((res) => {
       setPolicies(res.policies);
     }).catch(console.error);
-  };
+  }, [workspaceId]);
 
   useEffect(() => {
     loadPolicies();
-  }, [workspaceId, loadPolicies]);
+  }, [loadPolicies]);
 
   const handleSetQuota = async () => {
     if (!quotaInput) return;

@@ -1,6 +1,16 @@
 import { cors } from 'hono/cors';
 import type { Env } from '../types/env';
 
+/** Safe localhost check using URL parsing instead of regex (avoids ReDoS heuristic). */
+function isLocalhostOrigin(origin: string): boolean {
+  try {
+    const url = new URL(origin);
+    return url.hostname === 'localhost' && url.protocol === 'http:';
+  } catch {
+    return false;
+  }
+}
+
 export function corsMiddleware() {
   return cors({
     origin: (origin, c) => {
@@ -11,7 +21,7 @@ export function corsMiddleware() {
       }
       // Only allow localhost in development (when FRONTEND_URL is localhost)
       const isDev = env.FRONTEND_URL?.includes('localhost');
-      if (isDev && origin && /^http:\/\/localhost(:\d+)?$/.test(origin)) {
+      if (isDev && origin && isLocalhostOrigin(origin)) {
         return origin;
       }
       return '';

@@ -186,7 +186,11 @@ sharedRouter.put('/:id', authGuard, async (c) => {
   }
   
   let passwordHash = existing.password_hash;
-  
+
+  // Comparing against `undefined` cannot leak secret bytes — it's a non-secret
+  // literal, not a secret-vs-secret comparison. The actual secret verification
+  // uses a constant-time PBKDF2 compare in verifySharedPassword().
+  // eslint-disable-next-line security/detect-possible-timing-attacks
   if (password !== undefined) {
     if (password === null || password === '') {
       passwordHash = null;

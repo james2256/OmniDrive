@@ -20,7 +20,8 @@ export function FilePreviewModal({ open, file, onClose }: FilePreviewModalProps)
   const [imageError, setImageError] = useState(false);
 
   useEffect(() => {
-    if (!open || !file || !isImage) {
+    const fileId = file?.id;
+    if (!open || !fileId || !isImage) {
       setPreviewUrl(null);
       setImageError(false);
       setIsLoading(false);
@@ -34,7 +35,7 @@ export function FilePreviewModal({ open, file, onClose }: FilePreviewModalProps)
     setImageError(false);
     setPreviewUrl(null);
 
-    fetchFilePreviewBlob(file.id)
+    fetchFilePreviewBlob(fileId)
       .then((blob) => {
         if (revoked) return;
         objectUrl = URL.createObjectURL(blob);
