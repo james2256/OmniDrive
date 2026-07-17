@@ -93,7 +93,7 @@ drivesRouter.get('/', async (c) => {
   const db = c.env.DB;
 
   const { results } = await db
-    .prepare('SELECT a.*, s.status as sync_status, s.last_synced_at FROM drive_accounts a LEFT JOIN sync_state s ON a.id = s.drive_account_id WHERE a.user_id = ?')
+    .prepare('SELECT a.*, s.status as sync_status, s.last_synced_at, s.error_message as sync_error_message FROM drive_accounts a LEFT JOIN sync_state s ON a.id = s.drive_account_id WHERE a.user_id = ?')
     .bind(userId)
     .all();
 

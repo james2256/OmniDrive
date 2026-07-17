@@ -27,6 +27,7 @@ export interface DriveAccount {
   freeSpace: number;
   usagePercent: number;
   syncStatus?: 'idle' | 'syncing' | 'error';
+  syncErrorMessage?: string | null;
   health?: 'connected' | 'auth_expired' | 'error';
   lastSyncedAt?: string | null;
   quotaUpdatedAt: string | null;

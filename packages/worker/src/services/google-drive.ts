@@ -37,6 +37,10 @@ export class GoogleDriveError extends Error {
 
 export class GoogleDriveService {
   private encryptionKey?: string;
+  // In-memory token cache — avoids a D1 read (loadTokens) on every page of a sync.
+  // Scoped to this instance: one GoogleDriveService per sync invocation, so the cache
+  // lives only as long as needed and never serves cross-invocation stale tokens.
+  private tokenCache: Map<string, { token: string; expiresAt: number }> = new Map();
 
   constructor(
     private db: D1Database,
@@ -63,20 +67,33 @@ export class GoogleDriveService {
   }
 
   async getValidToken(driveAccountId: string): Promise<string> {
+    // Cache hit: skip the D1 read entirely. The cache checks expiry with the same
+    // 60-second margin as the refresh logic below, so it never serves stale tokens.
+    const cached = this.tokenCache.get(driveAccountId);
+    if (cached && cached.expiresAt > Date.now() + 60_000) {
+      return cached.token;
+    }
+
     const tokens = await this.loadTokens(driveAccountId);
     if (tokens.authType === 'service_account' && tokens.serviceAccount) {
       if (tokens.expiresAt > Date.now() + 60_000) {
+        this.tokenCache.set(driveAccountId, { token: tokens.accessToken, expiresAt: tokens.expiresAt });
         return tokens.accessToken;
       }
-      return this.refreshServiceAccountToken(driveAccountId, tokens);
+      const refreshed = await this.refreshServiceAccountToken(driveAccountId, tokens);
+      this.tokenCache.set(driveAccountId, { token: refreshed, expiresAt: tokens.expiresAt });
+      return refreshed;
     }
     if (tokens.expiresAt > Date.now() + 60_000) {
+      this.tokenCache.set(driveAccountId, { token: tokens.accessToken, expiresAt: tokens.expiresAt });
       return tokens.accessToken;
     }
     if (!tokens.refreshToken) {
       throw new Error(`No refresh token for drive ${driveAccountId}`);
     }
-    return this.refreshToken(driveAccountId, tokens.refreshToken);
+    const refreshed = await this.refreshToken(driveAccountId, tokens.refreshToken);
+    this.tokenCache.set(driveAccountId, { token: refreshed, expiresAt: tokens.expiresAt });
+    return refreshed;
   }
 
   private async persistTokens(driveAccountId: string, tokens: OAuthTokens): Promise<void> {

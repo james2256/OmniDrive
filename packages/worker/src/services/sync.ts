@@ -22,6 +22,14 @@ const MIME_TYPE_SHORTCUT = 'application/vnd.google-apps.shortcut';
 // ponytail: per Cloudflare D1 docs — batch() cuts round-trips; chunk to stay under statement limits
 const D1_BATCH_SIZE = 100;
 
+// Workers Free plan caps each invocation at 50 subrequests (fetch + D1 calls).
+// Per sync page burns 3 subrequests: 1 Google API fetch + 1 D1 batch write + 1 D1
+// next_page_token save. One-time overhead is 4 (sync_state read+write, getRootFolderId,
+// first loadTokens). Final write is 1 (pause) or 3 (completion: getStartPageToken +
+// idle write + getQuota). Budget 43 pauses after 13 pages (44 subreq, margin 6) and
+// leaves room for a mid-sync token refresh (+2) without crashing. See sync plan docs.
+const SUBREQUEST_BUDGET = 43;
+
 const UPSERT_FOLDER_SQL = `INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name, is_synced)
        VALUES (?, ?, ?, ?, ?, 0)
        ON CONFLICT(drive_account_id, google_folder_id) DO UPDATE SET
@@ -159,7 +167,14 @@ export async function syncDriveAccount(
     if (!changeToken) {
       const completed = await performInitialSync(drive, db, driveService, nextPageToken ?? undefined);
       if (!completed) {
-        throw new Error('Initial sync interrupted by shutdown');
+        // Paused (subrequest budget hit) or shutting down — next_page_token was already
+        // saved per-page by performInitialSync, so the next cron cycle resumes from there.
+        // Mark 'idle' (not 'error') so the UI doesn't show a false failure.
+        await db
+          .prepare("UPDATE sync_state SET status = 'idle' WHERE drive_account_id = ?")
+          .bind(drive.id)
+          .run();
+        return;
       }
       changeToken = await driveService.getStartPageToken(drive.id);
     } else {
@@ -197,6 +212,10 @@ async function performInitialSync(
 ): Promise<boolean> {
   const rootFolderId = await resolveSyncRootFolderId(drive, () => driveService.getRootFolderId(drive.id));
   const iterator = driveService.iterateAllFilesAndFolders(drive.id, startPageToken);
+  // One-time overhead: sync_state read+write (2) + getRootFolderId fetch (1) + first
+  // loadTokens D1 read (1, cache miss on first call). Subsequent pages skip loadTokens
+  // thanks to the in-memory token cache in GoogleDriveService.
+  let subrequestCount = 4;
 
   for await (const chunk of iterator) {
     if (getIsShuttingDown()) {
@@ -219,6 +238,15 @@ async function performInitialSync(
         .prepare('UPDATE sync_state SET next_page_token = ? WHERE drive_account_id = ?')
         .bind(chunk.nextPageToken, drive.id)
         .run();
+    }
+    // 3 subrequests per page: Google API fetch + D1 batch write + next_page_token save.
+    subrequestCount += 3;
+
+    // Pause before hitting the Workers 50-subrequest wall. next_page_token is already
+    // saved above, so the next cron cycle resumes cleanly. Only pause if there's more
+    // work to do (nextPageToken present); otherwise let the loop complete naturally.
+    if (subrequestCount >= SUBREQUEST_BUDGET && chunk.nextPageToken) {
+      return false;
     }
   }
   return true;

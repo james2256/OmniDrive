@@ -27,6 +27,7 @@ export interface DriveAccount {
   quotaOverride: number | null;
   quotaUpdatedAt: string | null;
   syncStatus: 'idle' | 'syncing' | 'error';
+  syncErrorMessage: string | null;
   lastSyncedAt: string | null;
   health?: 'connected' | 'auth_expired' | 'error';
   createdAt: string;
@@ -181,6 +182,7 @@ export function mapDriveRow(row: Record<string, unknown>): DriveAccount {
     quotaOverride: row.quota_override != null ? (row.quota_override as number) : null,
     quotaUpdatedAt: (row.quota_updated_at as string) ?? null,
     syncStatus: (row.sync_status as 'idle' | 'syncing' | 'error') ?? 'idle',
+    syncErrorMessage: (row.sync_error_message as string | null) ?? null,
     lastSyncedAt: (row.last_synced_at as string) ?? null,
     createdAt: row.created_at as string,
   };

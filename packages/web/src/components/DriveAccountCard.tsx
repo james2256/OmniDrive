@@ -43,6 +43,17 @@ export function DriveAccountCard({ drive, index, onSync, onDisconnect }: DriveAc
               {drive.health === 'error' && (
                 <span className="ml-1.5 text-amber-600" title="Could not reach Google Drive on last check — usually temporary">· unreachable</span>
               )}
+              {drive.syncStatus === 'error' && (
+                <span
+                  className="ml-1.5 text-red-600 font-medium"
+                  title={`Sync failed: ${drive.syncErrorMessage || 'unknown error'}`}
+                >
+                  · sync failed
+                </span>
+              )}
+              {drive.syncStatus === 'syncing' && (
+                <span className="ml-1.5 text-blue-500 font-medium">· syncing</span>
+              )}
             </div>
             {drive.lastSyncedAt && (
               <div className="text-[10px] text-stone-400 mt-0.5">
