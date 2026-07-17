@@ -684,7 +684,7 @@ export class GoogleDriveService {
 
       for (const item of data.files) {
         if (item.mimeType === 'application/vnd.google-apps.folder') {
-          chunkFolders.push({ id: item.id, name: item.name, parents: item.parents });
+          chunkFolders.push({ id: item.id, name: item.name, parents: item.parents, owners: item.owners });
         } else if (item.mimeType !== 'application/vnd.google-apps.shortcut') {
           chunkFiles.push(item);
         }
