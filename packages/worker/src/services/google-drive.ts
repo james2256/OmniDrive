@@ -7,6 +7,11 @@ const QUOTA_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const DRIVE_API = 'https://www.googleapis.com/drive/v3';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 
+export interface GDriveOwner {
+  me: boolean;
+  displayName?: string;
+}
+
 export interface GDriveFile {
   id: string;
   name: string;
@@ -14,6 +19,7 @@ export interface GDriveFile {
   size?: string;
   parents?: string[];
   trashed?: boolean;
+  owners?: GDriveOwner[];
   thumbnailLink?: string;
   webViewLink?: string;
   webContentLink?: string;
@@ -26,6 +32,7 @@ export interface GDriveFolder {
   id: string;
   name: string;
   parents?: string[];
+  owners?: GDriveOwner[];
 }
 
 export class GoogleDriveError extends Error {
@@ -538,6 +545,7 @@ export class GoogleDriveService {
         mimeType: string;
         size?: string;
         parents?: string[];
+        owners?: GDriveOwner[];
         trashed: boolean;
         thumbnailLink?: string;
         webViewLink?: string;
@@ -551,7 +559,7 @@ export class GoogleDriveService {
   }> {
     const token = await this.getValidToken(driveAccountId);
     const fields =
-      'nextPageToken,newStartPageToken,changes(fileId,removed,file(id,name,mimeType,size,parents,trashed,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum))';
+      'nextPageToken,newStartPageToken,changes(fileId,removed,file(id,name,mimeType,size,parents,owners(me,displayName),trashed,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum))';
 
     const response = await fetch(
       `${DRIVE_API}/changes?pageToken=${encodeURIComponent(pageToken)}&fields=${fields}&spaces=drive&includeRemoved=true`,
@@ -581,7 +589,7 @@ export class GoogleDriveService {
       modifiedTime: string;
     }>
   > {
-    const fields = 'files(id,name,mimeType,size,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum)';
+    const fields = 'files(id,name,mimeType,size,owners(me,displayName),thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum)';
     const q = encodeURIComponent(`'${folderId}' in parents and trashed = false`);
 
     const allFiles: Array<GDriveFile> = [];
@@ -613,7 +621,7 @@ export class GoogleDriveService {
     folderId: string
   ): Promise<{ files: GDriveFile[]; folders: GDriveFolder[] }> {
     const fields =
-      'nextPageToken,files(id,name,mimeType,size,parents,trashed,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum)';
+      'nextPageToken,files(id,name,mimeType,size,parents,owners(me,displayName),trashed,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum)';
     const q = encodeURIComponent(`'${folderId}' in parents and trashed = false`);
 
     const allFiles: GDriveFile[] = [];
@@ -653,7 +661,7 @@ export class GoogleDriveService {
     startPageToken?: string
   ): AsyncGenerator<{ files: GDriveFile[]; folders: GDriveFolder[]; nextPageToken?: string }, void, unknown> {
     const fields =
-      'nextPageToken,files(id,name,mimeType,size,parents,trashed,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum)';
+      'nextPageToken,files(id,name,mimeType,size,parents,owners(me,displayName),trashed,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum)';
     const q = encodeURIComponent(`trashed = false`);
 
     let pageToken: string | undefined = startPageToken;

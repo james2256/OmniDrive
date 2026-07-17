@@ -11,7 +11,7 @@ export function setShuttingDown(): void {
 import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types';
 import type { DriveAccount } from '../types/index';
 import { mapDriveRow } from '../types/index';
-import { GoogleDriveService, type GDriveFile, type GDriveFolder } from './google-drive';
+import { GoogleDriveService, type GDriveFile, type GDriveFolder, type GDriveOwner } from './google-drive';
 import { generateId } from '../lib/id';
 import { resolveSyncRootFolderId } from '../lib/drive-folder';
 import type { Env } from '../types/env';
@@ -30,16 +30,17 @@ const D1_BATCH_SIZE = 100;
 // leaves room for a mid-sync token refresh (+2) without crashing. See sync plan docs.
 const SUBREQUEST_BUDGET = 43;
 
-const UPSERT_FOLDER_SQL = `INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name, is_synced)
-       VALUES (?, ?, ?, ?, ?, 0)
+const UPSERT_FOLDER_SQL = `INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name, is_synced, owned_by_me)
+       VALUES (?, ?, ?, ?, ?, 0, ?)
        ON CONFLICT(drive_account_id, google_folder_id) DO UPDATE SET
          name = excluded.name,
-         google_parent_id = excluded.google_parent_id`;
+         google_parent_id = excluded.google_parent_id,
+         owned_by_me = excluded.owned_by_me`;
 
 const UPSERT_FILE_SQL = `INSERT INTO files
          (id, user_id, drive_account_id, google_file_id, google_parent_id, name, mime_type, size,
-          thumbnail_url, web_view_link, web_content_link, google_created_at, google_modified_at, synced_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+          thumbnail_url, web_view_link, web_content_link, google_created_at, google_modified_at, synced_at, owned_by_me)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)
        ON CONFLICT(drive_account_id, google_file_id) DO UPDATE SET
          name = excluded.name,
          mime_type = excluded.mime_type,
@@ -49,12 +50,18 @@ const UPSERT_FILE_SQL = `INSERT INTO files
          web_content_link = excluded.web_content_link,
          google_modified_at = excluded.google_modified_at,
          google_parent_id = excluded.google_parent_id,
-         synced_at = excluded.synced_at`;
+         synced_at = excluded.synced_at,
+         owned_by_me = excluded.owned_by_me`;
 
 function resolveParentId(parents: string[] | undefined | null, rootFolderId: string, isFolder: boolean): string | null {
   const defaultParent = isFolder ? null : 'root';
   const parentId = parents?.[0] ?? defaultParent;
   return parentId === rootFolderId ? defaultParent : parentId;
+}
+
+/** Returns true if the current user is in the file/folder's owners array. */
+function isOwnedByMe(owners: GDriveOwner[] | undefined): boolean {
+  return owners?.some((o) => o.me === true) ?? false;
 }
 
 export const activeSyncs = new Set<string>();
@@ -71,8 +78,9 @@ function buildUpsertFolderStmt(
   drive: DriveAccount,
   folder: GDriveFolder,
   googleParentId: string | null,
+  ownedByMe: boolean,
 ): D1PreparedStatement {
-  return db.prepare(UPSERT_FOLDER_SQL).bind(generateId(), drive.id, folder.id, googleParentId, folder.name);
+  return db.prepare(UPSERT_FOLDER_SQL).bind(generateId(), drive.id, folder.id, googleParentId, folder.name, ownedByMe ? 1 : 0);
 }
 
 function buildUpsertFileStmt(
@@ -80,6 +88,7 @@ function buildUpsertFileStmt(
   drive: DriveAccount,
   file: GDriveFile,
   googleParentId: string | null,
+  ownedByMe: boolean,
 ): D1PreparedStatement {
   return db.prepare(UPSERT_FILE_SQL).bind(
     generateId(),
@@ -95,6 +104,7 @@ function buildUpsertFileStmt(
     file.webContentLink ?? null,
     file.createdTime,
     file.modifiedTime,
+    ownedByMe ? 1 : 0,
   );
 }
 
@@ -107,8 +117,8 @@ export async function batchUpsertFolderContents(
   googleParentId: string,
 ): Promise<void> {
   const stmts: D1PreparedStatement[] = [
-    ...folders.map((f) => buildUpsertFolderStmt(db, drive, f, googleParentId)),
-    ...files.map((f) => buildUpsertFileStmt(db, drive, f, googleParentId)),
+    ...folders.map((f) => buildUpsertFolderStmt(db, drive, f, googleParentId, isOwnedByMe(f.owners))),
+    ...files.map((f) => buildUpsertFileStmt(db, drive, f, googleParentId, isOwnedByMe(f.owners))),
   ];
   await runD1Batch(db, stmts);
 }
@@ -228,11 +238,11 @@ async function performInitialSync(
     const stmts: D1PreparedStatement[] = [];
     for (const folder of chunk.folders) {
       const parentId = resolveParentId(folder.parents, rootFolderId, true);
-      stmts.push(buildUpsertFolderStmt(db, drive, folder, parentId));
+      stmts.push(buildUpsertFolderStmt(db, drive, folder, parentId, isOwnedByMe(folder.owners)));
     }
     for (const file of chunk.files) {
       const parentId = resolveParentId(file.parents, rootFolderId, false);
-      stmts.push(buildUpsertFileStmt(db, drive, file, parentId));
+      stmts.push(buildUpsertFileStmt(db, drive, file, parentId, isOwnedByMe(file.owners)));
     }
     await runD1Batch(db, stmts);
     // 2 subrequests per page: Google API fetch + D1 batch write.
@@ -302,10 +312,10 @@ async function performIncrementalSync(
 
       if (isFolder) {
         const parentId = resolveParentId(file.parents, rootFolderId, true);
-        stmts.push(buildUpsertFolderStmt(db, drive, { id: file.id, name: file.name, parents: file.parents }, parentId));
+        stmts.push(buildUpsertFolderStmt(db, drive, { id: file.id, name: file.name, parents: file.parents, owners: file.owners }, parentId, isOwnedByMe(file.owners)));
       } else {
         const parentId = resolveParentId(file.parents, rootFolderId, false);
-        stmts.push(buildUpsertFileStmt(db, drive, file as unknown as GDriveFile, parentId));
+        stmts.push(buildUpsertFileStmt(db, drive, file as unknown as GDriveFile, parentId, isOwnedByMe(file.owners)));
       }
     }
     await runD1Batch(db, stmts);

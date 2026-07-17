@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS drive_folders (
     is_synced         INTEGER NOT NULL DEFAULT 0,
     synced_at         TEXT,
     created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+    owned_by_me       INTEGER NOT NULL DEFAULT 1,
     UNIQUE(drive_account_id, google_folder_id)
 );
 
@@ -120,6 +121,7 @@ CREATE TABLE IF NOT EXISTS files (
     synced_at       TEXT NOT NULL DEFAULT (datetime('now')),
     created_at      TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    owned_by_me     INTEGER NOT NULL DEFAULT 1,
     UNIQUE(drive_account_id, google_file_id)
 );
 
