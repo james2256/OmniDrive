@@ -88,7 +88,7 @@ drivesRouter.get('/connect', async (c) => {
   return c.json({ url: authUrl.toString() });
 });
 
-// GET /api/drives/shared-with-me — list shared items not added to My Drive (owned_by_me = 0, google_parent_id = '__shared__')
+// GET /api/drives/shared-with-me — list shared items not added to My Drive (owned_by_me = 1, google_parent_id = '__shared__')
 drivesRouter.get('/shared-with-me', async (c) => {
   const userId = c.get('userId');
   const db = c.env.DB;
@@ -96,14 +96,14 @@ drivesRouter.get('/shared-with-me', async (c) => {
   const folderResults = await db.prepare(
     `SELECT df.*, d.email as driveEmail FROM drive_folders df
      JOIN drive_accounts d ON df.drive_account_id = d.id
-     WHERE d.user_id = ? AND df.google_parent_id = ? AND df.owned_by_me = 0 AND df.is_trashed = 0
+     WHERE d.user_id = ? AND df.google_parent_id = ? AND df.owned_by_me = 1 AND df.is_trashed = 0
      ORDER BY df.name ASC`
   ).bind(userId, '__shared__').all() as unknown as { results: Record<string, unknown>[] };
 
   const fileResults = await db.prepare(
     `SELECT f.*, d.email as driveEmail FROM files f
      JOIN drive_accounts d ON f.drive_account_id = d.id
-     WHERE f.user_id = ? AND f.google_parent_id = ? AND f.owned_by_me = 0 AND f.is_trashed = 0
+     WHERE f.user_id = ? AND f.google_parent_id = ? AND f.owned_by_me = 1 AND f.is_trashed = 0
      ORDER BY f.name ASC`
   ).bind(userId, '__shared__').all() as unknown as { results: Record<string, unknown>[] };
 
