@@ -28,6 +28,7 @@ export interface DriveAccount {
   quotaUpdatedAt: string | null;
   syncStatus: 'idle' | 'syncing' | 'error';
   syncErrorMessage: string | null;
+  syncPaused: boolean;
   lastSyncedAt: string | null;
   health?: 'connected' | 'auth_expired' | 'error';
   createdAt: string;
@@ -183,6 +184,7 @@ export function mapDriveRow(row: Record<string, unknown>): DriveAccount {
     quotaUpdatedAt: (row.quota_updated_at as string) ?? null,
     syncStatus: (row.sync_status as 'idle' | 'syncing' | 'error') ?? 'idle',
     syncErrorMessage: (row.sync_error_message as string | null) ?? null,
+    syncPaused: row.sync_paused === 1,
     lastSyncedAt: (row.last_synced_at as string) ?? null,
     createdAt: row.created_at as string,
   };

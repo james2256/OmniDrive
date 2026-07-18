@@ -21,32 +21,42 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({ onActionComplete, 
   const allFiles = selectedItems.every(i => i.type === 'file');
 
   const handleDelete = async () => {
-    if (!confirm(`Delete ${selectedItems.length} items permanently?`)) return;
+    const hasFolders = selectedItems.some((i) => i.type === 'folder');
+    const msg = hasFolders
+      ? `Delete ${selectedItems.length} items permanently? Folders and ALL their contents will be moved to Google Drive trash.`
+      : `Delete ${selectedItems.length} items permanently?`;
+    if (!confirm(msg)) return;
     setIsProcessing(true);
     addToast('info', `Deleting ${selectedItems.length} items...`);
-    
+
     let successCount = 0;
     let failCount = 0;
-    
+
     for (const selected of selectedItems) {
       try {
-        if (selected.type !== 'file') {
-          throw new Error('Only files can be deleted via bulk action');
+        if (selected.type === 'file') {
+          await api.deleteFile(selected.item.id);
+        } else {
+          const folder = selected.item;
+          if ('googleFolderId' in folder && folder.driveAccountId) {
+            await api.deleteDriveFolder(folder.driveAccountId, folder.googleFolderId);
+          } else if ('id' in folder && folder.id) {
+            await api.deleteFolder(folder.id);
+          }
         }
-        await api.deleteFile(selected.item.id);
         successCount++;
       } catch (error) {
         console.error('Deletion failed for item:', selected, error);
         failCount++;
       }
     }
-    
+
     if (failCount === 0) {
       addToast('success', `✅ Deleted ${successCount} items`);
     } else {
       addToast('error', `⚠️ Deleted ${successCount} items, ${failCount} failed`);
     }
-    
+
     setIsProcessing(false);
     clearSelection();
     onActionComplete();

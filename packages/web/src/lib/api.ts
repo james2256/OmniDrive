@@ -104,6 +104,8 @@ export const api = {
       body: JSON.stringify(data),
     }),
   deleteFolder: (id: string) => request<{ success: boolean }>(`/api/folders/${id}`, { method: 'DELETE' }),
+  deleteDriveFolder: (driveId: string, googleFolderId: string) =>
+    request<{ success: boolean }>(`/api/drives/${driveId}/folders/${googleFolderId}`, { method: 'DELETE' }),
 
   getWorkspaceTree: () => request<{ folders: WorkspaceFolder[] }>('/api/folders/tree'),
   addFilesToWorkspace: (id: string, fileIds: string[]) =>

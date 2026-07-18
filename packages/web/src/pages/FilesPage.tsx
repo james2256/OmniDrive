@@ -79,6 +79,18 @@ export function FilesPage() {
     }
   };
 
+  const handleDeleteFolder = async (driveId: string, folderId: string) => {
+    if (confirm('Delete this folder and ALL its contents from Google Drive?')) {
+      try {
+        await api.deleteDriveFolder(driveId, folderId);
+        addToast('success', 'Folder deleted');
+        refresh();
+      } catch {
+        addToast('error', 'Failed to delete folder');
+      }
+    }
+  };
+
   const handleRenameFile = async (id: string, name: string) => {
     try {
       await api.renameFile(id, name);
@@ -235,6 +247,7 @@ export function FilesPage() {
               onShare={(id, type) => setShareTarget({ id, type })}
               onRenameFile={handleRenameFile}
               onDeleteFile={handleDeleteFile}
+              onDeleteFolder={handleDeleteFolder}
               onMoveDrive={(file) => setMoveDriveFiles([file])}
               onAddToWorkspace={setWorkspaceTarget}
               onViewInfo={handleViewInfo}

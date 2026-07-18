@@ -22,13 +22,13 @@ const MIME_TYPE_SHORTCUT = 'application/vnd.google-apps.shortcut';
 // ponytail: per Cloudflare D1 docs — batch() cuts round-trips; chunk to stay under statement limits
 const D1_BATCH_SIZE = 100;
 
-// Workers Free plan caps each invocation at 50 subrequests (fetch + D1 calls).
-// Per sync page burns 3 subrequests: 1 Google API fetch + 1 D1 batch write + 1 D1
-// next_page_token save. One-time overhead is 4 (sync_state read+write, getRootFolderId,
-// first loadTokens). Final write is 1 (pause) or 3 (completion: getStartPageToken +
-// idle write + getQuota). Budget 43 pauses after 13 pages (44 subreq, margin 6) and
-// leaves room for a mid-sync token refresh (+2) without crashing. See sync plan docs.
-const SUBREQUEST_BUDGET = 43;
+// Workers Free plan: 50 external subrequests (fetch to Google API) per invocation.
+// D1 calls have a separate 1,000 limit — not the bottleneck. Sync is I/O-bound
+// (waiting on Google API + D1), so CPU time (10ms) is not the constraint either.
+// Per sync page: 1 external call (Google API fetch). One-time: getRootFolderId (1).
+// Completion: getStartPageToken (1) + getQuota (1). Budget 45 leaves margin for
+// token refresh (+1) and the one-time calls. Capacity: (45 - 1) / 1 = 44 pages = 4,400 items.
+const EXTERNAL_SUBREQUEST_BUDGET = 45;
 
 const UPSERT_FOLDER_SQL = `INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name, is_synced, owned_by_me)
        VALUES (?, ?, ?, ?, ?, 0, ?)
@@ -222,13 +222,9 @@ async function performInitialSync(
 ): Promise<boolean> {
   const rootFolderId = await resolveSyncRootFolderId(drive, () => driveService.getRootFolderId(drive.id));
   const iterator = driveService.iterateAllFilesAndFolders(drive.id, startPageToken);
-  // One-time overhead: sync_state read+write (2) + getRootFolderId fetch (1) + first
-  // loadTokens D1 read (1, cache miss on first call). Subsequent pages skip loadTokens
-  // thanks to the in-memory token cache in GoogleDriveService.
-  let subrequestCount = 4;
-  // Save the checkpoint every 5 pages (or before pausing) to cut D1 writes ~60%.
-  // A crash loses at most 5 pages of progress (500 items to re-sync on next cron).
-  let pagesProcessed = 0;
+  // One external call so far: getRootFolderId. D1 calls (sync_state, loadTokens) don't
+  // count toward the 50 external limit — they have their own 1,000 limit.
+  let externalCount = 1;
 
   for await (const chunk of iterator) {
     if (getIsShuttingDown()) {
@@ -245,26 +241,23 @@ async function performInitialSync(
       stmts.push(buildUpsertFileStmt(db, drive, file, parentId, isOwnedByMe(file.owners)));
     }
     await runD1Batch(db, stmts);
-    // 2 subrequests per page: Google API fetch + D1 batch write.
-    subrequestCount += 2;
 
-    // Save checkpoint every 5 pages, or before pausing so next_page_token is always
-    // preserved when we stop. Count the save subrequest only when it actually runs.
-    const shouldSave = !!chunk.nextPageToken && (pagesProcessed % 5 === 0 || subrequestCount + 2 >= SUBREQUEST_BUDGET);
-    if (shouldSave) {
+    // Save checkpoint every page — bulletproof crash resilience. D1 has 1,000 subrequest
+    // limit, so the extra save per page (44 max) is well within budget.
+    if (chunk.nextPageToken) {
       await db
         .prepare('UPDATE sync_state SET next_page_token = ? WHERE drive_account_id = ?')
         .bind(chunk.nextPageToken, drive.id)
         .run();
-      subrequestCount += 1;
     }
-    pagesProcessed++;
 
-    // Pause before hitting the Workers 50-subrequest wall. next_page_token is already
-    // saved above (if this was a save page) or on the most recent save page. Only
-    // pause if there's more work to do (nextPageToken present); otherwise let the
-    // loop complete naturally.
-    if (subrequestCount >= SUBREQUEST_BUDGET && chunk.nextPageToken) {
+    // 1 external call per page: Google API fetch for the next page.
+    externalCount += 1;
+
+    // Pause before hitting the 50 external subrequest wall. next_page_token is already
+    // saved above, so the next cron cycle resumes cleanly. Only pause if there's more
+    // work to do (nextPageToken present); otherwise let the loop complete naturally.
+    if (externalCount >= EXTERNAL_SUBREQUEST_BUDGET && chunk.nextPageToken) {
       return false;
     }
   }

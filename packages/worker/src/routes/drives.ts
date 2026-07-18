@@ -93,7 +93,7 @@ drivesRouter.get('/', async (c) => {
   const db = c.env.DB;
 
   const { results } = await db
-    .prepare('SELECT a.*, s.status as sync_status, s.last_synced_at, s.error_message as sync_error_message FROM drive_accounts a LEFT JOIN sync_state s ON a.id = s.drive_account_id WHERE a.user_id = ?')
+    .prepare('SELECT a.*, s.status as sync_status, s.last_synced_at, s.error_message as sync_error_message, CASE WHEN s.next_page_token IS NOT NULL THEN 1 ELSE 0 END as sync_paused FROM drive_accounts a LEFT JOIN sync_state s ON a.id = s.drive_account_id WHERE a.user_id = ?')
     .bind(userId)
     .all();
 
@@ -389,6 +389,30 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/sync', async (c) => {
     files: newFiles.results.map(r => mapFileRow(r as Record<string, unknown>)),
     breadcrumb,
   });
+});
+
+// Delete a Google Drive folder (moves to Google Drive trash, then removes from DB)
+drivesRouter.delete('/:driveId/folders/:googleFolderId', async (c) => {
+  const userId = c.get('userId');
+  const { driveId, googleFolderId } = c.req.param();
+  const db = c.env.DB;
+
+  const drive = await db
+    .prepare('SELECT id FROM drive_accounts WHERE id = ? AND user_id = ?')
+    .bind(driveId, userId)
+    .first();
+  if (!drive) return c.json({ error: 'Drive not found' }, 404);
+
+  const driveService = new GoogleDriveService(db, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+  await driveService.trashFolder(driveId, googleFolderId);
+
+  await db.batch([
+    db.prepare('DELETE FROM drive_folders WHERE drive_account_id = ? AND google_folder_id = ?').bind(driveId, googleFolderId),
+    db.prepare('DELETE FROM files WHERE drive_account_id = ? AND google_parent_id = ?').bind(driveId, googleFolderId),
+    db.prepare('DELETE FROM drive_folders WHERE drive_account_id = ? AND google_parent_id = ?').bind(driveId, googleFolderId),
+  ]);
+
+  return c.json({ success: true });
 });
 
 drivesRouter.delete('/:id', async (c) => {

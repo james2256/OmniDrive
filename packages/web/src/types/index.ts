@@ -28,6 +28,7 @@ export interface DriveAccount {
   usagePercent: number;
   syncStatus?: 'idle' | 'syncing' | 'error';
   syncErrorMessage?: string | null;
+  syncPaused?: boolean;
   health?: 'connected' | 'auth_expired' | 'error';
   lastSyncedAt?: string | null;
   quotaUpdatedAt: string | null;

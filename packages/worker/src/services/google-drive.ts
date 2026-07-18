@@ -495,6 +495,26 @@ export class GoogleDriveService {
     }
   }
 
+  async trashFolder(driveAccountId: string, folderId: string): Promise<void> {
+    const token = await this.getValidToken(driveAccountId);
+
+    const response = await fetch(`${DRIVE_API}/files/${folderId}?supportsAllDrives=true`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ trashed: true }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorData;
+      try { errorData = JSON.parse(errorText); } catch {}
+      throw new GoogleDriveError(response.status, `Failed to trash folder: ${errorText}`, errorData);
+    }
+  }
+
   async untrashFile(driveAccountId: string, fileId: string): Promise<void> {
     const token = await this.getValidToken(driveAccountId);
 

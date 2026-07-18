@@ -36,6 +36,7 @@ const ItemContextMenuContent: React.FC<{
   onRenameFile?: (id: string, name: string) => void;
   onMoveDrive?: (file: FileEntry) => void;
   onDeleteFile?: (id: string) => void;
+  onDeleteFolder?: (driveId: string, folderId: string) => void;
   onRestore?: (id: string) => void;
   onPermanentDelete?: (id: string) => void;
   onAddToWorkspace?: (item: FileEntry) => void;
@@ -56,6 +57,7 @@ const ItemContextMenuContent: React.FC<{
   onRenameFile,
   onMoveDrive,
   onDeleteFile,
+  onDeleteFolder,
   onRestore,
   onPermanentDelete,
   onAddToWorkspace,
@@ -146,6 +148,18 @@ const ItemContextMenuContent: React.FC<{
             </ContextMenuItem>
           </>
         )}
+        {type === 'folder' && onDeleteFolder && item && 'googleFolderId' in item && item.driveAccountId && (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem className="text-red-600" onClick={() => {
+              if (item.driveAccountId) {
+                onDeleteFolder(item.driveAccountId, item.googleFolderId);
+              }
+            }}>
+              <Trash2 className="mr-2 h-4 w-4" /> Delete
+            </ContextMenuItem>
+          </>
+        )}
       </>
     )}
     </ContextMenuContent>
@@ -162,6 +176,7 @@ export interface FileGridProps {
   onShare?: (id: string, type: 'file' | 'folder') => void;
   onRenameFile?: (id: string, name: string) => void;
   onDeleteFile?: (id: string) => void;
+  onDeleteFolder?: (driveId: string, folderId: string) => void;
   isTargetShared?: (id: string, type: 'file' | 'folder') => boolean;
   errorDrives?: Set<string>;
   onMoveDrive?: (file: FileEntry) => void;
@@ -208,6 +223,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
   onShare,
   onRenameFile,
   onDeleteFile,
+  onDeleteFolder,
   isTargetShared,
   errorDrives,
   onMoveDrive,
@@ -522,6 +538,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
                 onRenameFile={onRenameFile}
                 onMoveDrive={onMoveDrive}
                 onDeleteFile={onDeleteFile}
+                onDeleteFolder={onDeleteFolder}
                 onRestore={onRestore}
                 onPermanentDelete={onPermanentDelete}
                 onAddToWorkspace={onAddToWorkspace}

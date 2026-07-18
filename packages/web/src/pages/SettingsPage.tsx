@@ -161,9 +161,24 @@ export function SettingsPage() {
 
   const handleSync = async (id: string) => {
     try {
-      await triggerSync(id);
-      addToast('success', 'Sync completed');
-      fetchDrives();
+      addToast('info', 'Syncing... large drives may take multiple cycles');
+      let cycles = 0;
+      const maxCycles = 50;
+
+      const runSyncCycle = async (): Promise<void> => {
+        await triggerSync(id);
+        cycles++;
+        await new Promise((r) => setTimeout(r, 3000));
+        await fetchDrives();
+        const drive = useDriveStore.getState().drives.find((d) => d.id === id);
+
+        if (drive?.syncPaused && cycles < maxCycles) {
+          return runSyncCycle();
+        }
+      };
+
+      await runSyncCycle();
+      addToast('success', `Sync completed (${cycles} cycle${cycles > 1 ? 's' : ''})`);
     } catch {
       addToast('error', 'Sync failed');
     }
