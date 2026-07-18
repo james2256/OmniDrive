@@ -10,7 +10,7 @@ import { resolveDrivesWithQuota } from '../services/drive-quota';
 import { UploadRouter } from '../services/upload-router';
 import { AutomationEngine } from '../services/automation.service';
 import { PolicyService } from '../services/policy.service';
-import { mapFileRow, mapFolderRow, type FileRow } from '../types';
+import { mapFileRow, mapFolderRow, mapDriveFolderRow, type FileRow } from '../types';
 
 export const filesRouter = new Hono<AppContext>({ strict: false });
 
@@ -217,11 +217,20 @@ filesRouter.get('/starred', async (c) => {
   });
 });
 
-// Move file to trash
+// Move file to trash (Google Drive trash + DB is_trashed=1)
 filesRouter.delete('/:id', async (c) => {
   const userId = c.get('userId');
   const fileId = c.req.param('id');
   const db = c.env.DB;
+
+  const file = await db
+    .prepare('SELECT drive_account_id, google_file_id FROM files WHERE id = ? AND user_id = ?')
+    .bind(fileId, userId)
+    .first<{ drive_account_id: string; google_file_id: string }>();
+  if (!file) throw new AppError(404, 'File not found');
+
+  const driveService = new GoogleDriveService(db, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+  await driveService.trashFile(file.drive_account_id, file.google_file_id);
 
   await db.prepare('UPDATE files SET is_trashed = 1 WHERE id = ? AND user_id = ?')
     .bind(fileId, userId).run();
@@ -557,19 +566,27 @@ filesRouter.post('/upload/finalize', async (c) => {
 filesRouter.get('/trash', async (c) => {
   const userId = c.get('userId');
   const db = c.env.DB;
-  
-  const { results } = await db.prepare(
+
+  const fileResults = await db.prepare(
     `SELECT f.*, d.email as driveEmail FROM files f
      JOIN drive_accounts d ON f.drive_account_id = d.id
      WHERE f.user_id = ? AND f.is_trashed = 1
      ORDER BY f.updated_at DESC`
   ).bind(userId).all() as unknown as { results: Record<string, unknown>[] };
 
+  const folderResults = await db.prepare(
+    `SELECT df.*, d.email as driveEmail FROM drive_folders df
+     JOIN drive_accounts d ON df.drive_account_id = d.id
+     WHERE d.user_id = ? AND df.is_trashed = 1
+     ORDER BY df.created_at DESC`
+  ).bind(userId).all() as unknown as { results: Record<string, unknown>[] };
+
   return c.json({
-    files: results.map((r) => ({
+    files: fileResults.results.map((r) => ({
       ...mapFileRow(r),
       driveEmail: r.driveEmail,
-    }))
+    })),
+    folders: folderResults.results.map((r) => mapDriveFolderRow(r)),
   });
 });
 
@@ -577,13 +594,19 @@ filesRouter.get('/trash', async (c) => {
 filesRouter.post('/:id/restore', async (c) => {
   const userId = c.get('userId');
   const fileId = c.req.param('id');
-  
-  const { meta } = await c.env.DB.prepare('UPDATE files SET is_trashed = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?')
-    .bind(fileId, userId).run();
+  const db = c.env.DB;
 
-  if (meta.changes === 0) {
-    throw new AppError(404, 'File not found');
-  }
+  const file = await db
+    .prepare('SELECT drive_account_id, google_file_id FROM files WHERE id = ? AND user_id = ? AND is_trashed = 1')
+    .bind(fileId, userId)
+    .first<{ drive_account_id: string; google_file_id: string }>();
+  if (!file) throw new AppError(404, 'File not found in trash');
+
+  const driveService = new GoogleDriveService(db, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+  await driveService.untrashFile(file.drive_account_id, file.google_file_id);
+
+  await db.prepare('UPDATE files SET is_trashed = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?')
+    .bind(fileId, userId).run();
 
   return c.json({ success: true });
 });

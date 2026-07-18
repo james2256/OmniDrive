@@ -269,11 +269,11 @@ drivesRouter.get('/:driveId/folders/:googleFolderId', async (c) => {
 
   const subfolderResult = googleFolderId === 'root'
     ? await c.env.DB
-        .prepare('SELECT * FROM drive_folders WHERE drive_account_id = ? AND google_parent_id IS NULL AND owned_by_me = 1 ORDER BY name ASC LIMIT 1000')
+        .prepare('SELECT * FROM drive_folders WHERE drive_account_id = ? AND google_parent_id IS NULL AND owned_by_me = 1 AND is_trashed = 0 ORDER BY name ASC LIMIT 1000')
         .bind(driveId)
         .all()
     : await c.env.DB
-        .prepare('SELECT * FROM drive_folders WHERE drive_account_id = ? AND google_parent_id = ? AND owned_by_me = 1 ORDER BY name ASC LIMIT 1000')
+        .prepare('SELECT * FROM drive_folders WHERE drive_account_id = ? AND google_parent_id = ? AND owned_by_me = 1 AND is_trashed = 0 ORDER BY name ASC LIMIT 1000')
         .bind(driveId, googleFolderId)
         .all();
 
@@ -337,7 +337,7 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/sync', async (c) => {
   // Idempotency: already synced — return existing DB data
   if (folder && (folder as Record<string, unknown>).is_synced) {
     const subfolders = await c.env.DB
-      .prepare('SELECT * FROM drive_folders WHERE drive_account_id = ? AND google_parent_id = ? AND owned_by_me = 1 ORDER BY name ASC LIMIT 1000')
+      .prepare('SELECT * FROM drive_folders WHERE drive_account_id = ? AND google_parent_id = ? AND owned_by_me = 1 AND is_trashed = 0 ORDER BY name ASC LIMIT 1000')
       .bind(driveId, googleFolderId)
       .all();
     const files = await c.env.DB
@@ -373,7 +373,7 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/sync', async (c) => {
   }
 
   const newSubfolders = await c.env.DB
-    .prepare('SELECT * FROM drive_folders WHERE drive_account_id = ? AND google_parent_id = ? AND owned_by_me = 1 ORDER BY name ASC LIMIT 1000')
+    .prepare('SELECT * FROM drive_folders WHERE drive_account_id = ? AND google_parent_id = ? AND owned_by_me = 1 AND is_trashed = 0 ORDER BY name ASC LIMIT 1000')
     .bind(driveId, googleFolderId)
     .all();
   const newFiles = await c.env.DB
@@ -391,7 +391,7 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/sync', async (c) => {
   });
 });
 
-// Delete a Google Drive folder (moves to Google Drive trash, then removes from DB)
+// Move a Google Drive folder to trash (Google Drive trash + DB is_trashed=1)
 drivesRouter.delete('/:driveId/folders/:googleFolderId', async (c) => {
   const userId = c.get('userId');
   const { driveId, googleFolderId } = c.req.param();
@@ -405,6 +405,53 @@ drivesRouter.delete('/:driveId/folders/:googleFolderId', async (c) => {
 
   const driveService = new GoogleDriveService(db, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
   await driveService.trashFolder(driveId, googleFolderId);
+
+  // Soft-delete: mark folder as trashed so it appears in the Trash page
+  await db
+    .prepare('UPDATE drive_folders SET is_trashed = 1 WHERE drive_account_id = ? AND google_folder_id = ?')
+    .bind(driveId, googleFolderId)
+    .run();
+
+  return c.json({ success: true });
+});
+
+// Restore a trashed Google Drive folder (Google Drive untrash + DB is_trashed=0)
+drivesRouter.post('/:driveId/folders/:googleFolderId/restore', async (c) => {
+  const userId = c.get('userId');
+  const { driveId, googleFolderId } = c.req.param();
+  const db = c.env.DB;
+
+  const drive = await db
+    .prepare('SELECT id FROM drive_accounts WHERE id = ? AND user_id = ?')
+    .bind(driveId, userId)
+    .first();
+  if (!drive) return c.json({ error: 'Drive not found' }, 404);
+
+  const driveService = new GoogleDriveService(db, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+  await driveService.untrashFolder(driveId, googleFolderId);
+
+  await db
+    .prepare('UPDATE drive_folders SET is_trashed = 0 WHERE drive_account_id = ? AND google_folder_id = ?')
+    .bind(driveId, googleFolderId)
+    .run();
+
+  return c.json({ success: true });
+});
+
+// Permanently delete a Google Drive folder (cannot be undone)
+drivesRouter.delete('/:driveId/folders/:googleFolderId/permanent', async (c) => {
+  const userId = c.get('userId');
+  const { driveId, googleFolderId } = c.req.param();
+  const db = c.env.DB;
+
+  const drive = await db
+    .prepare('SELECT id FROM drive_accounts WHERE id = ? AND user_id = ?')
+    .bind(driveId, userId)
+    .first();
+  if (!drive) return c.json({ error: 'Drive not found' }, 404);
+
+  const driveService = new GoogleDriveService(db, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+  await driveService.deleteFile(driveId, googleFolderId);
 
   await db.batch([
     db.prepare('DELETE FROM drive_folders WHERE drive_account_id = ? AND google_folder_id = ?').bind(driveId, googleFolderId),

@@ -1,5 +1,5 @@
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
-import type { User, DriveAccount, AutomationRule, AggregateQuota, DriveFolderContents, FolderContents, FileEntry, UploadInitResponse, WorkspaceFolder, AuditLog, WorkspacePolicy } from '../types';
+import type { User, DriveAccount, AutomationRule, AggregateQuota, DriveFolderContents, FolderContents, FileEntry, UploadInitResponse, WorkspaceFolder, AuditLog, WorkspacePolicy, DriveFolder } from '../types';
 
 interface RegisterPayload extends LoginPayload { name?: string; email?: string; invitation_code?: string; }
 export interface Invitation { id: string; code: string; max_uses: number; used_count: number; expires_at: string | null; created_at: string; }
@@ -188,11 +188,15 @@ export const api = {
 
   // Trash
   getTrashFiles: () =>
-    request<{ files: FileEntry[] }>('/api/files/trash'),
+    request<{ files: FileEntry[]; folders: DriveFolder[] }>('/api/files/trash'),
   restoreFile: (id: string) =>
     request<{ success: boolean }>(`/api/files/${id}/restore`, { method: 'POST' }),
   deleteFilePermanent: (id: string) =>
     request<{ success: boolean }>(`/api/files/${id}/permanent`, { method: 'DELETE' }),
+  restoreDriveFolder: (driveId: string, googleFolderId: string) =>
+    request<{ success: boolean }>(`/api/drives/${driveId}/folders/${googleFolderId}/restore`, { method: 'POST' }),
+  deleteDriveFolderPermanent: (driveId: string, googleFolderId: string) =>
+    request<{ success: boolean }>(`/api/drives/${driveId}/folders/${googleFolderId}/permanent`, { method: 'DELETE' }),
 
   // Starred Files
   getStarred: () => request<{ files: FileEntry[], folders: WorkspaceFolder[] }>('/api/files/starred'),

@@ -3,14 +3,15 @@ import { useDriveStore } from '../stores/driveStore';
 import { useToastStore } from '../stores/toastStore';
 import { FileGrid } from '../components/files/FileGrid';
 import { api } from '../lib/api';
-import type { FileEntry } from '../types';
+import type { FileEntry, DriveFolder } from '../types';
 import { FilePreviewModal } from '../components/FilePreviewModal';
 
 export function TrashPage() {
   const { drives } = useDriveStore();
   const { addToast } = useToastStore();
-  
-  const [results, setResults] = useState<FileEntry[]>([]);
+
+  const [fileResults, setFileResults] = useState<FileEntry[]>([]);
+  const [folderResults, setFolderResults] = useState<DriveFolder[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
 
@@ -18,7 +19,8 @@ export function TrashPage() {
     setIsLoading(true);
     try {
       const data = await api.getTrashFiles();
-      setResults(data.files);
+      setFileResults(data.files);
+      setFolderResults(data.folders ?? []);
     } catch {
       addToast('error', 'Failed to load trash');
     } finally {
@@ -50,12 +52,34 @@ export function TrashPage() {
     }
   };
 
+  const handleRestoreFolder = async (driveId: string, folderId: string) => {
+    try {
+      await api.restoreDriveFolder(driveId, folderId);
+      addToast('success', 'Folder restored successfully');
+      fetchTrash();
+    } catch {
+      addToast('error', 'Failed to restore folder');
+    }
+  };
+
+  const handlePermanentDeleteFolder = async (driveId: string, folderId: string) => {
+    try {
+      await api.deleteDriveFolderPermanent(driveId, folderId);
+      addToast('success', 'Folder permanently deleted');
+      fetchTrash();
+    } catch {
+      addToast('error', 'Failed to permanently delete folder');
+    }
+  };
+
   const getDriveInfo = useCallback((driveAccountId?: string) => {
     if (!driveAccountId) return { drive: null, index: 0 };
     const index = drives.findIndex((d) => d.id === driveAccountId);
     if (index === -1) return { drive: drives[0] || null, index: 0 };
     return { drive: drives[index], index };
   }, [drives]);
+
+  const hasItems = fileResults.length > 0 || folderResults.length > 0;
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
@@ -67,11 +91,11 @@ export function TrashPage() {
         <div className="flex justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
         </div>
-      ) : results.length > 0 ? (
+      ) : hasItems ? (
         <div className="bg-card rounded-xl border border-stone-200 overflow-hidden">
           <FileGrid
-            files={results}
-            subfolders={[]}
+            files={fileResults}
+            subfolders={folderResults}
             getDriveInfo={getDriveInfo}
             onShare={() => {}}
             onMoveDrive={() => {}}
@@ -81,6 +105,8 @@ export function TrashPage() {
             isTrashView={true}
             onRestore={handleRestore}
             onPermanentDelete={handlePermanentDelete}
+            onRestoreFolder={handleRestoreFolder}
+            onPermanentDeleteFolder={handlePermanentDeleteFolder}
           />
         </div>
       ) : (

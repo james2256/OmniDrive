@@ -39,6 +39,8 @@ const ItemContextMenuContent: React.FC<{
   onDeleteFolder?: (driveId: string, folderId: string) => void;
   onRestore?: (id: string) => void;
   onPermanentDelete?: (id: string) => void;
+  onRestoreFolder?: (driveId: string, folderId: string) => void;
+  onPermanentDeleteFolder?: (driveId: string, folderId: string) => void;
   onAddToWorkspace?: (item: FileEntry) => void;
   onViewInfo?: (item: FileEntry | DriveFolder | WorkspaceFolder, type: 'file' | 'folder') => void;
   onSetRetentionPolicy?: (id: string, type: 'file' | 'folder') => void;
@@ -60,6 +62,8 @@ const ItemContextMenuContent: React.FC<{
   onDeleteFolder,
   onRestore,
   onPermanentDelete,
+  onRestoreFolder,
+  onPermanentDeleteFolder,
   onAddToWorkspace,
   onViewInfo,
   onSetRetentionPolicy,
@@ -76,14 +80,34 @@ const ItemContextMenuContent: React.FC<{
       )}
     {isTrashView ? (
       <>
-        {onRestore && id && (
+        {type === 'file' && onRestore && id && (
           <ContextMenuItem className="px-3 py-2 text-sm text-stone-700 cursor-pointer hover:bg-stone-100 outline-none flex items-center" onClick={() => onRestore(id)}>
             <RefreshCw size={16} className="mr-3 text-stone-500" />
             Restore
           </ContextMenuItem>
         )}
-        {onPermanentDelete && id && (
+        {type === 'folder' && onRestoreFolder && item && 'googleFolderId' in item && item.driveAccountId && (
+          <ContextMenuItem className="px-3 py-2 text-sm text-stone-700 cursor-pointer hover:bg-stone-100 outline-none flex items-center" onClick={() => {
+            if (item.driveAccountId) {
+              onRestoreFolder(item.driveAccountId, item.googleFolderId);
+            }
+          }}>
+            <RefreshCw size={16} className="mr-3 text-stone-500" />
+            Restore
+          </ContextMenuItem>
+        )}
+        {type === 'file' && onPermanentDelete && id && (
           <ContextMenuItem className="px-3 py-2 text-sm text-red-600 cursor-pointer hover:bg-red-50 outline-none flex items-center" onClick={() => onPermanentDelete(id)}>
+            <Trash2 size={16} className="mr-3 text-red-500" />
+            Delete Forever
+          </ContextMenuItem>
+        )}
+        {type === 'folder' && onPermanentDeleteFolder && item && 'googleFolderId' in item && item.driveAccountId && (
+          <ContextMenuItem className="px-3 py-2 text-sm text-red-600 cursor-pointer hover:bg-red-50 outline-none flex items-center" onClick={() => {
+            if (item.driveAccountId) {
+              onPermanentDeleteFolder(item.driveAccountId, item.googleFolderId);
+            }
+          }}>
             <Trash2 size={16} className="mr-3 text-red-500" />
             Delete Forever
           </ContextMenuItem>
@@ -187,6 +211,8 @@ export interface FileGridProps {
   isTrashView?: boolean;
   onRestore?: (fileId: string) => void;
   onPermanentDelete?: (fileId: string) => void;
+  onRestoreFolder?: (driveId: string, folderId: string) => void;
+  onPermanentDeleteFolder?: (driveId: string, folderId: string) => void;
   onAddToWorkspace?: (item: FileEntry) => void;
   onViewInfo?: (item: FileEntry | DriveFolder | WorkspaceFolder, type: 'file' | 'folder') => void;
   onSetRetentionPolicy?: (id: string, type: 'file' | 'folder') => void;
@@ -232,6 +258,8 @@ export const FileGrid: React.FC<FileGridProps> = ({
   isTrashView,
   onRestore,
   onPermanentDelete,
+  onRestoreFolder,
+  onPermanentDeleteFolder,
   onAddToWorkspace,
   onViewInfo,
   onSetRetentionPolicy,
@@ -450,6 +478,8 @@ export const FileGrid: React.FC<FileGridProps> = ({
                 onShare={onShare}
                 onRestore={onRestore}
                 onPermanentDelete={onPermanentDelete}
+                onRestoreFolder={onRestoreFolder}
+                onPermanentDeleteFolder={onPermanentDeleteFolder}
                 onAddToWorkspace={onAddToWorkspace}
                 onViewInfo={onViewInfo}
                 onSetRetentionPolicy={onSetRetentionPolicy}
@@ -541,6 +571,8 @@ export const FileGrid: React.FC<FileGridProps> = ({
                 onDeleteFolder={onDeleteFolder}
                 onRestore={onRestore}
                 onPermanentDelete={onPermanentDelete}
+                onRestoreFolder={onRestoreFolder}
+                onPermanentDeleteFolder={onPermanentDeleteFolder}
                 onAddToWorkspace={onAddToWorkspace}
                 onViewInfo={onViewInfo}
                 onSetRetentionPolicy={onSetRetentionPolicy}
@@ -635,6 +667,8 @@ export const FileGrid: React.FC<FileGridProps> = ({
               onShare={onShare}
               onRestore={onRestore}
               onPermanentDelete={onPermanentDelete}
+              onRestoreFolder={onRestoreFolder}
+              onPermanentDeleteFolder={onPermanentDeleteFolder}
               onAddToWorkspace={onAddToWorkspace}
               onViewInfo={onViewInfo}
             />
@@ -720,6 +754,8 @@ export const FileGrid: React.FC<FileGridProps> = ({
               onDeleteFile={onDeleteFile}
               onRestore={onRestore}
               onPermanentDelete={onPermanentDelete}
+              onRestoreFolder={onRestoreFolder}
+              onPermanentDeleteFolder={onPermanentDeleteFolder}
             />
           </ContextMenu>
         );

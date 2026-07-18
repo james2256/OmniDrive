@@ -130,6 +130,7 @@ export interface DriveFolder {
   isSynced: boolean;
   syncedAt?: string | null;
   isStarred?: boolean;
+  isTrashed?: boolean;
 }
 
 export interface DriveFolderContents {
