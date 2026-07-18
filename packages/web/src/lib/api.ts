@@ -1,5 +1,5 @@
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
-import type { User, DriveAccount, AutomationRule, AggregateQuota, DriveFolderContents, FolderContents, FileEntry, UploadInitResponse, WorkspaceFolder, AuditLog, WorkspacePolicy, DriveFolder } from '../types';
+import type { User, DriveAccount, AutomationRule, AggregateQuota, DriveFolderContents, FolderContents, FileEntry, UploadInitResponse, WorkspaceFolder, AuditLog, WorkspacePolicy, DriveFolder, BreadcrumbItem } from '../types';
 
 interface RegisterPayload extends LoginPayload { name?: string; email?: string; invitation_code?: string; }
 export interface Invitation { id: string; code: string; max_uses: number; used_count: number; expires_at: string | null; created_at: string; }
@@ -197,6 +197,10 @@ export const api = {
     request<{ success: boolean }>(`/api/drives/${driveId}/folders/${googleFolderId}/restore`, { method: 'POST' }),
   deleteDriveFolderPermanent: (driveId: string, googleFolderId: string) =>
     request<{ success: boolean }>(`/api/drives/${driveId}/folders/${googleFolderId}/permanent`, { method: 'DELETE' }),
+  getSharedWithMe: () =>
+    request<{ files: FileEntry[]; folders: DriveFolder[] }>('/api/drives/shared-with-me'),
+  getSharedFolderContents: (driveId: string, folderId: string) =>
+    request<{ folder: DriveFolder | null; subfolders: DriveFolder[]; files: FileEntry[]; breadcrumb: BreadcrumbItem[] }>(`/api/drives/${driveId}/shared-folders/${folderId}`),
 
   // Starred Files
   getStarred: () => request<{ files: FileEntry[], folders: WorkspaceFolder[] }>('/api/files/starred'),

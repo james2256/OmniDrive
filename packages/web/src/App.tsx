@@ -11,6 +11,7 @@ const DashboardPage = lazy(() => import('./pages/DashboardPage').then((m) => ({ 
 const FilesPage = lazy(() => import('./pages/FilesPage').then((m) => ({ default: m.FilesPage })));
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 const SharedLinksPage = lazy(() => import('./pages/SharedLinksPage').then((m) => ({ default: m.SharedLinksPage })));
+const SharedWithMePage = lazy(() => import('./pages/SharedWithMePage').then((m) => ({ default: m.SharedWithMePage })));
 const PublicSharedPage = lazy(() => import('./pages/PublicSharedPage').then((m) => ({ default: m.PublicSharedPage })));
 const AutomationsPage = lazy(() => import('./pages/AutomationsPage').then((m) => ({ default: m.AutomationsPage })));
 const SearchPage = lazy(() => import('./pages/SearchPage').then((m) => ({ default: m.SearchPage })));
@@ -107,6 +108,8 @@ export const App = () => {
             <Route path="/settings/drives" element={<SettingsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/shared" element={<SharedLinksPage />} />
+            <Route path="/shared-with-me" element={<SharedWithMePage />} />
+            <Route path="/shared-with-me/:folderId" element={<SharedWithMePage />} />
             <Route path="/trash" element={<TrashPage />} />
             <Route path="/starred" element={<StarredPage />} />
             <Route path="/admin/users" element={<AdminUsersPage />} />

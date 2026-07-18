@@ -131,6 +131,8 @@ export interface DriveFolder {
   syncedAt?: string | null;
   isStarred?: boolean;
   isTrashed?: boolean;
+  driveId?: string;
+  driveEmail?: string;
 }
 
 export interface DriveFolderContents {

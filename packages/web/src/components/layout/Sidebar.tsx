@@ -12,6 +12,7 @@ import {
   UserCog,
   Home,
   Github,
+  FolderInput,
 } from 'lucide-react';
 import { SidebarStorage } from './SidebarStorage';
 import pkg from '../../../../../package.json';
@@ -47,13 +48,17 @@ export const Sidebar: React.FC = () => {
           <HardDrive size={20} />
           {isSidebarOpen && <span>My Drive</span>}
         </NavLink>
+        <NavLink to="/shared-with-me" className={navLinkClass}>
+          <FolderInput size={20} />
+          {isSidebarOpen && <span>Shared with me</span>}
+        </NavLink>
         <NavLink to="/starred" className={navLinkClass}>
           <Star size={20} />
           {isSidebarOpen && <span>Starred</span>}
         </NavLink>
         <NavLink to="/shared" className={navLinkClass}>
           <Users size={20} />
-          {isSidebarOpen && <span>Shared</span>}
+          {isSidebarOpen && <span>Shared links</span>}
         </NavLink>
         <NavLink to="/workspaces" className={navLinkClass}>
           <FolderTree size={20} />

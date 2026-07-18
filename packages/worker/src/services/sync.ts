@@ -53,9 +53,14 @@ const UPSERT_FILE_SQL = `INSERT INTO files
          synced_at = excluded.synced_at,
          owned_by_me = excluded.owned_by_me`;
 
+const SHARED_PARENT_MARKER = '__shared__';
+
 function resolveParentId(parents: string[] | undefined | null, rootFolderId: string, isFolder: boolean): string | null {
+  if (!parents || parents.length === 0) {
+    return SHARED_PARENT_MARKER;
+  }
   const defaultParent = isFolder ? null : 'root';
-  const parentId = parents?.[0] ?? defaultParent;
+  const parentId = parents[0];
   return parentId === rootFolderId ? defaultParent : parentId;
 }
 

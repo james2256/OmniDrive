@@ -88,6 +88,54 @@ drivesRouter.get('/connect', async (c) => {
   return c.json({ url: authUrl.toString() });
 });
 
+// GET /api/drives/shared-with-me — list shared items not added to My Drive (owned_by_me = 0, google_parent_id = '__shared__')
+drivesRouter.get('/shared-with-me', async (c) => {
+  const userId = c.get('userId');
+  const db = c.env.DB;
+
+  const folderResults = await db.prepare(
+    `SELECT df.*, d.email as driveEmail FROM drive_folders df
+     JOIN drive_accounts d ON df.drive_account_id = d.id
+     WHERE d.user_id = ? AND df.google_parent_id = ? AND df.owned_by_me = 0 AND df.is_trashed = 0
+     ORDER BY df.name ASC`
+  ).bind(userId, '__shared__').all() as unknown as { results: Record<string, unknown>[] };
+
+  const fileResults = await db.prepare(
+    `SELECT f.*, d.email as driveEmail FROM files f
+     JOIN drive_accounts d ON f.drive_account_id = d.id
+     WHERE f.user_id = ? AND f.google_parent_id = ? AND f.owned_by_me = 0 AND f.is_trashed = 0
+     ORDER BY f.name ASC`
+  ).bind(userId, '__shared__').all() as unknown as { results: Record<string, unknown>[] };
+
+  return c.json({
+    folders: folderResults.results.map((r) => ({ ...mapDriveFolderRow(r), driveEmail: r.driveEmail, driveId: r.drive_account_id })),
+    files: fileResults.results.map((r) => ({ ...mapFileRow(r), driveEmail: r.driveEmail, driveId: r.drive_account_id })),
+  });
+});
+
+// GET /api/drives/:driveId/shared-folders/:googleFolderId — live API list children of a shared folder
+drivesRouter.get('/:driveId/shared-folders/:googleFolderId', async (c) => {
+  const userId = c.get('userId');
+  const { driveId, googleFolderId } = c.req.param();
+  const db = c.env.DB;
+
+  const drive = await db
+    .prepare('SELECT id FROM drive_accounts WHERE id = ? AND user_id = ?')
+    .bind(driveId, userId)
+    .first();
+  if (!drive) return c.json({ error: 'Drive not found' }, 404);
+
+  const driveService = new GoogleDriveService(db, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+  const { files, folders } = await driveService.listFolderContents(driveId, googleFolderId);
+
+  return c.json({
+    folder: null,
+    subfolders: folders,
+    files,
+    breadcrumb: [],
+  });
+});
+
 drivesRouter.get('/', async (c) => {
   const userId = c.get('userId');
   const db = c.env.DB;
@@ -269,16 +317,16 @@ drivesRouter.get('/:driveId/folders/:googleFolderId', async (c) => {
 
   const subfolderResult = googleFolderId === 'root'
     ? await c.env.DB
-        .prepare('SELECT * FROM drive_folders WHERE drive_account_id = ? AND google_parent_id IS NULL AND owned_by_me = 1 AND is_trashed = 0 ORDER BY name ASC LIMIT 1000')
+        .prepare('SELECT * FROM drive_folders WHERE drive_account_id = ? AND google_parent_id IS NULL AND is_trashed = 0 ORDER BY name ASC LIMIT 1000')
         .bind(driveId)
         .all()
     : await c.env.DB
-        .prepare('SELECT * FROM drive_folders WHERE drive_account_id = ? AND google_parent_id = ? AND owned_by_me = 1 AND is_trashed = 0 ORDER BY name ASC LIMIT 1000')
+        .prepare('SELECT * FROM drive_folders WHERE drive_account_id = ? AND google_parent_id = ? AND is_trashed = 0 ORDER BY name ASC LIMIT 1000')
         .bind(driveId, googleFolderId)
         .all();
 
   const filesResult = await c.env.DB
-    .prepare('SELECT * FROM files WHERE drive_account_id = ? AND google_parent_id = ? AND is_trashed = 0 AND owned_by_me = 1 ORDER BY name ASC LIMIT 1000')
+    .prepare('SELECT * FROM files WHERE drive_account_id = ? AND google_parent_id = ? AND is_trashed = 0 ORDER BY name ASC LIMIT 1000')
     .bind(driveId, googleFolderId)
     .all();
 
@@ -337,11 +385,11 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/sync', async (c) => {
   // Idempotency: already synced — return existing DB data
   if (folder && (folder as Record<string, unknown>).is_synced) {
     const subfolders = await c.env.DB
-      .prepare('SELECT * FROM drive_folders WHERE drive_account_id = ? AND google_parent_id = ? AND owned_by_me = 1 AND is_trashed = 0 ORDER BY name ASC LIMIT 1000')
+      .prepare('SELECT * FROM drive_folders WHERE drive_account_id = ? AND google_parent_id = ? AND is_trashed = 0 ORDER BY name ASC LIMIT 1000')
       .bind(driveId, googleFolderId)
       .all();
     const files = await c.env.DB
-      .prepare('SELECT * FROM files WHERE drive_account_id = ? AND google_parent_id = ? AND is_trashed = 0 AND owned_by_me = 1 ORDER BY name ASC LIMIT 1000')
+      .prepare('SELECT * FROM files WHERE drive_account_id = ? AND google_parent_id = ? AND is_trashed = 0 ORDER BY name ASC LIMIT 1000')
       .bind(driveId, googleFolderId)
       .all();
     const breadcrumb = await buildDriveBreadcrumb(c.env.DB, driveId, googleFolderId);
@@ -373,11 +421,11 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/sync', async (c) => {
   }
 
   const newSubfolders = await c.env.DB
-    .prepare('SELECT * FROM drive_folders WHERE drive_account_id = ? AND google_parent_id = ? AND owned_by_me = 1 AND is_trashed = 0 ORDER BY name ASC LIMIT 1000')
+    .prepare('SELECT * FROM drive_folders WHERE drive_account_id = ? AND google_parent_id = ? AND is_trashed = 0 ORDER BY name ASC LIMIT 1000')
     .bind(driveId, googleFolderId)
     .all();
   const newFiles = await c.env.DB
-    .prepare('SELECT * FROM files WHERE drive_account_id = ? AND google_parent_id = ? AND is_trashed = 0 AND owned_by_me = 1 ORDER BY name ASC LIMIT 1000')
+    .prepare('SELECT * FROM files WHERE drive_account_id = ? AND google_parent_id = ? AND is_trashed = 0 ORDER BY name ASC LIMIT 1000')
     .bind(driveId, googleFolderId)
     .all();
 
