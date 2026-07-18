@@ -319,7 +319,8 @@ filesRouter.post('/:id/move-drive', async (c) => {
 
     const copiedFile = await driveService.copyFile(
       targetDriveId,
-      file.google_file_id
+      file.google_file_id,
+      file.name
     );
     copySuccessId = copiedFile.id;
 

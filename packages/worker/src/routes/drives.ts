@@ -120,18 +120,36 @@ drivesRouter.get('/:driveId/shared-folders/:googleFolderId', async (c) => {
   const db = c.env.DB;
 
   const drive = await db
-    .prepare('SELECT id FROM drive_accounts WHERE id = ? AND user_id = ?')
+    .prepare('SELECT id, email FROM drive_accounts WHERE id = ? AND user_id = ?')
     .bind(driveId, userId)
-    .first();
+    .first<{ id: string; email: string }>();
   if (!drive) return c.json({ error: 'Drive not found' }, 404);
 
   const driveService = new GoogleDriveService(db, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
   const { files, folders } = await driveService.listFolderContents(driveId, googleFolderId);
 
+  // Map to frontend-expected format: GDriveFolder → DriveFolder, GDriveFile → FileEntry-like
   return c.json({
     folder: null,
-    subfolders: folders,
-    files,
+    subfolders: folders.map((f) => ({
+      googleFolderId: f.id,
+      name: f.name,
+      driveAccountId: driveId,
+      isSynced: false,
+    })),
+    files: files.map((f) => ({
+      id: f.id,
+      name: f.name,
+      mimeType: f.mimeType,
+      size: parseInt(f.size ?? '0', 10),
+      thumbnailUrl: f.thumbnailLink ?? null,
+      webViewLink: f.webViewLink ?? null,
+      webContentLink: f.webContentLink ?? null,
+      googleCreatedAt: f.createdTime,
+      googleModifiedAt: f.modifiedTime,
+      driveAccountId: driveId,
+      driveEmail: drive.email,
+    })),
     breadcrumb: [],
   });
 });
@@ -506,6 +524,95 @@ drivesRouter.delete('/:driveId/folders/:googleFolderId/permanent', async (c) => 
     db.prepare('DELETE FROM files WHERE drive_account_id = ? AND google_parent_id = ?').bind(driveId, googleFolderId),
     db.prepare('DELETE FROM drive_folders WHERE drive_account_id = ? AND google_parent_id = ?').bind(driveId, googleFolderId),
   ]);
+
+  return c.json({ success: true });
+});
+
+// Star a Google Drive folder
+drivesRouter.post('/:driveId/folders/:googleFolderId/star', async (c) => {
+  const userId = c.get('userId');
+  const { driveId, googleFolderId } = c.req.param();
+  const db = c.env.DB;
+
+  const drive = await db.prepare('SELECT id FROM drive_accounts WHERE id = ? AND user_id = ?').bind(driveId, userId).first();
+  if (!drive) return c.json({ error: 'Drive not found' }, 404);
+
+  await db.prepare('UPDATE drive_folders SET is_starred = 1 WHERE drive_account_id = ? AND google_folder_id = ?')
+    .bind(driveId, googleFolderId).run();
+  return c.json({ success: true });
+});
+
+// Unstar a Google Drive folder
+drivesRouter.post('/:driveId/folders/:googleFolderId/unstar', async (c) => {
+  const userId = c.get('userId');
+  const { driveId, googleFolderId } = c.req.param();
+  const db = c.env.DB;
+
+  const drive = await db.prepare('SELECT id FROM drive_accounts WHERE id = ? AND user_id = ?').bind(driveId, userId).first();
+  if (!drive) return c.json({ error: 'Drive not found' }, 404);
+
+  await db.prepare('UPDATE drive_folders SET is_starred = 0 WHERE drive_account_id = ? AND google_folder_id = ?')
+    .bind(driveId, googleFolderId).run();
+  return c.json({ success: true });
+});
+
+// Rename a Google Drive folder
+drivesRouter.patch('/:driveId/folders/:googleFolderId/rename', async (c) => {
+  const userId = c.get('userId');
+  const { driveId, googleFolderId } = c.req.param();
+  const { name } = await c.req.json();
+  const db = c.env.DB;
+
+  if (!name) return c.json({ error: 'Name is required' }, 400);
+
+  const drive = await db.prepare('SELECT id FROM drive_accounts WHERE id = ? AND user_id = ?').bind(driveId, userId).first();
+  if (!drive) return c.json({ error: 'Drive not found' }, 404);
+
+  const driveService = new GoogleDriveService(db, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+  await driveService.renameFile(driveId, googleFolderId, name);
+
+  await db.prepare('UPDATE drive_folders SET name = ? WHERE drive_account_id = ? AND google_folder_id = ?')
+    .bind(name, driveId, googleFolderId).run();
+  return c.json({ success: true });
+});
+
+// Move a file or folder to a different folder within the same drive
+drivesRouter.patch('/:driveId/move/:googleFileId', async (c) => {
+  const userId = c.get('userId');
+  const { driveId, googleFileId } = c.req.param();
+  const { targetFolderId, oldParentId, isFolder } = await c.req.json();
+  const db = c.env.DB;
+
+  const drive = await db.prepare('SELECT id, root_folder_id FROM drive_accounts WHERE id = ? AND user_id = ?')
+    .bind(driveId, userId).first<{ id: string; root_folder_id: string | null }>();
+  if (!drive) return c.json({ error: 'Drive not found' }, 404);
+
+  // Verify item ownership (can't move files you don't own)
+  const table = isFolder ? 'drive_folders' : 'files';
+  const idCol = isFolder ? 'google_folder_id' : 'google_file_id';
+  const item = await db.prepare(`SELECT owned_by_me FROM ${table} WHERE drive_account_id = ? AND ${idCol} = ?`)
+    .bind(driveId, googleFileId).first<{ owned_by_me: number }>();
+  if (!item) return c.json({ error: 'Item not found' }, 404);
+  if (item.owned_by_me !== 1) return c.json({ error: 'You can only move items you own' }, 403);
+
+  // Resolve root folder ID
+  const rootFolderId = drive.root_folder_id || 'root';
+  const effectiveTargetId = targetFolderId === 'root' ? rootFolderId : targetFolderId;
+  const effectiveOldParentId = (!oldParentId || oldParentId === '__shared__') ? null :
+    (oldParentId === 'root' ? rootFolderId : oldParentId);
+
+  const driveService = new GoogleDriveService(db, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+  await driveService.moveToFolder(driveId, googleFileId, effectiveTargetId, effectiveOldParentId);
+
+  // Update DB — folders at root use NULL, files at root use 'root' (matches resolveParentId convention)
+  const dbParentId = targetFolderId === 'root' ? (isFolder ? null : 'root') : targetFolderId;
+  if (isFolder) {
+    await db.prepare('UPDATE drive_folders SET google_parent_id = ? WHERE drive_account_id = ? AND google_folder_id = ?')
+      .bind(dbParentId, driveId, googleFileId).run();
+  } else {
+    await db.prepare('UPDATE files SET google_parent_id = ?, updated_at = CURRENT_TIMESTAMP WHERE drive_account_id = ? AND google_file_id = ?')
+      .bind(dbParentId, driveId, googleFileId).run();
+  }
 
   return c.json({ success: true });
 });

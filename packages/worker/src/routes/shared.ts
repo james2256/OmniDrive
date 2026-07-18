@@ -84,8 +84,13 @@ sharedRouter.post('/', authGuard, async (c) => {
     const file = await db.prepare('SELECT id FROM files WHERE id = ? AND user_id = ?').bind(targetId, userId).first();
     if (!file) return c.json({ error: 'You do not own this file' }, 403);
   } else if (targetType === 'folder') {
-    const folder = await db.prepare('SELECT f.id FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ? WHERE f.id = ?').bind(userId, targetId).first();
-    if (!folder) return c.json({ error: 'You do not own this folder' }, 403);
+    // Check workspace_folders first
+    const wsFolder = await db.prepare('SELECT f.id FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ? WHERE f.id = ?').bind(userId, targetId).first();
+    if (!wsFolder) {
+      // Fallback: check drive_folders (Google Drive folder by google_folder_id)
+      const driveFolder = await db.prepare('SELECT df.id FROM drive_folders df JOIN drive_accounts d ON df.drive_account_id = d.id WHERE d.user_id = ? AND df.google_folder_id = ? AND df.owned_by_me = 1').bind(userId, targetId).first();
+      if (!driveFolder) return c.json({ error: 'You do not own this folder' }, 403);
+    }
   }
 
   // Validate webhook URL if provided

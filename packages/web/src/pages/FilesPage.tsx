@@ -9,6 +9,7 @@ import { UploadModal } from '../components/UploadModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
 import { ShareModal } from '../components/ShareModal';
 import { MoveDriveModal } from '../components/MoveDriveModal';
+import { MoveModal } from '../components/MoveModal';
 import { AddToWorkspaceModal } from '../components/workspaces/AddToWorkspaceModal';
 import { CreateFolderModal } from '../components/CreateFolderModal';
 import { Upload, FolderPlus, X, LayoutGrid, List, Info } from 'lucide-react';
@@ -67,6 +68,8 @@ export function FilesPage() {
 
   const { subfolders, files, breadcrumb, isLoading, errorDrives, refresh } = useMergedDrive(folderId, driveIdParam);
 
+  const [moveTarget, setMoveTarget] = useState<SelectedItem[]>([]);
+
   const handleDeleteFile = async (id: string) => {
     if (confirm('Delete this file permanently from Google Drive?')) {
       try {
@@ -101,7 +104,17 @@ export function FilesPage() {
     }
   };
 
-  const handleToggleStar = async (id: string, type: 'file' | 'folder', currentStarStatus: boolean) => {
+  const handleRenameFolder = async (driveId: string, folderId: string, name: string) => {
+    try {
+      await api.renameDriveFolder(driveId, folderId, name);
+      addToast('success', 'Folder renamed');
+      refresh();
+    } catch {
+      addToast('error', 'Failed to rename folder');
+    }
+  };
+
+  const handleToggleStar = async (id: string, type: 'file' | 'folder', currentStarStatus: boolean, driveId?: string) => {
     try {
       if (type === 'file') {
         if (currentStarStatus) {
@@ -111,7 +124,17 @@ export function FilesPage() {
           await api.starFile(id);
           addToast('success', 'File starred');
         }
+      } else if (driveId) {
+        // Drive folder star/unstar
+        if (currentStarStatus) {
+          await api.unstarDriveFolder(driveId, id);
+          addToast('success', 'Folder unstarred');
+        } else {
+          await api.starDriveFolder(driveId, id);
+          addToast('success', 'Folder starred');
+        }
       } else {
+        // Workspace folder star/unstar
         if (currentStarStatus) {
           await api.unstarFolder(id);
           addToast('success', 'Folder unstarred');
@@ -146,6 +169,7 @@ export function FilesPage() {
         {/* Toolbar */}
         <BulkActionBar 
           onActionComplete={() => refresh()} 
+          onMoveRequested={() => setMoveTarget(selectedItems)}
           onWorkspaceRequested={() => setWorkspaceTarget(selectedItems[0].item as FileEntry)}
           onMoveDriveRequested={() => {
             const files = selectedItems.filter(i => i.type === 'file').map(i => i.item as FileEntry);
@@ -246,6 +270,7 @@ export function FilesPage() {
               onPreviewFile={setPreviewFile}
               onShare={(id, type) => setShareTarget({ id, type })}
               onRenameFile={handleRenameFile}
+              onRenameFolder={handleRenameFolder}
               onDeleteFile={handleDeleteFile}
               onDeleteFolder={handleDeleteFolder}
               onMoveDrive={(file) => setMoveDriveFiles([file])}
@@ -286,6 +311,16 @@ export function FilesPage() {
             console.error(err);
             addToast('error', 'Failed to move file(s)');
             setMoveDriveFiles([]);
+          }}
+        />
+        <MoveModal
+          open={moveTarget.length > 0}
+          items={moveTarget}
+          driveId={driveIdParam || drives[0]?.id || ''}
+          onClose={() => setMoveTarget([])}
+          onSuccess={() => {
+            clearSelection();
+            refresh();
           }}
         />
         <AddToWorkspaceModal

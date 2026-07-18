@@ -30,10 +30,11 @@ const ItemContextMenuContent: React.FC<{
   isTrashView?: boolean;
 
   isStarred?: boolean;
-  onToggleStar?: (id: string, type: 'file' | 'folder', currentStarStatus: boolean) => void;
+  onToggleStar?: (id: string, type: 'file' | 'folder', currentStarStatus: boolean, driveId?: string) => void;
   onPreviewFile?: (file: FileEntry) => void;
   onShare?: (id: string, type: 'file' | 'folder') => void;
   onRenameFile?: (id: string, name: string) => void;
+  onRenameFolder?: (driveId: string, folderId: string, name: string) => void;
   onMoveDrive?: (file: FileEntry) => void;
   onDeleteFile?: (id: string) => void;
   onDeleteFolder?: (driveId: string, folderId: string) => void;
@@ -57,6 +58,7 @@ const ItemContextMenuContent: React.FC<{
   onPreviewFile,
   onShare,
   onRenameFile,
+  onRenameFolder,
   onMoveDrive,
   onDeleteFile,
   onDeleteFolder,
@@ -132,7 +134,7 @@ const ItemContextMenuContent: React.FC<{
           </ContextMenuItem>
         )}
         {onToggleStar && id && (
-          <ContextMenuItem onClick={() => onToggleStar(id, type, !!isStarred)}>
+          <ContextMenuItem onClick={() => onToggleStar(id, type, !!isStarred, item && 'driveAccountId' in item ? item.driveAccountId : undefined)}>
             <Star className="mr-2 h-4 w-4" /> {isStarred ? 'Remove from Starred' : 'Add to Starred'}
           </ContextMenuItem>
         )}
@@ -155,6 +157,16 @@ const ItemContextMenuContent: React.FC<{
           <ContextMenuItem onClick={() => {
             const newName = prompt('Rename file:', name);
             if (newName && newName !== name) onRenameFile(id, newName);
+          }}>
+            <Pencil className="mr-2 h-4 w-4" /> Rename
+          </ContextMenuItem>
+        )}
+        {type === 'folder' && onRenameFolder && item && 'googleFolderId' in item && name && (
+          <ContextMenuItem onClick={() => {
+            const newName = prompt('Rename folder:', name);
+            if (newName && newName !== name && item.driveAccountId) {
+              onRenameFolder(item.driveAccountId, item.googleFolderId, newName);
+            }
           }}>
             <Pencil className="mr-2 h-4 w-4" /> Rename
           </ContextMenuItem>
@@ -195,10 +207,11 @@ export interface FileGridProps {
   subfolders: (DriveFolder | WorkspaceFolder)[];
   getDriveInfo: (driveAccountId?: string) => { drive: DriveAccount | null, index: number };
   onNavigateFolder?: (folderId: string, driveId: string) => void;
-  onToggleStar?: (id: string, type: 'file' | 'folder', currentStarStatus: boolean) => void;
+  onToggleStar?: (id: string, type: 'file' | 'folder', currentStarStatus: boolean, driveId?: string) => void;
   onPreviewFile?: (file: FileEntry) => void;
   onShare?: (id: string, type: 'file' | 'folder') => void;
   onRenameFile?: (id: string, name: string) => void;
+  onRenameFolder?: (driveId: string, folderId: string, name: string) => void;
   onDeleteFile?: (id: string) => void;
   onDeleteFolder?: (driveId: string, folderId: string) => void;
   isTargetShared?: (id: string, type: 'file' | 'folder') => boolean;
@@ -248,6 +261,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
   onPreviewFile,
   onShare,
   onRenameFile,
+  onRenameFolder,
   onDeleteFile,
   onDeleteFolder,
   isTargetShared,
@@ -566,6 +580,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
                 onPreviewFile={onPreviewFile}
                 onShare={onShare}
                 onRenameFile={onRenameFile}
+                onRenameFolder={onRenameFolder}
                 onMoveDrive={onMoveDrive}
                 onDeleteFile={onDeleteFile}
                 onDeleteFolder={onDeleteFolder}
@@ -751,6 +766,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
               onShare={onShare}
               onRenameFile={onRenameFile}
               onMoveDrive={onMoveDrive}
+              onRenameFolder={onRenameFolder}
               onDeleteFile={onDeleteFile}
               onRestore={onRestore}
               onPermanentDelete={onPermanentDelete}

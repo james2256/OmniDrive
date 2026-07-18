@@ -456,13 +456,14 @@ export class GoogleDriveService {
     }
   }
 
-  async copyFile(driveAccountId: string, fileId: string): Promise<GDriveFile> {
+  async copyFile(driveAccountId: string, fileId: string, name?: string): Promise<GDriveFile> {
     const token = await this.getValidToken(driveAccountId);
     const fields = 'id,name,mimeType,size,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum';
 
-    const response = await fetch(`${DRIVE_API}/files/${fileId}/copy?fields=${fields}`, {
+    const response = await fetch(`${DRIVE_API}/files/${fileId}/copy?fields=${fields}&supportsAllDrives=true`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(name ? { name } : {}),
     });
 
     if (!response.ok) {
@@ -473,6 +474,31 @@ export class GoogleDriveService {
     }
 
     return response.json();
+  }
+
+  async moveToFolder(
+    driveAccountId: string,
+    fileId: string,
+    newParentId: string,
+    oldParentId: string | null,
+  ): Promise<void> {
+    const token = await this.getValidToken(driveAccountId);
+    const params = new URLSearchParams({
+      addParents: newParentId,
+      supportsAllDrives: 'true',
+    });
+    if (oldParentId) {
+      params.set('removeParents', oldParentId);
+    }
+
+    const response = await fetch(`${DRIVE_API}/files/${fileId}?${params}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to move item: ${await response.text()}`);
+    }
   }
 
   async trashFile(driveAccountId: string, fileId: string): Promise<void> {

@@ -308,6 +308,9 @@ foldersRouter.delete('/:id', async (c) => {
 
   const ws = await db.prepare('SELECT id FROM workspaces WHERE id = ? AND owner_id = ?').bind(folderId, userId).first();
   if (ws) {
+    // Detach files from workspace before deletion (prevents ON DELETE CASCADE)
+    await db.prepare('UPDATE files SET workspace_id = NULL, workspace_folder_id = NULL WHERE workspace_id = ?')
+      .bind(folderId).run();
     await db.prepare('DELETE FROM workspaces WHERE id = ?').bind(folderId).run();
     return c.json({ success: true });
   }

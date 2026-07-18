@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS drive_folders (
     created_at        TEXT NOT NULL DEFAULT (datetime('now')),
     owned_by_me       INTEGER NOT NULL DEFAULT 1,
     is_trashed        INTEGER NOT NULL DEFAULT 0,
+    is_starred        INTEGER NOT NULL DEFAULT 0,
     UNIQUE(drive_account_id, google_folder_id)
 );
 

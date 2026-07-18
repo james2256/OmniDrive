@@ -197,6 +197,20 @@ export const api = {
     request<{ success: boolean }>(`/api/drives/${driveId}/folders/${googleFolderId}/restore`, { method: 'POST' }),
   deleteDriveFolderPermanent: (driveId: string, googleFolderId: string) =>
     request<{ success: boolean }>(`/api/drives/${driveId}/folders/${googleFolderId}/permanent`, { method: 'DELETE' }),
+  starDriveFolder: (driveId: string, googleFolderId: string) =>
+    request<{ success: boolean }>(`/api/drives/${driveId}/folders/${googleFolderId}/star`, { method: 'POST' }),
+  unstarDriveFolder: (driveId: string, googleFolderId: string) =>
+    request<{ success: boolean }>(`/api/drives/${driveId}/folders/${googleFolderId}/unstar`, { method: 'POST' }),
+  renameDriveFolder: (driveId: string, googleFolderId: string, name: string) =>
+    request<{ success: boolean }>(`/api/drives/${driveId}/folders/${googleFolderId}/rename`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name }),
+    }),
+  moveToFolder: (driveId: string, googleFileId: string, targetFolderId: string, oldParentId: string | null, isFolder: boolean) =>
+    request<{ success: boolean }>(`/api/drives/${driveId}/move/${googleFileId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ targetFolderId, oldParentId, isFolder }),
+    }),
   getSharedWithMe: () =>
     request<{ files: FileEntry[]; folders: DriveFolder[] }>('/api/drives/shared-with-me'),
   getSharedFolderContents: (driveId: string, folderId: string) =>
