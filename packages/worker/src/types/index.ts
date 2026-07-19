@@ -87,6 +87,7 @@ export interface DriveFolder {
   syncedAt: string | null;
   createdAt: string;
   isTrashed?: boolean;
+  isStarred?: boolean;
 }
 
 export interface SharedLink {
@@ -241,6 +242,7 @@ export function mapDriveFolderRow(row: Record<string, unknown>): DriveFolder {
     syncedAt: (row.synced_at as string) ?? null,
     createdAt: row.created_at as string,
     isTrashed: row.is_trashed === 1,
+    isStarred: row.is_starred === 1,
   };
 }
 

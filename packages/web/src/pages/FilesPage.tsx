@@ -290,6 +290,8 @@ export function FilesPage() {
           open={showCreateFolder}
           parentId={folderId === 'root' ? null : folderId}
           title="New Folder"
+          driveId={driveIdParam ?? undefined}
+          drives={drives}
           onClose={() => setShowCreateFolder(false)}
           onSuccess={refresh}
         />

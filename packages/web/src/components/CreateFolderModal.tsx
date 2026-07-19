@@ -3,6 +3,7 @@ import { FolderPlus } from 'lucide-react';
 import { api } from '../lib/api';
 import { useToastStore } from '../stores/toastStore';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
+import type { DriveAccount } from '../types';
 
 interface CreateFolderModalProps {
   open: boolean;
@@ -12,24 +13,43 @@ interface CreateFolderModalProps {
   title: string;
   onClose: () => void;
   onSuccess: () => void;
+  /**
+   * If provided, creates a Google Drive folder in this drive instead of a
+   * workspace folder. When omitted, falls back to workspace folder creation
+   * (POST /api/folders).
+   */
+  driveId?: string;
+  /**
+   * Available drives — shown as a picker when `driveId` is not set and there
+   * is more than one drive. If only one drive exists, it is auto-selected.
+   */
+  drives?: DriveAccount[];
 }
 
-export function CreateFolderModal({ open, parentId, title, onClose, onSuccess }: CreateFolderModalProps) {
+export function CreateFolderModal({ open, parentId, title, onClose, onSuccess, driveId, drives }: CreateFolderModalProps) {
   const [name, setName] = useState('');
+  const [selectedDriveId, setSelectedDriveId] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const addToast = useToastStore((s) => s.addToast);
 
-  // Reset state each time the modal opens so stale input/errors don't persist
+  // Reset state each time the modal opens so stale input/errors don't persist.
   useEffect(() => {
     if (open) {
       setName('');
       setError('');
+      // If a driveId prop is provided, always use it. Otherwise, auto-select
+      // when there's exactly one drive (common case — single Google account).
+      setSelectedDriveId(driveId ?? (drives && drives.length === 1 ? drives[0].id : ''));
     }
-  }, [open]);
+  }, [open, driveId, drives]);
 
-  // Derive "Folder" or "Workspace" from the title for labels & toast messages
   const entityLabel = title.replace(/^New\s+/, '');
+
+  // Show the drive picker only when we're in Drive mode but no specific drive
+  // is pre-selected and there's more than one drive to choose from.
+  const showDrivePicker = !driveId && (drives?.length ?? 0) > 1;
+  const effectiveDriveId = driveId || selectedDriveId || (drives && drives.length === 1 ? drives[0].id : '');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,7 +61,13 @@ export function CreateFolderModal({ open, parentId, title, onClose, onSuccess }:
     setLoading(true);
     setError('');
     try {
-      await api.createFolder(trimmed, parentId ?? undefined);
+      if (effectiveDriveId) {
+        // Google Drive folder creation
+        await api.createDriveFolder(effectiveDriveId, trimmed, parentId ?? undefined);
+      } else {
+        // Workspace folder / workspace creation (existing behavior)
+        await api.createFolder(trimmed, parentId ?? undefined);
+      }
       addToast('success', `${entityLabel} created successfully`);
       onSuccess();
       onClose();
@@ -70,6 +96,24 @@ export function CreateFolderModal({ open, parentId, title, onClose, onSuccess }:
           )}
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            {showDrivePicker && (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-stone-700">Target Drive</label>
+                <select
+                  value={selectedDriveId}
+                  onChange={(e) => setSelectedDriveId(e.target.value)}
+                  className="px-3 py-2 bg-card border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
+                >
+                  <option value="">Select a drive…</option>
+                  {(drives ?? []).map((drive, i) => (
+                    <option key={drive.id} value={drive.id}>
+                      {drive.email} ({i + 1})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-stone-700">
                 {entityLabel} name
@@ -95,7 +139,7 @@ export function CreateFolderModal({ open, parentId, title, onClose, onSuccess }:
               <button
                 type="submit"
                 className="flex items-center justify-center min-w-[100px] px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={loading}
+                disabled={loading || (showDrivePicker && !selectedDriveId)}
               >
                 {loading ? (
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />

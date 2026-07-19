@@ -201,6 +201,11 @@ export const api = {
     request<{ success: boolean }>(`/api/drives/${driveId}/folders/${googleFolderId}/star`, { method: 'POST' }),
   unstarDriveFolder: (driveId: string, googleFolderId: string) =>
     request<{ success: boolean }>(`/api/drives/${driveId}/folders/${googleFolderId}/unstar`, { method: 'POST' }),
+  createDriveFolder: (driveId: string, name: string, parentGoogleFolderId?: string) =>
+    request<{ success: boolean; googleFolderId: string }>(`/api/drives/${driveId}/folders`, {
+      method: 'POST',
+      body: JSON.stringify({ name, parentId: parentGoogleFolderId }),
+    }),
   renameDriveFolder: (driveId: string, googleFolderId: string, name: string) =>
     request<{ success: boolean }>(`/api/drives/${driveId}/folders/${googleFolderId}/rename`, {
       method: 'PATCH',
@@ -217,7 +222,7 @@ export const api = {
     request<{ folder: DriveFolder | null; subfolders: DriveFolder[]; files: FileEntry[]; breadcrumb: BreadcrumbItem[] }>(`/api/drives/${driveId}/shared-folders/${folderId}`),
 
   // Starred Files
-  getStarred: () => request<{ files: FileEntry[], folders: WorkspaceFolder[] }>('/api/files/starred'),
+  getStarred: () => request<{ files: FileEntry[], folders: WorkspaceFolder[], driveFolders: DriveFolder[] }>('/api/files/starred'),
   starFile: (id: string) => request<{ success: boolean }>(`/api/files/${id}/star`, { method: 'POST' }),
   unstarFile: (id: string) => request<{ success: boolean }>(`/api/files/${id}/unstar`, { method: 'POST' }),
   starFolder: (id: string) => request<{ success: boolean }>(`/api/folders/${id}/star`, { method: 'POST' }),

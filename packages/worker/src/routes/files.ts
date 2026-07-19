@@ -210,10 +210,21 @@ filesRouter.get('/starred', async (c) => {
     'SELECT f.*, w.name as ws_name FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id JOIN workspaces w ON f.workspace_id = w.id WHERE wm.user_id = ? AND f.is_starred = 1 ORDER BY f.updated_at DESC'
   ).bind(userId).all();
 
-  // Need to import mapFolderRow if not already
+  // Also fetch starred Google Drive folders (drive_folders table).
+  // Previously these were omitted, so starring a Drive folder had no visible
+  // effect on the Starred page.
+  const { results: driveFolderRows } = await db.prepare(
+    'SELECT df.*, d.email as driveEmail FROM drive_folders df JOIN drive_accounts d ON df.drive_account_id = d.id WHERE d.user_id = ? AND df.is_starred = 1 AND df.is_trashed = 0 ORDER BY df.synced_at DESC'
+  ).bind(userId).all();
+
   return c.json({
     files: fileRows.map((r) => ({ ...mapFileRow(r), driveEmail: r.driveEmail })),
     folders: folderRows.map(mapFolderRow),
+    driveFolders: driveFolderRows.map((r) => ({
+      ...mapDriveFolderRow(r),
+      driveEmail: r.driveEmail,
+      isStarred: true,
+    })),
   });
 });
 

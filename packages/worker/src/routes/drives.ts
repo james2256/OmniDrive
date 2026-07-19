@@ -528,6 +528,27 @@ drivesRouter.delete('/:driveId/folders/:googleFolderId/permanent', async (c) => 
   return c.json({ success: true });
 });
 
+// Create a Google Drive folder (optionally inside a parent folder)
+drivesRouter.post('/:driveId/folders', async (c) => {
+  const userId = c.get('userId');
+  const { driveId } = c.req.param();
+  const body = await c.req.json();
+  const { name, parentId } = body;
+  const db = c.env.DB;
+
+  if (!name || typeof name !== 'string' || !name.trim()) {
+    throw new AppError(400, 'Folder name is required');
+  }
+
+  const drive = await db.prepare('SELECT id FROM drive_accounts WHERE id = ? AND user_id = ?').bind(driveId, userId).first();
+  if (!drive) throw new AppError(404, 'Drive not found');
+
+  const driveService = new GoogleDriveService(db, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+  const googleFolderId = await driveService.createFolder(driveId, name.trim(), parentId || undefined);
+
+  return c.json({ success: true, googleFolderId });
+});
+
 // Star a Google Drive folder
 drivesRouter.post('/:driveId/folders/:googleFolderId/star', async (c) => {
   const userId = c.get('userId');
