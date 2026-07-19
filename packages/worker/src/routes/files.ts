@@ -11,6 +11,16 @@ import { UploadRouter } from '../services/upload-router';
 import { AutomationEngine } from '../services/automation.service';
 import { PolicyService } from '../services/policy.service';
 import { mapFileRow, mapFolderRow, mapDriveFolderRow, type FileRow } from '../types';
+import { zValidator } from '@hono/zod-validator';
+import {
+  renameFileSchema,
+  moveFileSchema,
+  moveDriveFileSchema,
+  uploadInitSchema,
+  uploadFinalizeSchema,
+  fileMetadataSchema,
+  zodErrorHook,
+} from '../lib/schemas';
 
 export const filesRouter = new Hono<AppContext>({ strict: false });
 
@@ -250,12 +260,10 @@ filesRouter.delete('/:id', async (c) => {
 });
 
 // Rename file
-filesRouter.patch('/:id/rename', async (c) => {
+filesRouter.patch('/:id/rename', zValidator('json', renameFileSchema, zodErrorHook), async (c) => {
   const userId = c.get('userId');
   const fileId = c.req.param('id');
-  const { name } = await c.req.json();
-
-  if (!name) throw new AppError(400, 'Name is required');
+  const { name } = c.req.valid('json');
 
   await c.env.DB.prepare('UPDATE files SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?')
     .bind(name, fileId, userId).run();
@@ -264,12 +272,12 @@ filesRouter.patch('/:id/rename', async (c) => {
 });
 
 // Move file to different virtual folder
-filesRouter.patch('/:id/move', async (c) => {
+filesRouter.patch('/:id/move', zValidator('json', moveFileSchema, zodErrorHook), async (c) => {
   const userId = c.get('userId');
   const fileId = c.req.param('id');
-  const { workspaceFolderId } = await c.req.json();
+  const { workspaceFolderId } = c.req.valid('json');
 
-  const folder = await c.env.DB.prepare('SELECT f.workspace_id FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ? WHERE f.id = ?').bind(userId, workspaceFolderId).first() as { workspace_id: string }; // ponytail: L10 — verify target-workspace membership
+  const folder = await c.env.DB.prepare('SELECT f.workspace_id FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ? WHERE f.id = ?').bind(userId, workspaceFolderId).first() as { workspace_id: string };
   if (!folder && workspaceFolderId) throw new AppError(404, 'Folder not found');
 
   await c.env.DB.prepare('UPDATE files SET workspace_folder_id = ?, workspace_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?')
@@ -279,15 +287,10 @@ filesRouter.patch('/:id/move', async (c) => {
 });
 
 // Move file to another drive
-filesRouter.post('/:id/move-drive', async (c) => {
+filesRouter.post('/:id/move-drive', zValidator('json', moveDriveFileSchema, zodErrorHook), async (c) => {
   const userId = c.get('userId');
   const fileId = c.req.param('id');
-  const body = await c.req.json();
-  const targetDriveId = body.targetDriveId;
-
-  if (typeof targetDriveId !== 'string' || !targetDriveId.trim()) {
-    throw new AppError(400, 'Target drive ID must be a non-empty string');
-  }
+  const { targetDriveId } = c.req.valid('json');
 
   const db = c.env.DB;
 
@@ -425,12 +428,12 @@ filesRouter.put('/upload/proxy', async (c) => {
   });
 });
 
-filesRouter.post('/upload/init', async (c) => {
+filesRouter.post('/upload/init', zValidator('json', uploadInitSchema, zodErrorHook), async (c) => {
   const userId = c.get('userId');
   // parentFolderId is the Google Drive folder id the user is currently viewing
   // ('root' at top level), NOT a workspace_folders id. It controls where the
   // resumable upload's `parents` point, so files land in the right Drive folder.
-  const { name, mimeType, size, parentFolderId, workspaceId, driveAccountId } = await c.req.json();
+  const { name, mimeType, size, parentFolderId, workspaceId, driveAccountId } = c.req.valid('json');
   const db = c.env.DB;
 
   if (workspaceId) {
@@ -493,7 +496,7 @@ filesRouter.post('/upload/init', async (c) => {
   });
 });
 
-filesRouter.post('/upload/finalize', async (c) => {
+filesRouter.post('/upload/finalize', zValidator('json', uploadFinalizeSchema, zodErrorHook), async (c) => {
   const userId = c.get('userId');
   // parentFolderId is the Google Drive folder id ('root' at top level) the file
   // was uploaded into. It goes into files.google_parent_id so the file appears in
@@ -501,11 +504,7 @@ filesRouter.post('/upload/finalize', async (c) => {
   // Do NOT put it in workspace_folder_id — that column is FK→workspace_folders and
   // 'root'/a Google folder id is not a workspace folder, which throws a FK
   // constraint violation (the previous 500 root cause).
-  const { googleFileId, driveAccountId, parentFolderId, workspaceFolderId, workspaceId } = await c.req.json();
-
-  if (!googleFileId || !driveAccountId) {
-    throw new AppError(400, 'Missing required fields: googleFileId, driveAccountId');
-  }
+  const { googleFileId, driveAccountId, parentFolderId, workspaceFolderId, workspaceId } = c.req.valid('json');
 
   // Verify drive belongs to user
   const db = c.env.DB;
@@ -682,10 +681,10 @@ filesRouter.delete('/:id/permanent', async (c) => {
   return c.json({ success: true });
 });
 
-filesRouter.patch('/:id/metadata', async (c) => {
+filesRouter.patch('/:id/metadata', zValidator('json', fileMetadataSchema, zodErrorHook), async (c) => {
   const userId = c.get('userId');
   const fileId = c.req.param('id');
-  const { metadata } = await c.req.json();
+  const { metadata } = c.req.valid('json');
   const db = c.env.DB;
 
   const file = await db.prepare('SELECT user_id, workspace_id FROM files WHERE id = ?').bind(fileId).first<{ user_id: string; workspace_id: string }>();

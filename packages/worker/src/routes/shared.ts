@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { getCookie, setCookie } from 'hono/cookie';
 import { sign, verify } from 'hono/jwt';
+import { zValidator } from '@hono/zod-validator';
 
 import type { AppContext } from '../types/env';
 import { authGuard } from '../middleware/auth-guard';
@@ -10,6 +11,13 @@ import { generateId } from '../lib/id';
 import { GoogleDriveService } from '../services/google-drive';
 import { validateWebhookUrlAsync } from '../lib/validation';
 import { hashSharedPassword, verifySharedPassword } from '../lib/password';
+import {
+  createSharedLinkSchema,
+  updateSharedLinkSchema,
+  sharedLinkVerifySchema,
+  sharedLinkEmailSchema,
+  zodErrorHook,
+} from '../lib/schemas';
 
 
 export const sharedRouter = new Hono<AppContext>({ strict: false });
@@ -57,20 +65,9 @@ async function validateSharedLink(c: Context<AppContext>, link: SharedLink): Pro
 
 // ─── Management Endpoints (Require Auth) ───
 
-sharedRouter.post('/', authGuard, async (c) => {
+sharedRouter.post('/', authGuard, zValidator('json', createSharedLinkSchema, zodErrorHook), async (c) => {
   const userId = c.get('userId');
-  
-  let body;
-  try {
-    body = await c.req.json();
-  } catch {
-    return c.json({ error: 'Invalid JSON body' }, 400);
-  }
-
-  const { targetType, targetId, password, expiresAt, allowDownloads = true, allowUploads = false, maxDownloads = null, requireEmail = false, webhookUrl = null } = body;
-  if (!targetType || !targetId) {
-    return c.json({ error: 'targetType and targetId are required' }, 400);
-  }
+  const { targetType, targetId, password, expiresAt, allowDownloads, allowUploads, maxDownloads, requireEmail, webhookUrl } = c.req.valid('json');
 
   // ponytail: allowUploads not yet implemented — refuse to store a false promise
   if (allowUploads) {
@@ -152,33 +149,26 @@ sharedRouter.get('/', authGuard, async (c) => {
   return c.json({ links: results.map(mapSharedLinkRow) });
 });
 
-sharedRouter.put('/:id', authGuard, async (c) => {
+sharedRouter.put('/:id', authGuard, zValidator('json', updateSharedLinkSchema, zodErrorHook), async (c) => {
   const userId = c.get('userId');
   const id = c.req.param('id');
-  
-  let body;
-  try {
-    body = await c.req.json();
-  } catch {
-    return c.json({ error: 'Invalid JSON body' }, 400);
-  }
+  const body = c.req.valid('json');
 
   const db = c.env.DB;
-  
+
   const existing = await db.prepare('SELECT * FROM shared_links WHERE id = ? AND user_id = ?').bind(id, userId).first();
   if (!existing) {
     return c.json({ error: 'Link not found' }, 404);
   }
 
-  const {
-    expiresAt = existing.expires_at,
-    allowDownloads = existing.allow_downloads === 1,
-    allowUploads = existing.allow_uploads === 1,
-    maxDownloads = existing.max_downloads,
-    requireEmail = existing.require_email === 1,
-    webhookUrl = existing.webhook_url,
-    password
-  } = body;
+  // Fall back to existing DB values for fields not provided in the request body.
+  const expiresAt = body.expiresAt ?? existing.expires_at;
+  const allowDownloads = body.allowDownloads ?? (existing.allow_downloads === 1);
+  const allowUploads = body.allowUploads ?? (existing.allow_uploads === 1);
+  const maxDownloads = body.maxDownloads ?? existing.max_downloads;
+  const requireEmail = body.requireEmail ?? (existing.require_email === 1);
+  const webhookUrl = body.webhookUrl ?? existing.webhook_url;
+  const password = body.password;
 
   // ponytail: allowUploads not yet implemented — refuse to store a false promise
   if (allowUploads) {
@@ -186,7 +176,7 @@ sharedRouter.put('/:id', authGuard, async (c) => {
   }
 
   if (webhookUrl && webhookUrl !== existing.webhook_url) {
-    const webhookError = await validateWebhookUrlAsync(webhookUrl);
+    const webhookError = await validateWebhookUrlAsync(webhookUrl as string);
     if (webhookError) return c.json({ error: webhookError }, 400);
   }
   
@@ -268,19 +258,10 @@ sharedRouter.get('/:id/meta', async (c) => {
   }
 });
 
-sharedRouter.post('/:id/verify', async (c) => {
+sharedRouter.post('/:id/verify', zValidator('json', sharedLinkVerifySchema, zodErrorHook), async (c) => {
   const id = c.req.param('id');
-  
-  let body;
-  try {
-    body = await c.req.json();
-  } catch {
-    return c.json({ error: 'Invalid JSON body' }, 400);
-  }
-  
-  const { password } = body;
-  if (!password) return c.json({ error: 'Password is required' }, 400);
-  
+  const { password } = c.req.valid('json');
+
   const db = c.env.DB;
   
   const row = await db.prepare('SELECT * FROM shared_links WHERE id = ?').bind(id).first();
@@ -320,18 +301,9 @@ sharedRouter.post('/:id/verify', async (c) => {
 });
 
 // Email gate for requireEmail links — ponytail: no password needed, just record the email
-sharedRouter.post('/:id/email', async (c) => {
+sharedRouter.post('/:id/email', zValidator('json', sharedLinkEmailSchema, zodErrorHook), async (c) => {
   const id = c.req.param('id');
-  let body;
-  try {
-    body = await c.req.json();
-  } catch {
-    return c.json({ error: 'Invalid JSON body' }, 400);
-  }
-  const { email } = body;
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return c.json({ error: 'Valid email is required' }, 400);
-  }
+  const { email } = c.req.valid('json');
 
   const db = c.env.DB;
   const row = await db.prepare('SELECT * FROM shared_links WHERE id = ?').bind(id).first();

@@ -3,15 +3,17 @@ import { authGuard } from '../middleware/auth-guard';
 import { generateId } from '../lib/id';
 import { encrypt } from '../lib/crypto';
 import { getWorkspaceRole, hasPermission } from '../middleware/rbac';
+import { zValidator } from '@hono/zod-validator';
+import { createS3CredentialsSchema, zodErrorHook } from '../lib/schemas';
 import type { AppContext } from '../types/env';
 
 export const s3CredentialsRouter = new Hono<AppContext>();
 
 s3CredentialsRouter.use('*', authGuard);
 
-s3CredentialsRouter.post('/', async (c) => {
+s3CredentialsRouter.post('/', zValidator('json', createS3CredentialsSchema, zodErrorHook), async (c) => {
   const userId = c.get('userId');
-  const { description, workspaceId } = await c.req.json();
+  const { description, workspaceId } = c.req.valid('json');
   const db = c.env.DB;
 
   if (workspaceId) {

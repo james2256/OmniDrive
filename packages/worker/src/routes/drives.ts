@@ -12,6 +12,14 @@ import { generatePKCE } from '../lib/pkce';
 import { computeDriveQuota } from '../lib/storage-quota';
 import { encrypt } from '../lib/crypto';
 import { resolveGoogleFolderId } from '../lib/drive-folder';
+import { zValidator } from '@hono/zod-validator';
+import {
+  createDriveFolderSchema,
+  renameDriveFolderSchema,
+  serviceAccountSchema,
+  moveWithinDriveSchema,
+  zodErrorHook,
+} from '../lib/schemas';
 import {
   fetchServiceAccountAccessToken,
   parseServiceAccountJson,
@@ -219,14 +227,11 @@ drivesRouter.get('/', async (c) => {
   return c.json({ drives: drivesWithQuota, aggregate });
 });
 
-drivesRouter.post('/service-account', async (c) => {
+drivesRouter.post('/service-account', zValidator('json', serviceAccountSchema, zodErrorHook), async (c) => {
   const userId = c.get('userId');
-  const body = await c.req.json<{ credentials?: string; folderId?: string }>();
-  const credentials = body.credentials?.trim();
-  const folderId = body.folderId?.trim();
-
-  if (!credentials) throw new AppError(400, 'Service account JSON is required');
-  if (!folderId) throw new AppError(400, 'Shared folder ID is required');
+  const { credentials: rawCredentials, folderId: rawFolderId } = c.req.valid('json');
+  const credentials = rawCredentials.trim();
+  const folderId = rawFolderId.trim();
 
   let sa;
   try {
@@ -529,16 +534,11 @@ drivesRouter.delete('/:driveId/folders/:googleFolderId/permanent', async (c) => 
 });
 
 // Create a Google Drive folder (optionally inside a parent folder)
-drivesRouter.post('/:driveId/folders', async (c) => {
+drivesRouter.post('/:driveId/folders', zValidator('json', createDriveFolderSchema, zodErrorHook), async (c) => {
   const userId = c.get('userId');
   const { driveId } = c.req.param();
-  const body = await c.req.json();
-  const { name, parentId } = body;
+  const { name, parentId } = c.req.valid('json');
   const db = c.env.DB;
-
-  if (!name || typeof name !== 'string' || !name.trim()) {
-    throw new AppError(400, 'Folder name is required');
-  }
 
   const drive = await db.prepare('SELECT id FROM drive_accounts WHERE id = ? AND user_id = ?').bind(driveId, userId).first();
   if (!drive) throw new AppError(404, 'Drive not found');
@@ -578,13 +578,11 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/unstar', async (c) => {
 });
 
 // Rename a Google Drive folder
-drivesRouter.patch('/:driveId/folders/:googleFolderId/rename', async (c) => {
+drivesRouter.patch('/:driveId/folders/:googleFolderId/rename', zValidator('json', renameDriveFolderSchema, zodErrorHook), async (c) => {
   const userId = c.get('userId');
   const { driveId, googleFolderId } = c.req.param();
-  const { name } = await c.req.json();
+  const { name } = c.req.valid('json');
   const db = c.env.DB;
-
-  if (!name) return c.json({ error: 'Name is required' }, 400);
 
   const drive = await db.prepare('SELECT id FROM drive_accounts WHERE id = ? AND user_id = ?').bind(driveId, userId).first();
   if (!drive) return c.json({ error: 'Drive not found' }, 404);
@@ -598,10 +596,10 @@ drivesRouter.patch('/:driveId/folders/:googleFolderId/rename', async (c) => {
 });
 
 // Move a file or folder to a different folder within the same drive
-drivesRouter.patch('/:driveId/move/:googleFileId', async (c) => {
+drivesRouter.patch('/:driveId/move/:googleFileId', zValidator('json', moveWithinDriveSchema, zodErrorHook), async (c) => {
   const userId = c.get('userId');
   const { driveId, googleFileId } = c.req.param();
-  const { targetFolderId, oldParentId, isFolder } = await c.req.json();
+  const { targetFolderId, oldParentId, isFolder } = c.req.valid('json');
   const db = c.env.DB;
 
   const drive = await db.prepare('SELECT id, root_folder_id FROM drive_accounts WHERE id = ? AND user_id = ?')

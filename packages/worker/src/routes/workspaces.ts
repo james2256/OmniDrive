@@ -3,7 +3,14 @@ import type { AppContext } from '../types/env';
 import { authGuard } from '../middleware/auth-guard';
 import { generateId } from '../lib/id';
 import { getWorkspaceRole, hasPermission } from '../middleware/rbac';
-import { validateEmail } from '../lib/validation';
+import { zValidator } from '@hono/zod-validator';
+import {
+  createWorkspaceSchema,
+  addWorkspaceMemberSchema,
+  workspacePolicySchema,
+  updateWorkspaceMetadataSchema,
+  zodErrorHook,
+} from '../lib/schemas';
 import { AuditService } from '../services/audit.service';
 
 export const workspacesRouter = new Hono<AppContext>({ strict: false });
@@ -28,14 +35,10 @@ workspacesRouter.get('/', async (c) => {
   return c.json({ workspaces: results });
 });
 
-workspacesRouter.post('/', async (c) => {
+workspacesRouter.post('/', zValidator('json', createWorkspaceSchema, zodErrorHook), async (c) => {
   const userId = c.get('userId');
   const db = c.env.DB;
-  const { name } = await c.req.json<{ name?: string }>();
-
-  if (!name) {
-    return c.json({ error: 'Name is required' }, 400);
-  }
+  const { name } = c.req.valid('json');
 
   const workspaceId = generateId();
   const memberId = generateId();
@@ -55,18 +58,11 @@ workspacesRouter.post('/', async (c) => {
   return c.json({ workspace }, 201);
 });
 
-workspacesRouter.post('/:id/members', async (c) => {
+workspacesRouter.post('/:id/members', zValidator('json', addWorkspaceMemberSchema, zodErrorHook), async (c) => {
   const userId = c.get('userId');
   const db = c.env.DB;
   const workspaceId = c.req.param('id');
-  const { email, role = 'viewer' } = await c.req.json<{ email?: string, role?: string }>();
-
-  if (!email) {
-    return c.json({ error: 'Email is required' }, 400);
-  }
-
-  const emailError = validateEmail(email);
-  if (emailError) return c.json({ error: emailError }, 400);
+  const { email, role } = c.req.valid('json');
 
   const currentUserRole = await getWorkspaceRole(db, workspaceId, userId);
   if (!currentUserRole || !hasPermission(currentUserRole, 'manager')) {
@@ -186,7 +182,7 @@ workspacesRouter.get('/:id/policies', async (c) => {
   return c.json({ policies: results });
 });
 
-workspacesRouter.post('/:id/policies', async (c) => {
+workspacesRouter.post('/:id/policies', zValidator('json', workspacePolicySchema, zodErrorHook), async (c) => {
   const userId = c.get('userId');
   const db = c.env.DB;
   const workspaceId = c.req.param('id');
@@ -196,27 +192,7 @@ workspacesRouter.post('/:id/policies', async (c) => {
     return c.json({ error: 'Forbidden' }, 403);
   }
 
-  const { targetType, targetId, policyType, config } = await c.req.json<{
-    targetType?: 'workspace' | 'folder';
-    targetId?: string;
-    policyType?: 'storage_quota' | 'data_retention';
-    config?: Record<string, unknown>;
-  }>();
-
-  if (!targetType || !policyType || !config) {
-    return c.json({ error: 'Missing required fields' }, 400);
-  }
-
-  // ponytail: validate config.max_bytes is a non-negative number for storage_quota
-  if (policyType === 'storage_quota') {
-    if (typeof config.max_bytes !== 'number' || config.max_bytes < 0 || isNaN(config.max_bytes)) {
-      return c.json({ error: 'config.max_bytes must be a non-negative number' }, 400);
-    }
-  }
-
-  if (policyType === 'storage_quota' && targetType !== 'workspace') {
-    return c.json({ error: 'storage_quota must target a workspace' }, 400);
-  }
+  const { targetType, targetId, policyType, config } = c.req.valid('json');
 
   const policyId = generateId();
 
@@ -246,12 +222,12 @@ workspacesRouter.delete('/:id/policies/:policyId', async (c) => {
   return c.json({ success: true });
 });
 
-workspacesRouter.patch('/:id/folders/:folderId/metadata', async (c) => {
+workspacesRouter.patch('/:id/folders/:folderId/metadata', zValidator('json', updateWorkspaceMetadataSchema, zodErrorHook), async (c) => {
   const userId = c.get('userId');
   const db = c.env.DB;
   const workspaceId = c.req.param('id');
   const folderId = c.req.param('folderId');
-  const { metadata } = await c.req.json();
+  const { metadata } = c.req.valid('json');
 
   const role = await getWorkspaceRole(db, workspaceId, userId);
   if (!role || !hasPermission(role, 'editor')) {

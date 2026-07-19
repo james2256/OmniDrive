@@ -1,28 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validatePassword, validateWebhookUrl } from '../src/lib/validation';
-
-describe('validatePassword', () => {
-  it('rejects passwords shorter than 8 characters', () => {
-    expect(validatePassword('Abc1')).toBe('Password must be at least 8 characters');
-  });
-
-  it('rejects passwords without uppercase letter', () => {
-    expect(validatePassword('abcdefg1')).toBe('Password must contain an uppercase letter');
-  });
-
-  it('rejects passwords without lowercase letter', () => {
-    expect(validatePassword('ABCDEFG1')).toBe('Password must contain a lowercase letter');
-  });
-
-  it('rejects passwords without number', () => {
-    expect(validatePassword('Abcdefgh')).toBe('Password must contain a number');
-  });
-
-  it('accepts valid passwords', () => {
-    expect(validatePassword('Abcdefg1')).toBeNull();
-    expect(validatePassword('StrongP@ss1')).toBeNull();
-  });
-});
+import { validateWebhookUrl } from '../src/lib/validation';
 
 describe('validateWebhookUrl', () => {
   it('rejects non-HTTPS URLs', () => {

@@ -8,6 +8,8 @@ import { syncDriveAccount } from '../services/sync';
 import { GoogleDriveService } from '../services/google-drive';
 import { encodeCursor, decodeCursor } from '../lib/cursor';
 import { syncDriveFolder } from '../services/sync';
+import { zValidator } from '@hono/zod-validator';
+import { createFolderSchema, updateFolderSchema, addFilesToFolderSchema, zodErrorHook } from '../lib/schemas';
 
 export const foldersRouter = new Hono<AppContext>({ strict: false });
 
@@ -201,13 +203,10 @@ foldersRouter.get('/:id?', async (c) => {
   return c.json({ folder: currentFolder, subfolders, files, breadcrumb, pagination: { nextCursor, hasMore } });
 });
 
-foldersRouter.post('/', async (c) => {
+foldersRouter.post('/', zValidator('json', createFolderSchema, zodErrorHook), async (c) => {
   const userId = c.get('userId');
-  const body = await c.req.json();
-  const { name, parentId, icon, color } = body;
+  const { name, parentId, icon, color } = c.req.valid('json');
   const db = c.env.DB;
-
-  if (!name) throw new AppError(400, 'Folder name is required');
 
   if (!parentId) {
     const workspaceId = generateId();
@@ -236,11 +235,10 @@ foldersRouter.post('/', async (c) => {
   return c.json({ id, name, parentId });
 });
 
-foldersRouter.put('/:id', async (c) => {
+foldersRouter.put('/:id', zValidator('json', updateFolderSchema, zodErrorHook), async (c) => {
   const userId = c.get('userId');
   const folderId = c.req.param('id');
-  const body = await c.req.json();
-  const { name, parentId, icon, color } = body;
+  const { name, parentId, icon, color } = c.req.valid('json');
   const db = c.env.DB;
   
   const ws = await db.prepare('SELECT id FROM workspaces WHERE id = ? AND owner_id = ?').bind(folderId, userId).first();
@@ -322,13 +320,11 @@ foldersRouter.delete('/:id', async (c) => {
   return c.json({ success: true });
 });
 
-foldersRouter.post('/:id/files', async (c) => {
+foldersRouter.post('/:id/files', zValidator('json', addFilesToFolderSchema, zodErrorHook), async (c) => {
   const folderId = c.req.param('id');
   const userId = c.get('userId');
   const db = c.env.DB;
-  const { fileIds } = await c.req.json<{ fileIds: string[] }>();
-  
-  if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) return c.json({ success: true });
+  const { fileIds } = c.req.valid('json');
   
   const ws = await db.prepare('SELECT w.id FROM workspaces w JOIN workspace_members wm ON w.id = wm.workspace_id WHERE w.id = ? AND wm.user_id = ?').bind(folderId, userId).first();
   let workspaceId = folderId;

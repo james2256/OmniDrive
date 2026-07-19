@@ -1,16 +1,13 @@
-export function validatePassword(password: string): string | null {
-  if (password.length < 8) return 'Password must be at least 8 characters';
-  if (!/[A-Z]/.test(password)) return 'Password must contain an uppercase letter';
-  if (!/[a-z]/.test(password)) return 'Password must contain a lowercase letter';
-  if (!/[0-9]/.test(password)) return 'Password must contain a number';
-  return null;
-}
-
-export function validateEmail(email: string): string | null {
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Invalid email format';
-  return null;
-}
-
+/**
+ * SSRF guard for webhook URLs. Kept as a standalone module (rather than inlined
+ * into a Zod refine) because:
+ *   1. The private-IP range checks are too complex for a declarative schema
+ *   2. The async variant resolves DNS over HTTPS — Zod's refine is sync-only
+ *
+ * Zod schemas in `schemas.ts` call `validateWebhookUrl` via `.refine()` for the
+ * synchronous format/range checks. Routes still call `validateWebhookUrlAsync`
+ * after Zod validation passes, for the async DNS-rebinding check.
+ */
 export function validateWebhookUrl(url: string): string | null {
   let parsed: URL;
   try {

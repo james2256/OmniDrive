@@ -7,7 +7,8 @@ import { AuthService } from '../services/auth.service';
 import { AppError } from '../middleware/error-handler';
 import { generateId } from '../lib/id';
 import { authGuard } from '../middleware/auth-guard';
-import { validatePassword, validateEmail } from '../lib/validation';
+import { zValidator } from '@hono/zod-validator';
+import { registerSchema, loginSchema, changePasswordSchema, zodErrorHook } from '../lib/schemas';
 import { generatePKCE } from '../lib/pkce';
 import { encrypt } from '../lib/crypto';
 import { syncDriveAccount } from '../services/sync';
@@ -23,12 +24,8 @@ authRouter.get('/setup-status', async (c) => {
   return c.json({ isSetup: (result?.count || 0) > 0 });
 });
 
-authRouter.post('/register', async (c) => {
-  const { name, username, password, email, invitation_code } = await c.req.json();
-  if (!username || !password) throw new AppError(400, 'Username and password required');
-
-  const passwordError = validatePassword(password);
-  if (passwordError) throw new AppError(400, passwordError);
+authRouter.post('/register', zValidator('json', registerSchema, zodErrorHook), async (c) => {
+  const { name, username, password, email, invitation_code } = c.req.valid('json');
 
   const db = c.env.DB;
 
@@ -40,8 +37,6 @@ authRouter.post('/register', async (c) => {
   if (existing) throw new AppError(400, 'Username already exists');
 
   if (email) {
-    const emailError = validateEmail(email);
-    if (emailError) throw new AppError(400, emailError);
     const existingEmail = await db.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
     if (existingEmail) throw new AppError(400, 'Email already exists');
   }
@@ -88,9 +83,8 @@ authRouter.post('/register', async (c) => {
   return c.json({ success: true, user: sessionData, isSuperAdmin: !!isSuperAdmin });
 });
 
-authRouter.post('/login', async (c) => {
-  const { username, password } = await c.req.json();
-  if (!username || !password) throw new AppError(400, 'Username and password required');
+authRouter.post('/login', zValidator('json', loginSchema, zodErrorHook), async (c) => {
+  const { username, password } = c.req.valid('json');
 
   const user = await c.env.DB.prepare('SELECT id, username, password_hash, email, name, avatar_url, is_super_admin FROM users WHERE username = ?').bind(username).first() as UserRow;
   if (!user || !(await verifyPassword(password, user.password_hash))) {
@@ -230,14 +224,8 @@ authRouter.get('/me', authGuard, (c) => {
 
 // Change password for the authenticated user (admin or member).
 // Requires current password; revokes all other sessions, keeps this one.
-authRouter.post('/change-password', authGuard, async (c) => {
-  const { currentPassword, newPassword } = await c.req.json();
-  if (!currentPassword || !newPassword) {
-    throw new AppError(400, 'Current password and new password are required');
-  }
-
-  const passwordError = validatePassword(newPassword);
-  if (passwordError) throw new AppError(400, passwordError);
+authRouter.post('/change-password', authGuard, zValidator('json', changePasswordSchema, zodErrorHook), async (c) => {
+  const { currentPassword, newPassword } = c.req.valid('json');
 
   if (currentPassword === newPassword) {
     throw new AppError(400, 'New password must be different from current password');

@@ -4,7 +4,8 @@ import { authGuard } from '../middleware/auth-guard';
 import { AppError } from '../middleware/error-handler';
 import { generateId } from '../lib/id';
 import { hashPassword } from '../lib/password';
-import { validatePassword, validateEmail } from '../lib/validation';
+import { zValidator } from '@hono/zod-validator';
+import { createInvitationSchema, adminCreateUserSchema, zodErrorHook } from '../lib/schemas';
 
 export const adminRouter = new Hono<AppContext>({ strict: false });
 
@@ -25,16 +26,13 @@ adminRouter.get('/invitations', async (c) => {
   return c.json({ invitations: results });
 });
 
-adminRouter.post('/invitations', async (c) => {
-  const { code, max_uses } = await c.req.json();
+adminRouter.post('/invitations', zValidator('json', createInvitationSchema, zodErrorHook), async (c) => {
+  const { code, max_uses } = c.req.valid('json');
 
   // ponytail: server-generates a high-entropy code when none given; user-supplied
   // codes must be >= 12 chars so short guessable invites can't be brute-forced.
   let finalCode: string;
   if (code) {
-    if (typeof code !== 'string' || code.trim().length < 12) {
-      throw new AppError(400, 'Invitation code must be at least 12 characters');
-    }
     finalCode = code.trim();
   } else {
     finalCode = generateId().replace(/-/g, '');
@@ -70,18 +68,13 @@ adminRouter.get('/users', async (c) => {
   return c.json({ users: results.map(u => ({ ...u, role: u.role ? 'super_admin' : 'member', status: 'active' })) });
 });
 
-adminRouter.post('/users', async (c) => {
-  const { name, username, password, email, role } = await c.req.json();
-  if (!username || !password) throw new AppError(400, 'Username and password required');
-  const passwordError = validatePassword(password);
-  if (passwordError) throw new AppError(400, passwordError);
+adminRouter.post('/users', zValidator('json', adminCreateUserSchema, zodErrorHook), async (c) => {
+  const { name, username, password, email, role } = c.req.valid('json');
 
   const existing = await c.env.DB.prepare('SELECT id FROM users WHERE username = ?').bind(username).first();
   if (existing) throw new AppError(400, 'Username already exists');
 
   if (email) {
-    const emailError = validateEmail(email);
-    if (emailError) throw new AppError(400, emailError);
     const existingEmail = await c.env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
     if (existingEmail) throw new AppError(400, 'Email already exists');
   }
