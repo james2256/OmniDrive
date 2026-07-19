@@ -105,12 +105,14 @@ export function SearchPage() {
             files={results}
             subfolders={[]}
             getDriveInfo={getDriveInfo}
-            onShare={(id, type) => setShareTarget({ id, type })}
-            onMoveDrive={(file) => setMoveDriveFiles([file])}
-            onPreviewFile={setPreviewFile}
-            onToggleStar={handleToggleStar}
             isTargetShared={isTargetShared}
             viewMode="list"
+            actions={{
+              onShare: (id, type) => setShareTarget({ id, type }),
+              onMoveDrive: (file) => setMoveDriveFiles([file]),
+              onPreviewFile: setPreviewFile,
+              onToggleStar: handleToggleStar,
+            }}
           />
         </div>
       ) : (

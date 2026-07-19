@@ -399,12 +399,14 @@ export function DashboardPage() {
                   if (index === -1) return { drive: drives[0] || null, index: 0 };
                   return { drive: drives[index], index };
                 }}
-                onShare={(id, type) => setShareTarget({ id, type })}
-                onMoveDrive={(file) => setMoveDriveFiles([file])}
-                onPreviewFile={setPreviewFile}
-                onToggleStar={handleToggleStar}
                 isTargetShared={isTargetShared}
                 viewMode="list"
+                actions={{
+                  onShare: (id, type) => setShareTarget({ id, type }),
+                  onMoveDrive: (file) => setMoveDriveFiles([file]),
+                  onPreviewFile: setPreviewFile,
+                  onToggleStar: handleToggleStar,
+                }}
               />
             ) : (
               <div className="p-8 text-center">

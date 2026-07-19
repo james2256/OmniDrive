@@ -1,6 +1,4 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import type { FileGrid } from '../components/files/FileGrid';
-import type { ComponentProps } from 'react';
 import { api } from '../lib/api';
 import type { WorkspaceFolder, FileEntry, DriveFolder, BreadcrumbItem, DriveAccount } from '../types';
 import { WorkspaceSidebar } from '../components/workspaces/WorkspaceSidebar';
@@ -19,9 +17,6 @@ export function WorkspacesPage() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [retentionTargetId, setRetentionTargetId] = useState<string | null>(null);
   const [createModal, setCreateModal] = useState<{ parentId: string | null; title: string } | null>(null);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(false);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const addToast = useToastStore(state => state.addToast);
   const { clearSelection, toggleSelection } = useSelectionStore();
   const setIsInfoPanelOpen = useUIStore(s => s.setIsInfoPanelOpen);
@@ -37,29 +32,15 @@ export function WorkspacesPage() {
     }
   }, [addToast]);
 
-  const fetchContents = useCallback(async (folderId: string, cursor?: string, isStale?: () => boolean) => {
+  const fetchContents = useCallback(async (folderId: string, isStale?: () => boolean) => {
     try {
-      if (cursor) setIsLoadingMore(true);
-      const res = await api.getFolderContents(folderId, cursor);
-      
+      const res = await api.getFolderContents(folderId);
       if (isStale?.()) return;
-
-      if (cursor) {
-        setFiles(prev => [...prev, ...res.files]);
-      } else {
-        setFiles(res.files);
-        setSubfolders(res.subfolders);
-      }
-      
-      setNextCursor(res.pagination?.nextCursor || null);
-      setHasMore(res.pagination?.hasMore || false);
+      setFiles(res.files);
+      setSubfolders(res.subfolders);
     } catch {
       if (isStale?.()) return;
       addToast('error', 'Failed to load folder contents');
-    } finally {
-      if (!isStale?.()) {
-        setIsLoadingMore(false);
-      }
     }
   }, [addToast]);
 
@@ -70,7 +51,7 @@ export function WorkspacesPage() {
   useEffect(() => {
     let ignore = false;
     if (activeFolderId) {
-      fetchContents(activeFolderId, undefined, () => ignore);
+      fetchContents(activeFolderId, () => ignore);
     } else {
       setFiles([]);
       setSubfolders([]);
@@ -193,30 +174,23 @@ export function WorkspacesPage() {
     }
   }, []);
 
-  const loadMore = useCallback(() => {
-    if (!isLoadingMore && hasMore && nextCursor && activeFolderId) {
-      fetchContents(activeFolderId, nextCursor);
-    }
-  }, [isLoadingMore, hasMore, nextCursor, activeFolderId, fetchContents]);
-
   const fileTabProps = useMemo(() => ({
     files,
     subfolders,
     getDriveInfo,
-    onNavigateFolder: setActiveFolderId,
-    onPreviewFile,
-    onShare,
-    onRenameFile,
-    onDeleteFile,
-    onMoveDrive,
-    onToggleStar,
     isTargetShared,
     errorDrives,
-    onViewInfo: handleViewInfo,
-    onSetRetentionPolicy: handleSetRetentionPolicy,
-    loadMore,
-    hasMore,
-    isLoadingMore
+    actions: {
+      onNavigateFolder: setActiveFolderId,
+      onPreviewFile,
+      onShare,
+      onRenameFile,
+      onDeleteFile,
+      onMoveDrive,
+      onToggleStar,
+      onViewInfo: handleViewInfo,
+      onSetRetentionPolicy: handleSetRetentionPolicy,
+    },
   }), [
     files,
     subfolders,
@@ -231,9 +205,6 @@ export function WorkspacesPage() {
     errorDrives,
     handleViewInfo,
     handleSetRetentionPolicy,
-    loadMore,
-    hasMore,
-    isLoadingMore
   ]);
 
   return (
@@ -259,7 +230,7 @@ export function WorkspacesPage() {
         onCreateRootFolder={() => openCreateModal(null)}
         onSync={handleSync}
         isSyncing={isSyncing}
-        fileTabProps={fileTabProps as ComponentProps<typeof FileGrid>}
+        fileTabProps={fileTabProps}
         onToggleSidebar={() => setWsSidebarOpen(true)}
       />
       <CreateFolderModal

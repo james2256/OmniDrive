@@ -80,12 +80,14 @@ export function StarredPage() {
         <div className="bg-card rounded-xl border border-stone-200 overflow-hidden">
           <FileGrid
             files={files}
-            subfolders={folders.map((f) => ({ ...f, googleFolderId: '', driveAccountId: '', isSynced: true }))}
+            subfolders={folders}
             getDriveInfo={getDriveInfo}
             isTargetShared={() => false}
             viewMode="list"
-            onToggleStar={handleToggleStar}
-            onPreviewFile={setPreviewFile}
+            actions={{
+              onToggleStar: handleToggleStar,
+              onPreviewFile: setPreviewFile,
+            }}
           />
         </div>
       ) : (

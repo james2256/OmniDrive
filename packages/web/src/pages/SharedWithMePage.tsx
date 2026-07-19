@@ -179,17 +179,19 @@ export function SharedWithMePage() {
               files={files}
               subfolders={subfolders}
               getDriveInfo={getDriveInfo}
-              onNavigateFolder={(id, driveId) => navigate(`/shared-with-me/${id}?driveId=${driveId}`)}
-              onPreviewFile={setPreviewFile}
-              onShare={(id, type) => setShareTarget({ id, type })}
-              onRenameFile={handleRenameFile}
-              onRenameFolder={handleRenameFolder}
-              onDeleteFile={handleDeleteFile}
-              onDeleteFolder={handleDeleteFolder}
-              onViewInfo={handleViewInfo}
-              onToggleStar={handleToggleStar}
               isTargetShared={() => false}
               viewMode="list"
+              actions={{
+                onNavigateFolder: (id, driveId) => navigate(`/shared-with-me/${id}?driveId=${driveId}`),
+                onPreviewFile: setPreviewFile,
+                onShare: (id, type) => setShareTarget({ id, type }),
+                onRenameFile: handleRenameFile,
+                onRenameFolder: handleRenameFolder,
+                onDeleteFile: handleDeleteFile,
+                onDeleteFolder: handleDeleteFolder,
+                onViewInfo: handleViewInfo,
+                onToggleStar: handleToggleStar,
+              }}
             />
           </div>
         ) : (

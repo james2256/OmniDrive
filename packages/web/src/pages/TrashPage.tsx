@@ -97,16 +97,16 @@ export function TrashPage() {
             files={fileResults}
             subfolders={folderResults}
             getDriveInfo={getDriveInfo}
-            onShare={() => {}}
-            onMoveDrive={() => {}}
-            onPreviewFile={setPreviewFile}
             isTargetShared={() => false}
             viewMode="list"
             isTrashView={true}
-            onRestore={handleRestore}
-            onPermanentDelete={handlePermanentDelete}
-            onRestoreFolder={handleRestoreFolder}
-            onPermanentDeleteFolder={handlePermanentDeleteFolder}
+            actions={{
+              onPreviewFile: setPreviewFile,
+              onRestore: handleRestore,
+              onPermanentDelete: handlePermanentDelete,
+              onRestoreFolder: handleRestoreFolder,
+              onPermanentDeleteFolder: handlePermanentDeleteFolder,
+            }}
           />
         </div>
       ) : (

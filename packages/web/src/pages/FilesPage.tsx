@@ -266,19 +266,21 @@ export function FilesPage() {
               files={filteredFiles}
               subfolders={filteredSubfolders}
               getDriveInfo={getDriveInfo}
-              onNavigateFolder={(id, driveId) => navigate(`/files/${id}?driveId=${driveId}`)}
-              onPreviewFile={setPreviewFile}
-              onShare={(id, type) => setShareTarget({ id, type })}
-              onRenameFile={handleRenameFile}
-              onRenameFolder={handleRenameFolder}
-              onDeleteFile={handleDeleteFile}
-              onDeleteFolder={handleDeleteFolder}
-              onMoveDrive={(file) => setMoveDriveFiles([file])}
-              onAddToWorkspace={setWorkspaceTarget}
-              onViewInfo={handleViewInfo}
-              onToggleStar={handleToggleStar}
               isTargetShared={isTargetShared}
               errorDrives={errorDrives}
+              actions={{
+                onNavigateFolder: (id, driveId) => navigate(`/files/${id}?driveId=${driveId}`),
+                onPreviewFile: setPreviewFile,
+                onShare: (id, type) => setShareTarget({ id, type }),
+                onRenameFile: handleRenameFile,
+                onRenameFolder: handleRenameFolder,
+                onDeleteFile: handleDeleteFile,
+                onDeleteFolder: handleDeleteFolder,
+                onMoveDrive: (file) => setMoveDriveFiles([file]),
+                onAddToWorkspace: setWorkspaceTarget,
+                onViewInfo: handleViewInfo,
+                onToggleStar: handleToggleStar,
+              }}
             />
           </div>
         )}
