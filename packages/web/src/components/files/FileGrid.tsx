@@ -71,6 +71,9 @@ const ItemContextMenuContent: React.FC<{
   onSetRetentionPolicy,
 }) => {
   const file = type === 'file' ? (item as FileEntry) : undefined;
+  const driveFolder = type === 'folder' && item && 'googleFolderId' in item ? item : undefined;
+  const folderItemId = driveFolder ? driveFolder.googleFolderId : id ?? '';
+  const showItemActions = id || driveFolder;
 
   return (
     <ContextMenuContent className="w-48 bg-card border border-stone-200 shadow-xl rounded-xl overflow-hidden py-1">
@@ -128,18 +131,23 @@ const ItemContextMenuContent: React.FC<{
             <ExternalLink className="mr-2 h-4 w-4" /> Open in Google
           </ContextMenuItem>
         )}
+        {driveFolder && (
+          <ContextMenuItem onClick={() => window.open(`https://drive.google.com/drive/folders/${driveFolder.googleFolderId}`, '_blank', 'noopener,noreferrer')}>
+            <ExternalLink className="mr-2 h-4 w-4" /> Open in Google
+          </ContextMenuItem>
+        )}
         {type === 'file' && file && !native && file.webContentLink && (
           <ContextMenuItem onClick={() => window.location.href = `${import.meta.env.VITE_API_URL || ''}/api/files/${file.id}/download`}>
             <Download className="mr-2 h-4 w-4" /> Download
           </ContextMenuItem>
         )}
-        {onToggleStar && id && (
-          <ContextMenuItem onClick={() => onToggleStar(id, type, !!isStarred, item && 'driveAccountId' in item ? item.driveAccountId : undefined)}>
+        {onToggleStar && showItemActions && (
+          <ContextMenuItem onClick={() => onToggleStar(folderItemId, type, !!isStarred, item && 'driveAccountId' in item ? item.driveAccountId : undefined)}>
             <Star className="mr-2 h-4 w-4" /> {isStarred ? 'Remove from Starred' : 'Add to Starred'}
           </ContextMenuItem>
         )}
-        {onShare && id && (
-          <ContextMenuItem onClick={() => onShare(id, type)}>
+        {onShare && showItemActions && (
+          <ContextMenuItem onClick={() => onShare(folderItemId, type)}>
             <Share2 className="mr-2 h-4 w-4" /> Share
           </ContextMenuItem>
         )}
@@ -490,6 +498,8 @@ export const FileGrid: React.FC<FileGridProps> = ({
                 isStarred={isStarred}
                 onToggleStar={onToggleStar}
                 onShare={onShare}
+                onRenameFolder={onRenameFolder}
+                onDeleteFolder={onDeleteFolder}
                 onRestore={onRestore}
                 onPermanentDelete={onPermanentDelete}
                 onRestoreFolder={onRestoreFolder}
@@ -680,6 +690,8 @@ export const FileGrid: React.FC<FileGridProps> = ({
               isStarred={isStarred}
               onToggleStar={onToggleStar}
               onShare={onShare}
+              onRenameFolder={onRenameFolder}
+              onDeleteFolder={onDeleteFolder}
               onRestore={onRestore}
               onPermanentDelete={onPermanentDelete}
               onRestoreFolder={onRestoreFolder}
