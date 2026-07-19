@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { HardDrive, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
-import { useDriveStore } from '../stores/driveStore';
+import { useDrives } from '../hooks/useDrives';
 import { api } from '../lib/api';
 import type { FileEntry, DriveAccount } from '../types';
 import { formatFileSize } from '../lib/utils';
@@ -15,7 +15,8 @@ interface MoveDriveModalProps {
 }
 
 export function MoveDriveModal({ files, onClose, onSuccess, onError }: MoveDriveModalProps) {
-  const { drives } = useDriveStore();
+  const { data: drivesData } = useDrives();
+  const drives = drivesData?.drives ?? [];
   const addToast = useToastStore((s) => s.addToast);
   const [isMoving, setIsMoving] = useState(false);
   const [movingToDriveId, setMovingToDriveId] = useState<string | null>(null);

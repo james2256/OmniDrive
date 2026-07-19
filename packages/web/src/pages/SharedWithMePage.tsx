@@ -1,68 +1,75 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight } from 'lucide-react';
-import { useDriveStore } from '../stores/driveStore';
 import { useToastStore } from '../stores/toastStore';
 import { FileGrid } from '../components/files/FileGrid';
 import { BulkActionBar } from '../components/layout/BulkActionBar';
 import { MoveModal } from '../components/MoveModal';
 import { ShareModal } from '../components/ShareModal';
 import { api } from '../lib/api';
+import { useDrives } from '../hooks/useDrives';
 import type { FileEntry, DriveFolder, BreadcrumbItem, WorkspaceFolder } from '../types';
 import type { SelectedItem } from '../stores/useSelectionStore';
 import { useSelectionStore } from '../stores/useSelectionStore';
 import { FilePreviewModal } from '../components/FilePreviewModal';
 
+const sharedWithMeKeys = {
+  list: ['shared-with-me'] as const,
+  folder: (driveId: string, folderId: string) => ['shared-with-me', driveId, folderId] as const,
+};
+
 export function SharedWithMePage() {
   const { folderId } = useParams<{ folderId: string }>();
   const [searchParams] = useSearchParams();
-  const driveIdParam = searchParams.get('driveId');
+  const driveIdParam = searchParams.get('driveId') ?? null;
   const navigate = useNavigate();
 
-  const { drives, fetchDrives } = useDriveStore();
+  const { data: drivesData } = useDrives();
+  const drives = useMemo(() => drivesData?.drives ?? [], [drivesData]);
   const { addToast } = useToastStore();
   const { selectedItems, clearSelection } = useSelectionStore();
+  const queryClient = useQueryClient();
 
-  const [subfolders, setSubfolders] = useState<DriveFolder[]>([]);
-  const [files, setFiles] = useState<FileEntry[]>([]);
-  const [breadcrumb, setBreadcrumb] = useState<BreadcrumbItem[]>([{ id: 'root', name: 'Shared with me' }]);
-  const [isLoading, setIsLoading] = useState(false);
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
   const [shareTarget, setShareTarget] = useState<{ id: string; type: 'file' | 'folder' } | null>(null);
   const [moveTarget, setMoveTarget] = useState<SelectedItem[]>([]);
 
-  const fetchContents = useCallback(async () => {
-    setIsLoading(true);
-    setSubfolders([]);
-    setFiles([]);
-    setBreadcrumb([{ id: 'root', name: 'Shared with me' }]);
+  const queryKey = folderId && driveIdParam
+    ? sharedWithMeKeys.folder(driveIdParam, folderId)
+    : sharedWithMeKeys.list;
 
-    try {
+  const { data, isLoading } = useQuery({
+    queryKey,
+    queryFn: async () => {
       if (!folderId) {
         const data = await api.getSharedWithMe();
-        setSubfolders(data.folders ?? []);
-        setFiles(data.files ?? []);
-      } else if (driveIdParam) {
-        const data = await api.getSharedFolderContents(driveIdParam, folderId);
-        setSubfolders(data.subfolders ?? []);
-        setFiles(data.files ?? []);
-        setBreadcrumb([{ id: 'root', name: 'Shared with me' }, { id: folderId, name: 'Folder' }]);
-      } else {
-        addToast('error', 'Missing drive information for folder');
+        return {
+          subfolders: data.folders ?? [],
+          files: data.files ?? [],
+          breadcrumb: [{ id: 'root', name: 'Shared with me' }] as BreadcrumbItem[],
+        };
       }
-    } catch {
-      addToast('error', 'Failed to load shared items');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [folderId, driveIdParam, addToast]);
+      if (driveIdParam) {
+        const data = await api.getSharedFolderContents(driveIdParam, folderId);
+        return {
+          subfolders: data.subfolders ?? [],
+          files: data.files ?? [],
+          breadcrumb: [{ id: 'root', name: 'Shared with me' }, { id: folderId, name: 'Folder' }] as BreadcrumbItem[],
+        };
+      }
+      throw new Error('Missing drive information for folder');
+    },
+    enabled: !folderId || !!driveIdParam,
+  });
 
-  useEffect(() => {
-    fetchDrives();
-    fetchContents();
-  }, [fetchDrives, fetchContents]);
+  const subfolders: DriveFolder[] = data?.subfolders ?? [];
+  const files: FileEntry[] = data?.files ?? [];
+  const breadcrumb: BreadcrumbItem[] = data?.breadcrumb ?? [{ id: 'root', name: 'Shared with me' }];
 
-  const refresh = () => fetchContents();
+  const refresh = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: sharedWithMeKeys.list });
+  }, [queryClient]);
 
   const handleDeleteFile = async (id: string) => {
     if (confirm('Delete this file permanently from Google Drive?')) {

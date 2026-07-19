@@ -1,87 +1,83 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useDriveStore } from '../stores/driveStore';
-import { useSharedStore } from '../stores/sharedStore';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToastStore } from '../stores/toastStore';
 import { FileGrid } from '../components/files/FileGrid';
 import { ShareModal } from '../components/ShareModal';
 import { MoveDriveModal } from '../components/MoveDriveModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
 import { api } from '../lib/api';
+import { useDrives } from '../hooks/useDrives';
+import { useSharedLinks } from '../hooks/useSharedLinks';
 import type { FileEntry } from '../types';
+
+const searchKeys = {
+  results: (q: string) => ['search', q] as const,
+};
 
 export function SearchPage() {
   const [searchParams] = useSearchParams();
   const query = searchParams.get('q') || '';
-  
-  const { drives } = useDriveStore();
-  const { isTargetShared } = useSharedStore();
+
+  const { data: drivesData } = useDrives();
+  const drives = useMemo(() => drivesData?.drives ?? [], [drivesData]);
   const { addToast } = useToastStore();
-  
-  const [results, setResults] = useState<FileEntry[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  
+  const queryClient = useQueryClient();
+  const { data: sharedLinks = [] } = useSharedLinks();
+
   const [shareTarget, setShareTarget] = useState<{ id: string, type: 'file' | 'folder' } | null>(null);
   const [moveDriveFiles, setMoveDriveFiles] = useState<FileEntry[]>([]);
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
 
-  const fetchResults = useCallback(async (q: string, signal?: AbortSignal) => {
-    if (!q) {
-      setResults([]);
-      return;
-    }
-    setIsLoading(true);
-    try {
-      const data = await api.searchFiles(q);
-      if (signal?.aborted) return;
-      setResults(data.files);
-    } catch {
-      if (signal?.aborted) return;
-      addToast('error', 'Failed to perform search');
-    } finally {
-      if (!signal?.aborted) {
-        setIsLoading(false);
-      }
-    }
-  }, [addToast]);
+  const isTargetShared = useCallback(
+    (id: string, type: 'file' | 'folder') =>
+      sharedLinks.some((link) => link.targetId === id && link.targetType === type),
+    [sharedLinks],
+  );
 
-  useEffect(() => {
-    const controller = new AbortController();
-    fetchResults(query, controller.signal);
-    return () => controller.abort();
-  }, [query, fetchResults]);
+  const { data: results = [], isLoading } = useQuery({
+    queryKey: searchKeys.results(query),
+    queryFn: async () => {
+      if (!query) return [];
+      const data = await api.searchFiles(query);
+      return data.files;
+    },
+    enabled: !!query,
+  });
 
-  const getDriveInfo = useCallback((driveAccountId?: string | null) => {
-    if (!driveAccountId) return { drive: null, index: 0 };
-    const index = drives.findIndex((d) => d.id === driveAccountId);
-    if (index === -1) return { drive: drives[0] || null, index: 0 };
-    return { drive: drives[index], index };
-  }, [drives]);
+  const handleToggleStar = useCallback(
+    (id: string, type: 'file' | 'folder', currentStarStatus: boolean) => {
+      const promise =
+        type === 'file'
+          ? currentStarStatus
+            ? api.unstarFile(id)
+            : api.starFile(id)
+          : currentStarStatus
+            ? api.unstarFolder(id)
+            : api.starFolder(id);
 
-  const handleToggleStar = async (id: string, type: 'file' | 'folder', currentStarStatus: boolean) => {
-    try {
-      if (type === 'file') {
-        if (currentStarStatus) {
-          await api.unstarFile(id);
-          addToast('success', 'File unstarred');
-        } else {
-          await api.starFile(id);
-          addToast('success', 'File starred');
-        }
-      } else {
-        if (currentStarStatus) {
-          await api.unstarFolder(id);
-          addToast('success', 'Folder unstarred');
-        } else {
-          await api.starFolder(id);
-          addToast('success', 'Folder starred');
-        }
-      }
-      fetchResults(query);
-    } catch {
-      addToast('error', 'Failed to update star status');
-    }
-  };
+      promise
+        .then(() => {
+          addToast(
+            'success',
+            `${type === 'file' ? 'File' : 'Folder'} ${currentStarStatus ? 'unstarred' : 'starred'}`,
+          );
+          queryClient.invalidateQueries({ queryKey: searchKeys.results(query) });
+        })
+        .catch(() => addToast('error', 'Failed to update star status'));
+    },
+    [addToast, query, queryClient],
+  );
+
+  const getDriveInfo = useCallback(
+    (driveAccountId?: string | null) => {
+      if (!driveAccountId) return { drive: null, index: 0 };
+      const index = drives.findIndex((d) => d.id === driveAccountId);
+      if (index === -1) return { drive: drives[0] || null, index: 0 };
+      return { drive: drives[index], index };
+    },
+    [drives],
+  );
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
@@ -134,7 +130,7 @@ export function SearchPage() {
           onClose={() => setMoveDriveFiles([])}
           onSuccess={() => {
             setMoveDriveFiles([]);
-            fetchResults(query);
+            queryClient.invalidateQueries({ queryKey: searchKeys.results(query) });
           }}
           onError={(msg) => {
             console.error('Error moving file(s):', msg);

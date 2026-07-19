@@ -1,9 +1,9 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-import { useDriveStore } from '../stores/driveStore';
+import { useDrives } from '../hooks/useDrives';
+import { useSharedLinks } from '../hooks/useSharedLinks';
 import { useAuthStore } from '../stores/authStore';
-import { useSharedStore } from '../stores/sharedStore';
 import { QuotaBar } from '../components/QuotaBar';
 import { FileGrid } from '../components/files/FileGrid';
 import { ShareModal } from '../components/ShareModal';
@@ -68,10 +68,18 @@ function firstName(name?: string | null): string {
 
 export function DashboardPage() {
   const navigate = useNavigate();
-  const { drives, aggregate, isLoading, fetchDrives } = useDriveStore();
+  const { data: drivesData, isLoading } = useDrives();
+  const drives = useMemo(() => drivesData?.drives ?? [], [drivesData]);
+  const aggregate = drivesData?.aggregate;
   const { user } = useAuthStore();
-  const { sharedLinks, fetchSharedLinks, isTargetShared } = useSharedStore();
+  const { data: sharedLinks = [] } = useSharedLinks();
   const { addToast } = useToastStore();
+
+  const isTargetShared = useCallback(
+    (id: string, type: 'file' | 'folder') =>
+      sharedLinks.some((link) => link.targetId === id && link.targetType === type),
+    [sharedLinks],
+  );
 
   const [recentFiles, setRecentFiles] = useState<FileEntry[]>([]);
   const [recentFolders, setRecentFolders] = useState<WorkspaceFolder[]>([]);
@@ -118,17 +126,17 @@ export function DashboardPage() {
   };
 
   useEffect(() => {
-    fetchDrives();
-    fetchSharedLinks();
     refreshRecent();
     refreshCategory();
-  }, [fetchDrives, fetchSharedLinks, refreshRecent, refreshCategory]);
+  }, [refreshRecent, refreshCategory]);
 
   const hasDrives = drives.length > 0;
   const hasRecent = recentFiles.length > 0 || recentFolders.length > 0;
-  const usedPercent = aggregate.totalQuota > 0
-    ? (aggregate.totalUsed / aggregate.totalQuota) * 100
-    : 0;
+  const totalQuota = aggregate?.totalQuota ?? 0;
+  const totalUsed = aggregate?.totalUsed ?? 0;
+  const totalFree = aggregate?.totalFree ?? 0;
+  const driveCount = aggregate?.driveCount ?? drives.length;
+  const usedPercent = totalQuota > 0 ? (totalUsed / totalQuota) * 100 : 0;
 
   // Donut data — only categories with bytes, sorted desc. Others folded in.
   const donutData = useMemo(() => {
@@ -164,14 +172,13 @@ export function DashboardPage() {
           </h1>
           <p className="text-sm text-stone-500 mt-0.5">
             {hasDrives
-              ? `${aggregate.driveCount} drive${aggregate.driveCount > 1 ? 's' : ''} connected · ${formatFileSize(aggregate.totalFree)} free`
+              ? `${driveCount} drive${driveCount > 1 ? 's' : ''} connected · ${formatFileSize(totalFree)} free`
               : 'Connect a Google Drive to get started'}
           </p>
         </div>
         <button
           className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-stone-600 bg-card border border-stone-300 rounded-lg hover:bg-stone-50 transition-colors"
           onClick={() => {
-            fetchDrives();
             refreshRecent();
             refreshCategory();
             addToast('info', 'Refreshed');
@@ -221,22 +228,22 @@ export function DashboardPage() {
           >
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-stone-500">Total storage</span>
-              <span className="text-xs text-stone-400">{aggregate.driveCount} drives</span>
+              <span className="text-xs text-stone-400">{driveCount} drives</span>
             </div>
             <div className="my-4">
               <div className="text-5xl sm:text-6xl font-semibold text-stone-800 tracking-tight leading-none">
                 {usedPercent.toFixed(1)}<span className="text-2xl text-stone-400 ml-1">%</span>
               </div>
               <p className="text-sm text-stone-500 mt-2">
-                {formatFileSize(aggregate.totalUsed)} of {formatFileSize(aggregate.totalQuota)} used
+                {formatFileSize(totalUsed)} of {formatFileSize(totalQuota)} used
               </p>
             </div>
             <div>
-              <QuotaBar used={aggregate.totalUsed} total={aggregate.totalQuota} showLabel={false} />
+              <QuotaBar used={totalUsed} total={totalQuota} showLabel={false} />
               <div className="flex gap-4 mt-3 text-sm">
-                <span className="text-primary font-medium">{formatFileSize(aggregate.totalFree)} free</span>
+                <span className="text-primary font-medium">{formatFileSize(totalFree)} free</span>
                 <span className="text-stone-300">·</span>
-                <span className="text-stone-500">{formatFileSize(aggregate.totalUsed)} used</span>
+                <span className="text-stone-500">{formatFileSize(totalUsed)} used</span>
               </div>
             </div>
           </article>
@@ -282,7 +289,7 @@ export function DashboardPage() {
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                     <span className="text-xs text-stone-400 leading-none">used</span>
                     <span className="text-sm font-semibold text-stone-700 leading-tight mt-0.5">
-                      {formatFileSize(aggregate.totalUsed)}
+                      {formatFileSize(totalUsed)}
                     </span>
                   </div>
                 </div>

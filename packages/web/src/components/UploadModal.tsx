@@ -1,6 +1,6 @@
 import { X, Upload, Check, AlertCircle, Loader } from 'lucide-react';
 import { useUploadStore } from '../stores/uploadStore';
-import { useDriveStore } from '../stores/driveStore';
+import { useDrives } from '../hooks/useDrives';
 import { useToastStore } from '../stores/toastStore';
 import { formatFileSize, getDriveColor } from '../lib/utils';
 import { useState } from 'react';
@@ -16,7 +16,8 @@ interface UploadModalProps {
 
 export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: UploadModalProps) {
   const { queue, isUploading, removeFile, startUpload, clearQueue } = useUploadStore();
-  const { drives } = useDriveStore();
+  const { data: drivesData } = useDrives();
+  const drives = drivesData?.drives ?? [];
   const { addToast } = useToastStore();
   const [selectedDriveId, setSelectedDriveId] = useState<string>(driveId || '');
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useDriveStore } from '../../stores/driveStore';
+import { useDrives } from '../../hooks/useDrives';
 import { formatFileSize } from '../../lib/utils';
 import { api } from '../../lib/api';
 
@@ -10,11 +10,12 @@ interface CategoryData {
 }
 
 export const SidebarStorage: React.FC = () => {
-  const { aggregate } = useDriveStore();
+  const { data: drivesData } = useDrives();
+  const aggregate = drivesData?.aggregate;
   const [data, setData] = useState<CategoryData[]>([]);
 
   useEffect(() => {
-    if (aggregate.totalQuota > 0) {
+    if (aggregate && aggregate.totalQuota > 0) {
       api.getFileCategoryOverview().then((res) => {
         const allCategories = [
           { name: 'Images', value: res.images, color: '#ef4444' },      // red
@@ -43,9 +44,9 @@ export const SidebarStorage: React.FC = () => {
         setData(displayCategories);
       }).catch(console.error);
     }
-  }, [aggregate.totalQuota]);
+  }, [aggregate]);
 
-  if (aggregate.totalQuota === 0) return null;
+  if (!aggregate || aggregate.totalQuota === 0) return null;
 
   const totalPct = Math.min((aggregate.totalUsed / aggregate.totalQuota) * 100, 100);
 

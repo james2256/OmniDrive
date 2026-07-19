@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Calendar, Lock, Settings, ChevronDown, ChevronUp } from 'lucide-react';
 import { updateSharedLink } from '../lib/api';
 import type { SharedLink } from '../lib/api';
-import { useSharedStore } from '../stores/sharedStore';
+import { useInvalidateSharedLinks } from '../hooks/useSharedLinks';
 import { useToastStore } from '../stores/toastStore';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 
@@ -36,6 +36,7 @@ export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const { addToast } = useToastStore();
+  const invalidateSharedLinks = useInvalidateSharedLinks();
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,7 +62,7 @@ export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
         webhookUrl: webhookUrl || undefined
       });
 
-      useSharedStore.getState().fetchSharedLinks();
+      invalidateSharedLinks();
       addToast('success', 'Shared link settings updated successfully');
       onClose();
     } catch (err: unknown) {

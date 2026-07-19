@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Copy, Check, Share2, Calendar, Lock, Settings, ChevronDown, ChevronUp } from 'lucide-react';
 import { createSharedLink } from '../lib/api';
-import { useSharedStore } from '../stores/sharedStore';
+import { useInvalidateSharedLinks } from '../hooks/useSharedLinks';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 
 interface ShareModalProps {
@@ -12,6 +12,7 @@ interface ShareModalProps {
 }
 
 export function ShareModal({ open, targetType, targetId, onClose }: ShareModalProps) {
+  const invalidateSharedLinks = useInvalidateSharedLinks();
   const [password, setPassword] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -62,7 +63,7 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
         webhookUrl: webhookUrl || undefined
       });
       setSharedUrl(resp.url);
-      useSharedStore.getState().fetchSharedLinks();
+      invalidateSharedLinks();
     } catch (err: unknown) {
       setError((err instanceof Error ? err.message : 'Failed to create shared link'));
     } finally {

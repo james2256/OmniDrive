@@ -8,7 +8,7 @@ import { DriveBadge } from '../DriveBadge';
 import { X, File, Folder, Loader2, RefreshCw } from 'lucide-react';
 import { useUIStore } from '../../stores/useUIStore';
 import { useToastStore } from '../../stores/toastStore';
-import { useDriveStore } from '../../stores/driveStore';
+import { useDrives } from '../../hooks/useDrives';
 
 export const InfoPanel: React.FC = () => {
   const selectedItems = useSelectionStore((s) => s.selectedItems);
@@ -20,7 +20,8 @@ export const InfoPanel: React.FC = () => {
   // only called when selectedItems.length === 1).
   const [isSyncing, setIsSyncing] = useState(false);
   const addToast = useToastStore((s) => s.addToast);
-  const { drives } = useDriveStore();
+  const { data: drivesData } = useDrives();
+  const drives = drivesData?.drives ?? [];
 
   const singleSelection = selectedItems.length === 1 ? selectedItems[0] : null;
   const { type, item } = singleSelection ?? { type: 'file' as const, item: null };

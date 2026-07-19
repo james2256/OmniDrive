@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { useUploadStore } from '../stores/uploadStore';
-import { useDriveStore } from '../stores/driveStore';
+import { useDrives } from '../hooks/useDrives';
 import { Breadcrumb } from '../components/Breadcrumb';
 import { FileGrid } from '../components/files/FileGrid';
 import { DropZone } from '../components/DropZone';
@@ -14,7 +14,7 @@ import { AddToWorkspaceModal } from '../components/workspaces/AddToWorkspaceModa
 import { CreateFolderModal } from '../components/CreateFolderModal';
 import { Upload, FolderPlus, X, LayoutGrid, List, Info } from 'lucide-react';
 import { useToastStore } from '../stores/toastStore';
-import { useSharedStore } from '../stores/sharedStore';
+import { useSharedLinks } from '../hooks/useSharedLinks';
 import { useMergedDrive } from '../hooks/useMergedDrive';
 import { api } from '../lib/api';
 import { useUIStore } from '../stores/useUIStore';
@@ -28,7 +28,8 @@ export function FilesPage() {
   const driveIdParam = searchParams.get('driveId');
   const navigate = useNavigate();
   
-  const { drives, fetchDrives, isLoading: isDrivesLoading } = useDriveStore();
+  const { data: drivesData, isLoading: isDrivesLoading } = useDrives();
+  const drives = useMemo(() => drivesData?.drives ?? [], [drivesData?.drives]);
   const { showModal, setShowModal } = useUploadStore();
   const { addToast } = useToastStore();
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
@@ -59,12 +60,9 @@ export function FilesPage() {
     }
   };
 
-  const { fetchSharedLinks, isTargetShared } = useSharedStore();
-
-  useEffect(() => {
-    fetchSharedLinks();
-    fetchDrives();
-  }, [fetchSharedLinks, fetchDrives]);
+  const { data: sharedLinks = [] } = useSharedLinks();
+  const isTargetShared = (id: string, type: 'file' | 'folder') =>
+    sharedLinks.some((link) => link.targetId === id && link.targetType === type);
 
   const { subfolders, files, breadcrumb, isLoading, errorDrives, refresh } = useMergedDrive(folderId, driveIdParam);
 

@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
-import { useDriveStore } from '../stores/driveStore';
+import { useCallback, useEffect, useState, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useDrives, useRemoveDrive, useTriggerSync, driveKeys } from '../hooks/useDrives';
 import { DriveAccountCard } from '../components/DriveAccountCard';
 import type { S3Credential } from '../lib/api';
 import { useToastStore } from '../stores/toastStore';
@@ -19,7 +20,11 @@ const parseSqliteDate = (dateVal: string | number) => {
 };
 
 export function SettingsPage() {
-  const { drives, fetchDrives, removeDrive, triggerSync } = useDriveStore();
+  const { data: drivesData } = useDrives();
+  const drives = useMemo(() => drivesData?.drives ?? [], [drivesData]);
+  const removeDriveMutation = useRemoveDrive();
+  const triggerSyncMutation = useTriggerSync();
+  const queryClient = useQueryClient();
   const { addToast } = useToastStore();
   const [showSaForm, setShowSaForm] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -145,19 +150,15 @@ export function SettingsPage() {
   };
 
   useEffect(() => {
-    fetchDrives();
-  }, [fetchDrives]);
-
-  useEffect(() => {
     const hasSyncing = drives.some(d => d.syncStatus === 'syncing');
     if (!hasSyncing) return;
 
     const interval = setInterval(() => {
-      fetchDrives();
+      queryClient.invalidateQueries({ queryKey: driveKeys.all });
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [drives, fetchDrives]);
+  }, [drives, queryClient]);
 
   const handleSync = async (id: string) => {
     try {
@@ -166,11 +167,12 @@ export function SettingsPage() {
       const maxCycles = 50;
 
       const runSyncCycle = async (): Promise<void> => {
-        await triggerSync(id);
+        await triggerSyncMutation.mutateAsync(id);
         cycles++;
         await new Promise((r) => setTimeout(r, 3000));
-        await fetchDrives();
-        const drive = useDriveStore.getState().drives.find((d) => d.id === id);
+        await queryClient.invalidateQueries({ queryKey: driveKeys.all });
+        const drivesData = queryClient.getQueryData<{ drives: typeof drives }>(driveKeys.all);
+        const drive = drivesData?.drives.find((d) => d.id === id);
 
         if (drive?.syncPaused && cycles < maxCycles) {
           return runSyncCycle();
@@ -186,11 +188,9 @@ export function SettingsPage() {
 
   const handleDisconnect = async (id: string) => {
     try {
-      await removeDrive(id);
-      addToast('success', 'Drive disconnected');
-      fetchDrives();
+      await removeDriveMutation.mutateAsync(id);
     } catch {
-      addToast('error', 'Failed to disconnect drive');
+      // error toast handled by mutation's onError
     }
   };
 
@@ -202,7 +202,7 @@ export function SettingsPage() {
       setSaCredentials('');
       setSaFolderId('');
       setShowSaForm(false);
-      fetchDrives();
+      queryClient.invalidateQueries({ queryKey: driveKeys.all });
     } catch {
       addToast('error', 'Failed to add service account');
     }

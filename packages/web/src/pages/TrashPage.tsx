@@ -1,42 +1,39 @@
-import { useEffect, useState, useCallback } from 'react';
-import { useDriveStore } from '../stores/driveStore';
+import { useState, useCallback, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToastStore } from '../stores/toastStore';
 import { FileGrid } from '../components/files/FileGrid';
 import { api } from '../lib/api';
-import type { FileEntry, DriveFolder } from '../types';
+import { useDrives } from '../hooks/useDrives';
+import type { FileEntry } from '../types';
 import { FilePreviewModal } from '../components/FilePreviewModal';
 
-export function TrashPage() {
-  const { drives } = useDriveStore();
-  const { addToast } = useToastStore();
+const trashKeys = {
+  all: ['trash'] as const,
+};
 
-  const [fileResults, setFileResults] = useState<FileEntry[]>([]);
-  const [folderResults, setFolderResults] = useState<DriveFolder[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+export function TrashPage() {
+  const { data: drivesData } = useDrives();
+  const drives = useMemo(() => drivesData?.drives ?? [], [drivesData]);
+  const { addToast } = useToastStore();
+  const queryClient = useQueryClient();
+
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
 
-  const fetchTrash = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const data = await api.getTrashFiles();
-      setFileResults(data.files);
-      setFolderResults(data.folders ?? []);
-    } catch {
-      addToast('error', 'Failed to load trash');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [addToast]);
+  const { data, isLoading } = useQuery({
+    queryKey: trashKeys.all,
+    queryFn: () => api.getTrashFiles(),
+  });
 
-  useEffect(() => {
-    fetchTrash();
-  }, [fetchTrash]);
+  const fileResults = data?.files ?? [];
+  const folderResults = data?.folders ?? [];
+
+  const invalidateTrash = () => queryClient.invalidateQueries({ queryKey: trashKeys.all });
 
   const handleRestore = async (fileId: string) => {
     try {
       await api.restoreFile(fileId);
       addToast('success', 'File restored successfully');
-      fetchTrash();
+      invalidateTrash();
     } catch {
       addToast('error', 'Failed to restore file');
     }
@@ -46,7 +43,7 @@ export function TrashPage() {
     try {
       await api.deleteFilePermanent(fileId);
       addToast('success', 'File permanently deleted');
-      fetchTrash();
+      invalidateTrash();
     } catch {
       addToast('error', 'Failed to permanently delete file');
     }
@@ -56,7 +53,7 @@ export function TrashPage() {
     try {
       await api.restoreDriveFolder(driveId, folderId);
       addToast('success', 'Folder restored successfully');
-      fetchTrash();
+      invalidateTrash();
     } catch {
       addToast('error', 'Failed to restore folder');
     }
@@ -66,18 +63,21 @@ export function TrashPage() {
     try {
       await api.deleteDriveFolderPermanent(driveId, folderId);
       addToast('success', 'Folder permanently deleted');
-      fetchTrash();
+      invalidateTrash();
     } catch {
       addToast('error', 'Failed to permanently delete folder');
     }
   };
 
-  const getDriveInfo = useCallback((driveAccountId?: string) => {
-    if (!driveAccountId) return { drive: null, index: 0 };
-    const index = drives.findIndex((d) => d.id === driveAccountId);
-    if (index === -1) return { drive: drives[0] || null, index: 0 };
-    return { drive: drives[index], index };
-  }, [drives]);
+  const getDriveInfo = useCallback(
+    (driveAccountId?: string) => {
+      if (!driveAccountId) return { drive: null, index: 0 };
+      const index = drives.findIndex((d) => d.id === driveAccountId);
+      if (index === -1) return { drive: drives[0] || null, index: 0 };
+      return { drive: drives[index], index };
+    },
+    [drives],
+  );
 
   const hasItems = fileResults.length > 0 || folderResults.length > 0;
 
