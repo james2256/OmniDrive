@@ -1,17 +1,18 @@
 import { test, expect, vi } from 'vitest';
 import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types';
-import { activeSyncs, runD1Batch } from '../services/sync';
+import { activeSyncs } from '../services/sync';
+import { batchInChunks } from '../lib/d1-batch';
 
 test('activeSyncs lock exists', () => {
   expect(activeSyncs).toBeInstanceOf(Set);
 });
 
-test('runD1Batch chunks statements per D1 batch() guidance', async () => {
+test('batchInChunks chunks statements per D1 batch() guidance', async () => {
   const batch = vi.fn().mockResolvedValue([]);
   const db = { batch } as unknown as D1Database;
 
   const stmts = Array.from({ length: 250 }, (_, i) => ({ i }) as D1PreparedStatement);
-  await runD1Batch(db, stmts);
+  await batchInChunks(db, stmts);
 
   expect(batch).toHaveBeenCalledTimes(3);
   expect(batch.mock.calls[0][0]).toHaveLength(100);

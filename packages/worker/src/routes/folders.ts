@@ -282,20 +282,14 @@ foldersRouter.put('/:id', zValidator('json', updateFolderSchema, zodErrorHook), 
 });
 
 foldersRouter.post('/:id/star', async (c) => {
-  const userId = c.get('userId');
-  const folderId = c.req.param('id');
-  const member = await c.env.DB.prepare('SELECT f.id FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ? WHERE f.id = ?').bind(userId, folderId).first();
-  if (!member) throw new AppError(404, 'Folder not found or no access');
-  await c.env.DB.prepare('UPDATE workspace_folders SET is_starred = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(folderId).run();
+  const folderService = c.get('folderService');
+  await folderService.starFolder(c.get('userId'), c.req.param('id'));
   return c.json({ success: true });
 });
 
 foldersRouter.post('/:id/unstar', async (c) => {
-  const userId = c.get('userId');
-  const folderId = c.req.param('id');
-  const member = await c.env.DB.prepare('SELECT f.id FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ? WHERE f.id = ?').bind(userId, folderId).first();
-  if (!member) throw new AppError(404, 'Folder not found or no access');
-  await c.env.DB.prepare('UPDATE workspace_folders SET is_starred = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(folderId).run();
+  const folderService = c.get('folderService');
+  await folderService.unstarFolder(c.get('userId'), c.req.param('id'));
   return c.json({ success: true });
 });
 
@@ -312,11 +306,9 @@ foldersRouter.delete('/:id', async (c) => {
     await db.prepare('DELETE FROM workspaces WHERE id = ?').bind(folderId).run();
     return c.json({ success: true });
   }
-  
-  // Verify folder membership before delete
-  const folder = await db.prepare('SELECT f.id FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ? WHERE f.id = ?').bind(userId, folderId).first();
-  if (!folder) throw new AppError(404, 'Folder not found or no access');
-  await db.prepare('DELETE FROM workspace_folders WHERE id = ?').bind(folderId).run();
+
+  const folderService = c.get('folderService');
+  await folderService.deleteFolder(userId, folderId);
   return c.json({ success: true });
 });
 

@@ -464,134 +464,52 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/sync', async (c) => {
 
 // Move a Google Drive folder to trash (Google Drive trash + DB is_trashed=1)
 drivesRouter.delete('/:driveId/folders/:googleFolderId', async (c) => {
-  const userId = c.get('userId');
-  const { driveId, googleFolderId } = c.req.param();
-  const db = c.env.DB;
-
-  const drive = await db
-    .prepare('SELECT id FROM drive_accounts WHERE id = ? AND user_id = ?')
-    .bind(driveId, userId)
-    .first();
-  if (!drive) return c.json({ error: 'Drive not found' }, 404);
-
-  const driveService = new GoogleDriveService(db, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
-  await driveService.trashFolder(driveId, googleFolderId);
-
-  // Soft-delete: mark folder as trashed so it appears in the Trash page
-  await db
-    .prepare('UPDATE drive_folders SET is_trashed = 1 WHERE drive_account_id = ? AND google_folder_id = ?')
-    .bind(driveId, googleFolderId)
-    .run();
-
+  const driveService = c.get('driveService');
+  await driveService.trashDriveFolder(c.get('userId'), c.req.param('driveId'), c.req.param('googleFolderId'));
   return c.json({ success: true });
 });
 
 // Restore a trashed Google Drive folder (Google Drive untrash + DB is_trashed=0)
 drivesRouter.post('/:driveId/folders/:googleFolderId/restore', async (c) => {
-  const userId = c.get('userId');
-  const { driveId, googleFolderId } = c.req.param();
-  const db = c.env.DB;
-
-  const drive = await db
-    .prepare('SELECT id FROM drive_accounts WHERE id = ? AND user_id = ?')
-    .bind(driveId, userId)
-    .first();
-  if (!drive) return c.json({ error: 'Drive not found' }, 404);
-
-  const driveService = new GoogleDriveService(db, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
-  await driveService.untrashFolder(driveId, googleFolderId);
-
-  await db
-    .prepare('UPDATE drive_folders SET is_trashed = 0 WHERE drive_account_id = ? AND google_folder_id = ?')
-    .bind(driveId, googleFolderId)
-    .run();
-
+  const driveService = c.get('driveService');
+  await driveService.restoreDriveFolder(c.get('userId'), c.req.param('driveId'), c.req.param('googleFolderId'));
   return c.json({ success: true });
 });
 
 // Permanently delete a Google Drive folder (cannot be undone)
 drivesRouter.delete('/:driveId/folders/:googleFolderId/permanent', async (c) => {
-  const userId = c.get('userId');
-  const { driveId, googleFolderId } = c.req.param();
-  const db = c.env.DB;
-
-  const drive = await db
-    .prepare('SELECT id FROM drive_accounts WHERE id = ? AND user_id = ?')
-    .bind(driveId, userId)
-    .first();
-  if (!drive) return c.json({ error: 'Drive not found' }, 404);
-
-  const driveService = new GoogleDriveService(db, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
-  await driveService.deleteFile(driveId, googleFolderId);
-
-  await db.batch([
-    db.prepare('DELETE FROM drive_folders WHERE drive_account_id = ? AND google_folder_id = ?').bind(driveId, googleFolderId),
-    db.prepare('DELETE FROM files WHERE drive_account_id = ? AND google_parent_id = ?').bind(driveId, googleFolderId),
-    db.prepare('DELETE FROM drive_folders WHERE drive_account_id = ? AND google_parent_id = ?').bind(driveId, googleFolderId),
-  ]);
-
+  const driveService = c.get('driveService');
+  await driveService.permanentDeleteDriveFolder(c.get('userId'), c.req.param('driveId'), c.req.param('googleFolderId'));
   return c.json({ success: true });
 });
 
 // Create a Google Drive folder (optionally inside a parent folder)
 drivesRouter.post('/:driveId/folders', zValidator('json', createDriveFolderSchema, zodErrorHook), async (c) => {
-  const userId = c.get('userId');
-  const { driveId } = c.req.param();
+  const driveService = c.get('driveService');
   const { name, parentId } = c.req.valid('json');
-  const db = c.env.DB;
-
-  const drive = await db.prepare('SELECT id FROM drive_accounts WHERE id = ? AND user_id = ?').bind(driveId, userId).first();
-  if (!drive) throw new AppError(404, 'Drive not found');
-
-  const driveService = new GoogleDriveService(db, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
-  const googleFolderId = await driveService.createFolder(driveId, name.trim(), parentId || undefined);
-
+  const googleFolderId = await driveService.createDriveFolder(c.get('userId'), c.req.param('driveId'), name.trim(), parentId || undefined);
   return c.json({ success: true, googleFolderId });
 });
 
 // Star a Google Drive folder
 drivesRouter.post('/:driveId/folders/:googleFolderId/star', async (c) => {
-  const userId = c.get('userId');
-  const { driveId, googleFolderId } = c.req.param();
-  const db = c.env.DB;
-
-  const drive = await db.prepare('SELECT id FROM drive_accounts WHERE id = ? AND user_id = ?').bind(driveId, userId).first();
-  if (!drive) return c.json({ error: 'Drive not found' }, 404);
-
-  await db.prepare('UPDATE drive_folders SET is_starred = 1 WHERE drive_account_id = ? AND google_folder_id = ?')
-    .bind(driveId, googleFolderId).run();
+  const driveService = c.get('driveService');
+  await driveService.starDriveFolder(c.get('userId'), c.req.param('driveId'), c.req.param('googleFolderId'));
   return c.json({ success: true });
 });
 
 // Unstar a Google Drive folder
 drivesRouter.post('/:driveId/folders/:googleFolderId/unstar', async (c) => {
-  const userId = c.get('userId');
-  const { driveId, googleFolderId } = c.req.param();
-  const db = c.env.DB;
-
-  const drive = await db.prepare('SELECT id FROM drive_accounts WHERE id = ? AND user_id = ?').bind(driveId, userId).first();
-  if (!drive) return c.json({ error: 'Drive not found' }, 404);
-
-  await db.prepare('UPDATE drive_folders SET is_starred = 0 WHERE drive_account_id = ? AND google_folder_id = ?')
-    .bind(driveId, googleFolderId).run();
+  const driveService = c.get('driveService');
+  await driveService.unstarDriveFolder(c.get('userId'), c.req.param('driveId'), c.req.param('googleFolderId'));
   return c.json({ success: true });
 });
 
 // Rename a Google Drive folder
 drivesRouter.patch('/:driveId/folders/:googleFolderId/rename', zValidator('json', renameDriveFolderSchema, zodErrorHook), async (c) => {
-  const userId = c.get('userId');
-  const { driveId, googleFolderId } = c.req.param();
+  const driveService = c.get('driveService');
   const { name } = c.req.valid('json');
-  const db = c.env.DB;
-
-  const drive = await db.prepare('SELECT id FROM drive_accounts WHERE id = ? AND user_id = ?').bind(driveId, userId).first();
-  if (!drive) return c.json({ error: 'Drive not found' }, 404);
-
-  const driveService = new GoogleDriveService(db, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
-  await driveService.renameFile(driveId, googleFolderId, name);
-
-  await db.prepare('UPDATE drive_folders SET name = ? WHERE drive_account_id = ? AND google_folder_id = ?')
-    .bind(name, driveId, googleFolderId).run();
+  await driveService.renameDriveFolder(c.get('userId'), c.req.param('driveId'), c.req.param('googleFolderId'), name);
   return c.json({ success: true });
 });
 

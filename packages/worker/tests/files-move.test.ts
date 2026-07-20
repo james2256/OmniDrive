@@ -30,6 +30,39 @@ function makeDb() {
               touched_at: now,
             };
           }
+          // getWorkspaceRole — SELECT role FROM workspace_members WHERE ...
+          if (sql.includes('FROM workspace_members') && sql.includes('SELECT role')) {
+            return { role: 'editor' };
+          }
+          // findById — SELECT * FROM files WHERE id = ?
+          if (sql.includes('FROM files') && sql.includes('WHERE id = ?')) {
+            return {
+              id: FILE_ID,
+              user_id: USER_ID,
+              drive_account_id: 'drive-1',
+              google_file_id: 'google-1',
+              workspace_id: null,
+              workspace_folder_id: null,
+              google_parent_id: null,
+              name: 'test.txt',
+              mime_type: 'text/plain',
+              size: 100,
+              thumbnail_url: null,
+              web_view_link: null,
+              web_content_link: null,
+              is_trashed: 0,
+              is_starred: 0,
+              metadata: '{}',
+              google_created_at: null,
+              google_modified_at: null,
+              synced_at: now.toString(),
+              last_synced_at: null,
+              owned_by_me: 1,
+              created_at: now.toString(),
+              updated_at: now.toString(),
+            };
+          }
+          // findParentWorkspace — SELECT f.workspace_id FROM workspace_folders ...
           if (sql.includes('FROM workspace_folders')) {
             return { workspace_id: WORKSPACE_ID };
           }

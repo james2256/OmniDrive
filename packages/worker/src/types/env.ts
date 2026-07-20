@@ -1,3 +1,7 @@
+import type { FileService } from '../services/file.service';
+import type { FolderService } from '../services/folder.service';
+import type { DriveService } from '../services/drive.service';
+
 export interface Env {
   DB: D1Database;
   KV: KVNamespace;
@@ -26,6 +30,9 @@ export type AppContext = {
     userId: string;
     session: SessionData;
     s3WorkspaceId?: string | null;
+    fileService: FileService;
+    folderService: FolderService;
+    driveService: DriveService;
   };
 };
 

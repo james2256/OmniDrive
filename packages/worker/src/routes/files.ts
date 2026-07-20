@@ -10,7 +10,7 @@ import { resolveDrivesWithQuota } from '../services/drive-quota';
 import { UploadRouter } from '../services/upload-router';
 import { AutomationEngine } from '../services/automation.service';
 import { PolicyService } from '../services/policy.service';
-import { mapFileRow, mapFolderRow, mapDriveFolderRow, type FileRow } from '../types';
+import { mapFileRow, mapFolderRow, mapDriveFolderRow } from '../types';
 import { zValidator } from '@hono/zod-validator';
 import {
   renameFileSchema,
@@ -240,49 +240,24 @@ filesRouter.get('/starred', async (c) => {
 
 // Move file to trash (Google Drive trash + DB is_trashed=1)
 filesRouter.delete('/:id', async (c) => {
-  const userId = c.get('userId');
-  const fileId = c.req.param('id');
-  const db = c.env.DB;
-
-  const file = await db
-    .prepare('SELECT drive_account_id, google_file_id FROM files WHERE id = ? AND user_id = ?')
-    .bind(fileId, userId)
-    .first<{ drive_account_id: string; google_file_id: string }>();
-  if (!file) throw new AppError(404, 'File not found');
-
-  const driveService = new GoogleDriveService(db, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
-  await driveService.trashFile(file.drive_account_id, file.google_file_id);
-
-  await db.prepare('UPDATE files SET is_trashed = 1 WHERE id = ? AND user_id = ?')
-    .bind(fileId, userId).run();
-
+  const fileService = c.get('fileService');
+  await fileService.trashFile(c.get('userId'), c.req.param('id'));
   return c.json({ success: true });
 });
 
 // Rename file
 filesRouter.patch('/:id/rename', zValidator('json', renameFileSchema, zodErrorHook), async (c) => {
-  const userId = c.get('userId');
-  const fileId = c.req.param('id');
+  const fileService = c.get('fileService');
   const { name } = c.req.valid('json');
-
-  await c.env.DB.prepare('UPDATE files SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?')
-    .bind(name, fileId, userId).run();
-
+  await fileService.renameFile(c.get('userId'), c.req.param('id'), name);
   return c.json({ success: true });
 });
 
 // Move file to different virtual folder
 filesRouter.patch('/:id/move', zValidator('json', moveFileSchema, zodErrorHook), async (c) => {
-  const userId = c.get('userId');
-  const fileId = c.req.param('id');
+  const fileService = c.get('fileService');
   const { workspaceFolderId } = c.req.valid('json');
-
-  const folder = await c.env.DB.prepare('SELECT f.workspace_id FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ? WHERE f.id = ?').bind(userId, workspaceFolderId).first() as { workspace_id: string };
-  if (!folder && workspaceFolderId) throw new AppError(404, 'Folder not found');
-
-  await c.env.DB.prepare('UPDATE files SET workspace_folder_id = ?, workspace_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?')
-    .bind(workspaceFolderId, folder?.workspace_id || null, fileId, userId).run();
-
+  await fileService.moveToWorkspaceFolder(c.get('userId'), c.req.param('id'), workspaceFolderId ?? null);
   return c.json({ success: true });
 });
 
@@ -603,105 +578,35 @@ filesRouter.get('/trash', async (c) => {
 
 // POST /api/files/:id/restore
 filesRouter.post('/:id/restore', async (c) => {
-  const userId = c.get('userId');
-  const fileId = c.req.param('id');
-  const db = c.env.DB;
-
-  const file = await db
-    .prepare('SELECT drive_account_id, google_file_id FROM files WHERE id = ? AND user_id = ? AND is_trashed = 1')
-    .bind(fileId, userId)
-    .first<{ drive_account_id: string; google_file_id: string }>();
-  if (!file) throw new AppError(404, 'File not found in trash');
-
-  const driveService = new GoogleDriveService(db, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
-  await driveService.untrashFile(file.drive_account_id, file.google_file_id);
-
-  await db.prepare('UPDATE files SET is_trashed = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?')
-    .bind(fileId, userId).run();
-
+  const fileService = c.get('fileService');
+  await fileService.restoreFile(c.get('userId'), c.req.param('id'));
   return c.json({ success: true });
 });
 
 
 filesRouter.post('/:id/star', async (c) => {
-  const userId = c.get('userId');
-  const fileId = c.req.param('id');
-  const { meta } = await c.env.DB.prepare('UPDATE files SET is_starred = 1 WHERE id = ? AND user_id = ?').bind(fileId, userId).run();
-  if (meta.changes === 0) throw new AppError(404, 'File not found');
+  const fileService = c.get('fileService');
+  await fileService.starFile(c.get('userId'), c.req.param('id'));
   return c.json({ success: true });
 });
 
 filesRouter.post('/:id/unstar', async (c) => {
-  const userId = c.get('userId');
-  const fileId = c.req.param('id');
-  const { meta } = await c.env.DB.prepare('UPDATE files SET is_starred = 0 WHERE id = ? AND user_id = ?').bind(fileId, userId).run();
-  if (meta.changes === 0) throw new AppError(404, 'File not found');
+  const fileService = c.get('fileService');
+  await fileService.unstarFile(c.get('userId'), c.req.param('id'));
   return c.json({ success: true });
 });
 
 // DELETE /api/files/:id/permanent
 filesRouter.delete('/:id/permanent', async (c) => {
-  const userId = c.get('userId');
-  const fileId = c.req.param('id');
-  const db = c.env.DB;
-
-  const file = await db.prepare(
-    `SELECT f.google_file_id, f.size, f.workspace_id, f.workspace_folder_id, d.id as driveId 
-     FROM files f
-     JOIN drive_accounts d ON f.drive_account_id = d.id
-     WHERE f.id = ? AND f.user_id = ? AND f.is_trashed = 1`
-  ).bind(fileId, userId).first() as { google_file_id: string; size: number; workspace_id: string; workspace_folder_id: string; driveId: string };
-
-  if (!file) throw new AppError(404, 'File not found in trash');
-
-  if (file.workspace_folder_id) {
-    const policyService = new PolicyService(db);
-    const protectedRet = await policyService.checkRetentionProtection(file.workspace_folder_id);
-    if (protectedRet) {
-      return c.json({ error: 'Retention policy prevents deletion' }, 403);
-    }
-  }
-
-  const driveService = new GoogleDriveService(c.env.DB, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
-  
-  try {
-    await driveService.deleteFile(file.driveId, file.google_file_id);
-  } catch (error) {
-    console.error('Failed to permanently delete file from Google Drive:', error);
-    throw new AppError(500, 'Failed to delete file from Google Drive');
-  }
-
-  await db.prepare('DELETE FROM files WHERE id = ? AND user_id = ?').bind(fileId, userId).run();
-
-  if (file.workspace_id && file.size) {
-    const policyService = new PolicyService(db);
-    await policyService.updateWorkspaceStorage(file.workspace_id, -file.size);
-  }
-
+  const fileService = c.get('fileService');
+  await fileService.permanentDelete(c.get('userId'), c.req.param('id'));
   return c.json({ success: true });
 });
 
 filesRouter.patch('/:id/metadata', zValidator('json', fileMetadataSchema, zodErrorHook), async (c) => {
-  const userId = c.get('userId');
-  const fileId = c.req.param('id');
+  const fileService = c.get('fileService');
   const { metadata } = c.req.valid('json');
-  const db = c.env.DB;
-
-  const file = await db.prepare('SELECT user_id, workspace_id FROM files WHERE id = ?').bind(fileId).first<{ user_id: string; workspace_id: string }>();
-  if (!file) throw new AppError(404, 'File not found');
-
-  if (file.workspace_id) {
-    const { getWorkspaceRole, hasPermission } = await import('../middleware/rbac');
-    const role = await getWorkspaceRole(db, file.workspace_id, userId);
-    if (!role || !hasPermission(role, 'editor')) {
-      throw new AppError(403, 'Forbidden');
-    }
-  } else if (file.user_id !== userId) {
-    throw new AppError(403, 'Forbidden');
-  }
-
-  await db.prepare('UPDATE files SET metadata = ? WHERE id = ?').bind(JSON.stringify(metadata), fileId).run();
-  
+  await fileService.updateMetadata(c.get('userId'), c.req.param('id'), metadata);
   return c.json({ success: true });
 });
 
@@ -713,32 +618,16 @@ function isPreviewableImageMime(mime: string): boolean {
 filesRouter.get('/:id/preview', async (c) => {
   const userId = c.get('userId');
   const fileId = c.req.param('id');
-  const db = c.env.DB;
+  const fileService = c.get('fileService');
 
-  const file = await db.prepare('SELECT * FROM files WHERE id = ?').bind(fileId).first<FileRow>();
-  if (!file) throw new AppError(404, 'File not found');
-
-  if (file.workspace_id) {
-    const { getWorkspaceRole, hasPermission } = await import('../middleware/rbac');
-    const role = await getWorkspaceRole(db, file.workspace_id, userId);
-    if (!role || !hasPermission(role, 'viewer')) {
-      throw new AppError(403, 'Forbidden');
-    }
-  } else if (file.user_id !== userId) {
-    throw new AppError(403, 'Forbidden');
-  }
+  const file = await fileService.getFileForRead(userId, fileId);
 
   const mimeType = (file.mime_type as string) || '';
   if (!isPreviewableImageMime(mimeType)) {
     throw new AppError(415, 'Preview not available for this file type');
   }
 
-  const driveService = new GoogleDriveService(
-    c.env.DB,
-    c.env.GOOGLE_CLIENT_ID,
-    c.env.GOOGLE_CLIENT_SECRET,
-    c.env.TOKEN_ENCRYPTION_KEY
-  );
+  const driveService = fileService.getGoogleDriveService();
 
   let stream: ReadableStream<Uint8Array>;
   let finalMimeType = mimeType === 'application/vnd.google-apps.photo' ? 'image/jpeg' : mimeType;
@@ -772,27 +661,11 @@ filesRouter.get('/:id/preview', async (c) => {
 filesRouter.get('/:id/download', async (c) => {
   const userId = c.get('userId');
   const fileId = c.req.param('id');
-  const db = c.env.DB;
+  const fileService = c.get('fileService');
 
-  const file = await db.prepare('SELECT * FROM files WHERE id = ?').bind(fileId).first() as FileRow;
-  if (!file) throw new AppError(404, 'File not found');
+  const file = await fileService.getFileForRead(userId, fileId);
 
-  if (file.workspace_id) {
-    const { getWorkspaceRole, hasPermission } = await import('../middleware/rbac');
-    const role = await getWorkspaceRole(db, file.workspace_id, userId);
-    if (!role || !hasPermission(role, 'viewer')) {
-      throw new AppError(403, 'Forbidden');
-    }
-  } else if (file.user_id !== userId) {
-    throw new AppError(403, 'Forbidden');
-  }
-
-  const driveService = new GoogleDriveService(
-    c.env.DB,
-    c.env.GOOGLE_CLIENT_ID,
-    c.env.GOOGLE_CLIENT_SECRET,
-    c.env.TOKEN_ENCRYPTION_KEY
-  );
+  const driveService = fileService.getGoogleDriveService();
 
   let stream: ReadableStream<Uint8Array>;
   let finalMimeType = (file.mime_type as string) || 'application/octet-stream';
