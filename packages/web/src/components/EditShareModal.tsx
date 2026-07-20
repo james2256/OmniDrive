@@ -3,7 +3,7 @@ import { Calendar, Lock, Settings, ChevronDown, ChevronUp } from 'lucide-react';
 import { updateSharedLink } from '../lib/api';
 import type { SharedLink } from '../lib/api';
 import { useInvalidateSharedLinks } from '../hooks/useSharedLinks';
-import { useToastStore } from '../stores/toastStore';
+import { useToastStore } from '../stores/useToastStore';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 
 interface EditShareModalProps {

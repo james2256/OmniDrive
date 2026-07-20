@@ -6,7 +6,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "deploy": "wrangler pages deploy dist/ --project-name omnidrive --branch main"
+    "deploy": "wrangler pages deploy dist/ --project-name omnidrive --branch main",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@radix-ui/react-context-menu": "^2.3.0",

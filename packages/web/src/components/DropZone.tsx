@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Upload } from 'lucide-react';
-import { useUploadStore } from '../stores/uploadStore';
+import { useUploadStore } from '../stores/useUploadStore';
 
 export function DropZone({ children }: { children: React.ReactNode }) {
   const addFiles = useUploadStore((s) => s.addFiles);

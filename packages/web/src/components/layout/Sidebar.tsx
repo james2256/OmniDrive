@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useUIStore } from '../../stores/useUIStore';
-import { useAuthStore } from '../../stores/authStore';
+import { useAuthStore } from '../../stores/useAuthStore';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   HardDrive,

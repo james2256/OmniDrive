@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useAuthStore } from '../stores/authStore';
+import { useAuthStore } from '../stores/useAuthStore';
 import { ShieldAlert, Plus, MoreVertical } from 'lucide-react';
 import type { User } from '../types';
 import { api } from '../lib/api';

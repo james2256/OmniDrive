@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
-import { useUploadStore } from '../stores/uploadStore';
+import { useUploadStore } from '../stores/useUploadStore';
 import { useDrives } from '../hooks/useDrives';
 import { Breadcrumb } from '../components/Breadcrumb';
 import { FileGrid } from '../components/files/FileGrid';
@@ -13,7 +13,7 @@ import { MoveModal } from '../components/MoveModal';
 import { AddToWorkspaceModal } from '../components/workspaces/AddToWorkspaceModal';
 import { CreateFolderModal } from '../components/CreateFolderModal';
 import { Upload, FolderPlus, X, LayoutGrid, List, Info } from 'lucide-react';
-import { useToastStore } from '../stores/toastStore';
+import { useToastStore } from '../stores/useToastStore';
 import { useSharedLinks } from '../hooks/useSharedLinks';
 import { useMergedDrive } from '../hooks/useMergedDrive';
 import { api } from '../lib/api';

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useAuthStore } from '../stores/authStore';
+import { useAuthStore } from '../stores/useAuthStore';
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading, fetchUser } = useAuthStore();

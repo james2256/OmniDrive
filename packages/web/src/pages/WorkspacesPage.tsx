@@ -4,7 +4,7 @@ import type { WorkspaceFolder, FileEntry, DriveFolder, BreadcrumbItem, DriveAcco
 import { WorkspaceSidebar } from '../components/workspaces/WorkspaceSidebar';
 import { WorkspaceMainView } from '../components/workspaces/WorkspaceMainView';
 import { CreateFolderModal } from '../components/CreateFolderModal';
-import { useToastStore } from '../stores/toastStore';
+import { useToastStore } from '../stores/useToastStore';
 import { useSelectionStore, type SelectedItem } from '../stores/useSelectionStore';
 import { useUIStore } from '../stores/useUIStore';
 import { FilePreviewModal } from '../components/FilePreviewModal';

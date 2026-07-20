@@ -1,7 +1,7 @@
 import React from 'react';
 import { Menu, LogOut } from 'lucide-react';
 import { useUIStore } from '../../stores/useUIStore';
-import { useAuthStore } from '../../stores/authStore';
+import { useAuthStore } from '../../stores/useAuthStore';
 import {
   DropdownMenu,
   DropdownMenuContent,

@@ -2,7 +2,7 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { getSharedLinks, deleteSharedLink } from '../lib/api';
 import type { SharedLink } from '../lib/api';
 import { qk } from '../lib/queryKeys';
-import { useToastStore } from '../stores/toastStore';
+import { useToastStore } from '../stores/useToastStore';
 
 /**
  * Replaces `sharedStore.fetchSharedLinks` + `sharedLinks` + `isLoading`.

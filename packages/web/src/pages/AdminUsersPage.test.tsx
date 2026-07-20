@@ -3,11 +3,11 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { AdminUsersPage } from './AdminUsersPage';
-import { useAuthStore } from '../stores/authStore';
+import { useAuthStore } from '../stores/useAuthStore';
 import { api } from '../lib/api';
 
 // Mock the auth store
-vi.mock('../stores/authStore', () => ({
+vi.mock('../stores/useAuthStore', () => ({
   useAuthStore: vi.fn(),
 }));
 
@@ -43,7 +43,9 @@ vi.mock('../components/ui/dialog', () => ({
   Dialog: ({ open, children }: any) => (open ? <div data-testid="dialog">{children}</div> : null),
   DialogContent: ({ children }: any) => <div>{children}</div>,
   DialogHeader: ({ children }: any) => <div>{children}</div>,
-  DialogTitle: ({ children }: any) => <div>{children}</div>,
+  // Render DialogTitle as an <h2> so it carries role="heading", matching the
+  // real Radix DialogTitle semantics and enabling getByRole('heading', ...).
+  DialogTitle: ({ children }: any) => <h2>{children}</h2>,
   DialogDescription: ({ children }: any) => <div>{children}</div>,
   DialogFooter: ({ children }: any) => <div>{children}</div>,
 }));
@@ -93,13 +95,17 @@ describe('AdminUsersPage', () => {
     const addBtn = await screen.findByRole('button', { name: /add user/i });
     fireEvent.click(addBtn);
 
-    expect(screen.getByText('Add User', { selector: 'h3' })).toBeTruthy();
+    // Dialog title renders as a heading; the toolbar button is a <button>,
+    // so this uniquely targets the modal title (not the button span).
+    expect(screen.getByRole('heading', { name: 'Add User' })).toBeTruthy();
 
     // Close modal
     fireEvent.click(screen.getByText('Cancel'));
-    
+
     await waitFor(() => {
-      expect(screen.queryByText('Add User', { selector: 'h3' })).toBeNull();
+      // Dialog unmounts its title; no heading named 'Add User' should remain
+      // (the toolbar 'Add User' is a button, not a heading).
+      expect(screen.queryAllByRole('heading', { name: 'Add User' })).toHaveLength(0);
     });
   });
 

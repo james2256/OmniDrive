@@ -11,6 +11,7 @@ import { D1DatabaseWrapper } from './polyfills/d1';
 import { KVNamespaceWrapper } from './polyfills/kv';
 import dotenv from 'dotenv';
 import type { Env } from './types/env';
+import { validateEnv } from './lib/env';
 
 dotenv.config();
 
@@ -44,16 +45,16 @@ d1.exec("UPDATE sync_state SET status = 'error', error_message = 'Sync interrupt
 const kv = new KVNamespaceWrapper(path.join(dataDir, 'kv.sqlite'));
 
 // Construct Cloudflare Env mock
-const nodeEnv: Env = {
+const nodeEnv = validateEnv({
   DB: d1 as unknown as D1Database,
   KV: kv as unknown as KVNamespace,
-  FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:8080',
-  WORKER_URL: process.env.WORKER_URL || 'http://localhost:8080',
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || '',
   GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || '',
-  JWT_SECRET: process.env.JWT_SECRET || 'dev-secret',
-  TOKEN_ENCRYPTION_KEY: process.env.TOKEN_ENCRYPTION_KEY || 'dev-encryption-key-32-bytes-long!',
-};
+  FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:8080',
+  WORKER_URL: process.env.WORKER_URL || 'http://localhost:8080',
+  JWT_SECRET: process.env.JWT_SECRET,
+  TOKEN_ENCRYPTION_KEY: process.env.TOKEN_ENCRYPTION_KEY,
+}) as Env;
 
 // Serve static React files from /usr/share/nginx/html or local web/dist
 const staticDir = process.env.STATIC_DIR || path.join(process.cwd(), '../web/dist');

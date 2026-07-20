@@ -4,7 +4,7 @@ import { useDrives, useRemoveDrive, useTriggerSync } from '../hooks/useDrives';
 import { qk } from '../lib/queryKeys';
 import { DriveAccountCard } from '../components/DriveAccountCard';
 import type { S3Credential } from '../lib/api';
-import { useToastStore } from '../stores/toastStore';
+import { useToastStore } from '../stores/useToastStore';
 import { Plus, Key, X, Trash2, Copy, Check, AlertTriangle, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
 import { api } from '../lib/api';

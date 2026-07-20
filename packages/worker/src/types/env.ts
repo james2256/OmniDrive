@@ -33,6 +33,7 @@ export type AppContext = {
     fileService: FileService;
     folderService: FolderService;
     driveService: DriveService;
+    requestId: string;
   };
 };
 

@@ -1,5 +1,5 @@
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
-import { useToastStore } from '../stores/toastStore';
+import { useToastStore } from '../stores/useToastStore';
 import type { ToastType } from '../types';
 
 const icons: Record<ToastType, React.ReactNode> = {

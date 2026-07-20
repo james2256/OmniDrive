@@ -7,7 +7,7 @@ import { FileIcon } from '../files/FileIcon';
 import { DriveBadge } from '../DriveBadge';
 import { X, File, Folder, Loader2, RefreshCw } from 'lucide-react';
 import { useUIStore } from '../../stores/useUIStore';
-import { useToastStore } from '../../stores/toastStore';
+import { useToastStore } from '../../stores/useToastStore';
 import { useDrives } from '../../hooks/useDrives';
 
 export const InfoPanel: React.FC = () => {

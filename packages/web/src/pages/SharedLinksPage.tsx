@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link as LinkIcon, FileText, Folder, Eye, Download, Trash2, Copy, Check, Clock, Settings } from 'lucide-react';
-import { useToastStore } from '../stores/toastStore';
+import { useToastStore } from '../stores/useToastStore';
 import { EditShareModal } from '../components/EditShareModal';
 import { useSharedLinks, useRevokeSharedLink } from '../hooks/useSharedLinks';
 import { EmptyState, ListSkeleton } from '../components/EmptyState';

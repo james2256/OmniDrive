@@ -1,6 +1,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import type { OAuthTokens, QuotaCache } from '../types/index';
 import { parseStorageQuota, QUOTA_CACHE_VERSION } from '../lib/storage-quota';
+import { NotFoundError, AuthError, UpstreamError } from '../middleware/error-handler';
 
 const QUOTA_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -63,7 +64,7 @@ export class GoogleDriveService {
   private async loadTokens(driveAccountId: string): Promise<OAuthTokens> {
     const row = await this.db.prepare('SELECT encrypted_tokens FROM drive_tokens WHERE drive_account_id = ?')
       .bind(driveAccountId).first<{ encrypted_tokens: string }>();
-    if (!row?.encrypted_tokens) throw new Error(`No tokens found for drive ${driveAccountId}`);
+    if (!row?.encrypted_tokens) throw new NotFoundError(`No tokens found for drive ${driveAccountId}`);
 
     let tokensJson = row.encrypted_tokens;
     if (this.encryptionKey) {
@@ -96,7 +97,7 @@ export class GoogleDriveService {
       return tokens.accessToken;
     }
     if (!tokens.refreshToken) {
-      throw new Error(`No refresh token for drive ${driveAccountId}`);
+      throw new AuthError(`No refresh token for drive ${driveAccountId}`);
     }
     const refreshed = await this.refreshToken(driveAccountId, tokens.refreshToken);
     this.tokenCache.set(driveAccountId, { token: refreshed, expiresAt: tokens.expiresAt });
@@ -119,7 +120,7 @@ export class GoogleDriveService {
     tokens: OAuthTokens
   ): Promise<string> {
     if (!tokens.serviceAccount) {
-      throw new Error(`No service account credentials for drive ${driveAccountId}`);
+      throw new AuthError(`No service account credentials for drive ${driveAccountId}`);
     }
     const { fetchServiceAccountAccessToken } = await import('../lib/google-service-account');
     const refreshed = await fetchServiceAccountAccessToken(tokens.serviceAccount);
@@ -159,7 +160,7 @@ export class GoogleDriveService {
 
     if (!response.ok) {
       const error = await response.text();
-      throw new Error(`Token refresh failed for ${driveAccountId}: ${error}`);
+      throw new UpstreamError(`Token refresh failed for ${driveAccountId}: ${error}`);
     }
 
     const data: { access_token: string; expires_in: number } = await response.json();
@@ -207,7 +208,7 @@ export class GoogleDriveService {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch quota: ${await response.text()}`);
+      throw new UpstreamError(`Failed to fetch quota: ${await response.text()}`);
     }
 
     const data: {
@@ -245,7 +246,7 @@ export class GoogleDriveService {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!response.ok) {
-      throw new Error(`Failed to get root folder ID: ${await response.text()}`);
+      throw new UpstreamError(`Failed to get root folder ID: ${await response.text()}`);
     }
     const data: { id: string } = await response.json();
     return data.id;
@@ -276,7 +277,7 @@ export class GoogleDriveService {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to create folder: ${await response.text()}`);
+      throw new UpstreamError(`Failed to create folder: ${await response.text()}`);
     }
 
     const folder: { id: string } = await response.json();
@@ -310,12 +311,12 @@ export class GoogleDriveService {
     );
 
     if (!response.ok) {
-      throw new Error(`Failed to initiate upload: ${await response.text()}`);
+      throw new UpstreamError(`Failed to initiate upload: ${await response.text()}`);
     }
 
     const uploadUrl = response.headers.get('Location');
     if (!uploadUrl) {
-      throw new Error('No upload URL in response');
+      throw new UpstreamError('No upload URL in response');
     }
 
     return uploadUrl;
@@ -335,7 +336,7 @@ export class GoogleDriveService {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to get file: ${await response.text()}`);
+      throw new UpstreamError(`Failed to get file: ${await response.text()}`);
     }
 
     return response.json();
@@ -372,11 +373,11 @@ export class GoogleDriveService {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to download file: ${await response.text()}`);
+      throw new UpstreamError(`Failed to download file: ${await response.text()}`);
     }
 
     if (!response.body) {
-      throw new Error('Response body is null');
+      throw new UpstreamError('Response body is null');
     }
     return {
       stream: response.body as ReadableStream<Uint8Array>,
@@ -394,7 +395,7 @@ export class GoogleDriveService {
     });
 
     if (!response.ok && response.status !== 404) {
-      throw new Error(`Failed to delete file: ${await response.text()}`);
+      throw new UpstreamError(`Failed to delete file: ${await response.text()}`);
     }
   }
 
@@ -411,7 +412,7 @@ export class GoogleDriveService {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to rename file: ${await response.text()}`);
+      throw new UpstreamError(`Failed to rename file: ${await response.text()}`);
     }
   }
 
@@ -497,7 +498,7 @@ export class GoogleDriveService {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to move item: ${await response.text()}`);
+      throw new UpstreamError(`Failed to move item: ${await response.text()}`);
     }
   }
 
@@ -591,7 +592,7 @@ export class GoogleDriveService {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to get start page token: ${await response.text()}`);
+      throw new UpstreamError(`Failed to get start page token: ${await response.text()}`);
     }
 
     const data: { startPageToken: string } = await response.json();
@@ -633,7 +634,7 @@ export class GoogleDriveService {
     );
 
     if (!response.ok) {
-      throw new Error(`Failed to list changes: ${await response.text()}`);
+      throw new UpstreamError(`Failed to list changes: ${await response.text()}`);
     }
 
     return response.json();
@@ -669,7 +670,7 @@ export class GoogleDriveService {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to list files: ${await response.text()}`);
+        throw new UpstreamError(`Failed to list files: ${await response.text()}`);
       }
 
       const data: { files: GDriveFile[]; nextPageToken?: string } = await response.json();
@@ -702,7 +703,7 @@ export class GoogleDriveService {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to list folder contents: ${await response.text()}`);
+        throw new UpstreamError(`Failed to list folder contents: ${await response.text()}`);
       }
 
       const data: { files: GDriveFile[]; nextPageToken?: string } = await response.json();
@@ -740,7 +741,7 @@ export class GoogleDriveService {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to list folder contents: ${await response.text()}`);
+        throw new UpstreamError(`Failed to list folder contents: ${await response.text()}`);
       }
 
       const data: { files: GDriveFile[]; nextPageToken?: string } = await response.json();

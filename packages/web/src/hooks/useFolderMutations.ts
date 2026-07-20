@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
-import { useToastStore } from '../stores/toastStore';
+import { useToastStore } from '../stores/useToastStore';
 import { invalidateAfterFileMutation } from '../lib/invalidate';
 
 export function useStarFolder() {

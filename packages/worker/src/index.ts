@@ -6,6 +6,8 @@ import { securityHeaders } from './middleware/security-headers';
 import { csrfGuard } from './middleware/csrf-guard';
 import { rateLimiter } from './middleware/rate-limiter';
 import { AppError } from './middleware/error-handler';
+import { requestId } from './middleware/request-id';
+import { validateEnv } from './lib/env';
 import { runScheduledSync } from './services/sync';
 import { runLifecycleExpiration, cleanupOrphanMultipartUploads } from './services/s3-lifecycle';
 import { AuditService } from './services/audit.service';
@@ -25,7 +27,8 @@ import { AutomationEngine } from './services/automation.service';
 
 export const app = new Hono<AppContext>({ strict: false });
 
-// Global middleware (order matters): security → CORS → CSRF → rate limits (below)
+// Global middleware (order matters): request ID → security → CORS → CSRF → rate limits (below)
+app.use('*', requestId);
 app.use('*', securityHeaders);
 app.use('*', corsMiddleware());
 app.use('/api/*', csrfGuard);
@@ -118,7 +121,13 @@ app.get('/api/health', (c) => {
 });
 
 export default {
-  fetch: app.fetch,
+  // Validate env bindings on every request (Workers has no boot hook; env is
+  // only available inside fetch/scheduled). Fail-fast on misconfigured deploys
+  // rather than throwing deep inside sign()/verify() at runtime.
+  fetch(req: Request, env: Env, ctx: ExecutionContext) {
+    validateEnv(env as unknown as Record<string, unknown>);
+    return app.fetch(req, env, ctx);
+  },
   async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext) {
     ctx.waitUntil(runScheduledSync(env));
     ctx.waitUntil(runLifecycleExpiration(env));

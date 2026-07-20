@@ -1,7 +1,7 @@
 import { X, Upload, Check, AlertCircle, Loader } from 'lucide-react';
-import { useUploadStore } from '../stores/uploadStore';
+import { useUploadStore } from '../stores/useUploadStore';
 import { useDrives } from '../hooks/useDrives';
-import { useToastStore } from '../stores/toastStore';
+import { useToastStore } from '../stores/useToastStore';
 import { formatFileSize, getDriveColor } from '../lib/utils';
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { FolderPlus } from 'lucide-react';
 import { api } from '../lib/api';
-import { useToastStore } from '../stores/toastStore';
+import { useToastStore } from '../stores/useToastStore';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 import type { DriveAccount } from '../types';
 

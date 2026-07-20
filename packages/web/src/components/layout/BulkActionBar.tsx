@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useSelectionStore } from '../../stores/useSelectionStore';
-import { useToastStore } from '../../stores/toastStore';
+import { useToastStore } from '../../stores/useToastStore';
 import { api } from '../../lib/api';
 import { X, Trash2, Folder, Star, HardDrive } from 'lucide-react';
 

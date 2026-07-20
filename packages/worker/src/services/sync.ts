@@ -1,13 +1,4 @@
-let isShuttingDown = false;
-
-export function getIsShuttingDown() {
-  return isShuttingDown;
-}
-
-export function setShuttingDown(): void {
-  isShuttingDown = true;
-}
-
+import { NotFoundError } from '../middleware/error-handler';
 import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types';
 import type { DriveAccount } from '../types/index';
 import { mapDriveRow } from '../types/index';
@@ -17,6 +8,16 @@ import type { Env } from '../types/env';
 import { FileRepository } from '../repositories/file.repository';
 import { FolderRepository } from '../repositories/folder.repository';
 import { batchInChunks } from '../lib/d1-batch';
+
+let isShuttingDown = false;
+
+export function getIsShuttingDown() {
+  return isShuttingDown;
+}
+
+export function setShuttingDown(): void {
+  isShuttingDown = true;
+}
 
 const MIME_TYPE_FOLDER = 'application/vnd.google-apps.folder';
 const MIME_TYPE_SHORTCUT = 'application/vnd.google-apps.shortcut';
@@ -82,7 +83,7 @@ export async function syncDriveFolder(
     const row = await env.DB.prepare('SELECT * FROM drive_accounts WHERE id = ? AND user_id = ?')
       .bind(driveId, userId)
       .first();
-    if (!row) throw new Error('Drive not found');
+    if (!row) throw new NotFoundError('Drive not found');
 
     const drive = mapDriveRow(row as Record<string, unknown>);
     const driveService = new GoogleDriveService(
