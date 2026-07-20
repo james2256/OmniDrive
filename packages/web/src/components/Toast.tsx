@@ -3,10 +3,10 @@ import { useToastStore } from '../stores/toastStore';
 import type { ToastType } from '../types';
 
 const icons: Record<ToastType, React.ReactNode> = {
-  success: <CheckCircle size={18} className="text-green-500" />,
-  error: <AlertCircle size={18} className="text-red-500" />,
-  warning: <AlertTriangle size={18} className="text-amber-500" />,
-  info: <Info size={18} className="text-blue-500" />,
+  success: <CheckCircle size={18} className="text-green-500" aria-hidden />,
+  error: <AlertCircle size={18} className="text-red-500" aria-hidden />,
+  warning: <AlertTriangle size={18} className="text-amber-500" aria-hidden />,
+  info: <Info size={18} className="text-primary" aria-hidden />,
 };
 
 export function ToastContainer() {
@@ -15,7 +15,12 @@ export function ToastContainer() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none">
+    <div
+      className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none"
+      role="status"
+      aria-live="polite"
+      aria-relevant="additions"
+    >
       {toasts.map((toast) => (
         <div
           key={toast.id}
@@ -27,11 +32,13 @@ export function ToastContainer() {
         >
           {icons[toast.type]}
           <span className="flex-1 text-sm font-medium text-stone-700">{toast.message}</span>
-          <button 
-            className="p-1 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-lg transition-colors" 
+          <button
+            type="button"
+            className="p-1 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-lg transition-colors"
             onClick={() => removeToast(toast.id)}
+            aria-label="Close notification"
           >
-            <X size={14} />
+            <X size={14} aria-hidden />
           </button>
         </div>
       ))}

@@ -1,28 +1,29 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthGuard } from './components/AuthGuard';
 import { AppLayout } from './components/layout/AppLayout';
 import { ToastContainer } from './components/Toast';
 import { api } from './lib/api';
+import { lazyWithRetry } from './lib/lazyWithRetry';
 
 // ponytail: lazy-load pages so login/public shells don't pull recharts + file UI (~900KB) into LCP path
-const LoginPage = lazy(() => import('./pages/LoginPage').then((m) => ({ default: m.LoginPage })));
-const DashboardPage = lazy(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
-const FilesPage = lazy(() => import('./pages/FilesPage').then((m) => ({ default: m.FilesPage })));
-const SettingsPage = lazy(() => import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
-const SharedLinksPage = lazy(() => import('./pages/SharedLinksPage').then((m) => ({ default: m.SharedLinksPage })));
-const SharedWithMePage = lazy(() => import('./pages/SharedWithMePage').then((m) => ({ default: m.SharedWithMePage })));
-const PublicSharedPage = lazy(() => import('./pages/PublicSharedPage').then((m) => ({ default: m.PublicSharedPage })));
-const AutomationsPage = lazy(() => import('./pages/AutomationsPage').then((m) => ({ default: m.AutomationsPage })));
-const SearchPage = lazy(() => import('./pages/SearchPage').then((m) => ({ default: m.SearchPage })));
-const TrashPage = lazy(() => import('./pages/TrashPage').then((m) => ({ default: m.TrashPage })));
-const StarredPage = lazy(() => import('./pages/StarredPage').then((m) => ({ default: m.StarredPage })));
-const WorkspacesPage = lazy(() => import('./pages/WorkspacesPage').then((m) => ({ default: m.WorkspacesPage })));
-const SetupPage = lazy(() => import('./pages/SetupPage').then((m) => ({ default: m.SetupPage })));
-const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage').then((m) => ({ default: m.AdminUsersPage })));
-const LandingPage = lazy(() => import('./pages/LandingPage').then((m) => ({ default: m.LandingPage })));
-const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage').then((m) => ({ default: m.PrivacyPolicyPage })));
-const TermsOfServicePage = lazy(() => import('./pages/TermsOfServicePage').then((m) => ({ default: m.TermsOfServicePage })));
+const LoginPage = lazyWithRetry(() => import('./pages/LoginPage').then((m) => ({ default: m.LoginPage })));
+const DashboardPage = lazyWithRetry(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
+const FilesPage = lazyWithRetry(() => import('./pages/FilesPage').then((m) => ({ default: m.FilesPage })));
+const SettingsPage = lazyWithRetry(() => import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
+const SharedLinksPage = lazyWithRetry(() => import('./pages/SharedLinksPage').then((m) => ({ default: m.SharedLinksPage })));
+const SharedWithMePage = lazyWithRetry(() => import('./pages/SharedWithMePage').then((m) => ({ default: m.SharedWithMePage })));
+const PublicSharedPage = lazyWithRetry(() => import('./pages/PublicSharedPage').then((m) => ({ default: m.PublicSharedPage })));
+const AutomationsPage = lazyWithRetry(() => import('./pages/AutomationsPage').then((m) => ({ default: m.AutomationsPage })));
+const SearchPage = lazyWithRetry(() => import('./pages/SearchPage').then((m) => ({ default: m.SearchPage })));
+const TrashPage = lazyWithRetry(() => import('./pages/TrashPage').then((m) => ({ default: m.TrashPage })));
+const StarredPage = lazyWithRetry(() => import('./pages/StarredPage').then((m) => ({ default: m.StarredPage })));
+const WorkspacesPage = lazyWithRetry(() => import('./pages/WorkspacesPage').then((m) => ({ default: m.WorkspacesPage })));
+const SetupPage = lazyWithRetry(() => import('./pages/SetupPage').then((m) => ({ default: m.SetupPage })));
+const AdminUsersPage = lazyWithRetry(() => import('./pages/AdminUsersPage').then((m) => ({ default: m.AdminUsersPage })));
+const LandingPage = lazyWithRetry(() => import('./pages/LandingPage').then((m) => ({ default: m.LandingPage })));
+const PrivacyPolicyPage = lazyWithRetry(() => import('./pages/PrivacyPolicyPage').then((m) => ({ default: m.PrivacyPolicyPage })));
+const TermsOfServicePage = lazyWithRetry(() => import('./pages/TermsOfServicePage').then((m) => ({ default: m.TermsOfServicePage })));
 
 function PageFallback() {
   return (

@@ -262,7 +262,7 @@ export function FilesPage() {
           onClose={() => setShowCreateFolder(false)}
           onSuccess={refresh}
         />
-        <UploadModal open={showModal} folderId={folderId} onClose={() => setShowModal(false)} onSuccess={() => { setShowModal(false); refresh(); }} />
+        <UploadModal open={showModal} folderId={folderId} onClose={() => setShowModal(false)} onSuccess={refresh} />
         <FilePreviewModal open={!!previewFile} file={previewFile ?? undefined} onClose={() => setPreviewFile(null)} />
         <ShareModal
           open={!!shareTarget}

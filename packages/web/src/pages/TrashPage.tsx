@@ -8,6 +8,8 @@ import type { FileEntry } from '../types';
 import { FilePreviewModal } from '../components/FilePreviewModal';
 import { useRestoreFile, usePermanentDeleteFile } from '../hooks/useFileMutations';
 import { useRestoreDriveFolder, usePermanentDeleteDriveFolder } from '../hooks/useFolderMutations';
+import { EmptyState, ListSkeleton } from '../components/EmptyState';
+import { Trash2 } from 'lucide-react';
 
 export function TrashPage() {
   const { data: drivesData } = useDrives();
@@ -54,9 +56,7 @@ export function TrashPage() {
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
-        </div>
+        <ListSkeleton rows={6} />
       ) : hasItems ? (
         <div className="bg-card rounded-xl border border-stone-200 overflow-hidden">
           <FileGrid
@@ -76,9 +76,11 @@ export function TrashPage() {
           />
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center py-20 text-stone-500">
-          <p className="text-lg">Your trash is empty.</p>
-        </div>
+        <EmptyState
+          icon={Trash2}
+          title="Trash is empty"
+          description="Deleted files and folders will appear here."
+        />
       )}
       <FilePreviewModal
         open={!!previewFile}

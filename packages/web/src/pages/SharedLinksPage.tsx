@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Link, FileText, Folder, Eye, Download, Trash2, Copy, Check, Clock, Settings } from 'lucide-react';
+import { Link as LinkIcon, FileText, Folder, Eye, Download, Trash2, Copy, Check, Clock, Settings } from 'lucide-react';
 import { useToastStore } from '../stores/toastStore';
 import { EditShareModal } from '../components/EditShareModal';
 import { useSharedLinks, useRevokeSharedLink } from '../hooks/useSharedLinks';
+import { EmptyState, ListSkeleton } from '../components/EmptyState';
 import type { SharedLink } from '../lib/api';
 
 export function SharedLinksPage() {
@@ -38,7 +39,7 @@ export function SharedLinksPage() {
     <div className="p-4 md:p-8 max-w-7xl mx-auto w-full">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-stone-900 tracking-tight flex items-center gap-3">
-          <Link className="text-blue-600" size={32} />
+          <LinkIcon className="text-primary" size={32} />
           Shared Links
         </h1>
         <p className="text-stone-500 mt-2 text-lg">
@@ -47,19 +48,13 @@ export function SharedLinksPage() {
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-20">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
-        </div>
+        <ListSkeleton rows={4} />
       ) : links.length === 0 ? (
-        <div className="bg-card rounded-2xl border border-stone-100 shadow-sm p-16 text-center">
-          <div className="mx-auto w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-6">
-            <Link size={32} className="text-blue-400" />
-          </div>
-          <h3 className="text-xl font-semibold text-stone-800 mb-2">No active shared links</h3>
-          <p className="text-stone-500 max-w-sm mx-auto">
-            You haven't shared any files or folders yet. Right-click any file to create a shareable link.
-          </p>
-        </div>
+        <EmptyState
+          icon={LinkIcon}
+          title="No active shared links"
+          description="Right-click any file or folder to create a shareable link."
+        />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {links.map((link) => (
