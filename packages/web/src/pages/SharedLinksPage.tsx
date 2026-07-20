@@ -1,38 +1,20 @@
-import { useEffect, useState } from 'react';
-import { getSharedLinks, deleteSharedLink } from '../lib/api';
-import type { SharedLink } from '../lib/api';
+import { useState } from 'react';
 import { Link, FileText, Folder, Eye, Download, Trash2, Copy, Check, Clock, Settings } from 'lucide-react';
 import { useToastStore } from '../stores/toastStore';
 import { EditShareModal } from '../components/EditShareModal';
+import { useSharedLinks, useRevokeSharedLink } from '../hooks/useSharedLinks';
+import type { SharedLink } from '../lib/api';
 
 export function SharedLinksPage() {
-  const [links, setLinks] = useState<SharedLink[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { data: links = [], isLoading } = useSharedLinks();
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [editingLink, setEditingLink] = useState<SharedLink | null>(null);
   const { addToast } = useToastStore();
+  const revokeMut = useRevokeSharedLink();
 
-  useEffect(() => {
-    getSharedLinks()
-      .then((res) => {
-        setLinks(res.links);
-        setIsLoading(false);
-      })
-      .catch(() => {
-        addToast('error', 'Failed to load shared links');
-        setIsLoading(false);
-      });
-  }, [addToast]);
-
-  const revoke = async (id: string) => {
+  const revoke = (id: string) => {
     if (confirm('Are you sure you want to stop sharing this item?')) {
-      try {
-        await deleteSharedLink(id);
-        setLinks(links.filter((l) => l.id !== id));
-        addToast('success', 'Link revoked successfully');
-      } catch {
-        addToast('error', 'Failed to revoke link');
-      }
+      revokeMut.mutate(id);
     }
   };
 

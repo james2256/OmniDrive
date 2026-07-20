@@ -30,6 +30,14 @@ export class FolderService {
     await this.folderRepo.unstar(folderId);
   }
 
+  /** Check if user has editor access to a workspace folder. Returns true/false. */
+  async checkFolderAccess(userId: string, folderId: string): Promise<boolean> {
+    const folder = await this.folderRepo.findMembership(folderId, userId);
+    if (!folder) return false;
+    const role = await getWorkspaceRole(this.db, folder.workspace_id, userId);
+    return !!role && hasPermission(role, 'editor');
+  }
+
   /** Delete a folder. RBAC: editor. */
   async deleteFolder(userId: string, folderId: string): Promise<void> {
     const folder = await this.folderRepo.findMembership(folderId, userId);

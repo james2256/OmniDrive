@@ -1,5 +1,6 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { useDrives } from '../hooks/useDrives';
 import { useSharedLinks } from '../hooks/useSharedLinks';
@@ -12,7 +13,10 @@ import { FilePreviewModal } from '../components/FilePreviewModal';
 import { formatFileSize, getDriveColor } from '../lib/utils';
 import { api } from '../lib/api';
 import { useToastStore } from '../stores/toastStore';
-import type { FileEntry, WorkspaceFolder } from '../types';
+import { qk } from '../lib/queryKeys';
+import type { FileEntry } from '../types';
+import { useStarFile, useUnstarFile } from '../hooks/useFileMutations';
+import { useStarFolder, useUnstarFolder } from '../hooks/useFolderMutations';
 import {
   HardDrive,
   RefreshCw,
@@ -68,6 +72,7 @@ function firstName(name?: string | null): string {
 
 export function DashboardPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: drivesData, isLoading } = useDrives();
   const drives = useMemo(() => drivesData?.drives ?? [], [drivesData]);
   const aggregate = drivesData?.aggregate;
@@ -81,54 +86,37 @@ export function DashboardPage() {
     [sharedLinks],
   );
 
-  const [recentFiles, setRecentFiles] = useState<FileEntry[]>([]);
-  const [recentFolders, setRecentFolders] = useState<WorkspaceFolder[]>([]);
-  const [category, setCategory] = useState<CategoryOverview | null>(null);
-
   const [shareTarget, setShareTarget] = useState<{ id: string; type: 'file' | 'folder' } | null>(null);
   const [moveDriveFiles, setMoveDriveFiles] = useState<FileEntry[]>([]);
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
 
-  const refreshRecent = useCallback(() => {
-    api.getRecentFiles().then((data) => {
-      setRecentFiles(data.files.slice(0, 8));
-      setRecentFolders(data.folders ? data.folders.slice(0, 8) : []);
-    }).catch(() => {});
-  }, []);
+  const { data: recentData } = useQuery({
+    queryKey: qk.recent,
+    queryFn: () => api.getRecentFiles(),
+  });
+  const recentFiles = (recentData?.files ?? []).slice(0, 8);
+  const recentFolders = (recentData?.folders ?? []).slice(0, 8);
 
-  const refreshCategory = useCallback(() => {
-    api.getFileCategoryOverview().then(setCategory).catch(() => setCategory(null));
-  }, []);
+  const { data: category } = useQuery<CategoryOverview | null>({
+    queryKey: qk.category,
+    queryFn: async () => {
+      try { return await api.getFileCategoryOverview(); }
+      catch { return null; }
+    },
+  });
 
-  const handleToggleStar = async (id: string, type: 'file' | 'folder', currentStarStatus: boolean) => {
-    try {
-      if (type === 'file') {
-        if (currentStarStatus) {
-          await api.unstarFile(id);
-          addToast('success', 'File unstarred');
-        } else {
-          await api.starFile(id);
-          addToast('success', 'File starred');
-        }
-      } else {
-        if (currentStarStatus) {
-          await api.unstarFolder(id);
-          addToast('success', 'Folder unstarred');
-        } else {
-          await api.starFolder(id);
-          addToast('success', 'Folder starred');
-        }
-      }
-      refreshRecent();
-    } catch {
-      addToast('error', 'Failed to update star status');
+  const starFileMut = useStarFile();
+  const unstarFileMut = useUnstarFile();
+  const starFolderMut = useStarFolder();
+  const unstarFolderMut = useUnstarFolder();
+
+  const handleToggleStar = (id: string, type: 'file' | 'folder', currentStarStatus: boolean) => {
+    if (type === 'file') {
+      if (currentStarStatus) { unstarFileMut.mutate(id); } else { starFileMut.mutate(id); }
+    } else {
+      if (currentStarStatus) { unstarFolderMut.mutate({ id }); } else { starFolderMut.mutate({ id }); }
     }
   };
-
-  useEffect(() => {
-    refreshRecent();
-    refreshCategory();
-  }, [refreshRecent, refreshCategory]);
 
   const hasDrives = drives.length > 0;
   const hasRecent = recentFiles.length > 0 || recentFolders.length > 0;
@@ -179,8 +167,8 @@ export function DashboardPage() {
         <button
           className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-stone-600 bg-card border border-stone-300 rounded-lg hover:bg-stone-50 transition-colors"
           onClick={() => {
-            refreshRecent();
-            refreshCategory();
+            queryClient.invalidateQueries({ queryKey: qk.recent });
+            queryClient.invalidateQueries({ queryKey: qk.category });
             addToast('info', 'Refreshed');
           }}
         >
@@ -465,12 +453,6 @@ export function DashboardPage() {
           files={moveDriveFiles}
           onClose={() => setMoveDriveFiles([])}
           onSuccess={() => {
-            setMoveDriveFiles([]);
-            refreshRecent();
-          }}
-          onError={(msg) => {
-            console.error('Error moving file(s):', msg);
-            addToast('error', 'Failed to move file(s)');
             setMoveDriveFiles([]);
           }}
         />

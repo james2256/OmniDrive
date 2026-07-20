@@ -1,12 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { useToastStore } from '../stores/toastStore';
+import { qk } from '../lib/queryKeys';
 import type { DriveAccount, AggregateQuota } from '../types';
-
-/** Query key factory for drive-related queries. */
-export const driveKeys = {
-  all: ['drives'] as const,
-};
 
 interface DrivesResponse {
   drives: DriveAccount[];
@@ -22,7 +18,7 @@ interface DrivesResponse {
  */
 export function useDrives() {
   return useQuery<DrivesResponse>({
-    queryKey: driveKeys.all,
+    queryKey: qk.drives,
     queryFn: () => api.getDrives(),
   });
 }
@@ -41,7 +37,7 @@ export function useRemoveDrive() {
     mutationFn: (driveId: string) => api.disconnectDrive(driveId),
     onSuccess: () => {
       addToast('success', 'Drive disconnected');
-      queryClient.invalidateQueries({ queryKey: driveKeys.all });
+      queryClient.invalidateQueries({ queryKey: qk.drives });
     },
     onError: () => addToast('error', 'Failed to disconnect drive'),
   });

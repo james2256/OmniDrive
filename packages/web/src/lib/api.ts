@@ -169,13 +169,13 @@ export const api = {
       xhr.send(file);
     });
   },
-  moveFile: (id: string, workspaceFolderId: string | null) =>
+  moveFile: (id: string, workspaceFolderId?: string | null) =>
     request<{ success: boolean }>(`/api/files/${id}/move`, {
       method: 'PATCH',
       body: JSON.stringify({ workspaceFolderId }),
     }),
   renameFile: (id: string, name: string) =>
-    request<{ success: boolean }>(`/api/files/${id}`, {
+    request<{ success: boolean }>(`/api/files/${id}/rename`, {
       method: 'PATCH',
       body: JSON.stringify({ name }),
     }),

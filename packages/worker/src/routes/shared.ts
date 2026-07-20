@@ -81,12 +81,12 @@ sharedRouter.post('/', authGuard, zValidator('json', createSharedLinkSchema, zod
     const file = await db.prepare('SELECT id FROM files WHERE id = ? AND user_id = ?').bind(targetId, userId).first();
     if (!file) return c.json({ error: 'You do not own this file' }, 403);
   } else if (targetType === 'folder') {
-    // Check workspace_folders first
-    const wsFolder = await db.prepare('SELECT f.id FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ? WHERE f.id = ?').bind(userId, targetId).first();
-    if (!wsFolder) {
-      // Fallback: check drive_folders (Google Drive folder by google_folder_id)
-      const driveFolder = await db.prepare('SELECT df.id FROM drive_folders df JOIN drive_accounts d ON df.drive_account_id = d.id WHERE d.user_id = ? AND df.google_folder_id = ? AND df.owned_by_me = 1').bind(userId, targetId).first();
-      if (!driveFolder) return c.json({ error: 'You do not own this folder' }, 403);
+    const folderService = c.get('folderService');
+    const driveService = c.get('driveService');
+    const wsOk = await folderService.checkFolderAccess(userId, targetId);
+    if (!wsOk) {
+      const driveOk = await driveService.checkDriveFolderOwnership(userId, targetId);
+      if (!driveOk) return c.json({ error: 'You do not own this folder' }, 403);
     }
   }
 
@@ -161,13 +161,13 @@ sharedRouter.put('/:id', authGuard, zValidator('json', updateSharedLinkSchema, z
     return c.json({ error: 'Link not found' }, 404);
   }
 
-  // Fall back to existing DB values for fields not provided in the request body.
-  const expiresAt = body.expiresAt ?? existing.expires_at;
+  // Distinguish undefined (keep existing) from null (clear) from value (set new).
+  const expiresAt = body.expiresAt === undefined ? existing.expires_at : body.expiresAt;
   const allowDownloads = body.allowDownloads ?? (existing.allow_downloads === 1);
   const allowUploads = body.allowUploads ?? (existing.allow_uploads === 1);
-  const maxDownloads = body.maxDownloads ?? existing.max_downloads;
+  const maxDownloads = body.maxDownloads === undefined ? existing.max_downloads : body.maxDownloads;
   const requireEmail = body.requireEmail ?? (existing.require_email === 1);
-  const webhookUrl = body.webhookUrl ?? existing.webhook_url;
+  const webhookUrl = body.webhookUrl === undefined ? existing.webhook_url : body.webhookUrl;
   const password = body.password;
 
   // ponytail: allowUploads not yet implemented — refuse to store a false promise

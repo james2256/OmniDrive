@@ -89,12 +89,13 @@ export class FileService {
     }
   }
 
-  /** Rename a file. RBAC: editor. */
+  /** Rename a file. RBAC: editor. Calls Google Drive API first, then updates D1. */
   async renameFile(userId: string, fileId: string, name: string): Promise<void> {
     const file = await this.fileRepo.findById(fileId);
     if (!file) throw new AppError(404, 'File not found');
 
     await this.assertCanMutate(file, userId, 'editor');
+    await this.driveService.renameFile(file.drive_account_id, file.google_file_id, name);
     await this.fileRepo.rename(fileId, file.user_id, name);
   }
 

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { HardDrive, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { useDrives } from '../hooks/useDrives';
-import { api } from '../lib/api';
+import { useMoveFileToDrive } from '../hooks/useFileMutations';
 import type { FileEntry, DriveAccount } from '../types';
 import { formatFileSize } from '../lib/utils';
 import { useToastStore } from '../stores/toastStore';
@@ -11,62 +11,52 @@ interface MoveDriveModalProps {
   files: FileEntry[];
   onClose: () => void;
   onSuccess: () => void;
-  onError: (error: unknown) => void;
 }
 
-export function MoveDriveModal({ files, onClose, onSuccess, onError }: MoveDriveModalProps) {
+export function MoveDriveModal({ files, onClose, onSuccess }: MoveDriveModalProps) {
   const { data: drivesData } = useDrives();
   const drives = drivesData?.drives ?? [];
   const addToast = useToastStore((s) => s.addToast);
+  const moveFileToDriveMut = useMoveFileToDrive();
   const [isMoving, setIsMoving] = useState(false);
   const [movingToDriveId, setMovingToDriveId] = useState<string | null>(null);
 
-  // Consider all drives that are not the source of EVERY file.
-  // Simplest is to just show all drives, but for UX, exclude if it's the exact same drive for the single file.
-  const availableDrives = files.length === 1 
+  const availableDrives = files.length === 1
     ? drives.filter(d => d.id !== files[0].driveAccountId)
     : drives;
 
   const handleMove = async (drive: DriveAccount) => {
     if (files.length === 0) return;
-    try {
-      setIsMoving(true);
-      setMovingToDriveId(drive.id);
-      
-      let successCount = 0;
-      let failCount = 0;
-      
-      for (const file of files) {
-        if (file.driveAccountId === drive.id) {
-          // Skip if already in this drive
-          continue;
-        }
-        try {
-          await api.moveFileToDrive(file.id, drive.id);
-          successCount++;
-        } catch {
-          failCount++;
-        }
+    setIsMoving(true);
+    setMovingToDriveId(drive.id);
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const file of files) {
+      if (file.driveAccountId === drive.id) continue;
+      try {
+        await moveFileToDriveMut.mutateAsync({ fileId: file.id, targetDriveId: drive.id });
+        successCount++;
+      } catch {
+        failCount++;
       }
-      
-      if (failCount === 0 && successCount > 0) {
-        addToast('success', `✅ Moved ${successCount} item(s) to ${drive.email}`);
-      } else if (failCount > 0) {
-        addToast('error', `⚠️ Moved ${successCount} item(s), ${failCount} failed`);
-      } else if (successCount === 0 && failCount === 0) {
-        addToast('info', 'Items are already in the selected drive');
-      }
-      
-      if (successCount > 0) {
-        onSuccess();
-      } else {
-        onClose();
-      }
-    } catch (err) {
-      onError(err);
-    } finally {
-      setIsMoving(false);
-      setMovingToDriveId(null);
+    }
+
+    if (failCount === 0 && successCount > 0) {
+      addToast('success', `Moved ${successCount} item(s) to ${drive.email}`);
+    } else if (failCount > 0) {
+      addToast('error', `Moved ${successCount} item(s), ${failCount} failed`);
+    } else if (successCount === 0 && failCount === 0) {
+      addToast('info', 'Items are already in the selected drive');
+    }
+
+    setIsMoving(false);
+    setMovingToDriveId(null);
+    if (successCount > 0) {
+      onSuccess();
+    } else {
+      onClose();
     }
   };
 

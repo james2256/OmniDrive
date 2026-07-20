@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useDrives, useRemoveDrive, useTriggerSync, driveKeys } from '../hooks/useDrives';
+import { useDrives, useRemoveDrive, useTriggerSync } from '../hooks/useDrives';
+import { qk } from '../lib/queryKeys';
 import { DriveAccountCard } from '../components/DriveAccountCard';
 import type { S3Credential } from '../lib/api';
 import { useToastStore } from '../stores/toastStore';
@@ -154,7 +155,7 @@ export function SettingsPage() {
     if (!hasSyncing) return;
 
     const interval = setInterval(() => {
-      queryClient.invalidateQueries({ queryKey: driveKeys.all });
+      queryClient.invalidateQueries({ queryKey: qk.drives });
     }, 3000);
 
     return () => clearInterval(interval);
@@ -170,8 +171,8 @@ export function SettingsPage() {
         await triggerSyncMutation.mutateAsync(id);
         cycles++;
         await new Promise((r) => setTimeout(r, 3000));
-        await queryClient.invalidateQueries({ queryKey: driveKeys.all });
-        const drivesData = queryClient.getQueryData<{ drives: typeof drives }>(driveKeys.all);
+        await queryClient.invalidateQueries({ queryKey: qk.drives });
+        const drivesData = queryClient.getQueryData<{ drives: typeof drives }>(qk.drives);
         const drive = drivesData?.drives.find((d) => d.id === id);
 
         if (drive?.syncPaused && cycles < maxCycles) {
@@ -202,7 +203,7 @@ export function SettingsPage() {
       setSaCredentials('');
       setSaFolderId('');
       setShowSaForm(false);
-      queryClient.invalidateQueries({ queryKey: driveKeys.all });
+      queryClient.invalidateQueries({ queryKey: qk.drives });
     } catch {
       addToast('error', 'Failed to add service account');
     }

@@ -85,8 +85,8 @@ export const createSharedLinkSchema = z.object({
 });
 
 export const updateSharedLinkSchema = z.object({
-  password: z.string().optional(),
-  expiresAt: expiresAtSchema,
+  password: z.string().nullable().optional(),
+  expiresAt: z.string().datetime().nullable().optional(),
   allowDownloads: z.boolean().optional(),
   allowUploads: z.boolean().optional(),
   maxDownloads: z.number().int().positive().nullable().optional(),

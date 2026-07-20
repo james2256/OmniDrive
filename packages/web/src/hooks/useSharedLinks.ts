@@ -1,11 +1,8 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getSharedLinks } from '../lib/api';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { getSharedLinks, deleteSharedLink } from '../lib/api';
 import type { SharedLink } from '../lib/api';
-
-/** Query key factory for shared-link queries. */
-export const sharedKeys = {
-  all: ['sharedLinks'] as const,
-};
+import { qk } from '../lib/queryKeys';
+import { useToastStore } from '../stores/toastStore';
 
 /**
  * Replaces `sharedStore.fetchSharedLinks` + `sharedLinks` + `isLoading`.
@@ -15,7 +12,7 @@ export const sharedKeys = {
  */
 export function useSharedLinks() {
   return useQuery<SharedLink[]>({
-    queryKey: sharedKeys.all,
+    queryKey: qk.sharedLinks,
     queryFn: async () => {
       const { links } = await getSharedLinks();
       return links;
@@ -38,11 +35,22 @@ export function useIsTargetShared(targetId: string | undefined, targetType: 'fil
 /**
  * Replaces the non-reactive `useSharedStore.getState().fetchSharedLinks()`
  * pattern used in ShareModal/EditShareModal after mutations.
- *
- * Returns a function that invalidates the shared-links cache, triggering a
- * refetch on all `useSharedLinks()` / `useIsTargetShared()` consumers.
  */
 export function useInvalidateSharedLinks() {
   const queryClient = useQueryClient();
-  return () => queryClient.invalidateQueries({ queryKey: sharedKeys.all });
+  return () => queryClient.invalidateQueries({ queryKey: qk.sharedLinks });
+}
+
+/** Revoke (delete) a shared link. Invalidates the shared-links cache. */
+export function useRevokeSharedLink() {
+  const qc = useQueryClient();
+  const { addToast } = useToastStore();
+  return useMutation({
+    mutationFn: (id: string) => deleteSharedLink(id),
+    onSuccess: () => {
+      addToast('success', 'Link revoked successfully');
+      qc.invalidateQueries({ queryKey: qk.sharedLinks });
+    },
+    onError: () => addToast('error', 'Failed to revoke link'),
+  });
 }

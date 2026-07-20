@@ -2,6 +2,7 @@ import type { D1Database } from '@cloudflare/workers-types';
 import { DriveRepository } from '../repositories/drive.repository';
 import { GoogleDriveService } from './google-drive';
 import { AppError } from '../middleware/error-handler';
+import { generateId } from '../lib/id';
 
 /**
  * Business logic layer for Google Drive account and folder operations.
@@ -23,12 +24,29 @@ export class DriveService {
     this.googleDriveService = new GoogleDriveService(db, clientId, clientSecret, encryptionKey);
   }
 
-  /** Create a Google Drive folder via the API. */
+  /** Create a Google Drive folder via the API, then persist to D1 so it appears immediately. */
   async createDriveFolder(userId: string, driveId: string, name: string, parentId?: string): Promise<string> {
     const drive = await this.driveRepo.findByIdAndUser(driveId, userId);
     if (!drive) throw new AppError(404, 'Drive not found');
 
-    return this.googleDriveService.createFolder(driveId, name, parentId || undefined);
+    const googleFolderId = await this.googleDriveService.createFolder(driveId, name, parentId || undefined);
+
+    await this.driveRepo.insertDriveFolder({
+      id: generateId(),
+      driveAccountId: driveId,
+      googleFolderId,
+      googleParentId: parentId ?? null,
+      name,
+      ownedByMe: true,
+    });
+
+    return googleFolderId;
+  }
+
+  /** Check if the user owns a Drive folder by google_folder_id. Returns true/false. */
+  async checkDriveFolderOwnership(userId: string, googleFolderId: string): Promise<boolean> {
+    const folder = await this.driveRepo.findOwnedDriveFolderByGoogleId(googleFolderId, userId);
+    return !!folder;
   }
 
   /** Rename a Google Drive folder via the API, then update the cache. */

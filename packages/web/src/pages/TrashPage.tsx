@@ -1,73 +1,39 @@
 import { useState, useCallback, useMemo } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useToastStore } from '../stores/toastStore';
+import { useQuery } from '@tanstack/react-query';
 import { FileGrid } from '../components/files/FileGrid';
 import { api } from '../lib/api';
 import { useDrives } from '../hooks/useDrives';
+import { qk } from '../lib/queryKeys';
 import type { FileEntry } from '../types';
 import { FilePreviewModal } from '../components/FilePreviewModal';
-
-const trashKeys = {
-  all: ['trash'] as const,
-};
+import { useRestoreFile, usePermanentDeleteFile } from '../hooks/useFileMutations';
+import { useRestoreDriveFolder, usePermanentDeleteDriveFolder } from '../hooks/useFolderMutations';
 
 export function TrashPage() {
   const { data: drivesData } = useDrives();
   const drives = useMemo(() => drivesData?.drives ?? [], [drivesData]);
-  const { addToast } = useToastStore();
-  const queryClient = useQueryClient();
 
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: trashKeys.all,
+    queryKey: qk.trash,
     queryFn: () => api.getTrashFiles(),
   });
 
   const fileResults = data?.files ?? [];
   const folderResults = data?.folders ?? [];
 
-  const invalidateTrash = () => queryClient.invalidateQueries({ queryKey: trashKeys.all });
+  const restoreFileMut = useRestoreFile();
+  const permanentDeleteFileMut = usePermanentDeleteFile();
+  const restoreDriveFolderMut = useRestoreDriveFolder();
+  const permanentDeleteDriveFolderMut = usePermanentDeleteDriveFolder();
 
-  const handleRestore = async (fileId: string) => {
-    try {
-      await api.restoreFile(fileId);
-      addToast('success', 'File restored successfully');
-      invalidateTrash();
-    } catch {
-      addToast('error', 'Failed to restore file');
-    }
-  };
-
-  const handlePermanentDelete = async (fileId: string) => {
-    try {
-      await api.deleteFilePermanent(fileId);
-      addToast('success', 'File permanently deleted');
-      invalidateTrash();
-    } catch {
-      addToast('error', 'Failed to permanently delete file');
-    }
-  };
-
-  const handleRestoreFolder = async (driveId: string, folderId: string) => {
-    try {
-      await api.restoreDriveFolder(driveId, folderId);
-      addToast('success', 'Folder restored successfully');
-      invalidateTrash();
-    } catch {
-      addToast('error', 'Failed to restore folder');
-    }
-  };
-
-  const handlePermanentDeleteFolder = async (driveId: string, folderId: string) => {
-    try {
-      await api.deleteDriveFolderPermanent(driveId, folderId);
-      addToast('success', 'Folder permanently deleted');
-      invalidateTrash();
-    } catch {
-      addToast('error', 'Failed to permanently delete folder');
-    }
-  };
+  const handleRestore = (fileId: string) => restoreFileMut.mutate(fileId);
+  const handlePermanentDelete = (fileId: string) => permanentDeleteFileMut.mutate(fileId);
+  const handleRestoreFolder = (driveId: string, folderId: string) =>
+    restoreDriveFolderMut.mutate({ driveId, folderId });
+  const handlePermanentDeleteFolder = (driveId: string, folderId: string) =>
+    permanentDeleteDriveFolderMut.mutate({ driveId, folderId });
 
   const getDriveInfo = useCallback(
     (driveAccountId?: string) => {

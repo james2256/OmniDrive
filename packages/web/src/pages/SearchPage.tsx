@@ -9,11 +9,8 @@ import { FilePreviewModal } from '../components/FilePreviewModal';
 import { api } from '../lib/api';
 import { useDrives } from '../hooks/useDrives';
 import { useSharedLinks } from '../hooks/useSharedLinks';
+import { qk } from '../lib/queryKeys';
 import type { FileEntry } from '../types';
-
-const searchKeys = {
-  results: (q: string) => ['search', q] as const,
-};
 
 export function SearchPage() {
   const [searchParams] = useSearchParams();
@@ -36,7 +33,7 @@ export function SearchPage() {
   );
 
   const { data: results = [], isLoading } = useQuery({
-    queryKey: searchKeys.results(query),
+    queryKey: qk.search(query),
     queryFn: async () => {
       if (!query) return [];
       const data = await api.searchFiles(query);
@@ -62,7 +59,7 @@ export function SearchPage() {
             'success',
             `${type === 'file' ? 'File' : 'Folder'} ${currentStarStatus ? 'unstarred' : 'starred'}`,
           );
-          queryClient.invalidateQueries({ queryKey: searchKeys.results(query) });
+          queryClient.invalidateQueries({ queryKey: qk.search(query) });
         })
         .catch(() => addToast('error', 'Failed to update star status'));
     },
@@ -130,12 +127,7 @@ export function SearchPage() {
           onClose={() => setMoveDriveFiles([])}
           onSuccess={() => {
             setMoveDriveFiles([]);
-            queryClient.invalidateQueries({ queryKey: searchKeys.results(query) });
-          }}
-          onError={(msg) => {
-            console.error('Error moving file(s):', msg);
-            addToast('error', 'Failed to move file(s)');
-            setMoveDriveFiles([]);
+            queryClient.invalidateQueries({ queryKey: qk.search(query) });
           }}
         />
       )}

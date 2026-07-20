@@ -1,11 +1,8 @@
 import { useQuery, useQueries } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { useDrives } from './useDrives';
+import { qk } from '../lib/queryKeys';
 import type { DriveFolder, FileEntry, BreadcrumbItem, WorkspaceFolder } from '../types';
-
-const driveFolderKeys = {
-  contents: (driveId: string, folderId: string) => ['driveFolder', driveId, folderId] as const,
-};
 
 interface MergedDriveData {
   subfolders: (DriveFolder | WorkspaceFolder)[];
@@ -45,7 +42,7 @@ export function useMergedDrive(folderId: string, driveIdParam: string | null): M
   // Root: fan out N parallel queries (one per drive)
   const rootQueries = useQueries({
     queries: drives.map((drive) => ({
-      queryKey: driveFolderKeys.contents(drive.id, 'root'),
+      queryKey: qk.driveFolderContents(drive.id, 'root'),
       queryFn: () => api.getDriveFolderContents(drive.id, 'root'),
       enabled: isRoot && drives.length > 0,
     })),
@@ -53,7 +50,7 @@ export function useMergedDrive(folderId: string, driveIdParam: string | null): M
 
   // Non-root: single query for the specific drive
   const nonRootQuery = useQuery({
-    queryKey: driveFolderKeys.contents(driveIdParam ?? '', folderId),
+    queryKey: qk.driveFolderContents(driveIdParam ?? '', folderId),
     queryFn: () => api.getDriveFolderContents(driveIdParam as string, folderId),
     enabled: !isRoot && !!driveIdParam,
   });

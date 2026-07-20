@@ -1,33 +1,23 @@
 import { useState, useCallback, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useToastStore } from '../stores/toastStore';
+import { useQuery } from '@tanstack/react-query';
 import { FileGrid } from '../components/files/FileGrid';
 import { api } from '../lib/api';
 import { useDrives } from '../hooks/useDrives';
+import { qk } from '../lib/queryKeys';
 import type { FileEntry } from '../types';
 import { FilePreviewModal } from '../components/FilePreviewModal';
-
-const starredKeys = {
-  all: ['starred'] as const,
-};
-
-interface ToggleStarArgs {
-  id: string;
-  type: 'file' | 'folder';
-  currentStarStatus: boolean;
-  driveId?: string;
-}
+import { useStarFile, useUnstarFile } from '../hooks/useFileMutations';
+import { useStarFolder, useUnstarFolder } from '../hooks/useFolderMutations';
 
 export function StarredPage() {
   const { data: drivesData } = useDrives();
   const drives = useMemo(() => drivesData?.drives ?? [], [drivesData]);
-  const { addToast } = useToastStore();
-  const queryClient = useQueryClient();
+  
 
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: starredKeys.all,
+    queryKey: qk.starred,
     queryFn: () => api.getStarred(),
   });
 
@@ -35,33 +25,22 @@ export function StarredPage() {
   const wsFolders = data?.folders ?? [];
   const driveFolders = data?.driveFolders ?? [];
 
-  const toggleStarMutation = useMutation({
-    mutationFn: async ({ id, type, currentStarStatus, driveId }: ToggleStarArgs) => {
-      if (type === 'file') {
-        return currentStarStatus ? api.unstarFile(id) : api.starFile(id);
-      }
-      if (driveId) {
-        return currentStarStatus
-          ? api.unstarDriveFolder(driveId, id)
-          : api.starDriveFolder(driveId, id);
-      }
-      return currentStarStatus ? api.unstarFolder(id) : api.starFolder(id);
-    },
-    onSuccess: (_data, variables) => {
-      addToast(
-        'success',
-        `${variables.type === 'file' ? 'File' : 'Folder'} ${variables.currentStarStatus ? 'unstarred' : 'starred'}`,
-      );
-      queryClient.invalidateQueries({ queryKey: starredKeys.all });
-    },
-    onError: () => addToast('error', 'Failed to update star status'),
-  });
+  const starFileMut = useStarFile();
+  const unstarFileMut = useUnstarFile();
+  const starFolderMut = useStarFolder();
+  const unstarFolderMut = useUnstarFolder();
 
   const handleToggleStar = useCallback(
     (id: string, type: 'file' | 'folder', currentStarStatus: boolean, driveId?: string) => {
-      toggleStarMutation.mutate({ id, type, currentStarStatus, driveId });
+      if (type === 'file') {
+        if (currentStarStatus) { unstarFileMut.mutate(id); } else { starFileMut.mutate(id); }
+      } else if (driveId) {
+        if (currentStarStatus) { unstarFolderMut.mutate({ id, driveId }); } else { starFolderMut.mutate({ id, driveId }); }
+      } else {
+        if (currentStarStatus) { unstarFolderMut.mutate({ id }); } else { starFolderMut.mutate({ id }); }
+      }
     },
-    [toggleStarMutation],
+    [starFileMut, unstarFileMut, starFolderMut, unstarFolderMut],
   );
 
   const getDriveInfo = useCallback(
@@ -74,7 +53,6 @@ export function StarredPage() {
     [drives],
   );
 
-  // Combine workspace folders and Drive folders into a single list for FileGrid.
   const allFolders = [...wsFolders, ...driveFolders];
 
   return (

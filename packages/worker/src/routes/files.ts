@@ -331,7 +331,7 @@ filesRouter.post('/:id/move-drive', zValidator('json', moveDriveFileSchema, zodE
 
     await db.prepare(
       `UPDATE files 
-       SET drive_account_id = ?, google_file_id = ?, google_parent_id = NULL, updated_at = CURRENT_TIMESTAMP
+       SET drive_account_id = ?, google_file_id = ?, google_parent_id = 'root', updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`
     ).bind(targetDriveId, copiedFile.id, fileId).run();
 

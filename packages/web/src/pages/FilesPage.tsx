@@ -21,6 +21,12 @@ import { useUIStore } from '../stores/useUIStore';
 import { useSelectionStore, type SelectedItem } from '../stores/useSelectionStore';
 import { BulkActionBar } from '../components/layout/BulkActionBar';
 import type { FileEntry, DriveFolder, WorkspaceFolder } from '../types';
+import {
+  useStarFile, useUnstarFile, useDeleteFile, useRenameFile,
+} from '../hooks/useFileMutations';
+import {
+  useStarFolder, useUnstarFolder, useDeleteDriveFolder, useRenameDriveFolder,
+} from '../hooks/useFolderMutations';
 
 export function FilesPage() {
   const { folderId = 'root' } = useParams<{ folderId: string }>();
@@ -29,7 +35,7 @@ export function FilesPage() {
   const navigate = useNavigate();
   
   const { data: drivesData, isLoading: isDrivesLoading } = useDrives();
-  const drives = useMemo(() => drivesData?.drives ?? [], [drivesData?.drives]);
+  const drives = useMemo(() => drivesData?.drives ?? [], [drivesData]);
   const { showModal, setShowModal } = useUploadStore();
   const { addToast } = useToastStore();
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
@@ -47,6 +53,18 @@ export function FilesPage() {
     toggleSelection({ type, item } as SelectedItem);
     setIsInfoPanelOpen(true);
   };
+
+  // Mutation hooks — handle API call + toast + cache invalidation
+  const starFileMut = useStarFile();
+  const unstarFileMut = useUnstarFile();
+  const deleteFileMut = useDeleteFile();
+  const renameFileMut = useRenameFile();
+
+
+  const starFolderMut = useStarFolder();
+  const unstarFolderMut = useUnstarFolder();
+  const deleteDriveFolderMut = useDeleteDriveFolder();
+  const renameDriveFolderMut = useRenameDriveFolder();
 
   const handleConnectGoogle = async () => {
     if (isConnecting) return;
@@ -68,82 +86,33 @@ export function FilesPage() {
 
   const [moveTarget, setMoveTarget] = useState<SelectedItem[]>([]);
 
-  const handleDeleteFile = async (id: string) => {
+  const handleDeleteFile = (id: string) => {
     if (confirm('Delete this file permanently from Google Drive?')) {
-      try {
-        await api.deleteFile(id);
-        addToast('success', 'File deleted');
-        refresh();
-      } catch {
-        addToast('error', 'Failed to delete file');
-      }
+      deleteFileMut.mutate(id);
     }
   };
 
-  const handleDeleteFolder = async (driveId: string, folderId: string) => {
+  const handleDeleteFolder = (driveId: string, folderId: string) => {
     if (confirm('Delete this folder and ALL its contents from Google Drive?')) {
-      try {
-        await api.deleteDriveFolder(driveId, folderId);
-        addToast('success', 'Folder deleted');
-        refresh();
-      } catch {
-        addToast('error', 'Failed to delete folder');
-      }
+      deleteDriveFolderMut.mutate({ driveId, folderId });
     }
   };
 
-  const handleRenameFile = async (id: string, name: string) => {
-    try {
-      await api.renameFile(id, name);
-      addToast('success', 'File renamed');
-      refresh();
-    } catch {
-      addToast('error', 'Failed to rename file');
-    }
+  const handleRenameFile = (id: string, name: string) => {
+    renameFileMut.mutate({ fileId: id, name });
   };
 
-  const handleRenameFolder = async (driveId: string, folderId: string, name: string) => {
-    try {
-      await api.renameDriveFolder(driveId, folderId, name);
-      addToast('success', 'Folder renamed');
-      refresh();
-    } catch {
-      addToast('error', 'Failed to rename folder');
-    }
+  const handleRenameFolder = (driveId: string, folderId: string, name: string) => {
+    renameDriveFolderMut.mutate({ driveId, folderId, name });
   };
 
-  const handleToggleStar = async (id: string, type: 'file' | 'folder', currentStarStatus: boolean, driveId?: string) => {
-    try {
-      if (type === 'file') {
-        if (currentStarStatus) {
-          await api.unstarFile(id);
-          addToast('success', 'File unstarred');
-        } else {
-          await api.starFile(id);
-          addToast('success', 'File starred');
-        }
-      } else if (driveId) {
-        // Drive folder star/unstar
-        if (currentStarStatus) {
-          await api.unstarDriveFolder(driveId, id);
-          addToast('success', 'Folder unstarred');
-        } else {
-          await api.starDriveFolder(driveId, id);
-          addToast('success', 'Folder starred');
-        }
-      } else {
-        // Workspace folder star/unstar
-        if (currentStarStatus) {
-          await api.unstarFolder(id);
-          addToast('success', 'Folder unstarred');
-        } else {
-          await api.starFolder(id);
-          addToast('success', 'Folder starred');
-        }
-      }
-      refresh();
-    } catch {
-      addToast('error', 'Failed to update star status');
+  const handleToggleStar = (id: string, type: 'file' | 'folder', currentStarStatus: boolean, driveId?: string) => {
+    if (type === 'file') {
+      if (currentStarStatus) { unstarFileMut.mutate(id); } else { starFileMut.mutate(id); }
+    } else if (driveId) {
+      if (currentStarStatus) { unstarFolderMut.mutate({ id, driveId }); } else { starFolderMut.mutate({ id, driveId }); }
+    } else {
+      if (currentStarStatus) { unstarFolderMut.mutate({ id }); } else { starFolderMut.mutate({ id }); }
     }
   };
 
@@ -308,11 +277,6 @@ export function FilesPage() {
             setMoveDriveFiles([]);
             clearSelection();
             refresh();
-          }}
-          onError={(err) => {
-            console.error(err);
-            addToast('error', 'Failed to move file(s)');
-            setMoveDriveFiles([]);
           }}
         />
         <MoveModal

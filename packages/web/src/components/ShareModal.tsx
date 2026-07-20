@@ -17,7 +17,6 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
   const [expiresAt, setExpiresAt] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [allowDownloads, setAllowDownloads] = useState(true);
-  const [allowUploads, setAllowUploads] = useState(false);
   const [maxDownloads, setMaxDownloads] = useState('');
   const [requireEmail, setRequireEmail] = useState(false);
   const [webhookUrl, setWebhookUrl] = useState('');
@@ -57,7 +56,7 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
         password: password || undefined,
         expiresAt: isoExpiresAt,
         allowDownloads,
-        allowUploads: targetType === 'folder' ? allowUploads : false,
+
         maxDownloads: maxDownloads ? parseInt(maxDownloads, 10) : null,
         requireEmail,
         webhookUrl: webhookUrl || undefined
@@ -156,18 +155,6 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
                         />
                         <span className="select-none">Allow Downloads</span>
                       </label>
-
-                      {targetType === 'folder' && (
-                        <label className="flex items-center gap-2.5 text-sm text-stone-700 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={allowUploads}
-                            onChange={(e) => setAllowUploads(e.target.checked)}
-                            className="w-4 h-4 rounded border-stone-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                          />
-                          <span className="select-none">Allow Uploads (Public Drop folder)</span>
-                        </label>
-                      )}
 
                       <label className="flex items-center gap-2.5 text-sm text-stone-700 cursor-pointer">
                         <input

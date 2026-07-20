@@ -2,7 +2,6 @@ import { useState, useCallback, useMemo } from 'react';
 import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight } from 'lucide-react';
-import { useToastStore } from '../stores/toastStore';
 import { FileGrid } from '../components/files/FileGrid';
 import { BulkActionBar } from '../components/layout/BulkActionBar';
 import { MoveModal } from '../components/MoveModal';
@@ -10,14 +9,12 @@ import { ShareModal } from '../components/ShareModal';
 import { api } from '../lib/api';
 import { useDrives } from '../hooks/useDrives';
 import type { FileEntry, DriveFolder, BreadcrumbItem, WorkspaceFolder } from '../types';
+import { qk } from '../lib/queryKeys';
 import type { SelectedItem } from '../stores/useSelectionStore';
 import { useSelectionStore } from '../stores/useSelectionStore';
 import { FilePreviewModal } from '../components/FilePreviewModal';
-
-const sharedWithMeKeys = {
-  list: ['shared-with-me'] as const,
-  folder: (driveId: string, folderId: string) => ['shared-with-me', driveId, folderId] as const,
-};
+import { useDeleteFile, useRenameFile, useStarFile, useUnstarFile } from '../hooks/useFileMutations';
+import { useDeleteDriveFolder, useRenameDriveFolder, useStarFolder, useUnstarFolder } from '../hooks/useFolderMutations';
 
 export function SharedWithMePage() {
   const { folderId } = useParams<{ folderId: string }>();
@@ -27,7 +24,6 @@ export function SharedWithMePage() {
 
   const { data: drivesData } = useDrives();
   const drives = useMemo(() => drivesData?.drives ?? [], [drivesData]);
-  const { addToast } = useToastStore();
   const { selectedItems, clearSelection } = useSelectionStore();
   const queryClient = useQueryClient();
 
@@ -36,8 +32,8 @@ export function SharedWithMePage() {
   const [moveTarget, setMoveTarget] = useState<SelectedItem[]>([]);
 
   const queryKey = folderId && driveIdParam
-    ? sharedWithMeKeys.folder(driveIdParam, folderId)
-    : sharedWithMeKeys.list;
+    ? qk.sharedWithMeFolder(driveIdParam, folderId)
+    : qk.sharedWithMe;
 
   const { data, isLoading } = useQuery({
     queryKey,
@@ -68,72 +64,43 @@ export function SharedWithMePage() {
   const breadcrumb: BreadcrumbItem[] = data?.breadcrumb ?? [{ id: 'root', name: 'Shared with me' }];
 
   const refresh = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: sharedWithMeKeys.list });
+    queryClient.invalidateQueries({ queryKey: qk.sharedWithMe });
   }, [queryClient]);
 
-  const handleDeleteFile = async (id: string) => {
+  const deleteFileMut = useDeleteFile();
+  const deleteDriveFolderMut = useDeleteDriveFolder();
+  const renameFileMut = useRenameFile();
+  const renameDriveFolderMut = useRenameDriveFolder();
+  const starFileMut = useStarFile();
+  const unstarFileMut = useUnstarFile();
+  const starFolderMut = useStarFolder();
+  const unstarFolderMut = useUnstarFolder();
+
+  const handleDeleteFile = (id: string) => {
     if (confirm('Delete this file permanently from Google Drive?')) {
-      try {
-        await api.deleteFile(id);
-        addToast('success', 'File deleted');
-        refresh();
-      } catch {
-        addToast('error', 'Failed to delete file');
-      }
+      deleteFileMut.mutate(id);
     }
   };
 
-  const handleDeleteFolder = async (driveId: string, folderId: string) => {
+  const handleDeleteFolder = (driveId: string, folderId: string) => {
     if (confirm('Delete this folder and ALL its contents from Google Drive?')) {
-      try {
-        await api.deleteDriveFolder(driveId, folderId);
-        addToast('success', 'Folder deleted');
-        refresh();
-      } catch {
-        addToast('error', 'Failed to delete folder');
-      }
+      deleteDriveFolderMut.mutate({ driveId, folderId });
     }
   };
 
-  const handleRenameFile = async (id: string, name: string) => {
-    try {
-      await api.renameFile(id, name);
-      addToast('success', 'File renamed');
-      refresh();
-    } catch {
-      addToast('error', 'Failed to rename file');
-    }
+  const handleRenameFile = (id: string, name: string) => {
+    renameFileMut.mutate({ fileId: id, name });
   };
 
-  const handleRenameFolder = async (driveId: string, folderId: string, name: string) => {
-    try {
-      await api.renameDriveFolder(driveId, folderId, name);
-      addToast('success', 'Folder renamed');
-      refresh();
-    } catch {
-      addToast('error', 'Failed to rename folder');
-    }
+  const handleRenameFolder = (driveId: string, folderId: string, name: string) => {
+    renameDriveFolderMut.mutate({ driveId, folderId, name });
   };
 
-  const handleToggleStar = async (id: string, type: 'file' | 'folder', currentStarStatus: boolean, driveId?: string) => {
-    try {
-      if (type === 'file') {
-        if (currentStarStatus) {
-          await api.unstarFile(id);
-        } else {
-          await api.starFile(id);
-        }
-      } else if (driveId) {
-        if (currentStarStatus) {
-          await api.unstarDriveFolder(driveId, id);
-        } else {
-          await api.starDriveFolder(driveId, id);
-        }
-      }
-      addToast('success', 'Star status updated');
-      refresh();
-    } catch {
-      addToast('error', 'Failed to update star status');
+  const handleToggleStar = (id: string, type: 'file' | 'folder', currentStarStatus: boolean, driveId?: string) => {
+    if (type === 'file') {
+      if (currentStarStatus) { unstarFileMut.mutate(id); } else { starFileMut.mutate(id); }
+    } else if (driveId) {
+      if (currentStarStatus) { unstarFolderMut.mutate({ id, driveId }); } else { starFolderMut.mutate({ id, driveId }); }
     }
   };
 
