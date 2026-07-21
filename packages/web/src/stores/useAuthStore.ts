@@ -1,9 +1,9 @@
 import { create } from 'zustand';
-import type { User } from '../types';
+import type { SessionData } from '../types';
 import { api } from '../lib/api';
 
 interface AuthState {
-  user: User | null;
+  user: SessionData | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   fetchUser: () => Promise<void>;

@@ -1,12 +1,14 @@
-export async function getWorkspaceRole(db: D1Database, workspaceId: string, userId: string): Promise<string | null> {
+import type { WorkspaceRole } from '../lib/schemas';
+
+export async function getWorkspaceRole(db: D1Database, workspaceId: string, userId: string): Promise<WorkspaceRole | null> {
   const member = await db.prepare(
     'SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?'
-  ).bind(workspaceId, userId).first<{ role: string }>();
+  ).bind(workspaceId, userId).first<{ role: WorkspaceRole }>();
   return member ? member.role : null;
 }
 
-export function hasPermission(role: string, requiredRole: 'viewer' | 'commenter' | 'editor' | 'manager' | 'auditor' | 'owner'): boolean {
-  const levels: Record<string, number> = {
+export function hasPermission(role: WorkspaceRole, requiredRole: WorkspaceRole): boolean {
+  const levels: Record<WorkspaceRole, number> = {
     'viewer': 1,
     'auditor': 1,
     'commenter': 2,
@@ -14,5 +16,5 @@ export function hasPermission(role: string, requiredRole: 'viewer' | 'commenter'
     'manager': 4,
     'owner': 5
   };
-  return (levels[role] || 0) >= levels[requiredRole];
+  return levels[role] >= levels[requiredRole];
 }

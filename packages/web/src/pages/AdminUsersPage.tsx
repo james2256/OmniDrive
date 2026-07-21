@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../stores/useAuthStore';
 import { ShieldAlert, Plus, MoreVertical } from 'lucide-react';
-import type { User } from '../types';
+import type { AdminUser } from '../types';
 import { api } from '../lib/api';
 import type { Invitation } from '../lib/api';
 import {
@@ -96,7 +96,7 @@ export const AdminUsersPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'users' | 'invitations'>('users');
 
   // Users Tab State
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<AdminUser[]>([]);
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
 
@@ -249,7 +249,7 @@ export const AdminUsersPage: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-stone-500">
-                        {(userItem.username !== user?.username && userItem.id !== user?.id && userItem.id !== user?.userId) && (
+                        {(userItem.username !== user?.username && userItem.id !== user?.userId) && (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <button className="p-1 hover:bg-stone-200 rounded text-stone-500">

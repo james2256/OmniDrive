@@ -10,13 +10,14 @@ import { mapDriveRow, type WorkspaceRow, type FileRow, type DriveAccountRow, typ
 import type { DriveAccount } from '../types';
 import { createHash } from 'node:crypto';
 import { hasPermission } from '../middleware/rbac';
+import type { WorkspaceRole } from '../lib/schemas';
 import { parseLifecycleXml, serializeLifecycleXml } from '../services/s3-lifecycle';
 
 export const s3Router = new Hono<AppContext>({ strict: false });
 
 // ponytail: S3 RBAC — read ops require viewer, write ops require editor.
 // Enforced here instead of middleware because workspace is resolved per-handler.
-function requireS3Role(c: Context, role: string | undefined, write: boolean): Response | null {
+function requireS3Role(c: Context, role: WorkspaceRole | null | undefined, write: boolean): Response | null {
   const needed = write ? 'editor' : 'viewer';
   if (!role || !hasPermission(role, needed)) {
     return xmlError(c, 'AccessDenied', `Insufficient permissions: ${needed} role required`, 403);

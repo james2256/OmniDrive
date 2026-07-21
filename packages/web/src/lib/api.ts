@@ -1,5 +1,5 @@
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
-import type { User, DriveAccount, AutomationRule, AggregateQuota, DriveFolderContents, FolderContents, FileEntry, UploadInitResponse, WorkspaceFolder, AuditLog, WorkspacePolicy, DriveFolder, BreadcrumbItem } from '../types';
+import type { SessionData, AdminUser, DriveAccount, AutomationRule, AggregateQuota, DriveFolderContents, FolderContents, FileEntry, UploadInitResponse, WorkspaceFolder, AuditLog, WorkspacePolicy, DriveFolder, BreadcrumbItem } from '../types';
 
 interface RegisterPayload extends LoginPayload { name?: string; email?: string; invitation_code?: string; }
 export interface Invitation { id: string; code: string; max_uses: number; used_count: number; expires_at: string | null; created_at: string; }
@@ -50,9 +50,9 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 export const api = {
   // Auth
   getSetupStatus: () => request<{ isSetup: boolean }>('/api/auth/setup-status'),
-  login: (data: LoginPayload) => request<{ success: boolean; user: User }>('/api/auth/login', { method: 'POST', body: JSON.stringify(data) }),
-  register: (data: RegisterPayload) => request<{ success: boolean; user: User }>('/api/auth/register', { method: 'POST', body: JSON.stringify(data) }),
-  getUser: () => request<{ user: User }>('/api/auth/me'),
+  login: (data: LoginPayload) => request<{ success: boolean; user: SessionData }>('/api/auth/login', { method: 'POST', body: JSON.stringify(data) }),
+  register: (data: RegisterPayload) => request<{ success: boolean; user: SessionData }>('/api/auth/register', { method: 'POST', body: JSON.stringify(data) }),
+  getUser: () => request<{ user: SessionData }>('/api/auth/me'),
   // OAuth initiation: backend returns the Google auth URL as JSON (the SPA
   // performs the redirect). Called via credentialed fetch so the session
   // cookie is sent; the backend stores userId in the KV OAuth state.
@@ -68,8 +68,8 @@ export const api = {
   getInvitations: () => request<{ invitations: Invitation[] }>('/api/admin/invitations'),
   createInvitation: (code: string, max_uses: number) => request<{ success: boolean, invitation: Invitation }>('/api/admin/invitations', { method: 'POST', body: JSON.stringify({ code, max_uses }) }),
   deleteInvitation: (id: string) => request<{ success: boolean }>(`/api/admin/invitations/${id}`, { method: 'DELETE' }),
-  getAdminUsers: () => request<{ users: User[] }>('/api/admin/users'),
-  adminCreateUser: (data: AdminCreateUserPayload) => request<{ success: boolean; user: User }>('/api/admin/users', { method: 'POST', body: JSON.stringify(data) }),
+  getAdminUsers: () => request<{ users: AdminUser[] }>('/api/admin/users'),
+  adminCreateUser: (data: AdminCreateUserPayload) => request<{ success: boolean; user: AdminUser }>('/api/admin/users', { method: 'POST', body: JSON.stringify(data) }),
 
   // Drives
   getDrives: () =>

@@ -185,13 +185,24 @@ export const createWorkspaceSchema = z.object({
   name: z.string().min(1, 'Workspace name is required').max(255, 'Name too long'),
 });
 
-export const workspaceRoleSchema = z.enum([
-  'viewer',
-  'commenter',
-  'editor',
-  'manager',
-  'auditor',
-]);
+// ponytail: extract @omnidrive/shared-types workspace when a 3rd type drifts
+// between FE/BE or a 2nd consumer (CLI, mobile) appears. Until then, keep
+// shared role definitions here and import via relative path.
+export const WORKSPACE_ROLES = [
+  'viewer', 'commenter', 'editor', 'manager', 'auditor', 'owner',
+] as const;
+export type WorkspaceRole = (typeof WORKSPACE_ROLES)[number];
+
+// Roles assignable via the add-member API. 'owner' is excluded — it is
+// assigned only at workspace creation (direct DB insert at routes/workspaces.ts),
+// never via this API, to prevent privilege escalation. The `satisfies` clause
+// enforces at compile time that every assignable role is a valid WorkspaceRole,
+// so this list cannot drift from WORKSPACE_ROLES.
+const ASSIGNABLE_WORKSPACE_ROLES = [
+  'viewer', 'commenter', 'editor', 'manager', 'auditor',
+] as const satisfies readonly WorkspaceRole[];
+
+export const workspaceRoleSchema = z.enum(ASSIGNABLE_WORKSPACE_ROLES);
 
 export const addWorkspaceMemberSchema = z.object({
   email: z.string().email('Invalid email format'),

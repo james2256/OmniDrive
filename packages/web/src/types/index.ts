@@ -1,15 +1,24 @@
-export interface User {
-  username?: string;
-  userId?: string;
+// Auth API contract — what /api/auth/me, /login, /register return.
+// Matches worker's SessionData (packages/worker/src/types/env.ts).
+export interface SessionData {
+  userId: string;
+  username: string;
+  email?: string | null;
+  name?: string | null;
+  avatarUrl?: string | null;
+  role: 'super_admin' | 'member';
+  createdAt: number;
+}
+
+// Admin API contract — what /api/admin/users returns (both list and create).
+export interface AdminUser {
   id: string;
-  googleId: string;
-  email: string;
-  name: string;
+  username: string;
+  email: string | null;
+  name: string | null;
   avatarUrl: string | null;
-  role?: 'super_admin' | 'member';
-  status?: 'active' | 'blocked';
-  createdAt: string;
-  updatedAt: string;
+  role: 'super_admin' | 'member';
+  status: 'active' | 'blocked';
 }
 
 export interface DriveAccount {

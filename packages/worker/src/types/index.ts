@@ -1,17 +1,8 @@
 import type { AutomationRule, AutomationLog, RuleCondition, RuleAction } from './automation';
 import { DEFAULT_FOLDER_ICON, DEFAULT_FOLDER_COLOR } from '../constants';
+import type { WorkspaceRole } from '../lib/schemas';
 
 // ─── Domain Types ───
-
-export interface User {
-  id: string;
-  googleId: string;
-  email: string;
-  name: string;
-  avatarUrl: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
 
 export interface DriveAccount {
   id: string;
@@ -157,18 +148,6 @@ export interface UploadInitResponse {
 }
 
 // ─── Row Mappers ───
-
-export function mapUserRow(row: Record<string, unknown>): User {
-  return {
-    id: row.id as string,
-    googleId: row.google_id as string,
-    email: row.email as string,
-    name: row.name as string,
-    avatarUrl: (row.avatar_url as string) ?? null,
-    createdAt: row.created_at as string,
-    updatedAt: row.updated_at as string,
-  };
-}
 
 export function mapDriveRow(row: Record<string, unknown>): DriveAccount {
   return {
@@ -540,5 +519,5 @@ export interface S3MultipartPartRow {
 }
 
 export interface WorkspaceWithRoleRow extends WorkspaceRow {
-  role: string;
+  role: WorkspaceRole;
 }

@@ -63,9 +63,30 @@ adminRouter.get('/audit-logs', async (c) => {
   return c.json({ logs: results });
 });
 
+type AdminUserRow = {
+  id: string;
+  username: string;
+  email: string | null;
+  name: string | null;
+  avatar_url: string | null;
+  is_super_admin: number;
+};
+
 adminRouter.get('/users', async (c) => {
-  const { results } = await c.env.DB.prepare('SELECT id, username, email, name, avatar_url, is_super_admin as role FROM users ORDER BY created_at DESC LIMIT 100').all();
-  return c.json({ users: results.map(u => ({ ...u, role: u.role ? 'super_admin' : 'member', status: 'active' })) });
+  const { results } = await c.env.DB.prepare(
+    'SELECT id, username, email, name, avatar_url, is_super_admin FROM users ORDER BY created_at DESC LIMIT 100'
+  ).all<AdminUserRow>();
+  return c.json({
+    users: results.map((u) => ({
+      id: u.id,
+      username: u.username,
+      email: u.email,
+      name: u.name,
+      avatarUrl: u.avatar_url,
+      role: u.is_super_admin ? 'super_admin' as const : 'member' as const,
+      status: 'active' as const,
+    })),
+  });
 });
 
 adminRouter.post('/users', zValidator('json', adminCreateUserSchema, zodErrorHook), async (c) => {
@@ -87,5 +108,16 @@ adminRouter.post('/users', zValidator('json', adminCreateUserSchema, zodErrorHoo
     'INSERT INTO users (id, username, password_hash, email, name, is_super_admin) VALUES (?, ?, ?, ?, ?, ?)'
   ).bind(id, username, passwordHash, email || null, name || username, isSuperAdmin).run();
 
-  return c.json({ success: true, user: { id, username, email, name: name || username, role: isSuperAdmin ? 'super_admin' : 'member', status: 'active' } });
+  return c.json({
+    success: true,
+    user: {
+      id,
+      username,
+      email,
+      name: name || username,
+      avatarUrl: null,
+      role: isSuperAdmin ? 'super_admin' as const : 'member' as const,
+      status: 'active' as const,
+    },
+  });
 });
