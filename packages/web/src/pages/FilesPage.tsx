@@ -156,7 +156,7 @@ export function FilesPage() {
                   placeholder="Filter..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-3 pr-8 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-3 pr-8 py-2 text-sm border border-stone-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 {searchQuery && (
                   <button

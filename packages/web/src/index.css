@@ -23,6 +23,14 @@
     @apply bg-background text-foreground m-0 p-0 font-sans;
   }
 
+  /* Restore cursor: pointer on interactive elements.
+     Tailwind v4 removed this from preflight (intentional design change),
+     but this project's UX expects the pointer cursor on all clickable buttons. */
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
   /* Drive identity colors — assigned round-robin by getDriveColor(index).
      Distinct, Google-Workspace-ish, none overlap the page primary. */
   :root {

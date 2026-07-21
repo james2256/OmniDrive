@@ -259,7 +259,7 @@ export function WorkspacesPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-stone-700 mb-1">Days</label>
-                <input id="retentionDays" type="number" defaultValue={30} className="w-full border-stone-300 rounded p-2 text-sm border" />
+                <input id="retentionDays" type="number" defaultValue={30} className="w-full border border-stone-300 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
             </div>
             <div className="mt-6 flex justify-end gap-3">
