@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../stores/useAuthStore';
-import { ShieldAlert, Plus, MoreVertical } from 'lucide-react';
+import { ShieldAlert, Plus, EllipsisVertical } from 'lucide-react';
 import type { AdminUser } from '../types';
 import { api } from '../lib/api';
 import type { Invitation } from '../lib/api';
@@ -253,7 +253,7 @@ export const AdminUsersPage: React.FC = () => {
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <button className="p-1 hover:bg-stone-200 rounded text-stone-500">
-                                <MoreVertical size={16} />
+                                <EllipsisVertical size={16} />
                               </button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="bg-card shadow-xl rounded-xl border border-stone-200 w-40">

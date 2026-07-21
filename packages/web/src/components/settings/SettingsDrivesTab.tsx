@@ -4,7 +4,7 @@ import { useDrives, useRemoveDrive, useTriggerSync } from '../../hooks/useDrives
 import { qk } from '../../lib/queryKeys';
 import { DriveAccountCard } from '../DriveAccountCard';
 import { useToastStore } from '../../stores/useToastStore';
-import { Plus, Key, X, Loader2 } from 'lucide-react';
+import { Plus, Key, X, LoaderCircle } from 'lucide-react';
 import { api } from '../../lib/api';
 
 export function SettingsDrivesTab() {
@@ -123,7 +123,7 @@ export function SettingsDrivesTab() {
             disabled={isConnecting}
             className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium text-sm disabled:opacity-60"
           >
-            {isConnecting ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />} Add Google Drive
+            {isConnecting ? <LoaderCircle size={18} className="animate-spin" /> : <Plus size={18} />} Add Google Drive
           </button>
           <button
             className="flex items-center gap-2 px-4 py-2.5 bg-card text-stone-700 rounded-xl border border-stone-300 hover:bg-stone-50 transition-colors font-medium text-sm"

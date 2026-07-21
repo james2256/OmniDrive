@@ -9,19 +9,15 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     build: {
-      // ponytail: split heavy vendor so dashboard/recharts isn't on the login critical path
-      rollupOptions: {
+      // Split heavy vendor so dashboard/recharts isn't on the login critical path
+      rolldownOptions: {
         output: {
-          manualChunks(id) {
-            if (id.includes('node_modules/recharts') || id.includes('node_modules/d3-') || id.includes('node_modules/victory-')) {
-              return 'recharts';
-            }
-            if (id.includes('node_modules/react-dom') || id.includes('node_modules/react/') || id.includes('node_modules/scheduler')) {
-              return 'react';
-            }
-            if (id.includes('node_modules/react-router')) {
-              return 'router';
-            }
+          advancedChunks: {
+            groups: [
+              { name: 'recharts', test: /node_modules\/(?:recharts|d3-|victory-)/ },
+              { name: 'react', test: /node_modules\/(?:react-dom|react\/|scheduler)/ },
+              { name: 'router', test: /node_modules\/react-router/ },
+            ],
           },
         },
       },

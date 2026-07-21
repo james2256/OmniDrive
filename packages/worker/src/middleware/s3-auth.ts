@@ -34,7 +34,7 @@ export const s3AuthMiddleware: MiddlewareHandler<AppContext> = async (c, next) =
   const authHeader = c.req.header('Authorization');
   let isPresigned = false;
   
-  let accessKeyId = '';
+  let accessKeyId: string;
   let date = '';
   let region = '';
   let service = '';

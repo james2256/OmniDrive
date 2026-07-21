@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Key, Loader2 } from 'lucide-react';
+import { Key, LoaderCircle } from 'lucide-react';
 import { useToastStore } from '../../stores/useToastStore';
 import { api } from '../../lib/api';
 
@@ -86,7 +86,7 @@ export function SettingsAccountTab() {
             disabled={isChangingPassword}
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-60"
           >
-            {isChangingPassword ? <Loader2 size={16} className="animate-spin" /> : <Key size={16} />}
+            {isChangingPassword ? <LoaderCircle size={16} className="animate-spin" /> : <Key size={16} />}
             Change password
           </button>
         </div>

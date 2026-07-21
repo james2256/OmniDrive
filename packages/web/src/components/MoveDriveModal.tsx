@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { HardDrive, Loader2 } from 'lucide-react';
+import { HardDrive, LoaderCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { useDrives } from '../hooks/useDrives';
 import { useMoveFileToDrive } from '../hooks/useFileMutations';
@@ -89,7 +89,7 @@ export function MoveDriveModal({ files, onClose, onSuccess }: MoveDriveModalProp
               >
                 <div className="flex-shrink-0 mr-4">
                   {isMoving && movingToDriveId === drive.id ? (
-                    <Loader2 className="w-5 h-5 text-primary animate-spin" />
+                    <LoaderCircle className="w-5 h-5 text-primary animate-spin" />
                   ) : (
                     <HardDrive className="w-5 h-5 text-muted-foreground" />
                   )}

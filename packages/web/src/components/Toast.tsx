@@ -1,11 +1,11 @@
-import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
+import { X, CircleCheckBig, CircleAlert, Info, TriangleAlert } from 'lucide-react';
 import { useToastStore } from '../stores/useToastStore';
 import type { ToastType } from '../types';
 
 const icons: Record<ToastType, React.ReactNode> = {
-  success: <CheckCircle size={18} className="text-green-500" aria-hidden />,
-  error: <AlertCircle size={18} className="text-red-500" aria-hidden />,
-  warning: <AlertTriangle size={18} className="text-amber-500" aria-hidden />,
+  success: <CircleCheckBig size={18} className="text-green-500" aria-hidden />,
+  error: <CircleAlert size={18} className="text-red-500" aria-hidden />,
+  warning: <TriangleAlert size={18} className="text-amber-500" aria-hidden />,
   info: <Info size={18} className="text-primary" aria-hidden />,
 };
 

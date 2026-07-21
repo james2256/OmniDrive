@@ -3,7 +3,6 @@
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import security from 'eslint-plugin-security';
-import react from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
 
 export default tseslint.config(
@@ -99,7 +98,6 @@ export default tseslint.config(
   {
     files: ['packages/web/src/**/*.{ts,tsx}'],
     plugins: {
-      react,
       'react-hooks': reactHooks,
     },
     languageOptions: {
@@ -109,9 +107,6 @@ export default tseslint.config(
     },
     rules: {
       'react-hooks/exhaustive-deps': 'warn',
-      'react/no-unescaped-entities': 'off',
-      'react/display-name': 'off',
-      'react/prop-types': 'off',
     },
   },
 

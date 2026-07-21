@@ -1,10 +1,9 @@
-// @vitest-environment workers
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
-import { env } from 'cloudflare:test';
+import { env } from 'cloudflare:workers';
 import { app } from '../../src/index';
 import { ensureSchema, clearAllTables } from './helpers';
 
-declare module 'cloudflare:test' {
+declare module 'cloudflare:workers' {
   interface ProvidedEnv {
     DB: D1Database;
     KV: KVNamespace;

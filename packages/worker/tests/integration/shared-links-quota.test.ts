@@ -1,13 +1,12 @@
-// @vitest-environment workers
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
-import { env } from 'cloudflare:test';
+import { env } from 'cloudflare:workers';
 import { SharedRepository } from '../../src/repositories/shared.repository';
 
 // Integration test: runs against real D1 (via Miniflare), not mocked.
 // This is the test that would have caught the Tier 4 Issue 1 regression
 // where the maxDownloads quota enforcement was almost dropped.
 
-declare module 'cloudflare:test' {
+declare module 'cloudflare:workers' {
   interface ProvidedEnv {
     DB: D1Database;
     KV: KVNamespace;

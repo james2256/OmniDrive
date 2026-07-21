@@ -5,7 +5,7 @@ import { getSharedMeta, verifySharedPassword } from '../lib/api';
 import type { SharedMetaResponse } from '../lib/api';
 import { formatFileSize } from '../lib/utils';
 import { FileIcon } from '../components/files/FileIcon';
-import { Lock, Download, AlertCircle, Loader2, Folder } from 'lucide-react';
+import { Lock, Download, CircleAlert, LoaderCircle, Folder } from 'lucide-react';
 
 export function PublicSharedPage() {
   const { id } = useParams<{ id: string }>();
@@ -67,7 +67,7 @@ export function PublicSharedPage() {
     if (loading) {
       return (
         <div className="bg-card p-10 rounded-2xl shadow-xl max-w-md w-full border border-stone-100 flex flex-col items-center">
-          <Loader2 className="animate-spin text-blue-500 mb-4" size={48} />
+          <LoaderCircle className="animate-spin text-blue-500 mb-4" size={48} />
           <p className="text-stone-500 font-medium">Loading...</p>
         </div>
       );
@@ -76,7 +76,7 @@ export function PublicSharedPage() {
     if (error) {
       return (
         <div className="bg-card p-10 rounded-2xl shadow-xl max-w-md w-full border border-red-200 flex flex-col items-center">
-          <AlertCircle size={48} className="text-red-500 mb-4" />
+          <CircleAlert size={48} className="text-red-500 mb-4" />
           <h2 className="text-2xl font-bold text-stone-800 mb-2">Error</h2>
           <p className="text-stone-500">{error}</p>
         </div>
@@ -122,7 +122,7 @@ export function PublicSharedPage() {
               className="w-full flex items-center justify-center gap-2 px-4 py-3 text-white bg-blue-600 rounded-xl font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-6"
               disabled={verifying || !password}
             >
-              {verifying && <Loader2 className="animate-spin" size={18} />}
+              {verifying && <LoaderCircle className="animate-spin" size={18} />}
               Unlock
             </button>
           </form>

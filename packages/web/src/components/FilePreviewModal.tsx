@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ExternalLink, Download, Loader2 } from 'lucide-react';
+import { ExternalLink, Download, LoaderCircle } from 'lucide-react';
 import type { FileEntry } from '../types';
 import { formatFileSize, formatRelativeTime } from '../lib/utils';
 import { fetchFilePreviewBlob } from '../lib/api';
@@ -80,7 +80,7 @@ export function FilePreviewModal({ open, file, onClose }: FilePreviewModalProps)
               <div className="mb-6 rounded-xl overflow-hidden bg-stone-50 border border-stone-200 flex justify-center items-center p-2 min-h-[200px]">
                 {isLoading ? (
                   <div className="flex flex-col items-center justify-center text-stone-400 py-12">
-                    <Loader2 className="w-8 h-8 animate-spin mb-2" />
+                    <LoaderCircle className="w-8 h-8 animate-spin mb-2" />
                     <span className="text-sm">Loading preview…</span>
                   </div>
                 ) : previewUrl && !imageError ? (

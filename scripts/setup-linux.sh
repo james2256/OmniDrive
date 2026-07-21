@@ -7,7 +7,7 @@ set -euo pipefail
 REPO_DIR="${REPO_DIR:-$HOME/coding/OmniDrive}"
 GIT_REMOTE="${GIT_REMOTE:-https://github.com/asmaraputra/OmniDrive.git}"
 WINDOWS_REPO="${WINDOWS_REPO:-}"
-NODE_MAJOR="${NODE_MAJOR:-20}"
+NODE_MAJOR="${NODE_MAJOR:-24}"
 SKIP_APT="${SKIP_APT:-0}"
 
 log() { echo "=> $*"; }

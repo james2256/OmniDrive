@@ -1,12 +1,11 @@
-// @vitest-environment workers
 import { describe, it, expect, beforeAll, vi } from 'vitest';
-import { env } from 'cloudflare:test';
+import { env } from 'cloudflare:workers';
 import { app } from '../../src/index';
 import { ensureSchema } from './helpers';
 import { hashPassword } from '../../src/lib/password';
 import type { SessionData } from '../../src/types/env';
 
-declare module 'cloudflare:test' {
+declare module 'cloudflare:workers' {
   interface ProvidedEnv {
     DB: D1Database;
     KV: KVNamespace;

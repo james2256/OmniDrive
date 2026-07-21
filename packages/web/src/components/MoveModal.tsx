@@ -4,7 +4,7 @@ import { api } from '../lib/api';
 import type { DriveFolder, BreadcrumbItem } from '../types';
 import type { SelectedItem } from '../stores/useSelectionStore';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
-import { Folder, ChevronRight, Loader2, FolderInput } from 'lucide-react';
+import { Folder, ChevronRight, LoaderCircle, FolderInput } from 'lucide-react';
 
 interface MoveModalProps {
   open: boolean;
@@ -143,7 +143,7 @@ export function MoveModal({ open, items, driveId, onClose, onSuccess }: MoveModa
               disabled={isMoving}
               className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
             >
-              {isMoving ? <Loader2 size={16} className="animate-spin" /> : null}
+              {isMoving ? <LoaderCircle size={16} className="animate-spin" /> : null}
               {isMoving ? 'Moving...' : 'Move here'}
             </button>
           </div>

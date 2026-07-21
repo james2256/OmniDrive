@@ -1,4 +1,4 @@
-import { ChevronRight, ChevronDown, MoreHorizontal, FolderPlus, Edit2, Trash2 } from 'lucide-react';
+import { ChevronRight, ChevronDown, Ellipsis, FolderPlus, Pen, Trash2 } from 'lucide-react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import type { WorkspaceFolder } from '../../types';
 
@@ -53,7 +53,7 @@ export function WorkspaceTreeNode({
               onClick={(e) => e.stopPropagation()} 
               className="p-1 rounded hover:bg-stone-200 text-stone-500 opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100 focus-within:opacity-100 transition-opacity"
             >
-              <MoreHorizontal size={14} />
+              <Ellipsis size={14} />
             </button>
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
@@ -62,7 +62,7 @@ export function WorkspaceTreeNode({
                 <FolderPlus size={14} /> New Sub-folder
               </DropdownMenu.Item>
               <DropdownMenu.Item onSelect={() => onRename(folder.id)} className="flex items-center gap-2 px-2 py-1.5 text-sm text-stone-700 hover:bg-stone-100 hover:outline-none rounded cursor-pointer">
-                <Edit2 size={14} /> Rename
+                <Pen size={14} /> Rename
               </DropdownMenu.Item>
               <DropdownMenu.Separator className="h-px bg-stone-200 my-1" />
               <DropdownMenu.Item onSelect={() => onDelete(folder.id)} className="flex items-center gap-2 px-2 py-1.5 text-sm text-red-600 hover:bg-red-50 hover:outline-none rounded cursor-pointer">

@@ -5,7 +5,7 @@ import type { FileEntry } from '../../types';
 import { api } from '../../lib/api';
 import { FileIcon } from '../files/FileIcon';
 import { DriveBadge } from '../DriveBadge';
-import { X, File, Folder, Loader2, RefreshCw } from 'lucide-react';
+import { X, File, Folder, LoaderCircle, RefreshCw } from 'lucide-react';
 import { useUIStore } from '../../stores/useUIStore';
 import { useToastStore } from '../../stores/useToastStore';
 import { useDrives } from '../../hooks/useDrives';
@@ -160,7 +160,7 @@ export const InfoPanel: React.FC = () => {
                   disabled={isSyncing}
                   className="flex items-center justify-center w-full gap-2 px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
                 >
-                  {isSyncing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                  {isSyncing ? <LoaderCircle size={16} className="animate-spin" /> : <RefreshCw size={16} />}
                   {isSyncing ? 'Syncing...' : 'Force Sync'}
                 </button>
               </div>

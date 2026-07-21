@@ -71,6 +71,6 @@ export async function decryptOrPassthrough(value: string, secret: string): Promi
     return await decrypt(value, secret);
   } catch (e) {
     logNoCtx('error', 'decryptOrPassthrough: decryption failed and no plain: marker', undefined, e);
-    throw new Error('Failed to decrypt value — no valid plaintext marker found');
+    throw new Error('Failed to decrypt value — no valid plaintext marker found', { cause: e });
   }
 }

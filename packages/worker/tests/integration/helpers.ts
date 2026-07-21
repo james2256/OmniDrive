@@ -1,4 +1,3 @@
-// @vitest-environment workers
 import type { D1Database } from '@cloudflare/workers-types';
 
 // Shared schema setup for integration tests.

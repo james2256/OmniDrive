@@ -26,7 +26,7 @@ vi.mock('../lib/api', () => ({
 vi.mock('lucide-react', () => ({
   ShieldAlert: () => <div data-testid="shield-alert-icon" />,
   Plus: () => <div data-testid="plus-icon" />,
-  MoreVertical: () => <div data-testid="more-vertical-icon" />,
+  EllipsisVertical: () => <div data-testid="more-vertical-icon" />,
   X: () => <div data-testid="x-icon" />,
 }));
 

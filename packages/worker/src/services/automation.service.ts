@@ -116,7 +116,6 @@ export class AutomationEngine {
         ).bind(userId, IS_NOT_TRASHED, BATCH_SIZE, offset).all();
 
         if (files.length === 0) {
-          hasMoreFiles = false;
           break;
         }
 

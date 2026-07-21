@@ -49,8 +49,8 @@ export class PolicyService {
       cutoffDate.setDate(cutoffDate.getDate() - config.days);
       const cutoffStr = cutoffDate.toISOString();
 
-      let query = '';
-      let binds: (string | number | null)[] = [];
+      let query: string;
+      let binds: (string | number | null)[];
 
       if (policy.target_type === 'workspace') {
         query = `SELECT f.id, f.user_id, f.google_file_id, f.size, f.workspace_id, d.id as driveId 

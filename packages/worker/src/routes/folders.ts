@@ -58,7 +58,7 @@ foldersRouter.get('/:id?', async (c) => {
   const cursor = cursorParam ? decodeCursor<{ name: string, id: string }>(cursorParam) : null;
 
   let currentFolder = null;
-  let subfolders: unknown[] = [];
+  let subfolders: unknown[];
   let files: unknown[] = [];
   let breadcrumb: { id: string | null; name: string }[] = [];
   let hasMore = false;

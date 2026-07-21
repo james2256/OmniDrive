@@ -27,7 +27,7 @@ export const SidebarStorage: React.FC = () => {
         
         const sorted = allCategories.filter(c => c.value > 0).sort((a, b) => b.value - a.value);
         
-        let displayCategories: CategoryData[] = [];
+        let displayCategories: CategoryData[];
         let othersValue = res.others || 0;
 
         if (sorted.length > 3) {

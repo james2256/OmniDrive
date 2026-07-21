@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { S3Credential } from '../../lib/api';
 import { useToastStore } from '../../stores/useToastStore';
-import { Plus, Trash2, Copy, Check, AlertTriangle, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Copy, Check, TriangleAlert, LoaderCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { api } from '../../lib/api';
 
@@ -132,7 +132,7 @@ export function SettingsS3Tab() {
 
         {loadingS3 ? (
           <div className="flex items-center justify-center py-8 text-stone-400">
-            <Loader2 className="animate-spin mr-2" size={18} />
+            <LoaderCircle className="animate-spin mr-2" size={18} />
             Loading S3 credentials...
           </div>
         ) : s3Keys.length === 0 ? (
@@ -248,7 +248,7 @@ export function SettingsS3Tab() {
                 className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50"
                 disabled={isCreatingKey || !newKeyDescription.trim()}
               >
-                {isCreatingKey && <Loader2 className="animate-spin" size={16} />}
+                {isCreatingKey && <LoaderCircle className="animate-spin" size={16} />}
                 Generate Key
               </button>
             </div>
@@ -276,7 +276,7 @@ export function SettingsS3Tab() {
           {createdCredential && (
             <div className="space-y-4 pt-3">
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex gap-3">
-                <AlertTriangle className="text-amber-600 flex-shrink-0 mt-0.5" size={18} />
+                <TriangleAlert className="text-amber-600 flex-shrink-0 mt-0.5" size={18} />
                 <div className="text-xs text-amber-800">
                   <span className="font-semibold block mb-0.5">Security Warning:</span>
                   Please copy the Secret Access Key below now. You will not be able to retrieve or view it again once this modal is closed.

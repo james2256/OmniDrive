@@ -1,6 +1,22 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* Class-based dark mode — dark: utilities only apply under an explicit .dark ancestor.
+   This project never adds .dark, so dark: classes are effectively no-ops. */
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --color-background: #faf9f5;
+  --color-foreground: #141413;
+  --color-primary: #2563EB;
+  --color-primary-foreground: #ffffff;
+  --color-surface: #f5f0e8;
+  --color-card: #efe9de;
+
+  --radius-lg: 0.5rem;
+  --radius-md: calc(0.5rem - 2px);
+  --radius-sm: calc(0.5rem - 4px);
+}
 
 @layer base {
   body {
@@ -18,7 +34,7 @@
   }
 
   /* Bento cell reveal — CSS-driven stagger via animation-delay.
-     ponytail: no Motion dep; transform+opacity only; reduced-motion collapses to static. */
+     No Motion dep; transform+opacity only; reduced-motion collapses to static. */
   @media (prefers-reduced-motion: no-preference) {
     .bento-reveal {
       animation: bento-fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
