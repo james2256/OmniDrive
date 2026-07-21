@@ -3,6 +3,9 @@ import type { FolderService } from '../services/folder.service';
 import type { DriveService } from '../services/drive.service';
 import type { SharedService } from '../services/shared.service';
 import type { WorkspaceService } from '../services/workspace.service';
+import type { AutomationRepository } from '../repositories/automation.repository';
+import type { S3CredentialsRepository } from '../repositories/s3-credentials.repository';
+import type { AdminRepository } from '../repositories/admin.repository';
 
 export interface Env {
   DB: D1Database;
@@ -37,6 +40,9 @@ export type AppContext = {
     driveService: DriveService;
     sharedService: SharedService;
     workspaceService: WorkspaceService;
+    automationRepo: AutomationRepository;
+    s3CredentialsRepo: S3CredentialsRepository;
+    adminRepo: AdminRepository;
     requestId: string;
   };
 };

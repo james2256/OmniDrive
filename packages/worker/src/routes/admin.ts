@@ -11,10 +11,9 @@ export const adminRouter = new Hono<AppContext>({ strict: false });
 
 adminRouter.use('*', authGuard);
 
-// Middleware to protect admin routes
+// Super-admin guard — checks is_super_admin on every admin route
 adminRouter.use('*', async (c, next) => {
-  const userId = c.get('userId');
-  const user = await c.env.DB.prepare('SELECT is_super_admin FROM users WHERE id = ?').bind(userId).first() as { is_super_admin: number };
+  const user = await c.get('adminRepo').findSuperAdminStatus(c.get('userId'));
   if (!user || user.is_super_admin !== 1) {
     throw new AppError(403, 'Forbidden: Super Admin access required');
   }
@@ -22,7 +21,7 @@ adminRouter.use('*', async (c, next) => {
 });
 
 adminRouter.get('/invitations', async (c) => {
-  const { results } = await c.env.DB.prepare('SELECT * FROM invitation_codes ORDER BY created_at DESC').all();
+  const { results } = await c.get('adminRepo').findAllInvitations();
   return c.json({ invitations: results });
 });
 
@@ -40,44 +39,26 @@ adminRouter.post('/invitations', zValidator('json', createInvitationSchema, zodE
 
   const id = generateId();
   const userId = c.get('userId');
-  
-  await c.env.DB.prepare(
-    'INSERT INTO invitation_codes (id, code, created_by, max_uses) VALUES (?, ?, ?, ?)'
-  ).bind(id, finalCode, userId, max_uses || 1).run();
-  
+
+  await c.get('adminRepo').insertInvitation({ id, code: finalCode, createdBy: userId, maxUses: max_uses || 1 });
+
   return c.json({ success: true, invitation: { id, code: finalCode, created_by: userId, max_uses: max_uses || 1, used_count: 0 } });
 });
 
 adminRouter.delete('/invitations/:id', async (c) => {
-  const id = c.req.param('id');
-  await c.env.DB.prepare('DELETE FROM invitation_codes WHERE id = ?').bind(id).run();
+  await c.get('adminRepo').deleteInvitation(c.req.param('id'));
   return c.json({ success: true });
 });
 
 adminRouter.get('/audit-logs', async (c) => {
-  const db = c.env.DB;
-  const { results } = await db.prepare(
-    'SELECT a.*, u.email as actor_email, w.name as workspace_name FROM audit_logs a JOIN users u ON a.actor_id = u.id LEFT JOIN workspaces w ON a.workspace_id = w.id ORDER BY a.created_at DESC LIMIT 100'
-  ).all();
-
+  const { results } = await c.get('adminRepo').findRecentAuditLogs();
   return c.json({ logs: results });
 });
 
-type AdminUserRow = {
-  id: string;
-  username: string;
-  email: string | null;
-  name: string | null;
-  avatar_url: string | null;
-  is_super_admin: number;
-};
-
 adminRouter.get('/users', async (c) => {
-  const { results } = await c.env.DB.prepare(
-    'SELECT id, username, email, name, avatar_url, is_super_admin FROM users ORDER BY created_at DESC LIMIT 100'
-  ).all<AdminUserRow>();
+  const { results } = await c.get('adminRepo').findAllUsers();
   return c.json({
-    users: results.map((u) => ({
+    users: results.map((u: Record<string, unknown>) => ({
       id: u.id,
       username: u.username,
       email: u.email,
@@ -91,22 +72,16 @@ adminRouter.get('/users', async (c) => {
 
 adminRouter.post('/users', zValidator('json', adminCreateUserSchema, zodErrorHook), async (c) => {
   const { name, username, password, email, role } = c.req.valid('json');
+  const adminRepo = c.get('adminRepo');
 
-  const existing = await c.env.DB.prepare('SELECT id FROM users WHERE username = ?').bind(username).first();
-  if (existing) throw new AppError(400, 'Username already exists');
-
-  if (email) {
-    const existingEmail = await c.env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
-    if (existingEmail) throw new AppError(400, 'Email already exists');
-  }
+  // Duplicate checks (preserved — same behavior as before)
+  if (await adminRepo.findByUsername(username)) throw new AppError(400, 'Username already exists');
+  if (email && await adminRepo.findByEmail(email)) throw new AppError(400, 'Email already exists');
 
   const id = generateId();
   const passwordHash = await hashPassword(password);
   const isSuperAdmin = role === 'super_admin' ? 1 : 0;
-
-  await c.env.DB.prepare(
-    'INSERT INTO users (id, username, password_hash, email, name, is_super_admin) VALUES (?, ?, ?, ?, ?, ?)'
-  ).bind(id, username, passwordHash, email || null, name || username, isSuperAdmin).run();
+  await adminRepo.insertUser({ id, username, passwordHash, email: email || null, name: name || username, isSuperAdmin });
 
   return c.json({
     success: true,

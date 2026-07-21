@@ -12,12 +12,8 @@ export const automationsRouter = new Hono<AppContext>({ strict: false });
 automationsRouter.use('*', authGuard);
 
 automationsRouter.get('/', async (c) => {
-  const userId = c.get('userId');
-  const { results } = await c.env.DB.prepare('SELECT * FROM automation_rules WHERE user_id = ?').bind(userId).all();
-  
-  return c.json({
-    rules: results.map(mapAutomationRuleRow)
-  });
+  const { results } = await c.get('automationRepo').findAllByUser(c.get('userId'));
+  return c.json({ rules: results.map(mapAutomationRuleRow) });
 });
 
 automationsRouter.post('/', zValidator('json', createAutomationSchema, zodErrorHook), async (c) => {
@@ -26,33 +22,24 @@ automationsRouter.post('/', zValidator('json', createAutomationSchema, zodErrorH
 
   const conditions = Array.isArray(body.conditions) ? body.conditions : [];
   const actions = Array.isArray(body.actions) ? body.actions : [];
-  
+
   const id = generateId();
-  
-  await c.env.DB.prepare(`
-    INSERT INTO automation_rules (id, user_id, name, trigger_type, trigger_config, conditions, actions) 
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).bind(
-    id, userId, body.name, body.trigger_type, 
-    JSON.stringify(body.trigger_config || {}), 
-    JSON.stringify(conditions), 
-    JSON.stringify(actions)
-  ).run();
-  
+  await c.get('automationRepo').insert({
+    id, userId, name: body.name,
+    triggerType: body.trigger_type,
+    triggerConfig: JSON.stringify(body.trigger_config || {}),
+    conditions: JSON.stringify(conditions),
+    actions: JSON.stringify(actions),
+  });
+
   return c.json({ id, success: true }, 201);
 });
 
 automationsRouter.patch('/:id/toggle', zValidator('json', toggleAutomationSchema, zodErrorHook), async (c) => {
-  const userId = c.get('userId');
-  const ruleId = c.req.param('id');
   const { is_active } = c.req.valid('json');
-  
-  const { meta } = await c.env.DB.prepare('UPDATE automation_rules SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?')
-    .bind(is_active ? IS_ACTIVE : IS_INACTIVE, ruleId, userId).run();
-    
-  if (meta.changes === 0) {
-    throw new AppError(404, 'Automation rule not found');
-  }
-    
+  const changed = await c.get('automationRepo').toggleActive(
+    c.req.param('id'), c.get('userId'), is_active ? IS_ACTIVE : IS_INACTIVE,
+  );
+  if (!changed) throw new AppError(404, 'Automation rule not found');
   return c.json({ success: true });
 });

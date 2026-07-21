@@ -14,24 +14,26 @@ s3CredentialsRouter.use('*', authGuard);
 s3CredentialsRouter.post('/', zValidator('json', createS3CredentialsSchema, zodErrorHook), async (c) => {
   const userId = c.get('userId');
   const { description, workspaceId } = c.req.valid('json');
-  const db = c.env.DB;
 
+  // Workspace manager RBAC check (stays in route — simple 4-line check)
   if (workspaceId) {
-    const role = await getWorkspaceRole(db, workspaceId, userId);
+    const role = await getWorkspaceRole(c.env.DB, workspaceId, userId);
     if (!role || !hasPermission(role, 'manager')) {
       return c.json({ error: 'Unauthorized to manage S3 keys for this workspace' }, 403);
     }
   }
 
+  // Key generation + encryption (stays in route — needs TOKEN_ENCRYPTION_KEY)
   const id = generateId();
   const accessKeyId = 'OMNI' + generateId().substring(0, 16).toUpperCase();
-  const rawSecretKey = generateId() + generateId(); // Long secret key
+  const rawSecretKey = generateId() + generateId();
   const secretKeyEnc = await encrypt(rawSecretKey, c.env.TOKEN_ENCRYPTION_KEY);
 
-  await db.prepare(`
-    INSERT INTO s3_credentials (id, user_id, access_key_id, secret_key_enc, description, workspace_id)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).bind(id, userId, accessKeyId, secretKeyEnc, description || null, workspaceId || null).run();
+  await c.get('s3CredentialsRepo').insert({
+    id, userId, accessKeyId, secretKeyEnc,
+    description: description || null,
+    workspaceId: workspaceId || null,
+  });
 
   return c.json({
     id,
@@ -45,24 +47,11 @@ s3CredentialsRouter.post('/', zValidator('json', createS3CredentialsSchema, zodE
 });
 
 s3CredentialsRouter.get('/', async (c) => {
-  const userId = c.get('userId');
-  const db = c.env.DB;
-
-  const { results } = await db.prepare(`
-    SELECT c.id, c.access_key_id, c.description, c.created_at, c.workspace_id, w.name as workspace_name
-    FROM s3_credentials c
-    LEFT JOIN workspaces w ON c.workspace_id = w.id
-    WHERE c.user_id = ?
-  `).bind(userId).all();
-
+  const { results } = await c.get('s3CredentialsRepo').findAllByUser(c.get('userId'));
   return c.json(results);
 });
 
 s3CredentialsRouter.delete('/:id', async (c) => {
-  const userId = c.get('userId');
-  const id = c.req.param('id');
-  const db = c.env.DB;
-
-  await db.prepare('DELETE FROM s3_credentials WHERE id = ? AND user_id = ?').bind(id, userId).run();
+  await c.get('s3CredentialsRepo').delete(c.req.param('id'), c.get('userId'));
   return c.json({ success: true });
 });
