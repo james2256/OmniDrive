@@ -37,12 +37,7 @@ foldersRouter.get('/tree', async (c) => {
   const folderService = c.get('folderService');
   const rootFolders = await folderService.listWorkspacesAsRootFolders(c.get('userId'));
 
-  const { results: folders } = await c.env.DB.prepare(`
-    SELECT f.*
-    FROM workspace_folders f
-    JOIN workspace_members wm ON f.workspace_id = wm.workspace_id
-    WHERE wm.user_id = ? ORDER BY f.name ASC
-  `).bind(c.get('userId')).all();
+  const { results: folders } = await c.get('folderService').findAllFoldersByUser(c.get('userId'));
 
   const subFolders = folders.map((f: Record<string, unknown>) => ({
     id: f.id, workspaceId: f.workspace_id, name: f.name, parentId: f.parent_id || f.workspace_id, icon: f.icon || '📁', color: f.color || '#4A90D9', isStarred: !!f.is_starred, metadata: f.metadata, createdAt: f.created_at, updatedAt: f.updated_at
@@ -74,11 +69,7 @@ foldersRouter.get('/:id?', async (c) => {
     subfolders = await folderService.listWorkspacesAsRootFolders(userId);
   } else {
     // Check if folderId is a workspace
-    const ws = await c.env.DB.prepare(`
-      SELECT w.* FROM workspaces w
-      JOIN workspace_members wm ON w.id = wm.workspace_id
-      WHERE w.id = ? AND wm.user_id = ?
-    `).bind(folderId, userId).first();
+    const ws = await c.get('workspaceService').findByIdAndMember(folderId, userId);
 
     if (ws) {
       // Workspace case
@@ -104,7 +95,7 @@ foldersRouter.get('/:id?', async (c) => {
   // Sync TTL + background sync trigger (stays in route — uses c.executionCtx.waitUntil)
   if (currentFolder && (currentFolder as { id: string; workspaceId: string }).id !== (currentFolder as { id: string; workspaceId: string }).workspaceId) {
     const cf = currentFolder as { workspaceId: string; id: string; lastSyncedAt: string | null; syncStatus: string };
-    const ws = await c.env.DB.prepare('SELECT sync_ttl_minutes FROM workspaces WHERE id = ?').bind(cf.workspaceId).first() as { sync_ttl_minutes: number };
+    const ws = await c.get('workspaceService').findSyncTtl(cf.workspaceId);
     const ttlMinutes = ws?.sync_ttl_minutes || 5;
 
     let isExpired = true;
@@ -116,14 +107,9 @@ foldersRouter.get('/:id?', async (c) => {
 
     let driveId = c.req.query('driveId') || null;
     if (!driveId) {
-      const { results } = await c.env.DB.prepare(`
-        SELECT DISTINCT d.id
-        FROM files f
-        JOIN drive_accounts d ON f.drive_account_id = d.id
-        WHERE (f.workspace_folder_id = ? OR f.workspace_id = ?) AND f.user_id = ? LIMIT 1
-      `).bind(cf.id, cf.id, userId).all() as { results: { id: string }[] };
-      if (results && results.length > 0) {
-        driveId = results[0].id;
+      const driveRow = await c.get('fileService').findDriveIdForFolder(cf.id, userId);
+      if (driveRow) {
+        driveId = driveRow.id;
       }
     }
 
@@ -194,12 +180,7 @@ foldersRouter.post('/:id/sync', async (c) => {
   const folderId = c.req.param('id');
   const db = c.env.DB;
 
-  const { results } = await db.prepare(`
-    SELECT DISTINCT d.*
-    FROM files f
-    JOIN drive_accounts d ON f.drive_account_id = d.id
-    WHERE (f.workspace_folder_id = ? OR f.workspace_id = ?) AND f.user_id = ?
-  `).bind(folderId, folderId, userId).all();
+  const { results } = await c.get('driveService').findDrivesForFolder(folderId, userId);
 
   if (results && results.length > 0) {
     const driveService = new GoogleDriveService(c.env.DB, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
@@ -217,26 +198,18 @@ foldersRouter.post('/:id/force-sync', async (c) => {
   const userId = c.get('userId');
   const folderId = c.req.param('id');
   let driveId = c.req.query('driveId') || null;
-  const db = c.env.DB;
 
   if (!driveId) {
-    const { results } = await db.prepare(`
-      SELECT DISTINCT d.id
-      FROM files f
-      JOIN drive_accounts d ON f.drive_account_id = d.id
-      WHERE (f.workspace_folder_id = ? OR f.workspace_id = ?) AND f.user_id = ? LIMIT 1
-    `).bind(folderId, folderId, userId).all() as { results: { id: string }[] };
-    if (results && results.length > 0) {
-      driveId = results[0].id;
+    const driveRow = await c.get('fileService').findDriveIdForFolder(folderId, userId);
+    if (driveRow) {
+      driveId = driveRow.id;
     }
   }
 
   if (!driveId) {
-    const { results } = await db.prepare(`
-      SELECT id FROM drive_accounts WHERE user_id = ? ORDER BY is_primary DESC LIMIT 1
-    `).bind(userId).all() as { results: { id: string }[] };
-    if (results && results.length > 0) {
-      driveId = results[0].id;
+    const primaryDrive = await c.get('driveService').findPrimaryDriveId(userId);
+    if (primaryDrive) {
+      driveId = primaryDrive.id;
     }
   }
 

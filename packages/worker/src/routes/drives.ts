@@ -4,6 +4,7 @@ import { AppError } from '../middleware/error-handler';
 import type { AppContext } from '../types/env';
 import { authGuard } from '../middleware/auth-guard';
 import { GoogleDriveService } from '../services/google-drive';
+import { DriveRepository } from '../repositories/drive.repository';
 import { syncDriveAccount, batchUpsertFolderContents } from '../services/sync';
 import { mapDriveRow, mapDriveFolderRow, mapFileRow } from '../types';
 import { generateId } from '../lib/id';
@@ -29,27 +30,15 @@ import {
 
 export async function buildDriveBreadcrumb(db: D1Database, driveId: string, googleFolderId: string): Promise<BreadcrumbItem[]> {
   const path: BreadcrumbItem[] = [];
-  
+
   if (googleFolderId && googleFolderId !== 'root') {
-    const query = `
-      WITH RECURSIVE breadcrumb_path(id, google_parent_id, name, lvl) AS (
-        SELECT google_folder_id, google_parent_id, name, 0 as lvl 
-        FROM drive_folders 
-        WHERE drive_account_id = ? AND google_folder_id = ?
-        UNION ALL
-        SELECT d.google_folder_id, d.google_parent_id, d.name, bp.lvl + 1 
-        FROM drive_folders d
-        JOIN breadcrumb_path bp ON d.google_folder_id = bp.google_parent_id
-        WHERE d.drive_account_id = ?
-      )
-      SELECT id, name FROM breadcrumb_path ORDER BY lvl DESC
-    `;
-    const { results } = await db.prepare(query).bind(driveId, googleFolderId, driveId).all() as { results: { id: string, name: string }[] };
+    const driveRepo = new DriveRepository(db);
+    const { results } = await driveRepo.findBreadcrumbPath(driveId, googleFolderId);
     for (const row of results) {
       path.push({ id: row.id, name: row.name });
     }
   }
-  
+
   path.unshift({ id: 'root', name: 'All Files' });
   return path;
 }
@@ -276,12 +265,9 @@ drivesRouter.post('/service-account', zValidator('json', serviceAccountSchema, z
     expiresAt,
     serviceAccount,
   };
-  await db.prepare(
-    'INSERT INTO drive_tokens (drive_account_id, encrypted_tokens, updated_at) VALUES (?, ?, ?) ' +
-    'ON CONFLICT(drive_account_id) DO UPDATE SET encrypted_tokens = excluded.encrypted_tokens, updated_at = excluded.updated_at'
-  ).bind(driveId, await encrypt(JSON.stringify(tokens), c.env.TOKEN_ENCRYPTION_KEY), Date.now()).run();
+  await c.get('driveService').upsertTokens(driveId, await encrypt(JSON.stringify(tokens), c.env.TOKEN_ENCRYPTION_KEY), Date.now());
 
-  const driveRow = await db.prepare('SELECT * FROM drive_accounts WHERE id = ?').bind(driveId).first();
+  const driveRow = await c.get('driveService').findById(driveId);
   if (driveRow) {
     const driveObj = mapDriveRow(driveRow as Record<string, unknown>);
     const driveService = new GoogleDriveService(
@@ -403,8 +389,8 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/sync', async (c) => {
     });
   }
 
-  const tokenRow = await c.env.DB.prepare('SELECT 1 as ok FROM drive_tokens WHERE drive_account_id = ?').bind(driveId).first();
-  if (!tokenRow) return c.json({ error: 'No tokens for drive' }, 400);
+  const hasTokens = await c.get('driveService').hasValidTokens(driveId);
+  if (!hasTokens) return c.json({ error: 'No tokens for drive' }, 400);
 
   const drive = mapDriveRow(driveRow as Record<string, unknown>);
   const driveService = new GoogleDriveService(c.env.DB, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);

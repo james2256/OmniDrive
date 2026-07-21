@@ -47,6 +47,80 @@ export class DriveRepository {
       .bind(userId).first<{ id: string }>();
   }
 
+  /** Find the primary drive ID for a user (highest is_primary, first by created_at). */
+  findPrimaryDriveId(userId: string) {
+    return this.db.prepare('SELECT id FROM drive_accounts WHERE user_id = ? ORDER BY is_primary DESC LIMIT 1')
+      .bind(userId).first<{ id: string }>();
+  }
+
+  /** Find a drive by ID (no user check — used after creation when user is implied). */
+  findById(driveId: string) {
+    return this.db.prepare('SELECT * FROM drive_accounts WHERE id = ?')
+      .bind(driveId).first();
+  }
+
+  /**
+   * Find all drives that have tokens, from a list of drive IDs.
+   * Used by upload/init to verify at least one drive has valid tokens.
+   */
+  findDrivesWithTokens(driveIds: string[]) {
+    const placeholders = driveIds.map(() => '?').join(',');
+    return this.db.prepare(
+      `SELECT DISTINCT drive_account_id FROM drive_tokens WHERE drive_account_id IN (${placeholders})`
+    ).bind(...driveIds).all();
+  }
+
+  /** Delete quota cache entries for a drive. */
+  deleteQuotaCache(driveId: string) {
+    return this.db.prepare('DELETE FROM quota_cache WHERE drive_account_id = ?')
+      .bind(driveId).run();
+  }
+
+  /**
+   * Upsert drive tokens (INSERT ... ON CONFLICT UPDATE).
+   * Used by the service-account route to store encrypted tokens.
+   */
+  upsertTokens(driveId: string, encryptedTokens: string, updatedAt: number) {
+    return this.db.prepare(
+      'INSERT INTO drive_tokens (drive_account_id, encrypted_tokens, updated_at) VALUES (?, ?, ?) ' +
+      'ON CONFLICT(drive_account_id) DO UPDATE SET encrypted_tokens = excluded.encrypted_tokens, updated_at = excluded.updated_at'
+    ).bind(driveId, encryptedTokens, updatedAt).run();
+  }
+
+  /**
+   * Find all drives associated with files in a folder/workspace (for sync).
+   * Returns full drive rows joined via the files table.
+   */
+  findDrivesForFolder(folderId: string, userId: string) {
+    return this.db.prepare(`
+      SELECT DISTINCT d.*
+      FROM files f
+      JOIN drive_accounts d ON f.drive_account_id = d.id
+      WHERE (f.workspace_folder_id = ? OR f.workspace_id = ?) AND f.user_id = ?
+    `).bind(folderId, folderId, userId).all();
+  }
+
+  /**
+   * Build a breadcrumb path using a recursive CTE.
+   * Returns folder IDs + names from the current folder up to root.
+   */
+  findBreadcrumbPath(driveId: string, googleFolderId: string) {
+    const query = `
+      WITH RECURSIVE breadcrumb_path(id, google_parent_id, name, lvl) AS (
+        SELECT google_folder_id, google_parent_id, name, 0 as lvl
+        FROM drive_folders
+        WHERE drive_account_id = ? AND google_folder_id = ?
+        UNION ALL
+        SELECT d.google_folder_id, d.google_parent_id, d.name, bp.lvl + 1
+        FROM drive_folders d
+        JOIN breadcrumb_path bp ON d.google_folder_id = bp.google_parent_id
+        WHERE d.drive_account_id = ?
+      )
+      SELECT id, name FROM breadcrumb_path ORDER BY lvl DESC
+    `;
+    return this.db.prepare(query).bind(driveId, googleFolderId, driveId).all<{ id: string; name: string }>();
+  }
+
   // ─── drive_accounts mutations ───
 
   /** Update quota (total + used). */

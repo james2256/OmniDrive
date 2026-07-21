@@ -6,6 +6,7 @@ import type { WorkspaceService } from '../services/workspace.service';
 import type { AutomationRepository } from '../repositories/automation.repository';
 import type { S3CredentialsRepository } from '../repositories/s3-credentials.repository';
 import type { AdminRepository } from '../repositories/admin.repository';
+import type { AuthRepository } from '../repositories/auth.repository';
 
 export interface Env {
   DB: D1Database;
@@ -43,6 +44,7 @@ export type AppContext = {
     automationRepo: AutomationRepository;
     s3CredentialsRepo: S3CredentialsRepository;
     adminRepo: AdminRepository;
+    authRepo: AuthRepository;
     requestId: string;
   };
 };

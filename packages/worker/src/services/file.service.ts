@@ -194,6 +194,21 @@ export class FileService {
 
   // ─── Listing / search / overview (no RBAC — scoped by user_id + EXISTS) ───
 
+  /** Find the first drive ID associated with files in a folder/workspace. */
+  findDriveIdForFolder(folderId: string, userId: string) {
+    return this.fileRepo.findDriveIdForFolder(folderId, userId);
+  }
+
+  /** Find a file by ID (no RBAC — caller must check ownership). */
+  findById(fileId: string) {
+    return this.fileRepo.findById(fileId);
+  }
+
+  /** Update a file's drive assignment after a move-drive operation. */
+  updateDriveAssignment(fileId: string, driveAccountId: string, googleFileId: string) {
+    return this.fileRepo.updateDriveAssignment(fileId, driveAccountId, googleFileId);
+  }
+
   /** List recent files + folders for the dashboard. */
   async listRecent(userId: string) {
     const { results: fileRows } = await this.fileRepo.findRecent(userId);

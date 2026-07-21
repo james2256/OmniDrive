@@ -10,6 +10,7 @@ import { WorkspaceService } from '../services/workspace.service';
 import { AutomationRepository } from '../repositories/automation.repository';
 import { S3CredentialsRepository } from '../repositories/s3-credentials.repository';
 import { AdminRepository } from '../repositories/admin.repository';
+import { AuthRepository } from '../repositories/auth.repository';
 
 const EXTENSION_THRESHOLD = 60 * 60 * 1000; // 1 hour
 
@@ -46,6 +47,7 @@ export const authGuard = createMiddleware<AppContext>(async (c, next) => {
   c.set('automationRepo', new AutomationRepository(c.env.DB));
   c.set('s3CredentialsRepo', new S3CredentialsRepository(c.env.DB));
   c.set('adminRepo', new AdminRepository(c.env.DB));
+  c.set('authRepo', new AuthRepository(c.env.DB));
 
   // ponytail: throttled sliding window — only extend TTL if session hasn't been touched
   // in the last hour, saving ~90% of D1 writes vs extending on every request.

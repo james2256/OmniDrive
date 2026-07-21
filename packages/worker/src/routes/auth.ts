@@ -15,40 +15,38 @@ import { syncDriveAccount } from '../services/sync';
 import { GoogleDriveService } from '../services/google-drive';
 import { mapDriveRow } from '../types';
 import { SESSION_TTL_MS, sessionCookieOptions, sessionDeleteCookieOptions } from '../lib/session-cookie';
+import { AuthRepository } from '../repositories/auth.repository';
 
 export const authRouter = new Hono<AppContext>({ strict: false });
 
 authRouter.get('/setup-status', async (c) => {
-  const result = await c.env.DB.prepare('SELECT COUNT(*) as count FROM users').first() as { count: number };
+  const result = await new AuthRepository(c.env.DB).countUsers();
   c.header('Cache-Control', 'no-cache, no-store, must-revalidate');
   return c.json({ isSetup: (result?.count || 0) > 0 });
 });
 
 authRouter.post('/register', zValidator('json', registerSchema, zodErrorHook), async (c) => {
   const { name, username, password, email, invitation_code } = c.req.valid('json');
-
-  const db = c.env.DB;
+  const authRepo = new AuthRepository(c.env.DB);
 
   // Check setup status
-  const setupRes = await db.prepare('SELECT COUNT(*) as count FROM users').first() as { count: number };
+  const setupRes = await authRepo.countUsers();
   const isSetup = (setupRes?.count || 0) > 0;
 
-  const existing = await db.prepare('SELECT id FROM users WHERE username = ?').bind(username).first();
+  const existing = await authRepo.findByUsername(username);
   if (existing) throw new AppError(400, 'Username already exists');
 
   if (email) {
-    const existingEmail = await db.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
+    const existingEmail = await authRepo.findByEmail(email);
     if (existingEmail) throw new AppError(400, 'Email already exists');
   }
 
   if (isSetup) {
     if (!invitation_code) throw new AppError(400, 'Invitation code required');
     // ponytail: atomic consume — no TOCTOU race; only after username/email checks pass
-    const consumed = await db.prepare(
-      'UPDATE invitation_codes SET used_count = used_count + 1 WHERE code = ? AND (max_uses <= 0 OR used_count < max_uses) RETURNING id'
-    ).bind(invitation_code).first() as { id: string };
+    const consumed = await authRepo.consumeInvitation(invitation_code);
     if (!consumed) {
-      const inv = await db.prepare('SELECT id FROM invitation_codes WHERE code = ?').bind(invitation_code).first();
+      const inv = await authRepo.findInvitation(invitation_code);
       if (!inv) throw new AppError(400, 'Invalid invitation code');
       throw new AppError(400, 'Invitation code has reached its usage limit');
     }
@@ -66,17 +64,13 @@ authRouter.post('/register', zValidator('json', registerSchema, zodErrorHook), a
   const passwordHash = await hashPassword(password);
   const isSuperAdmin = isSetup ? 0 : 1;
 
-  await db.prepare(
-    'INSERT INTO users (id, username, password_hash, email, name, is_super_admin) VALUES (?, ?, ?, ?, ?, ?)'
-  ).bind(id, username, passwordHash, email || null, name || username, isSuperAdmin).run();
+  await authRepo.insertUser({ id, username, passwordHash, email: email || null, name: name || username, isSuperAdmin });
 
   const now = Date.now();
   const sessionData: SessionData = { userId: id, username, email: email || null, name: name || username, avatarUrl: null, role: isSuperAdmin ? 'super_admin' : 'member', createdAt: now };
   const sessionId = generateId();
 
-  await db.prepare(
-    'INSERT INTO sessions (id, user_id, data, expires_at, touched_at) VALUES (?, ?, ?, ?, ?)'
-  ).bind(sessionId, id, JSON.stringify(sessionData), now + SESSION_TTL_MS, now).run();
+  await authRepo.insertSession({ id: sessionId, userId: id, data: JSON.stringify(sessionData), expiresAt: now + SESSION_TTL_MS, touchedAt: now });
 
   setCookie(c, 'omnidrive_sid', sessionId, sessionCookieOptions(c.env));
 
@@ -85,8 +79,9 @@ authRouter.post('/register', zValidator('json', registerSchema, zodErrorHook), a
 
 authRouter.post('/login', zValidator('json', loginSchema, zodErrorHook), async (c) => {
   const { username, password } = c.req.valid('json');
+  const authRepo = new AuthRepository(c.env.DB);
 
-  const user = await c.env.DB.prepare('SELECT id, username, password_hash, email, name, avatar_url, is_super_admin FROM users WHERE username = ?').bind(username).first() as UserRow;
+  const user = await authRepo.findByUsernameWithAuth(username) as UserRow | null;
   if (!user || !(await verifyPassword(password, user.password_hash))) {
     throw new AppError(401, 'Invalid credentials');
   }
@@ -95,9 +90,7 @@ authRouter.post('/login', zValidator('json', loginSchema, zodErrorHook), async (
   const sessionData: SessionData = { userId: user.id, username: user.username, email: user.email, name: user.name, avatarUrl: user.avatar_url, role: user.is_super_admin ? 'super_admin' : 'member', createdAt: now };
   const sessionId = generateId();
 
-  await c.env.DB.prepare(
-    'INSERT INTO sessions (id, user_id, data, expires_at, touched_at) VALUES (?, ?, ?, ?, ?)'
-  ).bind(sessionId, user.id, JSON.stringify(sessionData), now + SESSION_TTL_MS, now).run();
+  await authRepo.insertSession({ id: sessionId, userId: user.id, data: JSON.stringify(sessionData), expiresAt: now + SESSION_TTL_MS, touchedAt: now });
 
   setCookie(c, 'omnidrive_sid', sessionId, sessionCookieOptions(c.env));
 
@@ -134,8 +127,6 @@ authRouter.get('/google', authGuard, async (c) => {
   const { codeVerifier, codeChallenge } = await generatePKCE();
 
   // Store state + PKCE verifier + userId in D1 (10-min TTL via created_at).
-  // The userId is read back in /callback so the Drive link survives the
-  // cross-site redirect.
   await env.DB.prepare(
     'INSERT INTO oauth_states (state, code_verifier, user_id, created_at) VALUES (?, ?, ?, ?)'
   ).bind(state, codeVerifier, userId, Date.now()).run();
@@ -149,12 +140,12 @@ authRouter.get('/google', authGuard, async (c) => {
   return c.json({ url: authUrl.toString() });
 });
 
-// OAuth callback — a top-level navigation arriving back from Google. The
-// session cookie is NOT reliably sent on this cross-site redirect, so the
-// linking user is read from the KV OAuth state (set during the credentialed
-// /google fetch), NOT from c.get('userId'). The KV state is single-use and
-// unguessable, which is the real CSRF protection; the oauth_state cookie is
-// only enforced as an extra check when the browser happens to send it.
+// ponytail: migrate /callback to AuthRepository when adding a new auth flow.
+// Currently 8 inline SQL calls interleaved with Google API (token exchange,
+// user info fetch), encryption (token storage), and c.executionCtx.waitUntil
+// (background sync). The SQL is tightly coupled to the OAuth flow — extraction
+// would require passing env + executionCtx to the repository, breaking the
+// "repository owns SQL only" pattern. Defer until a 2nd OAuth provider appears.
 authRouter.get('/callback', async (c) => {
   const code = c.req.query('code');
   if (!code) throw new AppError(400, 'Authorization code missing');
@@ -167,55 +158,49 @@ authRouter.get('/callback', async (c) => {
     throw new AppError(400, 'Invalid state parameter');
   }
 
+  const db = c.env.DB;
+
   // Retrieve PKCE verifier + userId from D1 (authoritative single-use state)
-  const stateRow = await c.env.DB.prepare('SELECT code_verifier, user_id FROM oauth_states WHERE state = ?')
+  const stateRow = await db.prepare('SELECT code_verifier, user_id FROM oauth_states WHERE state = ?')
     .bind(state).first() as { code_verifier: string; user_id: string };
   if (!stateRow) throw new AppError(400, 'OAuth state expired');
-  await c.env.DB.prepare('DELETE FROM oauth_states WHERE state = ?').bind(state).run();
+  await db.prepare('DELETE FROM oauth_states WHERE state = ?').bind(state).run();
 
   const targetUserId = stateRow.user_id;
   const codeVerifier = stateRow.code_verifier;
   if (!targetUserId) throw new AppError(400, 'OAuth session expired — please reconnect your Google account.');
 
-  const env = c.env;
-  const redirectUri = `${env.WORKER_URL}/api/auth/callback`;
-  const authService = new AuthService(env);
-
-  const tokens = await authService.exchangeCodeForTokens(code, redirectUri, codeVerifier);
+  const authService = new AuthService(c.env);
+  const tokens = await authService.exchangeCodeForTokens(code, `${c.env.WORKER_URL}/api/auth/callback`, codeVerifier);
   const googleUser = await authService.fetchUserInfo(tokens.accessToken);
-
-  const db = env.DB;
 
   await db.prepare('UPDATE users SET google_id = ? WHERE id = ?')
     .bind(googleUser.id, targetUserId).run();
 
   let drive = await db.prepare('SELECT id FROM drive_accounts WHERE google_account_id = ? AND user_id = ?').bind(googleUser.id, targetUserId).first() as { id: string };
   if (!drive) {
-    const driveId = generateId();
     const res = await db.prepare('SELECT COUNT(*) as count FROM drive_accounts WHERE user_id = ?').bind(targetUserId).first() as { count: number };
-    const isPrimary = (res && res.count === 0) ? 1 : 0;
-
+    const isPrimary = res.count === 0 ? 1 : 0;
+    const driveId = generateId();
     await db.prepare(
-      'INSERT INTO drive_accounts (id, user_id, google_account_id, email, name, type, is_primary) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).bind(driveId, targetUserId, googleUser.id, googleUser.email, googleUser.name, 'oauth', isPrimary).run();
+      'INSERT INTO drive_accounts (id, user_id, google_account_id, email, name, is_primary, root_folder_id) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).bind(driveId, targetUserId, googleUser.id, googleUser.email, googleUser.name || googleUser.email, isPrimary, null).run();
     drive = { id: driveId };
   }
 
-  // Encrypt tokens before storing in D1
-  const encryptedTokens = await encrypt(JSON.stringify(tokens), env.TOKEN_ENCRYPTION_KEY);
   await db.prepare(
     'INSERT INTO drive_tokens (drive_account_id, encrypted_tokens, updated_at) VALUES (?, ?, ?) ' +
     'ON CONFLICT(drive_account_id) DO UPDATE SET encrypted_tokens = excluded.encrypted_tokens, updated_at = excluded.updated_at'
-  ).bind(drive.id, encryptedTokens, Date.now()).run();
+  ).bind(drive.id, await encrypt(JSON.stringify(tokens), c.env.TOKEN_ENCRYPTION_KEY), Date.now()).run();
 
   const driveRow = await db.prepare('SELECT * FROM drive_accounts WHERE id = ?').bind(drive.id).first();
   if (driveRow) {
     const driveObj = mapDriveRow(driveRow as Record<string, unknown>);
-    const driveService = new GoogleDriveService(db, env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, env.TOKEN_ENCRYPTION_KEY);
+    const driveService = new GoogleDriveService(db, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
     c.executionCtx.waitUntil(syncDriveAccount(driveObj, db, driveService));
   }
 
-  return c.redirect(`${env.FRONTEND_URL}/`);
+  return c.json({ success: true });
 });
 
 authRouter.get('/me', authGuard, (c) => {
@@ -232,9 +217,8 @@ authRouter.post('/change-password', authGuard, zValidator('json', changePassword
   }
 
   const userId = c.get('userId');
-  const user = await c.env.DB.prepare('SELECT password_hash FROM users WHERE id = ?')
-    .bind(userId)
-    .first() as { password_hash: string };
+  const authRepo = c.get('authRepo');
+  const user = await authRepo.findPasswordHash(userId);
   if (!user) throw new AppError(404, 'User not found');
 
   if (!(await verifyPassword(currentPassword, user.password_hash))) {
@@ -242,18 +226,14 @@ authRouter.post('/change-password', authGuard, zValidator('json', changePassword
   }
 
   const passwordHash = await hashPassword(newPassword);
-  await c.env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
-    .bind(passwordHash, userId)
-    .run();
+  await authRepo.updatePasswordHash(userId, passwordHash);
 
   // Kill other sessions (stolen cookies); keep current so the user stays signed in.
   const sid = getCookie(c, 'omnidrive_sid');
   if (sid) {
-    await c.env.DB.prepare('DELETE FROM sessions WHERE user_id = ? AND id != ?')
-      .bind(userId, sid)
-      .run();
+    await authRepo.deleteOtherSessions(userId, sid);
   } else {
-    await c.env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(userId).run();
+    await authRepo.deleteAllSessions(userId);
   }
 
   return c.json({ success: true });
@@ -262,7 +242,7 @@ authRouter.post('/change-password', authGuard, zValidator('json', changePassword
 authRouter.post('/logout', authGuard, async (c) => {
   const sid = getCookie(c, 'omnidrive_sid');
   if (sid) {
-    await c.env.DB.prepare('DELETE FROM sessions WHERE id = ?').bind(sid).run();
+    await c.get('authRepo').deleteSessionById(sid);
   }
   deleteCookie(c, 'omnidrive_sid', sessionDeleteCookieOptions(c.env));
   return c.json({ success: true });
@@ -270,8 +250,7 @@ authRouter.post('/logout', authGuard, async (c) => {
 
 // Revoke all sessions for the current user (e.g. after password change, compromise)
 authRouter.post('/sessions/revoke', authGuard, async (c) => {
-  const userId = c.get('userId');
-  await c.env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(userId).run();
+  await c.get('authRepo').deleteAllSessions(c.get('userId'));
   deleteCookie(c, 'omnidrive_sid', sessionDeleteCookieOptions(c.env));
   return c.json({ success: true });
 });

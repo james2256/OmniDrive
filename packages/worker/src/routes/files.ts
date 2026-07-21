@@ -94,10 +94,7 @@ filesRouter.post('/:id/move-drive', zValidator('json', moveDriveFileSchema, zodE
     throw new AppError(400, 'File is already in the target drive');
   }
 
-  const db = c.env.DB;
-  const targetDrive = await db.prepare(
-    'SELECT id, email FROM drive_accounts WHERE id = ? AND user_id = ?'
-  ).bind(targetDriveId, userId).first() as { id: string; email: string };
+  const targetDrive = await c.get('driveService').findByIdAndUser(targetDriveId, userId) as { id: string; email: string } | null;
 
   if (!targetDrive) {
     throw new AppError(404, 'Target drive not found or unauthorized');
@@ -140,15 +137,11 @@ filesRouter.post('/:id/move-drive', zValidator('json', moveDriveFileSchema, zodE
       logError(c, 'Failed to trash original file', trashError);
     }
 
-    await db.prepare(
-      `UPDATE files 
-       SET drive_account_id = ?, google_file_id = ?, google_parent_id = 'root', updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`
-    ).bind(targetDriveId, copiedFile.id, fileId).run();
+    await c.get('fileService').updateDriveAssignment(fileId, targetDriveId, copiedFile.id);
 
-    const updatedFile = await db.prepare('SELECT * FROM files WHERE id = ?').bind(fileId).first() as Record<string, unknown>;
-    
-    return c.json({ file: mapFileRow((updatedFile as Record<string, unknown>)), success: true });
+    const updatedFile = await c.get('fileService').findById(fileId);
+
+    return c.json({ file: mapFileRow((updatedFile as unknown as Record<string, unknown>)), success: true });
   } catch (error) {
     logError(c, 'Move drive failed', error);
     
@@ -250,10 +243,8 @@ filesRouter.post('/upload/init', zValidator('json', uploadInitSchema, zodErrorHo
   if (drives.length === 0) throw new AppError(400, 'No connected drives');
 
   const driveIds = drives.map(d => d.id);
-  const tokenRows = await c.env.DB.prepare(
-    `SELECT DISTINCT drive_account_id FROM drive_tokens WHERE drive_account_id IN (${driveIds.map(() => '?').join(',')})`
-  ).bind(...driveIds).all();
-  if (!tokenRows.results?.length) {
+  const { results: tokenRows } = await c.get('driveService').findDrivesWithTokens(driveIds);
+  if (!tokenRows?.length) {
     throw new AppError(400, 'Google Drive session expired. Disconnect and reconnect your account in Settings.');
   }
 
@@ -306,9 +297,8 @@ filesRouter.post('/upload/finalize', zValidator('json', uploadFinalizeSchema, zo
     }
   }
 
-  const drive = await db.prepare('SELECT id FROM drive_accounts WHERE id = ? AND user_id = ?')
-    .bind(driveAccountId, userId).first();
-    
+  const drive = await c.get('driveService').findByIdAndUser(driveAccountId, userId);
+
   if (!drive) {
     throw new AppError(404, 'Drive account not found or unauthorized');
   }
@@ -353,7 +343,7 @@ filesRouter.post('/upload/finalize', zValidator('json', uploadFinalizeSchema, zo
   }
 
   // Invalidate quota cache
-  await c.env.DB.prepare('DELETE FROM quota_cache WHERE drive_account_id = ?').bind(driveAccountId).run();
+  await c.get('driveService').deleteQuotaCache(driveAccountId);
 
   const engine = new AutomationEngine(c.env);
   c.executionCtx.waitUntil(engine.processEventTrigger({ ...(created as Record<string, unknown>), user_id: userId } as DbFile, c.executionCtx as unknown as ExecutionContext));

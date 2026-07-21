@@ -102,6 +102,41 @@ export class DriveService {
 
   // ─── New: listing, shared-with-me, move, disconnect ───
 
+  /** Find a drive by ID + user (returns {id, email} or null). RBAC: ownership. */
+  findByIdAndUser(driveId: string, userId: string) {
+    return this.driveRepo.findByIdAndUser(driveId, userId);
+  }
+
+  /** Find all drives associated with files in a folder/workspace (for sync). */
+  findDrivesForFolder(folderId: string, userId: string) {
+    return this.driveRepo.findDrivesForFolder(folderId, userId);
+  }
+
+  /** Find the primary drive ID for a user. */
+  findPrimaryDriveId(userId: string) {
+    return this.driveRepo.findPrimaryDriveId(userId);
+  }
+
+  /** Find drives that have tokens, from a list of drive IDs. */
+  findDrivesWithTokens(driveIds: string[]) {
+    return this.driveRepo.findDrivesWithTokens(driveIds);
+  }
+
+  /** Delete quota cache entries for a drive. */
+  deleteQuotaCache(driveId: string) {
+    return this.driveRepo.deleteQuotaCache(driveId);
+  }
+
+  /** Upsert drive tokens (INSERT ... ON CONFLICT UPDATE). */
+  upsertTokens(driveId: string, encryptedTokens: string, updatedAt: number) {
+    return this.driveRepo.upsertTokens(driveId, encryptedTokens, updatedAt);
+  }
+
+  /** Find a drive by ID (no user check — used after creation). */
+  findById(driveId: string) {
+    return this.driveRepo.findById(driveId);
+  }
+
   /** List all drives with sync state. RBAC: user ownership. */
   async listDrives(userId: string) {
     const { results } = await this.driveRepo.findAllWithSyncState(userId);

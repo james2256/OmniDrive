@@ -34,6 +34,11 @@ export class FolderService {
 
   // ─── Existing methods (star/unstar/checkFolderAccess/deleteFolder) ───
 
+  /** Find all folders a user has access to (for GET /tree). */
+  findAllFoldersByUser(userId: string) {
+    return this.folderRepo.findAllByUser(userId);
+  }
+
   /** Star a folder. RBAC: membership (any role). */
   async starFolder(userId: string, folderId: string): Promise<void> {
     const folder = await this.folderRepo.findMembership(folderId, userId);

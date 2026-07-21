@@ -1,3 +1,9 @@
+// ponytail: migrate to S3Repository when extending S3 protocol support or
+// adding a 2nd S3 backend. Currently 37 inline SQL calls across 7 routes —
+// the S3 XML/SigV4/multipart logic is interleaved with SQL (especially in
+// PUT /:bucket/:key and POST /:bucket/:key), making extraction risky without
+// integration tests. 2,665 lines of existing tests would need updating.
+// Defer until there's evidence of pain.
 import type { Context } from 'hono';
 import { Hono } from 'hono';
 import { s3AuthMiddleware } from '../middleware/s3-auth';

@@ -38,6 +38,16 @@ export class WorkspaceService {
     return results;
   }
 
+  /** Find a workspace by ID + membership (returns null if not a member). */
+  findByIdAndMember(workspaceId: string, userId: string) {
+    return this.workspaceRepo.findByIdAndMember(workspaceId, userId);
+  }
+
+  /** Get the sync TTL for a workspace. */
+  findSyncTtl(workspaceId: string) {
+    return this.workspaceRepo.findSyncTtl(workspaceId);
+  }
+
   /** Create a workspace + add the creator as 'owner'. Returns the workspace row. */
   async createWorkspace(userId: string, name: string): Promise<unknown> {
     const workspaceId = await this.workspaceRepo.createWorkspace(name, userId);

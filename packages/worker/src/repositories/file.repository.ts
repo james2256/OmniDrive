@@ -273,6 +273,31 @@ export class FileRepository {
 
   // ─── Sync engine support ───
 
+  /**
+   * Find the first drive ID associated with files in a folder/workspace.
+   * Used by GET /:id? and POST /:id/force-sync for drive lookup.
+   */
+  findDriveIdForFolder(folderId: string, userId: string) {
+    return this.db.prepare(`
+      SELECT DISTINCT d.id
+      FROM files f
+      JOIN drive_accounts d ON f.drive_account_id = d.id
+      WHERE (f.workspace_folder_id = ? OR f.workspace_id = ?) AND f.user_id = ? LIMIT 1
+    `).bind(folderId, folderId, userId).first<{ id: string }>();
+  }
+
+  /**
+   * Update a file's drive assignment after a move-drive operation.
+   * Sets the new drive_account_id, google_file_id, and resets parent to 'root'.
+   */
+  updateDriveAssignment(fileId: string, driveAccountId: string, googleFileId: string) {
+    return this.db.prepare(
+      `UPDATE files
+       SET drive_account_id = ?, google_file_id = ?, google_parent_id = 'root', updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`
+    ).bind(driveAccountId, googleFileId, fileId).run();
+  }
+
   static readonly UPSERT_FILE_SQL = `INSERT INTO files
     (id, user_id, drive_account_id, google_file_id, google_parent_id, name, mime_type, size,
      thumbnail_url, web_view_link, web_content_link, google_created_at, google_modified_at, synced_at, owned_by_me)
