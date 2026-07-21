@@ -73,4 +73,69 @@ export class WorkspaceRepository {
     return this.db.prepare('DELETE FROM workspaces WHERE id = ?')
       .bind(workspaceId).run();
   }
+
+  // ─── Member management ───
+
+  /** Find a user by email (for adding members). Returns null if not found. */
+  findUserByEmail(email: string) {
+    return this.db.prepare('SELECT id FROM users WHERE email = ?')
+      .bind(email).first<{ id: string }>();
+  }
+
+  /** Add a member to a workspace. Throws on UNIQUE constraint (already a member). */
+  addMember(workspaceId: string, userId: string, role: string) {
+    const memberId = generateId();
+    return this.db.prepare(
+      'INSERT INTO workspace_members (id, workspace_id, user_id, role) VALUES (?, ?, ?, ?)'
+    ).bind(memberId, workspaceId, userId, role).run();
+  }
+
+  /** Count owners in a workspace (for last-owner check). */
+  countOwners(workspaceId: string) {
+    return this.db.prepare(
+      'SELECT COUNT(*) as count FROM workspace_members WHERE workspace_id = ? AND role = ?'
+    ).bind(workspaceId, 'owner').first<{ count: number }>();
+  }
+
+  /** Remove a member from a workspace. */
+  removeMember(workspaceId: string, targetUserId: string) {
+    return this.db.prepare('DELETE FROM workspace_members WHERE workspace_id = ? AND user_id = ?')
+      .bind(workspaceId, targetUserId).run();
+  }
+
+  // ─── Audit logs + policies ───
+
+  /** Find audit logs for a workspace, with actor email via JOIN. */
+  findAuditLogs(workspaceId: string) {
+    return this.db.prepare(
+      'SELECT a.*, u.email as actor_email FROM audit_logs a JOIN users u ON a.actor_id = u.id WHERE workspace_id = ? ORDER BY created_at DESC LIMIT 100'
+    ).bind(workspaceId).all();
+  }
+
+  /** Find all policies for a workspace. */
+  findPolicies(workspaceId: string) {
+    return this.db.prepare('SELECT * FROM workspace_policies WHERE workspace_id = ?')
+      .bind(workspaceId).all();
+  }
+
+  /** Create a policy. Returns the created policy row. */
+  async createPolicy(params: {
+    workspaceId: string;
+    targetType: string;
+    targetId: string | null;
+    policyType: string;
+    config: string;
+  }): Promise<unknown> {
+    const policyId = generateId();
+    await this.db.prepare(
+      'INSERT INTO workspace_policies (id, workspace_id, target_type, target_id, policy_type, config) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(policyId, params.workspaceId, params.targetType, params.targetId, params.policyType, params.config).run();
+    return this.db.prepare('SELECT * FROM workspace_policies WHERE id = ?').bind(policyId).first();
+  }
+
+  /** Delete a policy. */
+  deletePolicy(policyId: string, workspaceId: string) {
+    return this.db.prepare('DELETE FROM workspace_policies WHERE id = ? AND workspace_id = ?')
+      .bind(policyId, workspaceId).run();
+  }
 }

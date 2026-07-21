@@ -99,27 +99,8 @@ drivesRouter.get('/connect', async (c) => {
 
 // GET /api/drives/shared-with-me — list shared items not added to My Drive (owned_by_me = 1, google_parent_id = '__shared__')
 drivesRouter.get('/shared-with-me', async (c) => {
-  const userId = c.get('userId');
-  const db = c.env.DB;
-
-  const folderResults = await db.prepare(
-    `SELECT df.*, d.email as driveEmail FROM drive_folders df
-     JOIN drive_accounts d ON df.drive_account_id = d.id
-     WHERE d.user_id = ? AND df.google_parent_id = ? AND df.owned_by_me = 1 AND df.is_trashed = 0
-     ORDER BY df.name ASC`
-  ).bind(userId, '__shared__').all() as unknown as { results: Record<string, unknown>[] };
-
-  const fileResults = await db.prepare(
-    `SELECT f.*, d.email as driveEmail FROM files f
-     JOIN drive_accounts d ON f.drive_account_id = d.id
-     WHERE f.user_id = ? AND f.google_parent_id = ? AND f.owned_by_me = 1 AND f.is_trashed = 0
-     ORDER BY f.name ASC`
-  ).bind(userId, '__shared__').all() as unknown as { results: Record<string, unknown>[] };
-
-  return c.json({
-    folders: folderResults.results.map((r) => ({ ...mapDriveFolderRow(r), driveEmail: r.driveEmail, driveId: r.drive_account_id })),
-    files: fileResults.results.map((r) => ({ ...mapFileRow(r), driveEmail: r.driveEmail, driveId: r.drive_account_id })),
-  });
+  const data = await c.get('driveService').listSharedWithMe(c.get('userId'));
+  return c.json(data);
 });
 
 // GET /api/drives/:driveId/shared-folders/:googleFolderId — live API list children of a shared folder
@@ -166,24 +147,20 @@ drivesRouter.get('/:driveId/shared-folders/:googleFolderId', async (c) => {
 drivesRouter.get('/', async (c) => {
   const userId = c.get('userId');
   const db = c.env.DB;
+  const driveService = c.get('driveService');
 
-  const { results } = await db
-    .prepare('SELECT a.*, s.status as sync_status, s.last_synced_at, s.error_message as sync_error_message, CASE WHEN s.next_page_token IS NOT NULL THEN 1 ELSE 0 END as sync_paused FROM drive_accounts a LEFT JOIN sync_state s ON a.id = s.drive_account_id WHERE a.user_id = ?')
-    .bind(userId)
-    .all();
-
-  const drives = results.map(mapDriveRow);
+  const drives = await driveService.listDrives(userId);
 
   const drivesWithQuota = await Promise.all(drives.map(async (drive) => {
-    const tokenRow = await db.prepare('SELECT 1 as ok FROM drive_tokens WHERE drive_account_id = ?').bind(drive.id).first();
-    if (!tokenRow) {
+    const hasTokens = await driveService.hasValidTokens(drive.id);
+    if (!hasTokens) {
       const { freeSpace, usagePercent } = computeDriveQuota(drive);
       return { ...drive, freeSpace, usagePercent, health: 'auth_expired' as const };
     }
 
     try {
-      const driveService = new GoogleDriveService(db, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
-      const quota = await driveService.getQuota(drive.id);
+      const googleDriveService = driveService.getGoogleDriveService();
+      const quota = await googleDriveService.getQuota(drive.id);
 
       // Only persist the total quota Google actually reports. Google omits
       // storageQuota.limit for Google Workspace pooled storage and service
@@ -519,79 +496,13 @@ drivesRouter.patch('/:driveId/move/:googleFileId', zValidator('json', moveWithin
   const userId = c.get('userId');
   const { driveId, googleFileId } = c.req.param();
   const { targetFolderId, oldParentId, isFolder } = c.req.valid('json');
-  const db = c.env.DB;
 
-  const drive = await db.prepare('SELECT id, root_folder_id FROM drive_accounts WHERE id = ? AND user_id = ?')
-    .bind(driveId, userId).first<{ id: string; root_folder_id: string | null }>();
-  if (!drive) return c.json({ error: 'Drive not found' }, 404);
-
-  // Verify item ownership (can't move files you don't own)
-  const table = isFolder ? 'drive_folders' : 'files';
-  const idCol = isFolder ? 'google_folder_id' : 'google_file_id';
-  const item = await db.prepare(`SELECT owned_by_me FROM ${table} WHERE drive_account_id = ? AND ${idCol} = ?`)
-    .bind(driveId, googleFileId).first<{ owned_by_me: number }>();
-  if (!item) return c.json({ error: 'Item not found' }, 404);
-  if (item.owned_by_me !== 1) return c.json({ error: 'You can only move items you own' }, 403);
-
-  // Resolve root folder ID
-  const rootFolderId = drive.root_folder_id || 'root';
-  const effectiveTargetId = targetFolderId === 'root' ? rootFolderId : targetFolderId;
-  const effectiveOldParentId = (!oldParentId || oldParentId === '__shared__') ? null :
-    (oldParentId === 'root' ? rootFolderId : oldParentId);
-
-  const driveService = new GoogleDriveService(db, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
-  await driveService.moveToFolder(driveId, googleFileId, effectiveTargetId, effectiveOldParentId);
-
-  // Update DB — folders at root use NULL, files at root use 'root' (matches resolveParentId convention)
-  const dbParentId = targetFolderId === 'root' ? (isFolder ? null : 'root') : targetFolderId;
-  if (isFolder) {
-    await db.prepare('UPDATE drive_folders SET google_parent_id = ? WHERE drive_account_id = ? AND google_folder_id = ?')
-      .bind(dbParentId, driveId, googleFileId).run();
-  } else {
-    await db.prepare('UPDATE files SET google_parent_id = ?, updated_at = CURRENT_TIMESTAMP WHERE drive_account_id = ? AND google_file_id = ?')
-      .bind(dbParentId, driveId, googleFileId).run();
-  }
+  await c.get('driveService').moveItemWithinDrive(userId, driveId, googleFileId, targetFolderId, oldParentId || null, isFolder);
 
   return c.json({ success: true });
 });
 
 drivesRouter.delete('/:id', async (c) => {
-  const userId = c.get('userId');
-  const driveId = c.req.param('id');
-  const db = c.env.DB;
-
-  const row = await db
-    .prepare('SELECT * FROM drive_accounts WHERE id = ? AND user_id = ?')
-    .bind(driveId, userId)
-    .first();
-
-  if (!row) throw new AppError(404, 'Drive not found');
-
-  const wasPrimary = (row as Record<string, unknown>).is_primary === 1;
-  const driveType = (row as Record<string, unknown>).type as string;
-
-  if (driveType === 'oauth') {
-    const driveService = new GoogleDriveService(db, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
-    await driveService.revokeTokens(driveId);
-  }
-
-  await db.prepare('DELETE FROM drive_accounts WHERE id = ? AND user_id = ?')
-    .bind(driveId, userId).run();
-
-  if (wasPrimary) {
-    const next = await db
-      .prepare('SELECT id FROM drive_accounts WHERE user_id = ? ORDER BY created_at ASC LIMIT 1')
-      .bind(userId)
-      .first<{ id: string }>();
-    if (next) {
-      await db.prepare('UPDATE drive_accounts SET is_primary = 1 WHERE id = ?')
-        .bind(next.id).run();
-    }
-  }
-
-  // drive_tokens row auto-deleted by ON DELETE CASCADE when drive_accounts row removed,
-  // but explicit delete in case the drive_account row is kept.
-  await db.prepare('DELETE FROM drive_tokens WHERE drive_account_id = ?').bind(driveId).run();
-
+  await c.get('driveService').disconnectDrive(c.get('userId'), c.req.param('id'));
   return c.json({ success: true });
 });

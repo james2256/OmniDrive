@@ -11,7 +11,7 @@ import { UploadRouter } from '../services/upload-router';
 import { AutomationEngine } from '../services/automation.service';
 import { PolicyService } from '../services/policy.service';
 import { logError } from '../lib/logger';
-import { mapFileRow, mapFolderRow, mapDriveFolderRow } from '../types';
+import { mapFileRow } from '../types';
 import { zValidator } from '@hono/zod-validator';
 import {
   renameFileSchema,
@@ -28,215 +28,34 @@ export const filesRouter = new Hono<AppContext>({ strict: false });
 filesRouter.use('*', authGuard);
 
 // GET /api/files/recent
-// Access via ownership OR workspace membership. Use EXISTS (not JOIN workspace_members):
-// joining members multiplies each file by member count (e.g. 6 members → 6 identical rows
-// on Home Recent). EXISTS keeps one row per file.
+// Access via ownership OR workspace membership (EXISTS in repository SQL).
 filesRouter.get('/recent', async (c) => {
-  const userId = c.get('userId');
-  const db = c.env.DB;
-
-  const { results: fileRows } = await db.prepare(`
-    SELECT f.*, d.email as driveEmail
-    FROM files f
-    JOIN drive_accounts d ON f.drive_account_id = d.id
-    WHERE f.is_trashed = 0
-      AND (
-        f.user_id = ?
-        OR EXISTS (
-          SELECT 1 FROM workspace_members wm
-          WHERE wm.workspace_id = f.workspace_id AND wm.user_id = ?
-        )
-      )
-    ORDER BY COALESCE(f.google_modified_at, f.synced_at, f.updated_at) DESC
-    LIMIT 20
-  `).bind(userId, userId).all() as unknown as { results: Record<string, unknown>[] };
-
-  const { results: folderRows } = await db.prepare(`
-    SELECT f.*, w.name as ws_name
-    FROM workspace_folders f
-    JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ?
-    LEFT JOIN workspaces w ON f.workspace_id = w.id
-    ORDER BY f.updated_at DESC
-    LIMIT 20
-  `).bind(userId).all();
-
-  const folders = folderRows.map((f: Record<string, unknown>) => ({
-    id: f.id,
-    workspaceId: f.workspace_id,
-    name: f.name,
-    parentId: f.parent_id,
-    icon: f.icon,
-    color: f.color,
-    isStarred: !!f.is_starred,
-    metadata: f.metadata,
-    createdAt: f.created_at,
-    updatedAt: f.updated_at
-  }));
-
-  return c.json({
-    files: fileRows.map((r) => ({ ...mapFileRow(r), driveEmail: r.driveEmail })),
-    folders
-  });
+  const data = await c.get('fileService').listRecent(c.get('userId'));
+  return c.json(data);
 });
 
 // GET /api/files/category-overview
 filesRouter.get('/category-overview', async (c) => {
-  const userId = c.get('userId');
-  const db = c.env.DB;
-
-  const { results } = await db.prepare(`
-    SELECT mime_type, SUM(size) as total_size
-    FROM files
-    WHERE user_id = ? AND is_trashed = 0
-    GROUP BY mime_type
-  `).bind(userId).all() as { results: { mime_type: string; total_size: number }[] };
-
-  const overview = {
-    images: 0,
-    videos: 0,
-    documents: 0,
-    audio: 0,
-    archives: 0,
-    others: 0,
-  };
-
-  for (const row of results) {
-    const mime = row.mime_type || '';
-    const size = row.total_size || 0;
-
-    if (mime.startsWith('image/') || mime === 'application/vnd.google-apps.photo') {
-      overview.images += size;
-    } else if (mime.startsWith('video/') || mime === 'application/vnd.google-apps.video') {
-      overview.videos += size;
-    } else if (mime.startsWith('audio/') || mime === 'application/vnd.google-apps.audio') {
-      overview.audio += size;
-    } else if (
-      mime.includes('pdf') ||
-      mime.includes('document') ||
-      mime.includes('msword') ||
-      mime.includes('excel') ||
-      mime.includes('spreadsheet') ||
-      mime.includes('powerpoint') ||
-      mime.includes('presentation') ||
-      mime.startsWith('text/') ||
-      mime === 'application/vnd.google-apps.document' ||
-      mime === 'application/vnd.google-apps.spreadsheet' ||
-      mime === 'application/vnd.google-apps.presentation' ||
-      mime === 'application/vnd.google-apps.jam' ||
-      mime === 'application/vnd.google-apps.form'
-    ) {
-      overview.documents += size;
-    } else if (
-      mime.includes('zip') ||
-      mime.includes('rar') ||
-      mime.includes('tar') ||
-      mime.includes('gzip') ||
-      mime === 'application/x-7z-compressed' ||
-      mime === 'application/vnd.rar' ||
-      mime === 'application/x-zip-compressed'
-    ) {
-      overview.archives += size;
-    } else if (mime === 'application/vnd.google-apps.folder' || mime === 'application/vnd.google-apps.shortcut') {
-      // ignore folders and shortcuts
-    } else {
-      overview.others += size;
-    }
-  }
-
+  const overview = await c.get('fileService').getCategoryOverview(c.get('userId'));
   return c.json(overview);
 });
 
 // GET /api/files/search
 filesRouter.get('/search', async (c) => {
-  const userId = c.get('userId');
-  const query = c.req.query('q');
-  const workspaceId = c.req.query('workspaceId');
-  const metadataRaw = c.req.query('metadata');
-  
-  const db = c.env.DB;
-  
-  // EXISTS avoids row multiplication from multi-member workspaces (same bug as /recent).
-  let sql = `
-    SELECT f.*, d.email as driveEmail
-    FROM files f
-    JOIN drive_accounts d ON f.drive_account_id = d.id
-    WHERE f.is_trashed = 0
-      AND (
-        f.user_id = ?
-        OR EXISTS (
-          SELECT 1 FROM workspace_members wm
-          WHERE wm.workspace_id = f.workspace_id AND wm.user_id = ?
-        )
-      )
-  `;
-  const binds: (string | number | null)[] = [userId, userId];
-
-  if (query?.trim()) {
-    sql += ` AND f.name LIKE ?`;
-    binds.push(`%${query.trim()}%`);
-  }
-
-  if (workspaceId) {
-    sql += ` AND f.workspace_id = ?`;
-    binds.push(workspaceId);
-  }
-
-  if (metadataRaw) {
-    try {
-      const meta = JSON.parse(metadataRaw);
-      for (const [key, value] of Object.entries(meta)) {
-        if (!/^[a-zA-Z0-9_.]+$/.test(key)) continue; // ponytail: L11 — reject JSON-path injection
-        sql += ` AND json_extract(f.metadata, '$.' || ?) = ?`;
-        binds.push(key, String(value));
-      }
-    } catch {
-      // ignore invalid json
-    }
-  }
-
-  sql += ` ORDER BY f.created_at DESC LIMIT 50`;
-
-  const { results } = await db.prepare(sql).bind(...binds).all() as unknown as { results: Record<string, unknown>[] };
-
-  return c.json({
-    files: results.map((r) => ({
-      ...mapFileRow(r),
-      driveEmail: r.driveEmail,
-    })),
-    query: query || '',
-  });
+  const data = await c.get('fileService').searchFiles(
+    c.get('userId'),
+    c.req.query('q') || null,
+    c.req.query('workspaceId') || null,
+    c.req.query('metadata') || null,
+  );
+  return c.json(data);
 });
 
 
 // GET /api/files/starred
 filesRouter.get('/starred', async (c) => {
-  const userId = c.get('userId');
-  const db = c.env.DB;
-
-  const { results: fileRows } = await db.prepare(
-    'SELECT f.*, d.email as driveEmail FROM files f JOIN drive_accounts d ON f.drive_account_id = d.id WHERE f.user_id = ? AND f.is_starred = 1 AND f.is_trashed = 0 ORDER BY f.created_at DESC'
-  ).bind(userId).all();
-
-  const { results: folderRows } = await db.prepare(
-    'SELECT f.*, w.name as ws_name FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id JOIN workspaces w ON f.workspace_id = w.id WHERE wm.user_id = ? AND f.is_starred = 1 ORDER BY f.updated_at DESC'
-  ).bind(userId).all();
-
-  // Also fetch starred Google Drive folders (drive_folders table).
-  // Previously these were omitted, so starring a Drive folder had no visible
-  // effect on the Starred page.
-  const { results: driveFolderRows } = await db.prepare(
-    'SELECT df.*, d.email as driveEmail FROM drive_folders df JOIN drive_accounts d ON df.drive_account_id = d.id WHERE d.user_id = ? AND df.is_starred = 1 AND df.is_trashed = 0 ORDER BY df.synced_at DESC'
-  ).bind(userId).all();
-
-  return c.json({
-    files: fileRows.map((r) => ({ ...mapFileRow(r), driveEmail: r.driveEmail })),
-    folders: folderRows.map(mapFolderRow),
-    driveFolders: driveFolderRows.map((r) => ({
-      ...mapDriveFolderRow(r),
-      driveEmail: r.driveEmail,
-      isStarred: true,
-    })),
-  });
+  const data = await c.get('fileService').getStarred(c.get('userId'));
+  return c.json(data);
 });
 
 // Move file to trash (Google Drive trash + DB is_trashed=1)
@@ -268,23 +87,14 @@ filesRouter.post('/:id/move-drive', zValidator('json', moveDriveFileSchema, zodE
   const fileId = c.req.param('id');
   const { targetDriveId } = c.req.valid('json');
 
-  const db = c.env.DB;
-
-  const file = await db.prepare(
-    `SELECT f.*, d.email as driveEmail, d.id as sourceDriveId
-     FROM files f
-     JOIN drive_accounts d ON f.drive_account_id = d.id
-     WHERE f.id = ? AND f.user_id = ?`
-  ).bind(fileId, userId).first() as { driveEmail: string; sourceDriveId: string; google_file_id: string; name: string };
-
-  if (!file) {
-    throw new AppError(404, 'File not found or unauthorized');
-  }
+  const fileService = c.get('fileService');
+  const file = await fileService.getForMoveDrive(userId, fileId) as { driveEmail: string; sourceDriveId: string; google_file_id: string; name: string };
 
   if (file.sourceDriveId === targetDriveId) {
     throw new AppError(400, 'File is already in the target drive');
   }
 
+  const db = c.env.DB;
   const targetDrive = await db.prepare(
     'SELECT id, email FROM drive_accounts WHERE id = ? AND user_id = ?'
   ).bind(targetDriveId, userId).first() as { id: string; email: string };
@@ -520,18 +330,22 @@ filesRouter.post('/upload/finalize', zValidator('json', uploadFinalizeSchema, zo
   const wsFolder = workspaceFolderId || null;
   const googleParent = parentFolderId || null;
   
-  await db.prepare(`
-    INSERT INTO files (
-      id, user_id, drive_account_id, workspace_id, workspace_folder_id,
-      google_file_id, google_parent_id, name, mime_type, size, thumbnail_url, web_view_link, web_content_link,
-      google_created_at, google_modified_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).bind(
-    id, userId, driveAccountId, workspaceId || null, wsFolder,
-    gFile.id, googleParent, gFile.name, gFile.mimeType, fileSize,
-    gFile.thumbnailLink || null, gFile.webViewLink || null, gFile.webContentLink || null,
-    gFile.createdTime, gFile.modifiedTime
-  ).run();
+  const created = await c.get('fileService').finalizeUpload(userId, {
+    id,
+    driveAccountId,
+    workspaceId: workspaceId || null,
+    workspaceFolderId: wsFolder,
+    googleFileId: gFile.id,
+    googleParentId: googleParent,
+    name: gFile.name,
+    mimeType: gFile.mimeType,
+    size: fileSize,
+    thumbnailUrl: gFile.thumbnailLink || null,
+    webViewLink: gFile.webViewLink || null,
+    webContentLink: gFile.webContentLink || null,
+    googleCreatedAt: gFile.createdTime,
+    googleModifiedAt: gFile.modifiedTime,
+  });
 
   if (workspaceId && fileSize > 0) {
     const policyService = new PolicyService(db);
@@ -541,40 +355,16 @@ filesRouter.post('/upload/finalize', zValidator('json', uploadFinalizeSchema, zo
   // Invalidate quota cache
   await c.env.DB.prepare('DELETE FROM quota_cache WHERE drive_account_id = ?').bind(driveAccountId).run();
 
-  const created = await db.prepare('SELECT * FROM files WHERE id = ?').bind(id).first();
-
   const engine = new AutomationEngine(c.env);
-  c.executionCtx.waitUntil(engine.processEventTrigger({ ...created, user_id: userId } as DbFile, c.executionCtx as unknown as ExecutionContext));
+  c.executionCtx.waitUntil(engine.processEventTrigger({ ...(created as Record<string, unknown>), user_id: userId } as DbFile, c.executionCtx as unknown as ExecutionContext));
 
   return c.json({ file: mapFileRow((created as Record<string, unknown>)), success: true }, 201);
 });
 
 // GET /api/files/trash
 filesRouter.get('/trash', async (c) => {
-  const userId = c.get('userId');
-  const db = c.env.DB;
-
-  const fileResults = await db.prepare(
-    `SELECT f.*, d.email as driveEmail FROM files f
-     JOIN drive_accounts d ON f.drive_account_id = d.id
-     WHERE f.user_id = ? AND f.is_trashed = 1
-     ORDER BY f.updated_at DESC`
-  ).bind(userId).all() as unknown as { results: Record<string, unknown>[] };
-
-  const folderResults = await db.prepare(
-    `SELECT df.*, d.email as driveEmail FROM drive_folders df
-     JOIN drive_accounts d ON df.drive_account_id = d.id
-     WHERE d.user_id = ? AND df.is_trashed = 1
-     ORDER BY df.created_at DESC`
-  ).bind(userId).all() as unknown as { results: Record<string, unknown>[] };
-
-  return c.json({
-    files: fileResults.results.map((r) => ({
-      ...mapFileRow(r),
-      driveEmail: r.driveEmail,
-    })),
-    folders: folderResults.results.map((r) => mapDriveFolderRow(r)),
-  });
+  const data = await c.get('fileService').getTrash(c.get('userId'));
+  return c.json(data);
 });
 
 // POST /api/files/:id/restore

@@ -22,6 +22,137 @@ export class FileRepository {
       .bind(fileId).first<FileRow>();
   }
 
+  /** Find recent files across user's own files + workspace files (via EXISTS). */
+  findRecent(userId: string, limit = 20) {
+    return this.db.prepare(`
+      SELECT f.*, d.email as driveEmail
+      FROM files f
+      JOIN drive_accounts d ON f.drive_account_id = d.id
+      WHERE f.is_trashed = 0
+        AND (
+          f.user_id = ?
+          OR EXISTS (
+            SELECT 1 FROM workspace_members wm
+            WHERE wm.workspace_id = f.workspace_id AND wm.user_id = ?
+          )
+        )
+      ORDER BY COALESCE(f.google_modified_at, f.synced_at, f.updated_at) DESC
+      LIMIT ?
+    `).bind(userId, userId, limit).all();
+  }
+
+  /** Find files grouped by mime_type for category overview. */
+  findCategoryOverview(userId: string) {
+    return this.db.prepare(`
+      SELECT mime_type, SUM(size) as total_size
+      FROM files
+      WHERE user_id = ? AND is_trashed = 0
+      GROUP BY mime_type
+    `).bind(userId).all<{ mime_type: string; total_size: number }>();
+  }
+
+  /** Search files with optional query, workspace filter, and metadata filter. */
+  async searchFiles(
+    userId: string,
+    query: string | null,
+    workspaceId: string | null,
+    metadata: Record<string, string> | null,
+    limit = 50,
+  ) {
+    let sql = `
+      SELECT f.*, d.email as driveEmail
+      FROM files f
+      JOIN drive_accounts d ON f.drive_account_id = d.id
+      WHERE f.is_trashed = 0
+        AND (
+          f.user_id = ?
+          OR EXISTS (
+            SELECT 1 FROM workspace_members wm
+            WHERE wm.workspace_id = f.workspace_id AND wm.user_id = ?
+          )
+        )
+    `;
+    const binds: (string | number)[] = [userId, userId];
+
+    if (query?.trim()) {
+      sql += ` AND f.name LIKE ?`;
+      binds.push(`%${query.trim()}%`);
+    }
+
+    if (workspaceId) {
+      sql += ` AND f.workspace_id = ?`;
+      binds.push(workspaceId);
+    }
+
+    if (metadata) {
+      for (const [key, value] of Object.entries(metadata)) {
+        if (!/^[a-zA-Z0-9_.]+$/.test(key)) continue; // ponytail: L11 — reject JSON-path injection
+        sql += ` AND json_extract(f.metadata, '$.' || ?) = ?`;
+        binds.push(key, String(value));
+      }
+    }
+
+    sql += ` ORDER BY f.created_at DESC LIMIT ?`;
+    binds.push(limit);
+
+    const { results } = await this.db.prepare(sql).bind(...binds).all();
+    return { results };
+  }
+
+  /** Find starred files for a user. */
+  findStarred(userId: string) {
+    return this.db.prepare(
+      'SELECT f.*, d.email as driveEmail FROM files f JOIN drive_accounts d ON f.drive_account_id = d.id WHERE f.user_id = ? AND f.is_starred = 1 AND f.is_trashed = 0 ORDER BY f.created_at DESC'
+    ).bind(userId).all();
+  }
+
+  /** Find trashed files for a user. */
+  findTrashed(userId: string) {
+    return this.db.prepare(
+      `SELECT f.*, d.email as driveEmail FROM files f
+       JOIN drive_accounts d ON f.drive_account_id = d.id
+       WHERE f.user_id = ? AND f.is_trashed = 1
+       ORDER BY f.updated_at DESC`
+    ).bind(userId).all();
+  }
+
+  /** Find a file with drive email + source drive ID for move-drive operation. */
+  findForMoveDrive(fileId: string, userId: string) {
+    return this.db.prepare(
+      `SELECT f.*, d.email as driveEmail, d.id as sourceDriveId FROM files f JOIN drive_accounts d ON f.drive_account_id = d.id WHERE f.id = ? AND f.user_id = ?`
+    ).bind(fileId, userId).first();
+  }
+
+  /** Insert an uploaded file. Returns the created file row. */
+  async insertUploaded(params: {
+    id: string;
+    userId: string;
+    driveAccountId: string;
+    workspaceId: string | null;
+    workspaceFolderId: string | null;
+    googleFileId: string;
+    googleParentId: string | null;
+    name: string;
+    mimeType: string | null;
+    size: number;
+    thumbnailUrl: string | null;
+    webViewLink: string | null;
+    webContentLink: string | null;
+    googleCreatedAt: string | null;
+    googleModifiedAt: string | null;
+  }): Promise<unknown> {
+    await this.db.prepare(`
+      INSERT INTO files (id, user_id, drive_account_id, workspace_id, workspace_folder_id, google_file_id, google_parent_id, name, mime_type, size, thumbnail_url, web_view_link, web_content_link, google_created_at, google_modified_at, synced_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    `).bind(
+      params.id, params.userId, params.driveAccountId, params.workspaceId, params.workspaceFolderId,
+      params.googleFileId, params.googleParentId, params.name, params.mimeType, params.size,
+      params.thumbnailUrl, params.webViewLink, params.webContentLink,
+      params.googleCreatedAt, params.googleModifiedAt,
+    ).run();
+    return this.db.prepare('SELECT * FROM files WHERE id = ?').bind(params.id).first();
+  }
+
   // ─── Mutations ───
 
   markTrashed(fileId: string, userId: string) {

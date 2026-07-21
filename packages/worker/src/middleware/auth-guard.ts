@@ -6,6 +6,7 @@ import { SESSION_TTL_MS } from '../lib/session-cookie';
 import { FileService } from '../services/file.service';
 import { FolderService } from '../services/folder.service';
 import { DriveService } from '../services/drive.service';
+import { WorkspaceService } from '../services/workspace.service';
 
 const EXTENSION_THRESHOLD = 60 * 60 * 1000; // 1 hour
 
@@ -38,6 +39,7 @@ export const authGuard = createMiddleware<AppContext>(async (c, next) => {
   c.set('fileService', new FileService(c.env.DB, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY));
   c.set('folderService', new FolderService(c.env.DB));
   c.set('driveService', new DriveService(c.env.DB, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY));
+  c.set('workspaceService', new WorkspaceService(c.env.DB));
 
   // ponytail: throttled sliding window — only extend TTL if session hasn't been touched
   // in the last hour, saving ~90% of D1 writes vs extending on every request.

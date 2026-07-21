@@ -3,6 +3,7 @@ import { DriveRepository } from '../repositories/drive.repository';
 import { GoogleDriveService } from './google-drive';
 import { AppError } from '../middleware/error-handler';
 import { generateId } from '../lib/id';
+import { mapDriveRow, mapFileRow, mapDriveFolderRow } from '../types';
 
 /**
  * Business logic layer for Google Drive account and folder operations.
@@ -97,5 +98,98 @@ export class DriveService {
     const drive = await this.driveRepo.findByIdAndUser(driveId, userId);
     if (!drive) throw new AppError(404, 'Drive not found');
     await this.driveRepo.unstarDriveFolder(driveId, googleFolderId);
+  }
+
+  // ─── New: listing, shared-with-me, move, disconnect ───
+
+  /** List all drives with sync state. RBAC: user ownership. */
+  async listDrives(userId: string) {
+    const { results } = await this.driveRepo.findAllWithSyncState(userId);
+    return results.map(mapDriveRow);
+  }
+
+  /** Check if a drive has valid tokens. RBAC: user ownership (implicit via drive ID). */
+  async hasValidTokens(driveId: string): Promise<boolean> {
+    const row = await this.driveRepo.findTokenStatus(driveId);
+    return !!row;
+  }
+
+  /** Get shared folders + files for the shared-with-me page. RBAC: user ownership. */
+  async listSharedWithMe(userId: string) {
+    const { results: folderRows } = await this.driveRepo.findSharedFolders(userId);
+    const { results: fileRows } = await this.driveRepo.findSharedFiles(userId);
+
+    return {
+      folders: folderRows.map((r: Record<string, unknown>) => ({ ...mapDriveFolderRow(r), driveEmail: r.driveEmail, driveId: r.drive_account_id })),
+      files: fileRows.map((r: Record<string, unknown>) => ({ ...mapFileRow(r), driveEmail: r.driveEmail, driveId: r.drive_account_id })),
+    };
+  }
+
+  /**
+   * Move a file or folder within the same drive.
+   * RBAC: user ownership (drive + item owned_by_me).
+   * Google API call + DB parent update.
+   */
+  async moveItemWithinDrive(
+    userId: string,
+    driveId: string,
+    googleFileId: string,
+    targetFolderId: string,
+    oldParentId: string | null,
+    isFolder: boolean,
+  ): Promise<void> {
+    const drive = await this.driveRepo.findForMove(driveId, userId);
+    if (!drive) throw new AppError(404, 'Drive not found');
+
+    // Verify item ownership (can't move files you don't own)
+    const item = await this.driveRepo.findItemOwnership(driveId, googleFileId, isFolder);
+    if (!item) throw new AppError(404, 'Item not found');
+    if (item.owned_by_me !== 1) throw new AppError(403, 'You can only move items you own');
+
+    // Resolve root folder ID
+    const rootFolderId = drive.root_folder_id || 'root';
+    const effectiveTargetId = targetFolderId === 'root' ? rootFolderId : targetFolderId;
+    const effectiveOldParentId = (!oldParentId || oldParentId === '__shared__') ? null :
+      (oldParentId === 'root' ? rootFolderId : oldParentId);
+
+    await this.googleDriveService.moveToFolder(driveId, googleFileId, effectiveTargetId, effectiveOldParentId);
+
+    // Update DB — folders at root use NULL, files at root use 'root' (matches resolveParentId convention)
+    const dbParentId = targetFolderId === 'root' ? (isFolder ? null : 'root') : targetFolderId;
+    await this.driveRepo.updateItemParent(driveId, googleFileId, dbParentId, isFolder);
+  }
+
+  /**
+   * Disconnect a drive. RBAC: user ownership.
+   * Revokes tokens (Google API), deletes drive, sets new primary, deletes tokens.
+   */
+  async disconnectDrive(userId: string, driveId: string): Promise<void> {
+    const row = await this.driveRepo.findFullByIdAndUser(driveId, userId);
+    if (!row) throw new AppError(404, 'Drive not found');
+
+    const wasPrimary = (row as Record<string, unknown>).is_primary === 1;
+    const driveType = (row as Record<string, unknown>).type as string;
+
+    if (driveType === 'oauth') {
+      await this.googleDriveService.revokeTokens(driveId);
+    }
+
+    await this.driveRepo.deleteDrive(driveId, userId);
+
+    if (wasPrimary) {
+      const next = await this.driveRepo.findNextDrive(userId);
+      if (next) {
+        await this.driveRepo.setPrimary(next.id);
+      }
+    }
+
+    // drive_tokens row auto-deleted by ON DELETE CASCADE when drive_accounts row removed,
+    // but explicit delete in case the drive_account row is kept.
+    await this.driveRepo.deleteTokens(driveId);
+  }
+
+  /** Get the GoogleDriveService instance (for routes that need Google API directly). */
+  getGoogleDriveService(): GoogleDriveService {
+    return this.googleDriveService;
   }
 }
