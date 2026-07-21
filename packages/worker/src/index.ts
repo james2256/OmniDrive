@@ -9,6 +9,7 @@ import { AppError } from './middleware/error-handler';
 import { requestId } from './middleware/request-id';
 import { sharedServices } from './middleware/shared-services';
 import { validateEnv } from './lib/env';
+import { xmlError } from './lib/s3-xml';
 import { runScheduledSync } from './services/sync';
 import { runLifecycleExpiration, cleanupOrphanMultipartUploads } from './services/s3-lifecycle';
 import { AuditService } from './services/audit.service';
@@ -34,19 +35,6 @@ app.use('*', securityHeaders);
 app.use('*', corsMiddleware());
 app.use('/api/*', csrfGuard);
 
-function escapeXml(str: string): string {
-  return str.replace(/[<>&'"]/g, (c) => {
-    switch (c) {
-      case '<': return '&lt;';
-      case '>': return '&gt;';
-      case '&': return '&amp;';
-      case '\'': return '&apos;';
-      case '"': return '&quot;';
-      default: return c;
-    }
-  });
-}
-
 app.onError((err, c) => {
   const isAppError = err instanceof AppError || err.name === 'AppError';
   const status = isAppError ? (err as AppError).status : 500;
@@ -68,13 +56,7 @@ app.onError((err, c) => {
       s3Code = (err as unknown as Record<string, unknown>).code as string;
     }
 
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<Error>
-  <Code>${escapeXml(s3Code)}</Code>
-  <Message>${escapeXml(message)}</Message>
-</Error>`;
-    c.header('Content-Type', 'application/xml');
-    return c.text(xml, status as 400 | 401 | 403 | 404 | 405 | 409 | 500);
+    return xmlError(c, s3Code, message, status);
   }
   
   return c.json({ error: message }, status as 400 | 401 | 403 | 404 | 500);

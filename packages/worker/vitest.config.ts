@@ -4,5 +4,6 @@ export default defineConfig({
   test: {
     globals: true,
     root: '.',
+    exclude: ['tests/integration/**', 'node_modules/**'],
   },
 });

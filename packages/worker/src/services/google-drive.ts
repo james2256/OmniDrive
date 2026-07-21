@@ -3,6 +3,11 @@ import type { OAuthTokens, QuotaCache } from '../types/index';
 import { parseStorageQuota, QUOTA_CACHE_VERSION } from '../lib/storage-quota';
 import { NotFoundError, AuthError, UpstreamError } from '../middleware/error-handler';
 
+// ponytail: split into token/file/folder/sync modules when a 4th method group
+// is added or when extending becomes painful. Currently 27 methods across 4
+// groups (token mgmt, file ops, folder ops, sync) in one file is navigable
+// with section comments. 14 consumers depend on the GoogleDriveService facade.
+
 const QUOTA_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 const DRIVE_API = 'https://www.googleapis.com/drive/v3';

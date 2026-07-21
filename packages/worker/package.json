@@ -8,6 +8,7 @@
     "deploy": "wrangler deploy",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "db:migrate:local": "wrangler d1 migrations apply omnidrive --local",
     "db:migrate:remote": "wrangler d1 migrations apply omnidrive --remote",
     "db:reset:local": "node scripts/reset.mjs --local",
@@ -23,6 +24,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.8.0",
     "@cloudflare/workers-types": "^4.20250530.0",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^25.9.3",
