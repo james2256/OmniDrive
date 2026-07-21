@@ -15,6 +15,8 @@ const TABLES = [
   `CREATE TABLE IF NOT EXISTS files (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, drive_account_id TEXT NOT NULL REFERENCES drive_accounts(id) ON DELETE CASCADE, workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE, workspace_folder_id TEXT REFERENCES workspace_folders(id) ON DELETE CASCADE, google_file_id TEXT NOT NULL, google_parent_id TEXT, name TEXT NOT NULL, mime_type TEXT, size INTEGER NOT NULL DEFAULT 0, thumbnail_url TEXT, web_view_link TEXT, web_content_link TEXT, is_trashed INTEGER NOT NULL DEFAULT 0, is_starred INTEGER NOT NULL DEFAULT 0, metadata TEXT, google_created_at TEXT, google_modified_at TEXT, synced_at TEXT, last_synced_at TEXT, sync_status TEXT NOT NULL DEFAULT 'idle', updated_at TEXT NOT NULL DEFAULT (datetime('now')))`,
   `CREATE TABLE IF NOT EXISTS shared_links (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, target_type TEXT NOT NULL CHECK (target_type IN ('file', 'folder')), target_id TEXT NOT NULL, password_hash TEXT, expires_at TEXT, allow_downloads INTEGER NOT NULL DEFAULT 1, allow_uploads INTEGER NOT NULL DEFAULT 0, max_downloads INTEGER, require_email INTEGER NOT NULL DEFAULT 0, webhook_url TEXT, view_count INTEGER NOT NULL DEFAULT 0, download_count INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')))`,
   `CREATE TABLE IF NOT EXISTS shared_link_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, shared_link_id TEXT NOT NULL REFERENCES shared_links(id) ON DELETE CASCADE, action TEXT NOT NULL, visitor_email TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))`,
+  `CREATE TABLE IF NOT EXISTS audit_logs (id TEXT PRIMARY KEY, workspace_id TEXT, actor_id TEXT NOT NULL, action_type TEXT NOT NULL, resource_id TEXT, resource_name TEXT, metadata TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))`,
+  `CREATE TABLE IF NOT EXISTS workspace_policies (id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE, target_type TEXT NOT NULL, target_id TEXT, policy_type TEXT NOT NULL, config TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')))`,
 ];
 
 /** Create all tables needed by the integration tests. Idempotent. */
@@ -26,7 +28,7 @@ export async function ensureSchema(db: D1Database): Promise<void> {
 
 /** Clear all rows from all tables (for test isolation between files). */
 export async function clearAllTables(db: D1Database): Promise<void> {
-  const tables = ['shared_link_logs', 'shared_links', 'files', 'workspace_members', 'workspace_folders', 'workspaces', 'drive_accounts', 'sessions', 'users', 'invitation_codes'];
+  const tables = ['shared_link_logs', 'shared_links', 'audit_logs', 'workspace_policies', 'files', 'workspace_members', 'workspace_folders', 'workspaces', 'drive_accounts', 'sessions', 'users', 'invitation_codes'];
   for (const table of tables) {
     await db.prepare(`DELETE FROM ${table}`).run();
   }
