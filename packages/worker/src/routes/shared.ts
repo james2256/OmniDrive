@@ -6,11 +6,9 @@ import { zValidator } from '@hono/zod-validator';
 
 import type { AppContext } from '../types/env';
 import { authGuard } from '../middleware/auth-guard';
-import { mapSharedLinkRow, type SharedLink } from '../types';
-import { generateId } from '../lib/id';
+import type { SharedLink } from '../types';
 import { GoogleDriveService } from '../services/google-drive';
-import { validateWebhookUrlAsync } from '../lib/validation';
-import { hashSharedPassword, verifySharedPassword } from '../lib/password';
+import { verifySharedPassword } from '../lib/password';
 import {
   createSharedLinkSchema,
   updateSharedLinkSchema,
@@ -19,8 +17,9 @@ import {
   zodErrorHook,
 } from '../lib/schemas';
 
-
 export const sharedRouter = new Hono<AppContext>({ strict: false });
+
+// ─── Shared validation helper (no SQL — uses cookies + JWT only) ───
 
 async function validateSharedLink(c: Context<AppContext>, link: SharedLink): Promise<{ ok: boolean; status?: number; error?: string; requiresPassword?: boolean; requiresEmail?: boolean }> {
   if (link.expiresAt && new Date(link.expiresAt) < new Date()) {
@@ -42,12 +41,12 @@ async function validateSharedLink(c: Context<AppContext>, link: SharedLink): Pro
       return { ok: false, status: 403, error: 'Email required', requiresEmail: true };
     }
   }
-  
+
   const requiresPassword = !!link.passwordHash;
   if (!requiresPassword) {
     return { ok: true };
   }
-  
+
   const sessionCookie = getCookie(c, `shared_session_${link.id}`);
   if (sessionCookie) {
     try {
@@ -59,7 +58,7 @@ async function validateSharedLink(c: Context<AppContext>, link: SharedLink): Pro
       // Invalid token
     }
   }
-  
+
   return { ok: false, status: 401, error: 'Password required', requiresPassword: true };
 }
 
@@ -67,223 +66,95 @@ async function validateSharedLink(c: Context<AppContext>, link: SharedLink): Pro
 
 sharedRouter.post('/', authGuard, zValidator('json', createSharedLinkSchema, zodErrorHook), async (c) => {
   const userId = c.get('userId');
-  const { targetType, targetId, password, expiresAt, allowDownloads, allowUploads, maxDownloads, requireEmail, webhookUrl } = c.req.valid('json');
+  const body = c.req.valid('json');
 
   // ponytail: allowUploads not yet implemented — refuse to store a false promise
-  if (allowUploads) {
+  if (body.allowUploads) {
     return c.json({ error: 'Uploads via shared links are not yet supported' }, 400);
   }
 
-  const db = c.env.DB;
+  const sharedService = c.get('sharedService');
+  const id = await sharedService.createLink(userId, {
+    targetType: body.targetType,
+    targetId: body.targetId,
+    password: body.password,
+    expiresAt: body.expiresAt,
+    allowDownloads: body.allowDownloads,
+    allowUploads: body.allowUploads,
+    maxDownloads: body.maxDownloads,
+    requireEmail: body.requireEmail,
+    webhookUrl: body.webhookUrl,
+  });
 
-  // Verify ownership of target
-  if (targetType === 'file') {
-    const file = await db.prepare('SELECT id FROM files WHERE id = ? AND user_id = ?').bind(targetId, userId).first();
-    if (!file) return c.json({ error: 'You do not own this file' }, 403);
-  } else if (targetType === 'folder') {
-    const folderService = c.get('folderService');
-    const driveService = c.get('driveService');
-    const wsOk = await folderService.checkFolderAccess(userId, targetId);
-    if (!wsOk) {
-      const driveOk = await driveService.checkDriveFolderOwnership(userId, targetId);
-      if (!driveOk) return c.json({ error: 'You do not own this folder' }, 403);
-    }
-  }
-
-  // Validate webhook URL if provided
-  if (webhookUrl) {
-    const webhookError = await validateWebhookUrlAsync(webhookUrl);
-    if (webhookError) return c.json({ error: webhookError }, 400);
-  }
-  
-  let passwordHash = null;
-  
-  if (password) {
-    passwordHash = await hashSharedPassword(password);
-  }
-
-  let id = '';
-  let attempts = 0;
-  const maxAttempts = 3;
-  let success = false;
-
-  while (attempts < maxAttempts && !success) {
-    id = generateId().replace(/-/g, '').slice(0, 16); // 64-bit entropy slug
-    try {
-      await db.prepare(
-        'INSERT INTO shared_links (id, user_id, target_type, target_id, password_hash, expires_at, allow_downloads, allow_uploads, max_downloads, require_email, webhook_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-      )
-      .bind(id, userId, targetType, targetId, passwordHash, expiresAt || null, allowDownloads ? 1 : 0, allowUploads ? 1 : 0, maxDownloads, requireEmail ? 1 : 0, webhookUrl)
-      .run();
-      success = true;
-    } catch (e: unknown) {
-      if ((e instanceof Error ? e.message : "").includes('UNIQUE constraint failed')) {
-        attempts++;
-      } else {
-        console.error('Error creating shared link:', e);
-        return c.json({ error: 'Failed to create shared link' }, 500);
-      }
-    }
-  }
-
-  if (!success) {
-    return c.json({ error: 'Could not generate unique ID for shared link' }, 500);
-  }
-
-  // Ensure no trailing slash in FRONTEND_URL if present, though typically it won't have one
   const baseUrl = c.env.FRONTEND_URL.replace(/\/$/, '');
   return c.json({ id, url: `${baseUrl}/shared/${id}` });
 });
 
 sharedRouter.get('/', authGuard, async (c) => {
-  const userId = c.get('userId');
-  const db = c.env.DB;
-  
-  const { results } = await db.prepare(`
-    SELECT s.*, COALESCE(f.name, v.name) as targetName 
-    FROM shared_links s 
-    LEFT JOIN files f ON s.target_type = 'file' AND s.target_id = f.id 
-    LEFT JOIN workspace_folders v ON s.target_type = 'folder' AND s.target_id = v.id 
-    WHERE s.user_id = ?
-  `).bind(userId).all();
-  return c.json({ links: results.map(mapSharedLinkRow) });
+  const sharedService = c.get('sharedService');
+  const links = await sharedService.listLinks(c.get('userId'));
+  return c.json({ links });
 });
 
 sharedRouter.put('/:id', authGuard, zValidator('json', updateSharedLinkSchema, zodErrorHook), async (c) => {
-  const userId = c.get('userId');
-  const id = c.req.param('id');
-  const body = c.req.valid('json');
-
-  const db = c.env.DB;
-
-  const existing = await db.prepare('SELECT * FROM shared_links WHERE id = ? AND user_id = ?').bind(id, userId).first();
-  if (!existing) {
-    return c.json({ error: 'Link not found' }, 404);
-  }
-
-  // Distinguish undefined (keep existing) from null (clear) from value (set new).
-  const expiresAt = body.expiresAt === undefined ? existing.expires_at : body.expiresAt;
-  const allowDownloads = body.allowDownloads ?? (existing.allow_downloads === 1);
-  const allowUploads = body.allowUploads ?? (existing.allow_uploads === 1);
-  const maxDownloads = body.maxDownloads === undefined ? existing.max_downloads : body.maxDownloads;
-  const requireEmail = body.requireEmail ?? (existing.require_email === 1);
-  const webhookUrl = body.webhookUrl === undefined ? existing.webhook_url : body.webhookUrl;
-  const password = body.password;
-
-  // ponytail: allowUploads not yet implemented — refuse to store a false promise
-  if (allowUploads) {
-    return c.json({ error: 'Uploads via shared links are not yet supported' }, 400);
-  }
-
-  if (webhookUrl && webhookUrl !== existing.webhook_url) {
-    const webhookError = await validateWebhookUrlAsync(webhookUrl as string);
-    if (webhookError) return c.json({ error: webhookError }, 400);
-  }
-  
-  let passwordHash = existing.password_hash;
-
-  // Comparing against `undefined` cannot leak secret bytes — it's a non-secret
-  // literal, not a secret-vs-secret comparison. The actual secret verification
-  // uses a constant-time PBKDF2 compare in verifySharedPassword().
-  // eslint-disable-next-line security/detect-possible-timing-attacks
-  if (password !== undefined) {
-    if (password === null || password === '') {
-      passwordHash = null;
-    } else {
-      passwordHash = await hashSharedPassword(password);
-    }
-  }
-  
-  const result = await db.prepare(
-    'UPDATE shared_links SET expires_at = ?, allow_downloads = ?, allow_uploads = ?, max_downloads = ?, require_email = ?, webhook_url = ?, password_hash = ? WHERE id = ? AND user_id = ?'
-  )
-  .bind(
-    expiresAt || null,
-    allowDownloads ? 1 : 0,
-    allowUploads ? 1 : 0,
-    maxDownloads || null,
-    requireEmail ? 1 : 0,
-    webhookUrl || null,
-    passwordHash,
-    id,
-    userId
-  )
-  .run();
-
-  if (result.meta.changes === 0) {
-    return c.json({ error: 'Link not found or no changes made' }, 404);
-  }
-
+  const sharedService = c.get('sharedService');
+  await sharedService.updateLink(c.get('userId'), c.req.param('id'), c.req.valid('json'));
   return c.json({ success: true });
 });
 
 sharedRouter.delete('/:id', authGuard, async (c) => {
-  const userId = c.get('userId');
-  const id = c.req.param('id');
-  
-  await c.env.DB.prepare('DELETE FROM shared_links WHERE id = ? AND user_id = ?').bind(id, userId).run();
+  const sharedService = c.get('sharedService');
+  await sharedService.deleteLink(c.get('userId'), c.req.param('id'));
   return c.json({ success: true });
 });
 
 // ─── Public Endpoints (No Auth) ───
 
 sharedRouter.get('/:id/meta', async (c) => {
-  const id = c.req.param('id');
-  const db = c.env.DB;
-  
-  const row = await db.prepare('SELECT * FROM shared_links WHERE id = ?').bind(id).first();
-  if (!row) return c.json({ error: 'Link not found' }, 404);
-  
-  const link = mapSharedLinkRow(row as Record<string, unknown>);
-  
+  const sharedService = c.get('sharedService');
+  const { link, target } = await sharedService.getPublicMeta(c.req.param('id'));
+
   const validation = await validateSharedLink(c, link);
   if (!validation.ok) {
     return c.json({ error: validation.error, requiresPassword: validation.requiresPassword, requiresEmail: validation.requiresEmail }, validation.status as 400 | 401 | 403 | 410 | 500);
   }
-  
-  c.executionCtx.waitUntil(
-    db.prepare('UPDATE shared_links SET view_count = view_count + 1 WHERE id = ?').bind(id).run()
-  );
-  
-  c.executionCtx.waitUntil(
-    db.prepare('INSERT INTO shared_link_logs (shared_link_id, action) VALUES (?, ?)').bind(id, 'view').run()
-  );
+
+  c.executionCtx.waitUntil(Promise.all([
+    sharedService.incrementViewCount(link.id),
+    sharedService.logAction(link.id, 'view'),
+  ]));
 
   if (link.targetType === 'file') {
-    const file = await db.prepare('SELECT * FROM files WHERE id = ?').bind(link.targetId).first();
-    if (!file) return c.json({ error: 'File not found' }, 404);
-    return c.json({ target: file, type: 'file' });
-  } else {
-    return c.json({ targetId: link.targetId, type: 'folder' });
+    return c.json({ target, type: 'file' });
   }
+  return c.json({ targetId: link.targetId, type: 'folder' });
 });
 
+// Password verification for password-protected links
 sharedRouter.post('/:id/verify', zValidator('json', sharedLinkVerifySchema, zodErrorHook), async (c) => {
-  const id = c.req.param('id');
-  const { password } = c.req.valid('json');
-
-  const db = c.env.DB;
-  
-  const row = await db.prepare('SELECT * FROM shared_links WHERE id = ?').bind(id).first();
-  if (!row) return c.json({ error: 'Link not found' }, 404);
-  const link = mapSharedLinkRow(row as Record<string, unknown>);
+  const sharedService = c.get('sharedService');
+  const link = await sharedService.getLinkForValidation(c.req.param('id'));
+  if (!link) return c.json({ error: 'Link not found' }, 404);
 
   // ponytail: check expiry before minting token — prevents password oracle on expired links
   if (link.expiresAt && new Date(link.expiresAt) < new Date()) {
     return c.json({ error: 'Link expired' }, 410);
   }
-  
+
   if (!link.passwordHash) return c.json({ error: 'Link does not require password' }, 400);
 
-  const lockKey = `shared_verify_lock:${id}`;
-  const failKey = `shared_verify_fail:${id}`;
+  const { password } = c.req.valid('json');
+
+  // ponytail: per-link lockout stops distributed brute-force beyond IP rate limit.
+  // KV lockout logic stays in the route (needs c.env.KV, which SharedService doesn't receive).
+  const lockKey = `shared_verify_lock:${link.id}`;
+  const failKey = `shared_verify_fail:${link.id}`;
   if (await c.env.KV.get(lockKey)) {
     return c.json({ error: 'Too many failed attempts. Try again later.' }, 429);
   }
-  
+
   const valid = await verifySharedPassword(password, link.passwordHash);
   if (!valid) {
-    // ponytail: per-link lockout stops distributed brute-force beyond IP rate limit.
     const failed = Number(await c.env.KV.get(failKey) || '0') + 1;
     if (failed >= 20) {
       await c.env.KV.put(lockKey, '1', { expirationTtl: 15 * 60 });
@@ -295,45 +166,43 @@ sharedRouter.post('/:id/verify', zValidator('json', sharedLinkVerifySchema, zodE
   }
 
   await c.env.KV.delete(failKey);
-  const token = await sign({ id, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 }, c.env.JWT_SECRET, 'HS256');
-  setCookie(c, `shared_session_${id}`, token, { path: '/', httpOnly: true, secure: true, sameSite: 'None', maxAge: 60 * 60 * 24 });
+  const token = await sign({ id: link.id, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 }, c.env.JWT_SECRET, 'HS256');
+  setCookie(c, `shared_session_${link.id}`, token, { path: '/', httpOnly: true, secure: true, sameSite: 'None', maxAge: 60 * 60 * 24 });
   return c.json({ success: true });
 });
 
 // Email gate for requireEmail links — ponytail: no password needed, just record the email
 sharedRouter.post('/:id/email', zValidator('json', sharedLinkEmailSchema, zodErrorHook), async (c) => {
-  const id = c.req.param('id');
-  const { email } = c.req.valid('json');
+  const sharedService = c.get('sharedService');
+  const link = await sharedService.getLinkForValidation(c.req.param('id'));
+  if (!link) return c.json({ error: 'Link not found' }, 404);
 
-  const db = c.env.DB;
-  const row = await db.prepare('SELECT * FROM shared_links WHERE id = ?').bind(id).first();
-  if (!row) return c.json({ error: 'Link not found' }, 404);
-  const link = mapSharedLinkRow(row as Record<string, unknown>);
   if (!link.requireEmail) return c.json({ error: 'This link does not require email' }, 400);
   if (link.expiresAt && new Date(link.expiresAt) < new Date()) {
     return c.json({ error: 'Link expired' }, 410);
   }
 
+  const { email } = c.req.valid('json');
+
+  // JWT signing + cookie logic stays in route (needs c.env.JWT_SECRET)
   const emailToken = await sign(
-    { id, email, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 },
+    { id: link.id, email, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 },
     c.env.JWT_SECRET,
     'HS256',
   );
-  setCookie(c, `shared_email_${id}`, emailToken, { path: '/', httpOnly: true, secure: true, sameSite: 'None', maxAge: 60 * 60 * 24 });
+  setCookie(c, `shared_email_${link.id}`, emailToken, { path: '/', httpOnly: true, secure: true, sameSite: 'None', maxAge: 60 * 60 * 24 });
+
   c.executionCtx.waitUntil(
-    db.prepare('INSERT INTO shared_link_logs (shared_link_id, action, metadata) VALUES (?, ?, ?)').bind(id, 'email_access', JSON.stringify({ email })).run()
+    sharedService.logAction(link.id, 'email_access', JSON.stringify({ email }))
   );
   return c.json({ success: true });
 });
 
 sharedRouter.get('/:id/download', async (c) => {
-  const id = c.req.param('id');
-  const db = c.env.DB;
-  
-  const row = await db.prepare('SELECT * FROM shared_links WHERE id = ?').bind(id).first();
-  if (!row) return c.text('Not found', 404);
-  const link = mapSharedLinkRow(row as Record<string, unknown>);
-  
+  const sharedService = c.get('sharedService');
+  const link = await sharedService.getLinkForValidation(c.req.param('id'));
+  if (!link) return c.text('Not found', 404);
+
   const validation = await validateSharedLink(c, link);
   if (!validation.ok) {
     return c.text(validation.error || 'Unauthorized', validation.status as 400 | 401 | 403 | 410 | 500);
@@ -347,11 +216,9 @@ sharedRouter.get('/:id/download', async (c) => {
     return c.text('Folder download not supported yet', 400);
   }
 
-  const file = await db.prepare('SELECT * FROM files WHERE id = ? AND user_id = ?').bind(link.targetId, link.userId).first();
-  if (!file) return c.text('File not found', 404);
-
-  const driveAccount = await db.prepare('SELECT * FROM drive_accounts WHERE id = ? AND user_id = ?').bind(file.drive_account_id, link.userId).first();
-  if (!driveAccount) return c.text('Drive account not found', 404);
+  const ctx = await sharedService.getDownloadContext(link);
+  if (!ctx) return c.text('File not found', 404);
+  const { file, driveAccountId } = ctx;
 
   const driveService = new GoogleDriveService(
     c.env.DB,
@@ -366,9 +233,9 @@ sharedRouter.get('/:id/download', async (c) => {
 
   try {
     const downloadResult = await driveService.downloadFile(
-      file.drive_account_id as string,
-      file.google_file_id as string,
-      file.mime_type as string
+      driveAccountId,
+      file.google_file_id,
+      file.mime_type ?? undefined
     );
     stream = downloadResult.stream;
 
@@ -381,22 +248,22 @@ sharedRouter.get('/:id/download', async (c) => {
     return c.text('Failed to download file', 502);
   }
 
-  // ponytail: increment only after Google fetch succeeds — failed downloads don't burn quota
+  // ponytail: increment only after Google fetch succeeds — failed downloads don't burn quota.
+  // When maxDownloads is set, use the atomic RETURNING query (enforces limit + blocks before streaming).
+  // When maxDownloads is null, fire-and-forget is safe (no limit to enforce).
   if (link.maxDownloads !== null && link.maxDownloads !== undefined) {
-    const updateResult = await db.prepare(
-      'UPDATE shared_links SET download_count = download_count + 1 WHERE id = ? AND (max_downloads IS NULL OR download_count < max_downloads) RETURNING download_count'
-    ).bind(id).first() as { download_count: number };
-    if (!updateResult) {
+    const newCount = await sharedService.incrementDownloadCountWithLimit(link.id);
+    if (newCount === null) {
       return c.text('Maximum download limit reached', 403);
     }
   } else {
     c.executionCtx.waitUntil(
-      db.prepare('UPDATE shared_links SET download_count = download_count + 1 WHERE id = ?').bind(id).run()
+      sharedService.incrementDownloadCount(link.id)
     );
   }
 
   c.executionCtx.waitUntil(
-    db.prepare('INSERT INTO shared_link_logs (shared_link_id, action) VALUES (?, ?)').bind(id, 'download').run()
+    sharedService.logAction(link.id, 'download')
   );
 
   if (link.webhookUrl) {
@@ -404,7 +271,7 @@ sharedRouter.get('/:id/download', async (c) => {
       fetch(link.webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'download', linkId: id })
+        body: JSON.stringify({ action: 'download', linkId: link.id })
       }).catch(() => {})
     );
   }

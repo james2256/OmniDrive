@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { sign } from 'hono/jwt';
 import type { AppContext } from '../src/types/env';
 import { sharedRouter } from '../src/routes/shared';
+import { sharedServices } from '../src/middleware/shared-services';
 
 const LINK_ID = 'link-email-1';
 const JWT_SECRET = 'test-jwt-secret';
@@ -45,6 +46,7 @@ function makeDb() {
 
 function makeApp() {
   const app = new Hono<AppContext>();
+  app.use('/shared/*', sharedServices);
   app.route('/shared', sharedRouter);
   return app;
 }
