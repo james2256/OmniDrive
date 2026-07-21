@@ -70,6 +70,76 @@ export class FileRepository {
     ).bind(workspaceFolderId, workspaceId, fileId, userId).run();
   }
 
+  /**
+   * Batch-assign multiple files to a workspace folder.
+   * Used by POST /:id/files — preserves current behavior: membership only (no editor check).
+   * Chunks in batches of 50 to stay within D1's variable limit.
+   */
+  async batchAssignToFolder(
+    fileIds: string[],
+    userId: string,
+    workspaceId: string,
+    workspaceFolderId: string | null,
+  ): Promise<void> {
+    const CHUNK_SIZE = 50;
+    for (let i = 0; i < fileIds.length; i += CHUNK_SIZE) {
+      const chunk = fileIds.slice(i, i + CHUNK_SIZE);
+      const placeholders = chunk.map(() => '?').join(',');
+      await this.db.prepare(
+        `UPDATE files SET workspace_id = ?, workspace_folder_id = ?, updated_at = datetime('now') WHERE user_id = ? AND id IN (${placeholders})`
+      ).bind(workspaceId, workspaceFolderId, userId, ...chunk).run();
+    }
+  }
+
+  /** Detach all files from a workspace (set workspace_id + workspace_folder_id to NULL). */
+  detachFromWorkspace(workspaceId: string) {
+    return this.db.prepare(
+      'UPDATE files SET workspace_id = NULL, workspace_folder_id = NULL WHERE workspace_id = ?'
+    ).bind(workspaceId).run();
+  }
+
+  /**
+   * Find files in a workspace root (workspace_folder_id IS NULL), with cursor pagination.
+   * Returns files with drive email via JOIN. Used by GET /:id? (workspace case).
+   */
+  async findFilesInWorkspaceRoot(workspaceId: string, cursor: { name: string; id: string } | null, limit: number) {
+    let sql = `
+      SELECT f.*, d.email as driveEmail
+      FROM files f JOIN drive_accounts d ON f.drive_account_id = d.id
+      WHERE f.workspace_id = ? AND f.workspace_folder_id IS NULL AND f.is_trashed = 0
+    `;
+    const binds: (string | number)[] = [workspaceId];
+    if (cursor && cursor.name !== undefined && cursor.id !== undefined) {
+      sql += ` AND (f.name, f.id) > (?, ?)`;
+      binds.push(cursor.name, cursor.id);
+    }
+    sql += ` ORDER BY f.name ASC, f.id ASC LIMIT ?`;
+    binds.push(limit + 1);
+    const { results } = await this.db.prepare(sql).bind(...binds).all();
+    return { results };
+  }
+
+  /**
+   * Find files in a workspace folder, with cursor pagination.
+   * Returns files with drive email via JOIN. Used by GET /:id? (folder case).
+   */
+  async findFilesInFolder(folderId: string, cursor: { name: string; id: string } | null, limit: number) {
+    let sql = `
+      SELECT f.*, d.email as driveEmail
+      FROM files f JOIN drive_accounts d ON f.drive_account_id = d.id
+      WHERE f.workspace_folder_id = ? AND f.is_trashed = 0
+    `;
+    const binds: (string | number)[] = [folderId];
+    if (cursor && cursor.name !== undefined && cursor.id !== undefined) {
+      sql += ` AND (f.name, f.id) > (?, ?)`;
+      binds.push(cursor.name, cursor.id);
+    }
+    sql += ` ORDER BY f.name ASC, f.id ASC LIMIT ?`;
+    binds.push(limit + 1);
+    const { results } = await this.db.prepare(sql).bind(...binds).all();
+    return { results };
+  }
+
   // ─── Sync engine support ───
 
   static readonly UPSERT_FILE_SQL = `INSERT INTO files

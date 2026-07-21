@@ -2,12 +2,10 @@ import { Hono } from 'hono';
 import type { AppContext, Env } from '../types/env';
 import { authGuard } from '../middleware/auth-guard';
 import { AppError } from '../middleware/error-handler';
-import { generateId } from '../lib/id';
-import { mapFileRow, mapDriveRow, type BreadcrumbItem, type WorkspaceFolder, type FileEntry } from '../types';
-import { syncDriveAccount } from '../services/sync';
+import { mapDriveRow } from '../types';
+import { syncDriveAccount, syncDriveFolder } from '../services/sync';
 import { GoogleDriveService } from '../services/google-drive';
-import { encodeCursor, decodeCursor } from '../lib/cursor';
-import { syncDriveFolder } from '../services/sync';
+import { decodeCursor } from '../lib/cursor';
 import { zValidator } from '@hono/zod-validator';
 import { createFolderSchema, updateFolderSchema, addFilesToFolderSchema, zodErrorHook } from '../lib/schemas';
 import { logError, logErrorNoCtx } from '../lib/logger';
@@ -16,354 +14,205 @@ export const foldersRouter = new Hono<AppContext>({ strict: false });
 
 foldersRouter.use('*', authGuard);
 
+/**
+ * Background sync helper. Stays as a standalone function (not on the service)
+ * because it uses env + syncDriveFolder + needs to update sync status on error.
+ */
 async function performBackgroundSync(env: Env, folderId: string, driveId: string | null, userId: string) {
-  const db = env.DB;
+  const folderService = new (await import('../services/folder.service')).FolderService(env.DB);
   try {
-    await db.prepare("UPDATE workspace_folders SET sync_status = 'syncing' WHERE id = ?").bind(folderId).run();
+    await folderService.markSyncing(folderId);
     if (driveId) {
       await syncDriveFolder(env, driveId, folderId, userId);
     }
-    await db.prepare("UPDATE workspace_folders SET sync_status = 'idle', last_synced_at = datetime('now') WHERE id = ?").bind(folderId).run();
+    await folderService.markSyncComplete(folderId);
   } catch (err) {
     logErrorNoCtx('Background sync error', err);
-    await db.prepare("UPDATE workspace_folders SET sync_status = 'error' WHERE id = ?").bind(folderId).run();
+    await folderService.markSyncError(folderId);
   }
 }
 
-
+// GET /tree — folder tree (workspaces as roots + all folders)
 foldersRouter.get('/tree', async (c) => {
-  const userId = c.get('userId');
-  const db = c.env.DB;
-  
-  const { results: workspaces } = await db.prepare(`
-    SELECT w.id, w.name, w.created_at, w.updated_at
-    FROM workspaces w
-    JOIN workspace_members wm ON w.id = wm.workspace_id
-    WHERE wm.user_id = ? ORDER BY w.name ASC
-  `).bind(userId).all();
-  
-  const rootFolders = workspaces.map((w: Record<string, unknown>) => ({
-    id: w.id as string, workspaceId: w.id as string, name: w.name as string, parentId: null, icon: '🏢', color: '#4A90D9', isStarred: false, createdAt: w.created_at as string, updatedAt: w.updated_at as string, lastSyncedAt: null, syncStatus: 'idle'
-  }));
+  const folderService = c.get('folderService');
+  const rootFolders = await folderService.listWorkspacesAsRootFolders(c.get('userId'));
 
-  const { results: folders } = await db.prepare(`
-    SELECT f.* 
+  const { results: folders } = await c.env.DB.prepare(`
+    SELECT f.*
     FROM workspace_folders f
     JOIN workspace_members wm ON f.workspace_id = wm.workspace_id
     WHERE wm.user_id = ? ORDER BY f.name ASC
-  `).bind(userId).all();
-  
+  `).bind(c.get('userId')).all();
+
   const subFolders = folders.map((f: Record<string, unknown>) => ({
     id: f.id, workspaceId: f.workspace_id, name: f.name, parentId: f.parent_id || f.workspace_id, icon: f.icon || '📁', color: f.color || '#4A90D9', isStarred: !!f.is_starred, metadata: f.metadata, createdAt: f.created_at, updatedAt: f.updated_at
   }));
-  
+
   return c.json({ folders: [...rootFolders, ...subFolders] });
 });
 
+// GET /:id? — list workspaces, workspace contents, or folder contents
 foldersRouter.get('/:id?', async (c) => {
   const userId = c.get('userId');
   const folderId = c.req.param('id') || null;
-  const db = c.env.DB;
+  const folderService = c.get('folderService');
 
   const cursorParam = c.req.query('cursor');
   const parsed = parseInt(c.req.query('limit') || '50', 10);
   const limit = isNaN(parsed) || parsed < 1 ? 50 : Math.min(parsed, 100);
   const cursor = cursorParam ? decodeCursor<{ name: string, id: string }>(cursorParam) : null;
+
+  let currentFolder = null;
+  let subfolders: unknown[] = [];
+  let files: unknown[] = [];
+  let breadcrumb: { id: string | null; name: string }[] = [];
   let hasMore = false;
   let nextCursor: string | null = null;
 
-  let currentFolder = null;
-  let subfolders: WorkspaceFolder[] = [];
-  let files: (FileEntry & { driveEmail: string })[] = [];
-  let breadcrumb: BreadcrumbItem[] = [];
-
   if (!folderId) {
-    const { results: workspaces } = await db.prepare(`
-      SELECT w.id, w.name, w.created_at, w.updated_at
-      FROM workspaces w
-      JOIN workspace_members wm ON w.id = wm.workspace_id
-      WHERE wm.user_id = ? ORDER BY w.name ASC
-    `).bind(userId).all();
-    
-    subfolders = workspaces.map((w: Record<string, unknown>) => ({
-      id: w.id as string, workspaceId: w.id as string, name: w.name as string, parentId: null, icon: '🏢', color: '#4A90D9', isStarred: false, createdAt: w.created_at as string, updatedAt: w.updated_at as string, lastSyncedAt: null, syncStatus: 'idle'
-    }));
+    // No folderId — list workspaces as root folders
+    subfolders = await folderService.listWorkspacesAsRootFolders(userId);
   } else {
-    const ws = await db.prepare(`
+    // Check if folderId is a workspace
+    const ws = await c.env.DB.prepare(`
       SELECT w.* FROM workspaces w
       JOIN workspace_members wm ON w.id = wm.workspace_id
       WHERE w.id = ? AND wm.user_id = ?
     `).bind(folderId, userId).first();
 
     if (ws) {
-      currentFolder = { id: ws.id, workspaceId: ws.id, name: ws.name, parentId: null, icon: '🏢', color: '#4A90D9', isStarred: false, createdAt: ws.created_at as string, updatedAt: ws.updated_at as string, lastSyncedAt: null as string | null, syncStatus: 'idle' as 'idle' | 'syncing' | 'error' };
-      
-      const { results: subRows } = await db.prepare('SELECT * FROM workspace_folders WHERE workspace_id = ? AND parent_id IS NULL ORDER BY name ASC').bind(folderId).all();
-      subfolders = subRows.map((f: Record<string, unknown>) => ({ id: f.id as string, workspaceId: f.workspace_id as string, name: f.name as string, parentId: folderId, icon: (f.icon as string) || '📁', color: (f.color as string) || '#4A90D9', isStarred: !!f.is_starred, metadata: f.metadata as string, createdAt: f.created_at as string, updatedAt: f.updated_at as string, lastSyncedAt: (f.last_synced_at as string) || null, syncStatus: (f.sync_status as 'idle' | 'syncing' | 'error') || 'idle' }));
-
-      let sql = `
-        SELECT f.*, d.email as driveEmail 
-        FROM files f JOIN drive_accounts d ON f.drive_account_id = d.id 
-        WHERE f.workspace_id = ? AND f.workspace_folder_id IS NULL AND f.is_trashed = 0
-      `;
-      const binds: (string | number | null)[] = [folderId];
-
-      if (cursor && cursor.name !== undefined && cursor.id !== undefined) {
-        sql += ` AND (f.name, f.id) > (?, ?)`;
-        binds.push(cursor.name, cursor.id);
-      }
-
-      sql += ` ORDER BY f.name ASC, f.id ASC LIMIT ?`;
-      binds.push(limit + 1);
-
-      const { results: fileRows } = await db.prepare(sql).bind(...binds).all();
-
-      if (fileRows.length > limit) {
-        hasMore = true;
-        fileRows.pop();
-      }
-
-      files = fileRows.map((r: Record<string, unknown>) => ({ ...mapFileRow(r), driveEmail: (r.driveEmail as string) || '' }));
-      if (files.length > 0 && hasMore) {
-        const lastFile = files[files.length - 1];
-        nextCursor = encodeCursor({ name: lastFile.name, id: lastFile.id });
-      }
-      
-      breadcrumb = [{ id: null, name: 'Home' }, { id: ws.id as string, name: ws.name as string }];
+      // Workspace case
+      const result = await folderService.getWorkspaceContents(userId, folderId, cursor, limit);
+      currentFolder = result.currentFolder;
+      subfolders = result.subfolders;
+      files = result.files;
+      breadcrumb = result.breadcrumb;
+      hasMore = result.hasMore;
+      nextCursor = result.nextCursor;
     } else {
-      const folder = await db.prepare('SELECT f.*, w.name as ws_name FROM workspace_folders f JOIN workspaces w ON f.workspace_id = w.id JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ? WHERE f.id = ?').bind(userId, folderId).first();
-      if (!folder) throw new AppError(404, 'Folder not found or no access');
-      
-      currentFolder = { id: folder.id, workspaceId: folder.workspace_id, name: folder.name, parentId: folder.parent_id || folder.workspace_id, icon: folder.icon || '📁', color: folder.color || '#4A90D9', isStarred: !!folder.is_starred, metadata: folder.metadata, createdAt: folder.created_at as string, updatedAt: folder.updated_at as string, lastSyncedAt: folder.last_synced_at as string | null, syncStatus: folder.sync_status as string | null };
-      
-      const { results: subRows } = await db.prepare('SELECT * FROM workspace_folders WHERE parent_id = ? ORDER BY name ASC').bind(folderId).all();
-      subfolders = subRows.map((f: Record<string, unknown>) => ({ id: f.id as string, workspaceId: f.workspace_id as string, name: f.name as string, parentId: folderId, icon: (f.icon as string) || '📁', color: (f.color as string) || '#4A90D9', isStarred: !!f.is_starred, metadata: f.metadata as string, createdAt: f.created_at as string, updatedAt: f.updated_at as string, lastSyncedAt: (f.last_synced_at as string) || null, syncStatus: (f.sync_status as 'idle' | 'syncing' | 'error') || 'idle' }));
-
-      let sql = `
-        SELECT f.*, d.email as driveEmail 
-        FROM files f JOIN drive_accounts d ON f.drive_account_id = d.id 
-        WHERE f.workspace_folder_id = ? AND f.is_trashed = 0
-      `;
-      const binds: (string | number | null)[] = [folderId];
-
-      if (cursor && cursor.name !== undefined && cursor.id !== undefined) {
-        sql += ` AND (f.name, f.id) > (?, ?)`;
-        binds.push(cursor.name, cursor.id);
-      }
-
-      sql += ` ORDER BY f.name ASC, f.id ASC LIMIT ?`;
-      binds.push(limit + 1);
-
-      const { results: fileRows } = await db.prepare(sql).bind(...binds).all();
-
-      if (fileRows.length > limit) {
-        hasMore = true;
-        fileRows.pop();
-      }
-
-      files = fileRows.map((r: Record<string, unknown>) => ({ ...mapFileRow(r), driveEmail: (r.driveEmail as string) || '' }));
-      if (files.length > 0 && hasMore) {
-        const lastFile = files[files.length - 1];
-        nextCursor = encodeCursor({ name: lastFile.name, id: lastFile.id });
-      }
-
-      breadcrumb = [{ id: null, name: 'Home' }, { id: folder.workspace_id as string, name: folder.ws_name as string }, { id: folder.id as string, name: folder.name as string }];
+      // Folder case
+      const result = await folderService.getFolderContents(userId, folderId, cursor, limit);
+      currentFolder = result.currentFolder;
+      subfolders = result.subfolders;
+      files = result.files;
+      breadcrumb = result.breadcrumb;
+      hasMore = result.hasMore;
+      nextCursor = result.nextCursor;
     }
   }
 
-  if (currentFolder && currentFolder.id !== currentFolder.workspaceId) {
-    const ws = await db.prepare('SELECT sync_ttl_minutes FROM workspaces WHERE id = ?').bind(currentFolder.workspaceId).first() as { sync_ttl_minutes: number };
+  // Sync TTL + background sync trigger (stays in route — uses c.executionCtx.waitUntil)
+  if (currentFolder && (currentFolder as { id: string; workspaceId: string }).id !== (currentFolder as { id: string; workspaceId: string }).workspaceId) {
+    const cf = currentFolder as { workspaceId: string; id: string; lastSyncedAt: string | null; syncStatus: string };
+    const ws = await c.env.DB.prepare('SELECT sync_ttl_minutes FROM workspaces WHERE id = ?').bind(cf.workspaceId).first() as { sync_ttl_minutes: number };
     const ttlMinutes = ws?.sync_ttl_minutes || 5;
-    
+
     let isExpired = true;
-    if (currentFolder.lastSyncedAt) {
-      const lastSynced = new Date(currentFolder.lastSyncedAt).getTime();
+    if (cf.lastSyncedAt) {
+      const lastSynced = new Date(cf.lastSyncedAt).getTime();
       const now = Date.now();
       isExpired = (now - lastSynced) > (ttlMinutes * 60 * 1000);
     }
-    
+
     let driveId = c.req.query('driveId') || null;
     if (!driveId) {
-      const { results } = await db.prepare(`
-        SELECT DISTINCT d.id 
-        FROM files f 
-        JOIN drive_accounts d ON f.drive_account_id = d.id 
+      const { results } = await c.env.DB.prepare(`
+        SELECT DISTINCT d.id
+        FROM files f
+        JOIN drive_accounts d ON f.drive_account_id = d.id
         WHERE (f.workspace_folder_id = ? OR f.workspace_id = ?) AND f.user_id = ? LIMIT 1
-      `).bind(currentFolder.id, currentFolder.id, userId).all() as { results: { id: string }[] };
+      `).bind(cf.id, cf.id, userId).all() as { results: { id: string }[] };
       if (results && results.length > 0) {
         driveId = results[0].id;
       }
     }
-    
-    if (isExpired && currentFolder.syncStatus !== 'syncing') {
-      c.executionCtx.waitUntil(performBackgroundSync(c.env, currentFolder.id as string, driveId, userId as string));
+
+    if (isExpired && cf.syncStatus !== 'syncing') {
+      c.executionCtx.waitUntil(performBackgroundSync(c.env, cf.id, driveId, userId));
     }
   }
-
 
   return c.json({ folder: currentFolder, subfolders, files, breadcrumb, pagination: { nextCursor, hasMore } });
 });
 
+// POST / — create folder or workspace
 foldersRouter.post('/', zValidator('json', createFolderSchema, zodErrorHook), async (c) => {
-  const userId = c.get('userId');
-  const { name, parentId, icon, color } = c.req.valid('json');
-  const db = c.env.DB;
-
-  if (!parentId) {
-    const workspaceId = generateId();
-    const memberId = generateId();
-    await db.batch([
-      db.prepare('INSERT INTO workspaces (id, name, owner_id) VALUES (?, ?, ?)').bind(workspaceId, name, userId),
-      db.prepare('INSERT INTO workspace_members (id, workspace_id, user_id, role) VALUES (?, ?, ?, ?)').bind(memberId, workspaceId, userId, 'owner')
-    ]);
-    return c.json({ id: workspaceId, name, parentId: null });
-  }
-
-  const ws = await db.prepare('SELECT w.id FROM workspaces w JOIN workspace_members wm ON w.id = wm.workspace_id WHERE w.id = ? AND wm.user_id = ?').bind(parentId, userId).first();
-  let workspaceId = parentId;
-  let actualParentId = null;
-
-  if (!ws) {
-    const folder = await db.prepare('SELECT f.workspace_id FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ? WHERE f.id = ?').bind(userId, parentId).first() as { workspace_id: string };
-    if (!folder) throw new AppError(404, 'Parent not found or no access');
-    workspaceId = folder.workspace_id;
-    actualParentId = parentId;
-  }
-
-  const id = generateId();
-  await db.prepare('INSERT INTO workspace_folders (id, workspace_id, name, parent_id, icon, color) VALUES (?, ?, ?, ?, ?, ?)').bind(id, workspaceId, name, actualParentId, icon || '📁', color || '#4A90D9').run();
-  
-  return c.json({ id, name, parentId });
+  const folderService = c.get('folderService');
+  const result = await folderService.createFolderOrWorkspace(c.get('userId'), c.req.valid('json'));
+  return c.json(result);
 });
 
+// PUT /:id — update folder or workspace
 foldersRouter.put('/:id', zValidator('json', updateFolderSchema, zodErrorHook), async (c) => {
-  const userId = c.get('userId');
-  const folderId = c.req.param('id');
-  const { name, parentId, icon, color } = c.req.valid('json');
-  const db = c.env.DB;
-  
-  const ws = await db.prepare('SELECT id FROM workspaces WHERE id = ? AND owner_id = ?').bind(folderId, userId).first();
-  if (ws) {
-    if (name) await db.prepare('UPDATE workspaces SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(name, folderId).run();
-    return c.json({ success: true });
-  }
-
-  // Verify folder membership before any update
-  const folderMember = await db.prepare('SELECT f.id FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ? WHERE f.id = ?').bind(userId, folderId).first();
-  if (!folderMember) throw new AppError(404, 'Folder not found or no access');
-
-  const updateFields: string[] = [];
-  const params: (string | number | null)[] = [];
-
-  if (name !== undefined) {
-    updateFields.push('name = ?');
-    params.push(name);
-  }
-  if (icon !== undefined) {
-    updateFields.push('icon = ?');
-    params.push(icon);
-  }
-  if (color !== undefined) {
-    updateFields.push('color = ?');
-    params.push(color);
-  }
-  if (parentId !== undefined) {
-    const parentWs = await db.prepare('SELECT id FROM workspaces WHERE id = ?').bind(parentId).first();
-    updateFields.push('parent_id = ?');
-    params.push(parentWs ? null : parentId);
-  }
-
-  if (updateFields.length > 0) {
-    updateFields.push('updated_at = CURRENT_TIMESTAMP');
-    params.push(folderId);
-    await db.prepare(`UPDATE workspace_folders SET ${updateFields.join(', ')} WHERE id = ?`).bind(...params).run();
-  }
-  
+  const folderService = c.get('folderService');
+  await folderService.updateFolderOrWorkspace(c.get('userId'), c.req.param('id'), c.req.valid('json'));
   return c.json({ success: true });
 });
 
+// POST /:id/star
 foldersRouter.post('/:id/star', async (c) => {
   const folderService = c.get('folderService');
   await folderService.starFolder(c.get('userId'), c.req.param('id'));
   return c.json({ success: true });
 });
 
+// POST /:id/unstar
 foldersRouter.post('/:id/unstar', async (c) => {
   const folderService = c.get('folderService');
   await folderService.unstarFolder(c.get('userId'), c.req.param('id'));
   return c.json({ success: true });
 });
 
+// DELETE /:id — delete folder or workspace
 foldersRouter.delete('/:id', async (c) => {
   const userId = c.get('userId');
   const folderId = c.req.param('id');
-  const db = c.env.DB;
+  const folderService = c.get('folderService');
 
-  const ws = await db.prepare('SELECT id FROM workspaces WHERE id = ? AND owner_id = ?').bind(folderId, userId).first();
-  if (ws) {
-    // Detach files from workspace before deletion (prevents ON DELETE CASCADE)
-    await db.prepare('UPDATE files SET workspace_id = NULL, workspace_folder_id = NULL WHERE workspace_id = ?')
-      .bind(folderId).run();
-    await db.prepare('DELETE FROM workspaces WHERE id = ?').bind(folderId).run();
+  // Try workspace deletion first (owner check inside service)
+  const deleted = await folderService.deleteWorkspace(userId, folderId);
+  if (deleted) {
     return c.json({ success: true });
   }
 
-  const folderService = c.get('folderService');
+  // Not a workspace (or not owner) — try folder deletion
   await folderService.deleteFolder(userId, folderId);
   return c.json({ success: true });
 });
 
+// POST /:id/files — add files to folder or workspace
 foldersRouter.post('/:id/files', zValidator('json', addFilesToFolderSchema, zodErrorHook), async (c) => {
-  const folderId = c.req.param('id');
-  const userId = c.get('userId');
-  const db = c.env.DB;
+  const folderService = c.get('folderService');
   const { fileIds } = c.req.valid('json');
-  
-  const ws = await db.prepare('SELECT w.id FROM workspaces w JOIN workspace_members wm ON w.id = wm.workspace_id WHERE w.id = ? AND wm.user_id = ?').bind(folderId, userId).first();
-  let workspaceId = folderId;
-  let workspaceFolderId = null;
-  if (!ws) {
-    const f = await db.prepare('SELECT f.workspace_id FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ? WHERE f.id = ?').bind(userId, folderId).first() as { workspace_id: string };
-    if (f) {
-      workspaceId = f.workspace_id;
-      workspaceFolderId = folderId;
-    }
-  }
-
-  const CHUNK_SIZE = 50;
-  for (let i = 0; i < fileIds.length; i += CHUNK_SIZE) {
-    const chunk = fileIds.slice(i, i + CHUNK_SIZE);
-    const placeholders = chunk.map(() => '?').join(',');
-    const query = `UPDATE files SET workspace_id = ?, workspace_folder_id = ?, updated_at = datetime('now') WHERE user_id = ? AND id IN (${placeholders})`;
-    await db.prepare(query).bind(workspaceId, workspaceFolderId, userId, ...chunk).run();
-  }
-  
+  await folderService.addFilesToFolder(c.get('userId'), c.req.param('id'), fileIds);
   return c.json({ success: true });
 });
 
+// POST /:id/sync — sync all drives in a folder/workspace
 foldersRouter.post('/:id/sync', async (c) => {
   const userId = c.get('userId');
   const folderId = c.req.param('id');
   const db = c.env.DB;
-  
+
   const { results } = await db.prepare(`
-    SELECT DISTINCT d.* 
-    FROM files f 
-    JOIN drive_accounts d ON f.drive_account_id = d.id 
+    SELECT DISTINCT d.*
+    FROM files f
+    JOIN drive_accounts d ON f.drive_account_id = d.id
     WHERE (f.workspace_folder_id = ? OR f.workspace_id = ?) AND f.user_id = ?
   `).bind(folderId, folderId, userId).all();
-  
+
   if (results && results.length > 0) {
     const driveService = new GoogleDriveService(c.env.DB, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
     for (const row of results) {
-       const drive = mapDriveRow(row as unknown as Record<string, unknown>);
-       c.executionCtx.waitUntil(syncDriveAccount(drive, db, driveService).catch(e => logError(c, 'Sync drive account failed', e)));
+      const drive = mapDriveRow(row as unknown as Record<string, unknown>);
+      c.executionCtx.waitUntil(syncDriveAccount(drive, db, driveService).catch(e => logError(c, 'Sync drive account failed', e)));
     }
   }
-  
+
   return c.json({ success: true });
 });
 
+// POST /:id/force-sync — force sync a specific folder
 foldersRouter.post('/:id/force-sync', async (c) => {
   const userId = c.get('userId');
   const folderId = c.req.param('id');
@@ -371,11 +220,10 @@ foldersRouter.post('/:id/force-sync', async (c) => {
   const db = c.env.DB;
 
   if (!driveId) {
-    // Look up via files table if not passed directly
     const { results } = await db.prepare(`
-      SELECT DISTINCT d.id 
-      FROM files f 
-      JOIN drive_accounts d ON f.drive_account_id = d.id 
+      SELECT DISTINCT d.id
+      FROM files f
+      JOIN drive_accounts d ON f.drive_account_id = d.id
       WHERE (f.workspace_folder_id = ? OR f.workspace_id = ?) AND f.user_id = ? LIMIT 1
     `).bind(folderId, folderId, userId).all() as { results: { id: string }[] };
     if (results && results.length > 0) {
@@ -384,7 +232,6 @@ foldersRouter.post('/:id/force-sync', async (c) => {
   }
 
   if (!driveId) {
-    // If still not found, try to look up the user's primary drive or any drive
     const { results } = await db.prepare(`
       SELECT id FROM drive_accounts WHERE user_id = ? ORDER BY is_primary DESC LIMIT 1
     `).bind(userId).all() as { results: { id: string }[] };
@@ -398,6 +245,6 @@ foldersRouter.post('/:id/force-sync', async (c) => {
   }
 
   c.executionCtx.waitUntil(performBackgroundSync(c.env, folderId, driveId, userId));
-  
+
   return c.json({ success: true });
 });
