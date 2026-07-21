@@ -4,6 +4,7 @@ import type { S3CredentialRow } from '../types';
 import { timingSafeEqual } from 'node:crypto';
 import { decrypt } from '../lib/crypto';
 import { hmacSha256, sha256 } from '../lib/crypto-s3';
+import { logError } from '../lib/logger';
 
 function returnXmlError(c: Context<AppContext>, code: string, message: string, status: 400 | 401 | 403 | 404 | 500 = 403, extraFields: Record<string, string> = {}) {
   let xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -294,7 +295,7 @@ export const s3AuthMiddleware: MiddlewareHandler<AppContext> = async (c, next) =
     }
 
     if (!result.valid) {
-      console.error('S3 Signature Mismatch:', {
+      logError(c, 'S3 Signature Mismatch', undefined, {
         providedSignature: signature,
         calculatedSignature: result.calculated,
         canonicalRequest: result.canonical,
@@ -313,7 +314,7 @@ export const s3AuthMiddleware: MiddlewareHandler<AppContext> = async (c, next) =
     c.set('s3WorkspaceId', cred.workspace_id || null);
     return await next();
   } catch (err: unknown) {
-    console.error('S3 signature verification error:', (err instanceof Error ? err.message : String(err)));
+    logError(c, 'S3 signature verification error', err);
     // ponytail: generic message — err.message may leak decryption internals
     return returnXmlError(c, 'SignatureDoesNotMatch', 'Signature verification failed');
   }

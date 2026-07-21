@@ -1,3 +1,5 @@
+import { logNoCtx } from './logger';
+
 const ALGORITHM = 'AES-GCM';
 const IV_LENGTH = 12; // 96-bit IV for AES-GCM
 const KEY_VERSION = 'v1'; // ponytail: versioned ciphertext for future key rotation
@@ -62,13 +64,13 @@ export async function decrypt(encoded: string, secret: string): Promise<string> 
 export async function decryptOrPassthrough(value: string, secret: string): Promise<string> {
   // ponytail: only accept plaintext with explicit 'plain:' marker — bare values are rejected
   if (value.startsWith('plain:')) {
-    console.warn('decryptOrPassthrough: falling back to explicit plaintext marker');
+    logNoCtx('warn', 'decryptOrPassthrough: falling back to explicit plaintext marker');
     return value.slice(6);
   }
   try {
     return await decrypt(value, secret);
   } catch (e) {
-    console.error('decryptOrPassthrough: decryption failed and no plain: marker', e);
+    logNoCtx('error', 'decryptOrPassthrough: decryption failed and no plain: marker', undefined, e);
     throw new Error('Failed to decrypt value — no valid plaintext marker found');
   }
 }

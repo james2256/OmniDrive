@@ -5,6 +5,7 @@ import { GoogleDriveService } from './google-drive';
 import { PolicyService } from './policy.service';
 import { getWorkspaceRole, hasPermission } from '../middleware/rbac';
 import { AppError } from '../middleware/error-handler';
+import { logErrorNoCtx } from '../lib/logger';
 import type { FileRow } from '../types';
 
 /**
@@ -78,7 +79,7 @@ export class FileService {
     try {
       await this.driveService.deleteFile(file.drive_account_id, file.google_file_id);
     } catch (error) {
-      console.error('Failed to permanently delete file from Google Drive:', error);
+      logErrorNoCtx('Failed to permanently delete file from Google Drive', error, { fileId });
       throw new AppError(500, 'Failed to delete file from Google Drive');
     }
 

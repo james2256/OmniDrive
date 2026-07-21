@@ -10,6 +10,7 @@ import { resolveDrivesWithQuota } from '../services/drive-quota';
 import { UploadRouter } from '../services/upload-router';
 import { AutomationEngine } from '../services/automation.service';
 import { PolicyService } from '../services/policy.service';
+import { logError } from '../lib/logger';
 import { mapFileRow, mapFolderRow, mapDriveFolderRow } from '../types';
 import { zValidator } from '@hono/zod-validator';
 import {
@@ -319,14 +320,14 @@ filesRouter.post('/:id/move-drive', zValidator('json', moveDriveFileSchema, zodE
         sharePermissionId = null;
       }
     } catch (revokeError) {
-      console.error('Failed to revoke share after copy:', revokeError);
+      logError(c, 'Failed to revoke share after copy', revokeError);
     }
 
     try {
       await driveService.trashFile(file.sourceDriveId, file.google_file_id);
       trashSuccess = true;
     } catch (trashError) {
-      console.error('Failed to trash original file:', trashError);
+      logError(c, 'Failed to trash original file', trashError);
     }
 
     await db.prepare(
@@ -339,21 +340,21 @@ filesRouter.post('/:id/move-drive', zValidator('json', moveDriveFileSchema, zodE
     
     return c.json({ file: mapFileRow((updatedFile as Record<string, unknown>)), success: true });
   } catch (error) {
-    console.error('Move drive failed:', error);
+    logError(c, 'Move drive failed', error);
     
     if (trashSuccess) {
       try { await driveService.untrashFile(file.sourceDriveId, file.google_file_id); }
-      catch (e) { console.error('Rollback untrash failed:', e); }
+      catch (e) { logError(c, 'Rollback untrash failed', e); }
     }
     
     if (copySuccessId) {
       try { await driveService.deleteFile(targetDriveId, copySuccessId); }
-      catch (e) { console.error('Rollback delete failed:', e); }
+      catch (e) { logError(c, 'Rollback delete failed', e); }
     }
     
     if (sharePermissionId) {
       try { await driveService.revokeShare(file.sourceDriveId, file.google_file_id, sharePermissionId); }
-      catch (e) { console.error('Failed to revoke share:', e); }
+      catch (e) { logError(c, 'Failed to revoke share', e); }
     }
     
     throw new AppError(500, 'Failed to move file to another drive');
@@ -457,7 +458,7 @@ filesRouter.post('/upload/init', zValidator('json', uploadInitSchema, zodErrorHo
     uploadUrl = await gDrive.initiateResumableUpload(targetDrive.id, name, mimeType, uploadParent);
   } catch (err) {
     const msg = (err as Error).message || '';
-    console.error('upload/init initiateResumableUpload failed', { driveId: targetDrive.id, uploadParent, msg });
+    logError(c, 'upload/init initiateResumableUpload failed', undefined, { driveId: targetDrive.id, uploadParent, msg });
     // Auth/refresh failures → 401 so the client can prompt reconnect; upstream Google errors → 502.
     const status = /token|refresh|No tokens|expired/i.test(msg) ? 401 : 502;
     throw new AppError(status, `Failed to start resumable upload: ${msg}`);
@@ -508,7 +509,7 @@ filesRouter.post('/upload/finalize', zValidator('json', uploadFinalizeSchema, zo
   try {
     gFile = await driveService.getFile(driveAccountId, googleFileId);
   } catch (err) {
-    console.error('Upload finalize getFile error:', err, 'FileID:', googleFileId, 'DriveID:', driveAccountId);
+    logError(c, 'Upload finalize getFile error', err, { googleFileId, driveAccountId });
     throw new AppError(400, 'Failed to fetch uploaded file from Google Drive');
   }
 
@@ -643,7 +644,7 @@ filesRouter.get('/:id/preview', async (c) => {
       finalMimeType = downloadResult.exportedMimeType;
     }
   } catch (e: unknown) {
-    console.error('Preview error:', e);
+    logError(c, 'Preview error', e);
     return c.text('Failed to load preview', 502);
   }
 
@@ -684,7 +685,7 @@ filesRouter.get('/:id/download', async (c) => {
       finalFileName = `${finalFileName}${downloadResult.exportedExtension}`;
     }
   } catch (e: unknown) {
-    console.error('Download error:', e);
+    logError(c, 'Download error', e);
     return c.text('Failed to download file', 502);
   }
   

@@ -1,5 +1,6 @@
 import type { Env, OAuthTokens } from '../types/env';
 import { AppError } from '../middleware/error-handler';
+import { logErrorNoCtx } from '../lib/logger';
 
 export class AuthService {
   constructor(private env: Env) {}
@@ -23,7 +24,7 @@ export class AuthService {
 
     if (!response.ok) {
       const error = await response.text();
-      console.error('OAuth token exchange failed:', error);
+      logErrorNoCtx('OAuth token exchange failed', error);
       throw new AppError(401, 'Failed to exchange authorization code');
     }
 

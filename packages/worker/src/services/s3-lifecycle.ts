@@ -1,5 +1,6 @@
 import type { Env } from '../types/env';
 import { GoogleDriveService } from './google-drive';
+import { logErrorNoCtx } from '../lib/logger';
 
 export interface LifecycleRule {
   prefix: string;
@@ -91,7 +92,7 @@ export async function runLifecycleExpiration(env: Env): Promise<void> {
           .bind(file.id).run();
       } catch (e) {
         // Best-effort: skip this file, keep processing the rest.
-        console.error(`Lifecycle expire failed for file ${file.id}`, e);
+        logErrorNoCtx('Lifecycle expire failed for file', e, { fileId: file.id });
       }
     }
   }
@@ -126,7 +127,7 @@ export async function cleanupOrphanMultipartUploads(env: Env): Promise<void> {
       await driveService.deleteFile(upload.drive_account_id, upload.temp_folder_id);
     } catch (err) {
       // Best-effort: the temp folder may already be gone; still drop the DB row.
-      console.error('Failed to delete orphan multipart temp folder from Google Drive:', err);
+      logErrorNoCtx('Failed to delete orphan multipart temp folder from Google Drive', err);
     }
     await env.DB.prepare('DELETE FROM s3_multipart_uploads WHERE upload_id = ?')
       .bind(upload.upload_id).run();

@@ -3,6 +3,7 @@ import type { Env } from '../types/env';
 import { computeDriveQuota } from '../lib/storage-quota';
 import { mapDriveRow, type DriveWithQuota } from '../types';
 import { GoogleDriveService } from './google-drive';
+import { logErrorNoCtx } from '../lib/logger';
 
 export async function resolveDrivesWithQuota(
   env: Env,
@@ -37,7 +38,7 @@ export async function resolveDrivesWithQuota(
         const computed = computeDriveQuota(drive, quota);
         return { ...drive, ...computed };
       } catch (e) {
-        console.error(`Failed to fetch quota for drive ${drive.id}`, e);
+        logErrorNoCtx('Failed to fetch quota for drive', e, { driveId: drive.id });
         // Tokens exist but quota API failed — treat unknown stored quota as unlimited for routing
         const computed = computeDriveQuota({ totalQuota: 0, usedQuota: drive.usedQuota });
         return { ...drive, ...computed };

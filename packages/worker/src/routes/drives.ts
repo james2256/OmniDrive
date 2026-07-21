@@ -12,6 +12,7 @@ import { generatePKCE } from '../lib/pkce';
 import { computeDriveQuota } from '../lib/storage-quota';
 import { encrypt } from '../lib/crypto';
 import { resolveGoogleFolderId } from '../lib/drive-folder';
+import { logError } from '../lib/logger';
 import { zValidator } from '@hono/zod-validator';
 import {
   createDriveFolderSchema,
@@ -211,7 +212,7 @@ drivesRouter.get('/', async (c) => {
       return { ...drive, ...computed, health: 'connected' as const };
 
     } catch (e) {
-      console.error(`Failed to fetch quota for drive ${drive.id}`, e);
+      logError(c, 'Failed to fetch quota for drive', e, { driveId: drive.id });
       const computed = computeDriveQuota({ totalQuota: 0, usedQuota: drive.usedQuota, quotaOverride: drive.quotaOverride });
       return { ...drive, ...computed, health: 'error' as const };
     }
@@ -237,7 +238,7 @@ drivesRouter.post('/service-account', zValidator('json', serviceAccountSchema, z
   try {
     sa = parseServiceAccountJson(credentials);
   } catch (err) {
-    console.error('Service account JSON parse error:', err);
+    logError(c, 'Service account JSON parse error', err);
     throw new AppError(400, 'Invalid service account JSON');
   }
 
@@ -248,7 +249,7 @@ drivesRouter.post('/service-account', zValidator('json', serviceAccountSchema, z
   try {
     ({ accessToken, expiresAt } = await fetchServiceAccountAccessToken(serviceAccount));
   } catch (err) {
-    console.error('Service account auth error:', err);
+    logError(c, 'Service account auth error', err);
     throw new AppError(400, 'Failed to connect Google Drive account');
   }
 
@@ -256,7 +257,7 @@ drivesRouter.post('/service-account', zValidator('json', serviceAccountSchema, z
   try {
     folderInfo = await verifySharedFolderAccess(accessToken, folderId);
   } catch (err) {
-    console.error('Shared folder access error:', err);
+    logError(c, 'Shared folder access error', err);
     throw new AppError(400, 'Cannot access the specified shared folder');
   }
 

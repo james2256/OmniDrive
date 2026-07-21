@@ -10,6 +10,7 @@ import { requestId } from './middleware/request-id';
 import { sharedServices } from './middleware/shared-services';
 import { validateEnv } from './lib/env';
 import { xmlError } from './lib/s3-xml';
+import { logError } from './lib/logger';
 import { runScheduledSync } from './services/sync';
 import { runLifecycleExpiration, cleanupOrphanMultipartUploads } from './services/s3-lifecycle';
 import { AuditService } from './services/audit.service';
@@ -41,7 +42,7 @@ app.onError((err, c) => {
   const message = isAppError ? err.message : 'Internal server error';
   
   if (status >= 500) {
-    console.error('Unhandled server error:', err);
+    logError(c, 'Unhandled server error', err, { errorClass: err.constructor.name });
   }
   
   if (c.req.path.startsWith('/s3')) {

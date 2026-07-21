@@ -8,6 +8,7 @@ import type { Env } from '../types/env';
 import { FileRepository } from '../repositories/file.repository';
 import { FolderRepository } from '../repositories/folder.repository';
 import { batchInChunks } from '../lib/d1-batch';
+import { logErrorNoCtx } from '../lib/logger';
 
 let isShuttingDown = false;
 
@@ -148,7 +149,7 @@ export async function syncDriveAccount(
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
-    console.error(`Sync failed for ${drive.email}:`, message);
+    logErrorNoCtx('Sync failed for drive', undefined, { driveId: drive.id, driveEmail: drive.email, message });
 
     await db
       .prepare("INSERT INTO sync_state (drive_account_id, status, error_message) VALUES (?, 'error', ?) ON CONFLICT(drive_account_id) DO UPDATE SET status = 'error', error_message = excluded.error_message")
@@ -297,7 +298,7 @@ export async function runScheduledSync(env: {
       try {
         await syncDriveAccount(drive, env.DB, driveService);
       } catch (err) {
-        console.error(`Sync error for ${drive.email}:`, err);
+        logErrorNoCtx('Sync error for drive', err, { driveId: drive.id, driveEmail: drive.email });
       } finally {
         activeSyncs.delete(drive.id);
       }

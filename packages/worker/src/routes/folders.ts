@@ -10,6 +10,7 @@ import { encodeCursor, decodeCursor } from '../lib/cursor';
 import { syncDriveFolder } from '../services/sync';
 import { zValidator } from '@hono/zod-validator';
 import { createFolderSchema, updateFolderSchema, addFilesToFolderSchema, zodErrorHook } from '../lib/schemas';
+import { logError, logErrorNoCtx } from '../lib/logger';
 
 export const foldersRouter = new Hono<AppContext>({ strict: false });
 
@@ -24,7 +25,7 @@ async function performBackgroundSync(env: Env, folderId: string, driveId: string
     }
     await db.prepare("UPDATE workspace_folders SET sync_status = 'idle', last_synced_at = datetime('now') WHERE id = ?").bind(folderId).run();
   } catch (err) {
-    console.error('Background sync error:', err);
+    logErrorNoCtx('Background sync error', err);
     await db.prepare("UPDATE workspace_folders SET sync_status = 'error' WHERE id = ?").bind(folderId).run();
   }
 }
@@ -356,7 +357,7 @@ foldersRouter.post('/:id/sync', async (c) => {
     const driveService = new GoogleDriveService(c.env.DB, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
     for (const row of results) {
        const drive = mapDriveRow(row as unknown as Record<string, unknown>);
-       c.executionCtx.waitUntil(syncDriveAccount(drive, db, driveService).catch(console.error));
+       c.executionCtx.waitUntil(syncDriveAccount(drive, db, driveService).catch(e => logError(c, 'Sync drive account failed', e)));
     }
   }
   

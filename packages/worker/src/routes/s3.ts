@@ -13,6 +13,7 @@ import { hasPermission } from '../middleware/rbac';
 import type { WorkspaceRole } from '../lib/schemas';
 import { parseLifecycleXml, serializeLifecycleXml } from '../services/s3-lifecycle';
 import { escapeXml, xmlError } from '../lib/s3-xml';
+import { logError } from '../lib/logger';
 
 export const s3Router = new Hono<AppContext>({ strict: false });
 
@@ -439,7 +440,7 @@ s3Router.delete('/:bucket/:key{.+}', async (c) => {
     try {
       await driveService.deleteFile(upload.drive_account_id, upload.temp_folder_id);
     } catch (err) {
-      console.error('Failed to delete temp multipart upload folder from Google Drive:', err);
+      logError(c, 'Failed to delete temp multipart upload folder from Google Drive', err);
     }
 
     await db.prepare('DELETE FROM s3_multipart_uploads WHERE upload_id = ?').bind(uploadId).run();
@@ -575,7 +576,7 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
     try {
       await driveService.deleteFile(existingFile.drive_account_id, existingFile.google_file_id);
     } catch (err) {
-      console.error('Failed to delete old file from Google Drive:', err);
+      logError(c, 'Failed to delete old file from Google Drive', err);
     }
     await db.prepare('DELETE FROM files WHERE id = ?').bind(existingFile.id).run();
   }
@@ -801,7 +802,7 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
       try {
         await driveService.deleteFile(existingFile.drive_account_id, existingFile.google_file_id);
       } catch (err) {
-        console.error('Failed to delete old file from Google Drive:', err);
+        logError(c, 'Failed to delete old file from Google Drive', err);
       }
       await db.prepare('DELETE FROM files WHERE id = ?').bind(existingFile.id).run();
     }

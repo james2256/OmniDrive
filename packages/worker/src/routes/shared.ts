@@ -9,6 +9,7 @@ import { authGuard } from '../middleware/auth-guard';
 import type { SharedLink } from '../types';
 import { GoogleDriveService } from '../services/google-drive';
 import { verifySharedPassword } from '../lib/password';
+import { logError } from '../lib/logger';
 import {
   createSharedLinkSchema,
   updateSharedLinkSchema,
@@ -244,7 +245,7 @@ sharedRouter.get('/:id/download', async (c) => {
       finalFileName = `${finalFileName}${downloadResult.exportedExtension}`;
     }
   } catch (e: unknown) {
-    console.error('Download error:', e);
+    logError(c, 'Download error', e);
     return c.text('Failed to download file', 502);
   }
 
