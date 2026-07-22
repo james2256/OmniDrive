@@ -4,6 +4,7 @@ import type { WorkspaceFolder, FileEntry, DriveFolder, BreadcrumbItem, DriveAcco
 import { WorkspaceSidebar } from '../components/workspaces/WorkspaceSidebar';
 import { WorkspaceMainView } from '../components/workspaces/WorkspaceMainView';
 import { CreateFolderModal } from '../components/CreateFolderModal';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useToastStore } from '../stores/useToastStore';
 import { useSelectionStore, type SelectedItem } from '../stores/useSelectionStore';
 import { useUIStore } from '../stores/useUIStore';
@@ -22,6 +23,8 @@ export function WorkspacesPage() {
   const setIsInfoPanelOpen = useUIStore(s => s.setIsInfoPanelOpen);
   const [wsSidebarOpen, setWsSidebarOpen] = useState(false);
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchTree = useCallback(async () => {
     try {
@@ -79,17 +82,24 @@ export function WorkspacesPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (confirm('Are you sure you want to delete this workspace?')) {
-      try {
-        await api.deleteFolder(id);
-        if (activeFolderId === id) {
-          setActiveFolderId(null);
-        }
-        fetchTree();
-      } catch {
-        addToast('error', 'Failed to delete workspace');
+  const handleDelete = (id: string) => {
+    setDeleteTargetId(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTargetId) return;
+    setIsDeleting(true);
+    try {
+      await api.deleteFolder(deleteTargetId);
+      if (activeFolderId === deleteTargetId) {
+        setActiveFolderId(null);
       }
+      fetchTree();
+    } catch {
+      addToast('error', 'Failed to delete workspace');
+    } finally {
+      setIsDeleting(false);
+      setDeleteTargetId(null);
     }
   };
 
@@ -244,6 +254,17 @@ export function WorkspacesPage() {
         open={!!previewFile}
         file={previewFile ?? undefined}
         onClose={() => setPreviewFile(null)}
+      />
+      <ConfirmDialog
+        open={deleteTargetId !== null}
+        title="Delete Workspace"
+        message="Are you sure you want to delete this workspace?"
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        loading={isDeleting}
+        onConfirm={confirmDelete}
+        onClose={() => !isDeleting && setDeleteTargetId(null)}
       />
       {retentionTargetId && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">

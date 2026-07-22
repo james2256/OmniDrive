@@ -3,6 +3,7 @@ import { useSelectionStore } from '../../stores/useSelectionStore';
 import { useToastStore } from '../../stores/useToastStore';
 import { api } from '../../lib/api';
 import { X, Trash2, Folder, Star, HardDrive } from 'lucide-react';
+import { ConfirmDialog } from '../ConfirmDialog';
 
 export interface BulkActionBarProps {
   onActionComplete: () => void;
@@ -15,17 +16,19 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({ onActionComplete, 
   const { selectedItems, clearSelection } = useSelectionStore();
   const addToast = useToastStore((s) => s.addToast);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
 
   if (selectedItems.length === 0) return null;
 
   const allFiles = selectedItems.every(i => i.type === 'file');
 
   const handleDelete = async () => {
-    const hasFolders = selectedItems.some((i) => i.type === 'folder');
-    const msg = hasFolders
-      ? `Delete ${selectedItems.length} items permanently? Folders and ALL their contents will be moved to Google Drive trash.`
-      : `Delete ${selectedItems.length} items permanently?`;
-    if (!confirm(msg)) return;
+    setConfirmOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    setIsConfirming(true);
     setIsProcessing(true);
     addToast('info', `Deleting ${selectedItems.length} items...`);
 
@@ -58,11 +61,14 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({ onActionComplete, 
     }
 
     setIsProcessing(false);
+    setIsConfirming(false);
+    setConfirmOpen(false);
     clearSelection();
     onActionComplete();
   };
 
   return (
+    <>
     <div className="fixed bottom-4 left-2 right-2 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-50 flex flex-wrap items-center gap-2 bg-card/80 backdrop-blur-md border border-slate-200 text-slate-800 rounded-2xl sm:rounded-full shadow-2xl px-4 py-3 animate-in fade-in-0 slide-in-from-bottom-5 duration-300">
       <div className="flex items-center gap-3 sm:border-r sm:border-slate-200 sm:pr-4">
         <button onClick={clearSelection} disabled={isProcessing} className="p-2 hover:bg-slate-100 text-slate-500 rounded-full transition-colors" aria-label="Clear selection">
@@ -95,5 +101,22 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({ onActionComplete, 
         </button>
       </div>
     </div>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Delete items permanently"
+        message={
+          selectedItems.some((i) => i.type === 'folder')
+            ? `Delete ${selectedItems.length} items permanently? Folders and ALL their contents will be moved to Google Drive trash.`
+            : `Delete ${selectedItems.length} items permanently?`
+        }
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        loading={isConfirming}
+        onConfirm={confirmDelete}
+        onClose={() => !isConfirming && setConfirmOpen(false)}
+      />
+    </>
   );
 };

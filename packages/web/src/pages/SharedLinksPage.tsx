@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link as LinkIcon, FileText, Folder, Eye, Download, Trash2, Copy, Check, Clock, Settings } from 'lucide-react';
 import { useToastStore } from '../stores/useToastStore';
 import { EditShareModal } from '../components/EditShareModal';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useSharedLinks, useRevokeSharedLink } from '../hooks/useSharedLinks';
 import { EmptyState, ListSkeleton } from '../components/EmptyState';
 import type { SharedLink } from '../lib/api';
@@ -12,11 +13,16 @@ export function SharedLinksPage() {
   const [editingLink, setEditingLink] = useState<SharedLink | null>(null);
   const { addToast } = useToastStore();
   const revokeMut = useRevokeSharedLink();
+  const [revokeTargetId, setRevokeTargetId] = useState<string | null>(null);
 
   const revoke = (id: string) => {
-    if (confirm('Are you sure you want to stop sharing this item?')) {
-      revokeMut.mutate(id);
-    }
+    setRevokeTargetId(id);
+  };
+
+  const confirmRevoke = () => {
+    if (!revokeTargetId) return;
+    revokeMut.mutate(revokeTargetId);
+    setRevokeTargetId(null);
   };
 
   const copyToClipboard = (id: string) => {
@@ -136,6 +142,18 @@ export function SharedLinksPage() {
         open={!!editingLink}
         link={editingLink}
         onClose={() => setEditingLink(null)}
+      />
+
+      <ConfirmDialog
+        open={revokeTargetId !== null}
+        title="Stop Sharing"
+        message="Are you sure you want to stop sharing this item?"
+        confirmText="Stop Sharing"
+        cancelText="Cancel"
+        variant="danger"
+        loading={revokeMut.isPending}
+        onConfirm={confirmRevoke}
+        onClose={() => setRevokeTargetId(null)}
       />
     </div>
   );

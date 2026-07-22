@@ -79,9 +79,9 @@ export function CreateFolderModal({ open, parentId, title, onClose, onSuccess, d
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+    <Dialog open={open} onOpenChange={(o) => !o && !loading && onClose()}>
       <DialogContent className="max-w-md p-0 gap-0 rounded-2xl overflow-hidden flex flex-col">
-        <div className="flex items-center p-5 border-b border-slate-100 shrink-0">
+        <div className="flex items-center p-5 border-b border-slate-200 shrink-0">
           <DialogTitle className="text-lg font-semibold text-slate-800 flex items-center gap-2">
             <FolderPlus size={20} className="text-blue-500" />
             {title}

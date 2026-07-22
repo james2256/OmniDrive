@@ -6,6 +6,7 @@ import { useDrives } from '../hooks/useDrives';
 import { qk } from '../lib/queryKeys';
 import type { FileEntry } from '../types';
 import { FilePreviewModal } from '../components/FilePreviewModal';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useRestoreFile, usePermanentDeleteFile } from '../hooks/useFileMutations';
 import { useRestoreDriveFolder, usePermanentDeleteDriveFolder } from '../hooks/useFolderMutations';
 import { EmptyState, ListSkeleton } from '../components/EmptyState';
@@ -16,6 +17,8 @@ export function TrashPage() {
   const drives = useMemo(() => drivesData?.drives ?? [], [drivesData]);
 
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
+  const [confirmFileDelete, setConfirmFileDelete] = useState<string | null>(null);
+  const [confirmFolderDelete, setConfirmFolderDelete] = useState<{ driveId: string; folderId: string } | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: qk.trash,
@@ -31,11 +34,11 @@ export function TrashPage() {
   const permanentDeleteDriveFolderMut = usePermanentDeleteDriveFolder();
 
   const handleRestore = (fileId: string) => restoreFileMut.mutate(fileId);
-  const handlePermanentDelete = (fileId: string) => permanentDeleteFileMut.mutate(fileId);
+  const handlePermanentDelete = (fileId: string) => setConfirmFileDelete(fileId);
   const handleRestoreFolder = (driveId: string, folderId: string) =>
     restoreDriveFolderMut.mutate({ driveId, folderId });
   const handlePermanentDeleteFolder = (driveId: string, folderId: string) =>
-    permanentDeleteDriveFolderMut.mutate({ driveId, folderId });
+    setConfirmFolderDelete({ driveId, folderId });
 
   const getDriveInfo = useCallback(
     (driveAccountId?: string) => {
@@ -86,6 +89,34 @@ export function TrashPage() {
         open={!!previewFile}
         file={previewFile ?? undefined}
         onClose={() => setPreviewFile(null)}
+      />
+      <ConfirmDialog
+        open={confirmFileDelete !== null}
+        title="Permanently Delete File"
+        message="Permanently delete this file? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        loading={permanentDeleteFileMut.isPending}
+        onConfirm={() => {
+          if (confirmFileDelete) permanentDeleteFileMut.mutate(confirmFileDelete);
+          setConfirmFileDelete(null);
+        }}
+        onClose={() => setConfirmFileDelete(null)}
+      />
+      <ConfirmDialog
+        open={confirmFolderDelete !== null}
+        title="Permanently Delete Folder"
+        message="Permanently delete this folder and ALL its contents? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        loading={permanentDeleteDriveFolderMut.isPending}
+        onConfirm={() => {
+          if (confirmFolderDelete) permanentDeleteDriveFolderMut.mutate(confirmFolderDelete);
+          setConfirmFolderDelete(null);
+        }}
+        onClose={() => setConfirmFolderDelete(null)}
       />
     </div>
   );

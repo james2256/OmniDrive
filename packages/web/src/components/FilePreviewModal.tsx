@@ -58,7 +58,7 @@ export function FilePreviewModal({ open, file, onClose }: FilePreviewModalProps)
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl p-0 gap-0 rounded-2xl overflow-hidden flex flex-col max-h-full">
         {/* Header */}
-        <div className="flex items-start p-5 border-b border-slate-100 shrink-0">
+        <div className="flex items-start p-5 border-b border-slate-200 shrink-0">
           <div className="flex items-center gap-4 min-w-0 flex-1">
             <span className="text-4xl shrink-0"><FileIcon mimeType={file?.mimeType} /></span>
             <div className="min-w-0">

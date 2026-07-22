@@ -3,6 +3,7 @@ import type { DriveAccount } from '../types';
 import { QuotaBar } from './QuotaBar';
 import { formatFileSize, getDriveColor } from '../lib/utils';
 import { useState } from 'react';
+import { ConfirmDialog } from './ConfirmDialog';
 
 interface DriveAccountCardProps {
   drive: DriveAccount;
@@ -13,6 +14,8 @@ interface DriveAccountCardProps {
 
 export function DriveAccountCard({ drive, index, onSync, onDisconnect }: DriveAccountCardProps) {
   const [syncing, setSyncing] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
   const color = getDriveColor(index);
 
   const isSyncing = syncing || drive.syncStatus === 'syncing';
@@ -21,6 +24,25 @@ export function DriveAccountCard({ drive, index, onSync, onDisconnect }: DriveAc
     setSyncing(true);
     try { await onSync(drive.id); } finally { setSyncing(false); }
   };
+
+  const handleDisconnect = () => {
+    setConfirmOpen(true);
+  };
+
+  const confirmDisconnect = async () => {
+    setIsDisconnecting(true);
+    try { await onDisconnect(drive.id); } finally {
+      setIsDisconnecting(false);
+      setConfirmOpen(false);
+    }
+  };
+
+  const disconnectMessage =
+    `Disconnect ${drive.email}?` +
+    (drive.isPrimary
+      ? ' This is your primary drive — another connected drive will become primary if available.'
+      : '') +
+    ' Your files on Google Drive will not be deleted; only OmniDrive access and synced data will be removed.';
 
   return (
     <div className="bg-card border border-slate-200 rounded-2xl p-5 hover:shadow-sm transition-shadow">
@@ -73,17 +95,7 @@ export function DriveAccountCard({ drive, index, onSync, onDisconnect }: DriveAc
           </button>
           <button
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
-            onClick={() => {
-              const primaryNote = drive.isPrimary
-                ? ' This is your primary drive — another connected drive will become primary if available.'
-                : '';
-              const message =
-                `Disconnect ${drive.email}?${primaryNote} ` +
-                'Your files on Google Drive will not be deleted; only OmniDrive access and synced data will be removed.';
-              if (confirm(message)) {
-                void onDisconnect(drive.id);
-              }
-            }}
+            onClick={handleDisconnect}
           >
             <Trash2 size={12} />
             Disconnect
@@ -96,6 +108,18 @@ export function DriveAccountCard({ drive, index, onSync, onDisconnect }: DriveAc
         <span>{formatFileSize(drive.freeSpace)} free of {formatFileSize(drive.totalQuota)}</span>
         <span>{Math.min(drive.usagePercent, 100).toFixed(1)}%</span>
       </div>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Disconnect Drive"
+        message={disconnectMessage}
+        confirmText="Disconnect"
+        cancelText="Cancel"
+        variant="danger"
+        loading={isDisconnecting}
+        onConfirm={confirmDisconnect}
+        onClose={() => !isDisconnecting && setConfirmOpen(false)}
+      />
     </div>
   );
 }

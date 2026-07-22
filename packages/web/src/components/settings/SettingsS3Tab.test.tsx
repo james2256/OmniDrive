@@ -37,6 +37,18 @@ vi.mock('../ui/dialog', () => ({
   DialogDescription: ({ children }: any) => <p>{children}</p>,
 }));
 
+vi.mock('../ConfirmDialog', () => ({
+  ConfirmDialog: ({ open, onConfirm, onClose, title, message, confirmText, cancelText, loading }: any) =>
+    open ? (
+      <div data-testid="confirm-dialog">
+        <h2>{title}</h2>
+        <p>{message}</p>
+        <button data-testid="confirm-cancel" onClick={onClose} disabled={loading}>{cancelText}</button>
+        <button data-testid="confirm-ok" onClick={onConfirm} disabled={loading}>{confirmText}</button>
+      </div>
+    ) : null,
+}));
+
 describe('SettingsS3Tab', () => {
   const addToast = vi.fn();
 
@@ -144,13 +156,14 @@ describe('SettingsS3Tab', () => {
     ]);
     (api.deleteS3Credential as Mock).mockResolvedValue({ success: true });
 
-    // Mock window.confirm to auto-approve
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
-
     render(<SettingsS3Tab />);
 
     const trashBtn = await screen.findByTestId('trash-icon');
     fireEvent.click(trashBtn.closest('button')!);
+
+    // ConfirmDialog opens — click the confirm button
+    const confirmBtn = await screen.findByTestId('confirm-ok');
+    fireEvent.click(confirmBtn);
 
     await waitFor(() => {
       expect(api.deleteS3Credential).toHaveBeenCalledWith('k1');

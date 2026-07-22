@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { HardDrive, LoaderCircle } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from './ui/dialog';
 import { useDrives } from '../hooks/useDrives';
 import { useMoveFileToDrive } from '../hooks/useFileMutations';
 import type { FileEntry, DriveAccount } from '../types';
@@ -62,49 +62,51 @@ export function MoveDriveModal({ files, onClose, onSuccess }: MoveDriveModalProp
 
   return (
     <Dialog open={files.length > 0} onOpenChange={(open) => !open && !isMoving && onClose()}>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>Move to Another Drive</DialogTitle>
-          <DialogDescription>
+      <DialogContent className="max-w-md p-0 gap-0 rounded-2xl overflow-hidden flex flex-col">
+        <div className="flex flex-col p-5 border-b border-slate-200 shrink-0">
+          <DialogTitle className="text-lg font-semibold text-slate-800">Move to Another Drive</DialogTitle>
+          <DialogDescription className="text-sm text-slate-500 mt-1">
             Select a destination drive to move {files.length} item(s). This may take a moment depending on the file size.
           </DialogDescription>
-        </DialogHeader>
+        </div>
 
-        <div className="grid gap-4 py-4">
-          {availableDrives.length === 0 ? (
-            <p className="text-sm text-center text-muted-foreground py-4">
-              No other drives available. Please connect another Google Drive account.
-            </p>
-          ) : (
-            availableDrives.map(drive => (
-              <button
-                key={drive.id}
-                onClick={() => handleMove(drive)}
-                disabled={isMoving}
-                className={`flex items-center p-3 border rounded-lg transition-colors text-left ${
-                  isMoving && movingToDriveId !== drive.id 
-                    ? 'opacity-50 cursor-not-allowed' 
-                    : 'hover:bg-accent hover:text-accent-foreground'
-                } ${isMoving && movingToDriveId === drive.id ? 'ring-2 ring-primary border-primary bg-accent' : ''}`}
-              >
-                <div className="flex-shrink-0 mr-4">
-                  {isMoving && movingToDriveId === drive.id ? (
-                    <LoaderCircle className="w-5 h-5 text-primary animate-spin" />
-                  ) : (
-                    <HardDrive className="w-5 h-5 text-muted-foreground" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">
-                    {drive.email}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Free space: {formatFileSize(drive.freeSpace)}
-                  </p>
-                </div>
-              </button>
-            ))
-          )}
+        <div className="overflow-y-auto p-4 flex-1">
+          <div className="grid gap-3">
+            {availableDrives.length === 0 ? (
+              <p className="text-sm text-center text-slate-500 py-4">
+                No other drives available. Please connect another Google Drive account.
+              </p>
+            ) : (
+              availableDrives.map(drive => (
+                <button
+                  key={drive.id}
+                  onClick={() => handleMove(drive)}
+                  disabled={isMoving}
+                  className={`flex items-center p-3 border border-slate-200 rounded-lg transition-colors text-left ${
+                    isMoving && movingToDriveId !== drive.id
+                      ? 'opacity-50 cursor-not-allowed'
+                      : 'hover:bg-slate-50'
+                  } ${isMoving && movingToDriveId === drive.id ? 'ring-2 ring-blue-500 border-blue-500 bg-blue-50' : ''}`}
+                >
+                  <div className="flex-shrink-0 mr-3">
+                    {isMoving && movingToDriveId === drive.id ? (
+                      <LoaderCircle className="w-5 h-5 text-blue-500 animate-spin" />
+                    ) : (
+                      <HardDrive className="w-5 h-5 text-slate-400" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-800 truncate">
+                      {drive.email}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      Free space: {formatFileSize(drive.freeSpace)}
+                    </p>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>

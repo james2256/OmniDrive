@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../stores/useAuthStore';
+import { useToastStore } from '../stores/useToastStore';
 import { ShieldAlert, Plus, EllipsisVertical } from 'lucide-react';
 import type { AdminUser } from '../types';
 import { api } from '../lib/api';
@@ -93,6 +94,7 @@ const AddUserModal: React.FC<{ open: boolean, onClose: () => void, onSuccess: ()
 
 export const AdminUsersPage: React.FC = () => {
   const { user } = useAuthStore();
+  const { addToast } = useToastStore();
   const [activeTab, setActiveTab] = useState<'users' | 'invitations'>('users');
 
   // Users Tab State
@@ -105,25 +107,25 @@ export const AdminUsersPage: React.FC = () => {
   const [inviteCode, setInviteCode] = useState('');
   const [inviteMaxUses, setInviteMaxUses] = useState(1);
 
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     try {
       const res = await api.getAdminUsers();
       setUsers(res.users);
     } catch (e: unknown) {
-      alert((e instanceof Error ? e.message : 'Failed to load users'));
+      addToast('error', 'Failed to load users');
       console.error(e);
     }
-  };
+  }, [addToast]);
 
-  const loadInvitations = async () => {
+  const loadInvitations = useCallback(async () => {
     try {
       const res = await api.getInvitations();
       setInvitations(res.invitations);
     } catch (e: unknown) {
-      alert((e instanceof Error ? e.message : 'Failed to load invitations'));
+      addToast('error', 'Failed to load invitations');
       console.error(e);
     }
-  };
+  }, [addToast]);
 
   useEffect(() => {
     if (user?.role === 'super_admin') {
@@ -133,7 +135,7 @@ export const AdminUsersPage: React.FC = () => {
         loadInvitations();
       }
     }
-  }, [user, activeTab]);
+  }, [user, activeTab, loadUsers, loadInvitations]);
 
   if (user?.role !== 'super_admin') {
     return (
@@ -147,12 +149,12 @@ export const AdminUsersPage: React.FC = () => {
 
   // Users Actions
   const handleToggleStatus = (_id: string, _currentStatus: 'active' | 'blocked' | undefined) => {
-    alert('Feature coming soon');
+    addToast('info', 'Feature coming soon');
   };
 
   const confirmDeleteUser = () => {
     if (userToDelete) {
-      alert('Feature coming soon');
+      addToast('info', 'Feature coming soon');
       setUserToDelete(null);
     }
   };
@@ -166,7 +168,7 @@ export const AdminUsersPage: React.FC = () => {
       setInviteMaxUses(1);
       loadInvitations();
     } catch (e: unknown) {
-      alert((e instanceof Error ? e.message : 'An error occurred while creating invitation'));
+      addToast('error', e instanceof Error ? e.message : 'An error occurred while creating invitation');
       console.error(e);
     }
   };
@@ -176,7 +178,7 @@ export const AdminUsersPage: React.FC = () => {
       await api.deleteInvitation(id);
       loadInvitations();
     } catch (e: unknown) {
-      alert((e instanceof Error ? e.message : 'An error occurred while deleting invitation'));
+      addToast('error', e instanceof Error ? e.message : 'An error occurred while deleting invitation');
       console.error(e);
     }
   };

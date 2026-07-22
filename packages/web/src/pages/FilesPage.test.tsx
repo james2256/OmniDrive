@@ -88,6 +88,10 @@ vi.mock('../components/CreateFolderModal', () => ({
 
 vi.mock('../components/layout/BulkActionBar', () => ({ BulkActionBar: () => null }));
 
+vi.mock('../components/ConfirmDialog', () => ({
+  ConfirmDialog: () => null,
+}));
+
 vi.mock('lucide-react', () => ({
   Upload: () => <svg data-testid="upload-icon" />,
   FolderPlus: () => <svg data-testid="folder-plus-icon" />,

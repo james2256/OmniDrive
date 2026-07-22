@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import type { S3Credential } from '../../lib/api';
 import { useToastStore } from '../../stores/useToastStore';
 import { Plus, Trash2, Copy, Check, TriangleAlert, LoaderCircle } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '../ui/dialog';
+import { ConfirmDialog } from '../ConfirmDialog';
 import { api } from '../../lib/api';
 
 const parseSqliteDate = (dateVal: string | number) => {
@@ -34,6 +35,10 @@ export function SettingsS3Tab() {
   } | null>(null);
   const [copiedAccessKey, setCopiedAccessKey] = useState(false);
   const [copiedSecretKey, setCopiedSecretKey] = useState(false);
+
+  // Revoke-key confirmation dialog state
+  const [revokeTargetId, setRevokeTargetId] = useState<string | null>(null);
+  const [isRevoking, setIsRevoking] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoadingS3(true);
@@ -89,16 +94,22 @@ export function SettingsS3Tab() {
     }
   };
 
-  const handleRevokeKey = async (id: string) => {
-    if (!confirm('Are you sure you want to revoke this S3 API key? This action is permanent and any application using this key will lose access.')) {
-      return;
-    }
+  const handleRevokeKey = (id: string) => {
+    setRevokeTargetId(id);
+  };
+
+  const confirmRevokeKey = async () => {
+    if (!revokeTargetId) return;
+    setIsRevoking(true);
     try {
-      await api.deleteS3Credential(id);
+      await api.deleteS3Credential(revokeTargetId);
       addToast('success', 'S3 key revoked successfully');
+      setRevokeTargetId(null);
       loadData();
     } catch {
       addToast('error', 'Failed to revoke S3 key');
+    } finally {
+      setIsRevoking(false);
     }
   };
 
@@ -195,14 +206,14 @@ export function SettingsS3Tab() {
 
       {/* Create S3 Key Dialog */}
       <Dialog open={showCreateModal} onOpenChange={(open) => !open && !isCreatingKey && setShowCreateModal(false)}>
-        <DialogContent className="sm:max-w-[425px] rounded-2xl">
-          <DialogHeader>
+        <DialogContent className="max-w-md p-0 gap-0 rounded-2xl overflow-hidden flex flex-col">
+          <div className="flex flex-col p-5 border-b border-slate-200 shrink-0">
             <DialogTitle className="text-lg font-semibold text-slate-800">Generate S3 API Key</DialogTitle>
             <DialogDescription className="text-xs text-slate-500">
               Create credentials to access OmniDrive storage with S3 compatible applications.
             </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleCreateKey} className="space-y-4 pt-2">
+          </div>
+          <form onSubmit={handleCreateKey} className="space-y-4 p-5 overflow-y-auto">
             <div>
               <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
                 Description
@@ -259,11 +270,11 @@ export function SettingsS3Tab() {
       {/* Success Modal - Credentials Display */}
       <Dialog open={createdCredential !== null} onOpenChange={(open) => !open && setCreatedCredential(null)}>
         <DialogContent
-          className="sm:max-w-[480px] rounded-2xl"
+          className="sm:max-w-[480px] p-0 gap-0 rounded-2xl overflow-hidden flex flex-col"
           onPointerDownOutside={(e) => e.preventDefault()}
           onEscapeKeyDown={(e) => e.preventDefault()}
         >
-          <DialogHeader>
+          <div className="flex flex-col p-5 border-b border-slate-200 shrink-0">
             <DialogTitle className="text-lg font-semibold text-slate-800 flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block animate-ping" />
               S3 Key Created Successfully
@@ -271,10 +282,10 @@ export function SettingsS3Tab() {
             <DialogDescription className="text-xs text-slate-500">
               Save these credentials. For security, the secret key will never be shown again.
             </DialogDescription>
-          </DialogHeader>
+          </div>
 
           {createdCredential && (
-            <div className="space-y-4 pt-3">
+            <div className="space-y-4 p-5 overflow-y-auto">
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex gap-3">
                 <TriangleAlert className="text-amber-600 flex-shrink-0 mt-0.5" size={18} />
                 <div className="text-xs text-amber-800">
@@ -359,6 +370,18 @@ export function SettingsS3Tab() {
           )}
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={revokeTargetId !== null}
+        title="Revoke S3 API Key"
+        message="Are you sure you want to revoke this S3 API key? This action is permanent and any application using this key will lose access."
+        confirmText="Revoke Key"
+        cancelText="Cancel"
+        variant="danger"
+        loading={isRevoking}
+        onConfirm={confirmRevokeKey}
+        onClose={() => !isRevoking && setRevokeTargetId(null)}
+      />
     </>
   );
 }

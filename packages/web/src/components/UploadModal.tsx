@@ -56,7 +56,7 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
         className="max-w-md p-0 gap-0 rounded-2xl overflow-hidden flex flex-col max-h-full"
         onInteractOutside={(e) => { if (isUploading) e.preventDefault(); }}
       >
-        <div className="flex items-center p-5 border-b border-slate-100 shrink-0">
+        <div className="flex items-center p-5 border-b border-slate-200 shrink-0">
           <DialogTitle className="text-lg font-semibold text-slate-800">Upload Files</DialogTitle>
         </div>
 

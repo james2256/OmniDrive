@@ -7,6 +7,8 @@ import { Breadcrumb } from '../components/Breadcrumb';
 import { BulkActionBar } from '../components/layout/BulkActionBar';
 import { MoveModal } from '../components/MoveModal';
 import { ShareModal } from '../components/ShareModal';
+import { MoveDriveModal } from '../components/MoveDriveModal';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { api } from '../lib/api';
 import { useDrives } from '../hooks/useDrives';
 import type { FileEntry, DriveFolder, BreadcrumbItem, WorkspaceFolder } from '../types';
@@ -26,14 +28,17 @@ export function SharedWithMePage() {
 
   const { data: drivesData } = useDrives();
   const drives = useMemo(() => drivesData?.drives ?? [], [drivesData]);
-  const { selectedItems, clearSelection } = useSelectionStore();
+  const { selectedItems, clearSelection, toggleSelection } = useSelectionStore();
   const queryClient = useQueryClient();
-  const { viewMode, setViewMode, isInfoPanelOpen, toggleInfoPanel } = useUIStore();
+  const { viewMode, setViewMode, isInfoPanelOpen, toggleInfoPanel, setIsInfoPanelOpen } = useUIStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
   const [shareTarget, setShareTarget] = useState<{ id: string; type: 'file' | 'folder' } | null>(null);
   const [moveTarget, setMoveTarget] = useState<SelectedItem[]>([]);
+  const [moveDriveFiles, setMoveDriveFiles] = useState<FileEntry[]>([]);
+  const [confirmFileDelete, setConfirmFileDelete] = useState<string | null>(null);
+  const [confirmFolderDelete, setConfirmFolderDelete] = useState<{ driveId: string; folderId: string } | null>(null);
 
   const queryKey = folderId && driveIdParam
     ? qk.sharedWithMeFolder(driveIdParam, folderId)
@@ -84,15 +89,11 @@ export function SharedWithMePage() {
   const unstarFolderMut = useUnstarFolder();
 
   const handleDeleteFile = (id: string) => {
-    if (confirm('Delete this file permanently from Google Drive?')) {
-      deleteFileMut.mutate(id);
-    }
+    setConfirmFileDelete(id);
   };
 
   const handleDeleteFolder = (driveId: string, folderId: string) => {
-    if (confirm('Delete this folder and ALL its contents from Google Drive?')) {
-      deleteDriveFolderMut.mutate({ driveId, folderId });
-    }
+    setConfirmFolderDelete({ driveId, folderId });
   };
 
   const handleRenameFile = (id: string, name: string) => {
@@ -112,7 +113,9 @@ export function SharedWithMePage() {
   };
 
   const handleViewInfo = (item: FileEntry | DriveFolder | WorkspaceFolder, type: 'file' | 'folder') => {
-    console.warn('View info:', item, type);
+    clearSelection();
+    toggleSelection({ type, item } as SelectedItem);
+    setIsInfoPanelOpen(true);
   };
 
   const getDriveInfo = useCallback((driveAccountId?: string) => {
@@ -129,7 +132,7 @@ export function SharedWithMePage() {
         onMoveRequested={() => setMoveTarget(selectedItems)}
         onMoveDriveRequested={() => {
           const fileItems = selectedItems.filter(i => i.type === 'file').map(i => i.item as FileEntry);
-          console.warn('Move drive:', fileItems);
+          setMoveDriveFiles(fileItems);
         }}
       />
 
@@ -243,6 +246,44 @@ export function SharedWithMePage() {
           clearSelection();
           refresh();
         }}
+      />
+      <MoveDriveModal
+        files={moveDriveFiles}
+        onClose={() => setMoveDriveFiles([])}
+        onSuccess={() => {
+          setMoveDriveFiles([]);
+          clearSelection();
+          refresh();
+        }}
+      />
+
+      <ConfirmDialog
+        open={confirmFileDelete !== null}
+        title="Delete File"
+        message="Delete this file permanently from Google Drive?"
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        loading={deleteFileMut.isPending}
+        onConfirm={() => {
+          if (confirmFileDelete) deleteFileMut.mutate(confirmFileDelete);
+          setConfirmFileDelete(null);
+        }}
+        onClose={() => setConfirmFileDelete(null)}
+      />
+      <ConfirmDialog
+        open={confirmFolderDelete !== null}
+        title="Delete Folder"
+        message="Delete this folder and ALL its contents from Google Drive?"
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        loading={deleteDriveFolderMut.isPending}
+        onConfirm={() => {
+          if (confirmFolderDelete) deleteDriveFolderMut.mutate(confirmFolderDelete);
+          setConfirmFolderDelete(null);
+        }}
+        onClose={() => setConfirmFolderDelete(null)}
       />
     </div>
   );

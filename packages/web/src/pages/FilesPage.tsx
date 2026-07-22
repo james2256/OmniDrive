@@ -12,6 +12,7 @@ import { MoveDriveModal } from '../components/MoveDriveModal';
 import { MoveModal } from '../components/MoveModal';
 import { AddToWorkspaceModal } from '../components/workspaces/AddToWorkspaceModal';
 import { CreateFolderModal } from '../components/CreateFolderModal';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Upload, FolderPlus, X, LayoutGrid, List, Info } from 'lucide-react';
 import { useToastStore } from '../stores/useToastStore';
 import { useSharedLinks } from '../hooks/useSharedLinks';
@@ -85,17 +86,15 @@ export function FilesPage() {
   const { subfolders, files, breadcrumb, isLoading, errorDrives, refresh } = useMergedDrive(folderId, driveIdParam);
 
   const [moveTarget, setMoveTarget] = useState<SelectedItem[]>([]);
+  const [confirmFileDelete, setConfirmFileDelete] = useState<string | null>(null);
+  const [confirmFolderDelete, setConfirmFolderDelete] = useState<{ driveId: string; folderId: string } | null>(null);
 
   const handleDeleteFile = (id: string) => {
-    if (confirm('Delete this file permanently from Google Drive?')) {
-      deleteFileMut.mutate(id);
-    }
+    setConfirmFileDelete(id);
   };
 
   const handleDeleteFolder = (driveId: string, folderId: string) => {
-    if (confirm('Delete this folder and ALL its contents from Google Drive?')) {
-      deleteDriveFolderMut.mutate({ driveId, folderId });
-    }
+    setConfirmFolderDelete({ driveId, folderId });
   };
 
   const handleRenameFile = (id: string, name: string) => {
@@ -298,6 +297,35 @@ export function FilesPage() {
             addToast('success', 'Added to workspace');
             refresh();
           }}
+        />
+
+        <ConfirmDialog
+          open={confirmFileDelete !== null}
+          title="Delete File"
+          message="Delete this file permanently from Google Drive?"
+          confirmText="Delete"
+          cancelText="Cancel"
+          variant="danger"
+          loading={deleteFileMut.isPending}
+          onConfirm={() => {
+            if (confirmFileDelete) deleteFileMut.mutate(confirmFileDelete);
+            setConfirmFileDelete(null);
+          }}
+          onClose={() => setConfirmFileDelete(null)}
+        />
+        <ConfirmDialog
+          open={confirmFolderDelete !== null}
+          title="Delete Folder"
+          message="Delete this folder and ALL its contents from Google Drive?"
+          confirmText="Delete"
+          cancelText="Cancel"
+          variant="danger"
+          loading={deleteDriveFolderMut.isPending}
+          onConfirm={() => {
+            if (confirmFolderDelete) deleteDriveFolderMut.mutate(confirmFolderDelete);
+            setConfirmFolderDelete(null);
+          }}
+          onClose={() => setConfirmFolderDelete(null)}
         />
       </div>
     </DropZone>

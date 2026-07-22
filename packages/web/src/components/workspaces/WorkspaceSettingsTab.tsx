@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import type { WorkspacePolicy } from '../../types';
+import { ConfirmDialog } from '../ConfirmDialog';
 
 export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
   const [policies, setPolicies] = useState<WorkspacePolicy[]>([]);
   const [quotaInput, setQuotaInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // We need the workspace object for usedBytes, but since we only have workspaceId here,
   // we would ideally fetch the workspace details. For this MVP, we will just fetch policies.
@@ -37,13 +41,23 @@ export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
     }
   };
 
-  const handleDeletePolicy = async (id: string) => {
-    if (!confirm('Delete this policy?')) return;
+  const handleDeletePolicy = (id: string) => {
+    setDeleteTargetId(id);
+    setConfirmOpen(true);
+  };
+
+  const confirmDeletePolicy = async () => {
+    if (!deleteTargetId) return;
+    setIsDeleting(true);
     try {
-      await api.deleteWorkspacePolicy(workspaceId, id);
+      await api.deleteWorkspacePolicy(workspaceId, deleteTargetId);
       loadPolicies();
     } catch (e) {
       console.error(e);
+    } finally {
+      setIsDeleting(false);
+      setConfirmOpen(false);
+      setDeleteTargetId(null);
     }
   };
 
@@ -122,6 +136,18 @@ export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
           </tbody>
         </table>
       </section>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Delete Policy"
+        message="Delete this policy?"
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        loading={isDeleting}
+        onConfirm={confirmDeletePolicy}
+        onClose={() => !isDeleting && setConfirmOpen(false)}
+      />
     </div>
   );
 }
