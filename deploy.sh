@@ -13,8 +13,8 @@ if [ ! -f "package.json" ] || ! grep -q '"name": "omnidrive"' package.json; then
         cd omnidrive
     else
         echo "Omnidrive repository not found in current directory."
-        echo "Cloning https://github.com/abilfida/omnidrive.git..."
-        git clone https://github.com/abilfida/omnidrive.git
+        echo "Cloning https://github.com/james2256/OmniDrive.git..."
+        git clone https://github.com/james2256/OmniDrive.git
         cd omnidrive
     fi
 fi

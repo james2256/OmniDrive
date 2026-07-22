@@ -1,6 +1,6 @@
 # AGENTS.md — AI Agent Guide
 
-This document explains how to work in the **OmniDrive** repo (forked from [`abilfida/OmniDrive`](https://github.com/abilfida/OmniDrive)).
+This document explains how to work in the **OmniDrive** repo (forked from james2256/OmniDrive(https://github.com/james2256/OmniDrive)).
 
 ## Safety Rules — MUST FOLLOW
 
@@ -21,9 +21,9 @@ Reason: deploy and dev servers affect the maintainer's production/local environm
 |------|-------|
 | Name | OmniDrive |
 | Version | `0.9.7` (see `package.json`) |
-| License | MIT — preserve `abilfida` copyright in `LICENSE` |
+| License | MIT — preserve copyright in `LICENSE` |
 | Maintainer | `asmaraputra` |
-| Upstream | `abilfida/OmniDrive` (optional, `git fetch upstream`) |
+| Upstream | `james2256/OmniDrive` (optional, `git fetch upstream`) |
 | Stack | Hono + Cloudflare Workers, D1, KV, React 19, Vite, Zustand |
 
 **OmniDrive** is a multi-Google Drive storage gateway with team workspaces, shared links, automations, and an S3-compatible API.
@@ -235,7 +235,7 @@ git merge upstream/main
 ```
 
 - **origin** → `asmaraputra/OmniDrive` (push here)
-- **upstream** → `abilfida/OmniDrive` (fetch only)
+- **upstream** → `james2256/OmniDrive` (fetch only)
 
 ## Sensitive Areas — Be Careful When Changing
 

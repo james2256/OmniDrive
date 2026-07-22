@@ -1,8 +1,9 @@
 import { useState, useCallback, useMemo } from 'react';
-import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronRight } from 'lucide-react';
+import { List, LayoutGrid, Info, X } from 'lucide-react';
 import { FileGrid } from '../components/files/FileGrid';
+import { Breadcrumb } from '../components/Breadcrumb';
 import { BulkActionBar } from '../components/layout/BulkActionBar';
 import { MoveModal } from '../components/MoveModal';
 import { ShareModal } from '../components/ShareModal';
@@ -12,6 +13,7 @@ import type { FileEntry, DriveFolder, BreadcrumbItem, WorkspaceFolder } from '..
 import { qk } from '../lib/queryKeys';
 import type { SelectedItem } from '../stores/useSelectionStore';
 import { useSelectionStore } from '../stores/useSelectionStore';
+import { useUIStore } from '../stores/useUIStore';
 import { FilePreviewModal } from '../components/FilePreviewModal';
 import { useDeleteFile, useRenameFile, useStarFile, useUnstarFile } from '../hooks/useFileMutations';
 import { useDeleteDriveFolder, useRenameDriveFolder, useStarFolder, useUnstarFolder } from '../hooks/useFolderMutations';
@@ -26,7 +28,9 @@ export function SharedWithMePage() {
   const drives = useMemo(() => drivesData?.drives ?? [], [drivesData]);
   const { selectedItems, clearSelection } = useSelectionStore();
   const queryClient = useQueryClient();
+  const { viewMode, setViewMode, isInfoPanelOpen, toggleInfoPanel } = useUIStore();
 
+  const [searchQuery, setSearchQuery] = useState('');
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
   const [shareTarget, setShareTarget] = useState<{ id: string; type: 'file' | 'folder' } | null>(null);
   const [moveTarget, setMoveTarget] = useState<SelectedItem[]>([]);
@@ -62,6 +66,9 @@ export function SharedWithMePage() {
   const subfolders: DriveFolder[] = data?.subfolders ?? [];
   const files: FileEntry[] = data?.files ?? [];
   const breadcrumb: BreadcrumbItem[] = data?.breadcrumb ?? [{ id: 'root', name: 'Shared with me' }];
+
+  const filteredSubfolders = subfolders.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredFiles = files.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
   const refresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: qk.sharedWithMe });
@@ -127,34 +134,74 @@ export function SharedWithMePage() {
       />
 
       <div className="p-4 sm:p-6 space-y-6">
-        {/* Breadcrumb */}
-        <nav className="flex items-center gap-1 text-sm text-slate-600">
-          {breadcrumb.map((item, i) => (
-            <span key={item.id ?? `fallback-${i}`} className="flex items-center gap-1">
-              {i > 0 && <ChevronRight size={14} className="text-slate-500" />}
-              {i < breadcrumb.length - 1 ? (
-                <Link to="/shared-with-me" className="hover:text-slate-900 hover:underline">
-                  {item.name}
-                </Link>
-              ) : (
-                <span className="font-medium text-slate-800">{item.name}</span>
+        {/* Toolbar */}
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-3 px-4 pt-4">
+          <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden order-2 md:order-1">
+            <Breadcrumb items={breadcrumb} driveId={driveIdParam || undefined} />
+          </div>
+
+          <div className="flex gap-2 items-center flex-wrap order-1 md:order-2">
+            <div className="relative w-32 sm:w-48">
+              <input
+                type="text"
+                placeholder="Filter..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-3 pr-8 py-2 text-sm border border-slate-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-600 p-1"
+                  onClick={() => setSearchQuery('')}
+                  aria-label="Clear filter"
+                >
+                  <X size={14} />
+                </button>
               )}
-            </span>
-          ))}
-        </nav>
+            </div>
+
+            <div className="flex items-center border border-slate-400 rounded-md overflow-hidden bg-card mr-1">
+              <button
+                onClick={() => setViewMode('list')}
+                className={`p-2 ${viewMode === 'list' ? 'bg-blue-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50'}`}
+                title="List layout"
+                aria-label="List layout"
+              >
+                <List size={18} />
+              </button>
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`p-2 ${viewMode === 'grid' ? 'bg-blue-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50'}`}
+                title="Grid layout"
+                aria-label="Grid layout"
+              >
+                <LayoutGrid size={18} />
+              </button>
+            </div>
+
+            <button
+              onClick={toggleInfoPanel}
+              className={`p-2 rounded-full mr-1 ${isInfoPanelOpen ? 'bg-blue-100 text-slate-900' : 'text-slate-600 hover:bg-slate-100'}`}
+              title="View details"
+              aria-label="View details"
+            >
+              <Info size={20} />
+            </button>
+          </div>
+        </div>
 
         {isLoading ? (
           <div className="flex justify-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
           </div>
-        ) : subfolders.length > 0 || files.length > 0 ? (
+        ) : filteredSubfolders.length > 0 || filteredFiles.length > 0 ? (
           <div className="bg-card rounded-xl border border-slate-200 overflow-hidden">
             <FileGrid
-              files={files}
-              subfolders={subfolders}
+              files={filteredFiles}
+              subfolders={filteredSubfolders}
               getDriveInfo={getDriveInfo}
               isTargetShared={() => false}
-              viewMode="list"
               actions={{
                 onNavigateFolder: (id, driveId) => navigate(`/shared-with-me/${id}?driveId=${driveId}`),
                 onPreviewFile: setPreviewFile,

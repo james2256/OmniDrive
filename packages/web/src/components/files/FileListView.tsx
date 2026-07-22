@@ -73,11 +73,11 @@ export function FileListView(props: FileListViewProps) {
   return (
     <div className="w-full">
       {/* Table header */}
-      <div className={`grid ${listGridClass} gap-0 border-b border-slate-100 px-4 py-2 text-xs font-medium text-slate-500 uppercase tracking-wide group`}>
+      <div className={`grid ${listGridClass} gap-0 bg-surface border-b-2 border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-600 uppercase tracking-wide sticky top-0 z-10 group`}>
         <div className="w-[72px] flex items-center pl-3">
           <input
             type="checkbox"
-            className={`w-4 h-4 cursor-pointer ${hasSelection ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 transition-opacity'}`}
+            className={`w-4 h-4 cursor-pointer ${hasSelection ? 'opacity-100' : 'opacity-30 group-hover:opacity-100 transition-opacity'}`}
             checked={selectedItems.length > 0 && selectedItems.length === sortedSubfolders.length + sortedFiles.length}
             onChange={(e) => {
               if (e.target.checked) {
@@ -113,7 +113,7 @@ export function FileListView(props: FileListViewProps) {
               onDoubleClick={() => interactions.handleFolderDoubleClick(folder)}
               onMouseEnter={() => interactions.handleFolderHover(folder)}
               onMouseLeave={interactions.handleHoverEnd}
-              className={`grid ${listGridClass} gap-0 items-center px-4 py-2.5 cursor-pointer transition-colors border-b border-slate-50 group ${
+              className={`grid ${listGridClass} gap-0 items-center px-4 py-2.5 cursor-pointer transition-colors border-b border-slate-200 group ${
                 isSelected
                   ? 'bg-blue-100 hover:bg-blue-200'
                   : hasError
@@ -124,7 +124,7 @@ export function FileListView(props: FileListViewProps) {
               <div className="w-[72px] flex items-center gap-2 pl-3">
                 <input
                   type="checkbox"
-                  className={`w-4 h-4 cursor-pointer flex-shrink-0 ${hasSelection ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 transition-opacity'}`}
+                  className={`w-4 h-4 cursor-pointer flex-shrink-0 ${hasSelection ? 'opacity-100' : 'opacity-30 group-hover:opacity-100 transition-opacity'}`}
                   checked={isSelected}
                   readOnly
                   onClick={(e) => {
@@ -167,14 +167,14 @@ export function FileListView(props: FileListViewProps) {
               onDoubleClick={() => interactions.handleFileDoubleClick(file)}
               onMouseEnter={() => interactions.handleFileHover(file)}
               onMouseLeave={interactions.handleHoverEnd}
-              className={`grid ${listGridClass} gap-0 items-center px-4 py-2.5 cursor-pointer transition-colors border-b border-slate-50 group ${
+              className={`grid ${listGridClass} gap-0 items-center px-4 py-2.5 cursor-pointer transition-colors border-b border-slate-200 group ${
                 isSelected ? 'bg-blue-100 hover:bg-blue-200' : 'hover:bg-slate-50'
               }`}
             >
               <div className="w-[72px] flex items-center gap-2 pl-3">
                 <input
                   type="checkbox"
-                  className={`w-4 h-4 cursor-pointer flex-shrink-0 ${hasSelection ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 transition-opacity'}`}
+                  className={`w-4 h-4 cursor-pointer flex-shrink-0 ${hasSelection ? 'opacity-100' : 'opacity-30 group-hover:opacity-100 transition-opacity'}`}
                   checked={isSelected}
                   readOnly
                   onClick={(e) => {

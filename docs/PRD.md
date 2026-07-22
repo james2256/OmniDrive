@@ -3,7 +3,7 @@
 **Project:** OmniDrive
 **Version:** 0.9.7
 **Status:** Active development
-**Owner:** abilfida
+**Owner:** james2256
 **License:** MIT
 **Last updated:** 2026-06-25
 
@@ -477,7 +477,7 @@ Endpoint: `https://<worker-url>/s3`. Auth: AWS Signature V4 (`s3-auth` middlewar
 | **Cron: `*/30 * * * *`** | A single 30-minute cron handles sync, automation, audit cleanup, retention, and S3 lifecycle. All background work must fit within this single trigger. |
 | **File bytes never touch D1** | Files live in Google Drive. D1 stores only metadata. The Worker streams bytes between browser and Google Drive via `duplex: 'half'` (no buffering). |
 | **Language: TypeScript 6 strict** | All packages share `tsconfig.base.json` strict settings. No `any` outside explicit `// ponytail:` exceptions. |
-| **License: MIT** | Permissive; fork-friendly. The repo has `origin` (asmaraputra/OmniDrive) and `upstream` (abilfida/OmniDrive) remotes. |
+| **License: MIT** | Permissive; fork-friendly. The repo has `origin` (asmaraputra/OmniDrive) and `upstream` (james2256/OmniDrive) remotes. |
 
 ### 7.1 Environment Variables (`packages/worker/src/types/env.ts`)
 

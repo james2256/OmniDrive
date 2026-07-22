@@ -135,7 +135,7 @@ Before running the deployment wizard, ensure you have a Google OAuth App configu
 OmniDrive includes a fully automated deployment wizard that configures your environment, sets up databases, and starts the application for you. You can run it directly via remote script:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/abilfida/omnidrive/main/deploy.sh | bash
+curl -fsSL https://raw.githubusercontent.com/james2256/OmniDrive/main/deploy.sh | bash
 ```
 
 *(This script will automatically clone the repository if it's not present in the current directory).*

@@ -4,10 +4,10 @@
   "description": "Unified multi-Google Drive storage gateway built on Cloudflare Workers",
   "private": true,
   "license": "MIT",
-  "author": "abilfida",
+  "author": "james2256",
   "repository": {
     "type": "git",
-    "url": "https://github.com/abilfida/omnidrive.git"
+    "url": "https://github.com/james2256/OmniDrive.git"
   },
   "workspaces": [
     "packages/worker",

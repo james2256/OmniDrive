@@ -64,7 +64,7 @@ The dev environment runs two processes concurrently via `concurrently`:
 ### 2.1 Clone & install
 
 ```bash
-git clone https://github.com/abilfida/omnidrive.git
+git clone https://github.com/james2256/OmniDrive.git
 cd omnidrive
 npm install
 ```
@@ -140,7 +140,7 @@ Two options:
 
 ```bash
 # Option A — interactive wizard (recommended first time)
-curl -fsSL https://raw.githubusercontent.com/abilfida/omnidrive/main/deploy.sh | bash
+curl -fsSL https://raw.githubusercontent.com/james2256/OmniDrive/main/deploy.sh | bash
 # then choose "💻 Local Development"
 
 # Option B — manual
@@ -190,14 +190,14 @@ required.
 ### 3.2 Quick start via the deploy wizard
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/abilfida/omnidrive/main/deploy.sh | bash
+curl -fsSL https://raw.githubusercontent.com/james2256/OmniDrive/main/deploy.sh | bash
 # Choose "🐳 Docker Compose (Self-hosted)"
 ```
 
 The wizard (in `scripts/onboard-deploy.mjs:105-168`):
 
 1. Verifies Docker is installed and running.
-2. Asks whether to use the prebuilt image (`ghcr.io/abilfida/omnidrive-unified:latest`) or build from source.
+2. Asks whether to use the prebuilt image (`ghcr.io/james2256/OmniDrive-unified:latest`) or build from source.
 3. Prompts for port, `FRONTEND_URL`, `WORKER_URL`, and (optional) Google OAuth credentials.
 4. Generates `JWT_SECRET` and `TOKEN_ENCRYPTION_KEY` (32-char hex).
 5. Writes `.env`, then runs `docker compose up -d` (or `--build` for source).
@@ -289,7 +289,7 @@ Production runs OmniDrive across four Cloudflare primitives:
 ### 4.1 One-shot deploy via the wizard
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/abilfida/omnidrive/main/deploy.sh | bash
+curl -fsSL https://raw.githubusercontent.com/james2256/OmniDrive/main/deploy.sh | bash
 # Choose "☁️ Cloudflare (Production)"
 ```
 

@@ -437,6 +437,6 @@ Integration suites cover: `repositories.test.ts` (every repository), `shared-lin
 | Remote | Repo | Data direction |
 |--------|------|----------------|
 | `origin` | `asmaraputra/OmniDrive` | Push development |
-| `upstream` | `abilfida/OmniDrive` | Fetch updates (optional) |
+| `upstream` | `james2256/OmniDrive` | Fetch updates (optional) |
 
 The MIT license permits independent modification. See `docs/AGENTS.md` for the development workflow.

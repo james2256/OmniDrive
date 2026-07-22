@@ -1,6 +1,6 @@
 services:
   omnidrive:
-    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-abilfida}/omnidrive-unified:${APP_VERSION:-latest}
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-james2256}/omnidrive-unified:${APP_VERSION:-latest}
     build:
       context: .
       dockerfile: Dockerfile.unified
