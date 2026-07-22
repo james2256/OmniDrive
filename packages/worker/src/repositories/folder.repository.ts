@@ -33,6 +33,17 @@ export class FolderRepository {
     ).bind(userId, folderId).first<{ id: string; workspace_id: string }>();
   }
 
+  /** Search workspace folders by name (for global search). */
+  searchFolders(userId: string, query: string, limit = 20) {
+    return this.db.prepare(
+      `SELECT f.*, w.name as workspaceName FROM workspace_folders f
+       JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ?
+       JOIN workspaces w ON f.workspace_id = w.id
+       WHERE f.name LIKE ?
+       ORDER BY f.updated_at DESC LIMIT ?`
+    ).bind(userId, `%${query}%`, limit).all();
+  }
+
   /** Find a folder by ID + user membership, with workspace name. */
   findByIdWithWorkspace(folderId: string, userId: string) {
     return this.db.prepare(

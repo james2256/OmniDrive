@@ -94,7 +94,7 @@ export function DriveAccountCard({ drive, index, onSync, onDisconnect }: DriveAc
       <QuotaBar used={drive.usedQuota} total={drive.totalQuota} color={color} showLabel={false} />
       <div className="flex justify-between mt-2 text-xs text-stone-400">
         <span>{formatFileSize(drive.freeSpace)} free of {formatFileSize(drive.totalQuota)}</span>
-        <span>{drive.usagePercent}%</span>
+        <span>{Math.min(drive.usagePercent, 100).toFixed(1)}%</span>
       </div>
     </div>
   );

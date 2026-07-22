@@ -39,3 +39,13 @@ git_show.txt
 # Local D1/SQLite artifacts
 *.sqlite
 packages/worker/data/
+
+# Sandbox infrastructure (not part of OmniDrive repo)
+.zscripts/
+skills/
+examples/
+download/
+upload/
+tool-results/
+mini-services/
+dev.log

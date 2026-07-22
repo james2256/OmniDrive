@@ -358,7 +358,7 @@ export function DashboardPage() {
                   <QuotaBar used={drive.usedQuota} total={drive.totalQuota} color={getDriveColor(i)} showLabel={false} />
                   <div className="flex justify-between mt-2 text-xs text-stone-400">
                     <span>{formatFileSize(drive.usedQuota)} used</span>
-                    <span>{drive.usagePercent}%</span>
+                    <span>{Math.min(drive.usagePercent, 100).toFixed(1)}%</span>
                   </div>
                 </div>
               ))}

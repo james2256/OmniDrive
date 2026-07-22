@@ -1,6 +1,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import { FileRepository } from '../repositories/file.repository';
 import { FolderRepository } from '../repositories/folder.repository';
+import { DriveRepository } from '../repositories/drive.repository';
 import { GoogleDriveService } from './google-drive';
 import { PolicyService } from './policy.service';
 import { getWorkspaceRole, hasPermission } from '../middleware/rbac';
@@ -21,6 +22,7 @@ import type { FileRow } from '../types';
 export class FileService {
   private fileRepo: FileRepository;
   private folderRepo: FolderRepository;
+  private driveRepo: DriveRepository;
   private driveService: GoogleDriveService;
   private policyService: PolicyService;
 
@@ -32,6 +34,7 @@ export class FileService {
   ) {
     this.fileRepo = new FileRepository(db);
     this.folderRepo = new FolderRepository(db);
+    this.driveRepo = new DriveRepository(db);
     this.driveService = new GoogleDriveService(db, clientId, clientSecret, encryptionKey);
     this.policyService = new PolicyService(db);
   }
@@ -299,7 +302,7 @@ export class FileService {
     return overview;
   }
 
-  /** Search files by name, workspace, and metadata. */
+  /** Search files + folders by name, workspace, and metadata. */
   async searchFiles(userId: string, query: string | null, workspaceId: string | null, metadataRaw: string | null) {
     let metadata: Record<string, string> | null = null;
     if (metadataRaw) {
@@ -310,11 +313,30 @@ export class FileService {
       }
     }
 
-    const { results } = await this.fileRepo.searchFiles(userId, query, workspaceId, metadata);
+    const { results: fileRows } = await this.fileRepo.searchFiles(userId, query, workspaceId, metadata);
+
+    // Folders are only searched when there's a text query — metadata-only
+    // search doesn't apply to folders.
+    const trimmedQuery = query?.trim() ?? '';
+    let folderRows: Record<string, unknown>[] = [];
+    let driveFolderRows: Record<string, unknown>[] = [];
+
+    if (trimmedQuery) {
+      const folderResult = await this.folderRepo.searchFolders(userId, trimmedQuery);
+      folderRows = folderResult.results as Record<string, unknown>[];
+
+      const driveFolderResult = await this.driveRepo.searchFolders(userId, trimmedQuery);
+      driveFolderRows = driveFolderResult.results as Record<string, unknown>[];
+    }
 
     return {
-      files: results.map((r: Record<string, unknown>) => ({
+      files: fileRows.map((r: Record<string, unknown>) => ({
         ...mapFileRow(r),
+        driveEmail: r.driveEmail,
+      })),
+      folders: folderRows.map(mapFolderRow),
+      driveFolders: driveFolderRows.map((r: Record<string, unknown>) => ({
+        ...mapDriveFolderRow(r),
         driveEmail: r.driveEmail,
       })),
       query: query || '',

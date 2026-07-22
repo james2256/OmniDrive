@@ -175,6 +175,16 @@ export class DriveRepository {
     ).bind(userId, '__shared__').all();
   }
 
+  /** Search drive folders by name (for global search). */
+  searchFolders(userId: string, query: string, limit = 20) {
+    return this.db.prepare(
+      `SELECT df.*, d.email as driveEmail FROM drive_folders df
+       JOIN drive_accounts d ON df.drive_account_id = d.id
+       WHERE d.user_id = ? AND df.is_trashed = 0 AND df.name LIKE ?
+       ORDER BY df.name ASC LIMIT ?`
+    ).bind(userId, `%${query}%`, limit).all();
+  }
+
   // ─── item ownership + parent update (for move within drive) ───
 
   /** Check item ownership (drive_folders or files table). */

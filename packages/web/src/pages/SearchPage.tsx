@@ -32,15 +32,20 @@ export function SearchPage() {
     [sharedLinks],
   );
 
-  const { data: results = [], isLoading } = useQuery({
+  const { data: searchResults, isLoading } = useQuery({
     queryKey: qk.search(query),
     queryFn: async () => {
-      if (!query) return [];
-      const data = await api.searchFiles(query);
-      return data.files;
+      if (!query) return null;
+      return api.searchFiles(query);
     },
     enabled: !!query,
   });
+
+  const fileResults = searchResults?.files ?? [];
+  const folderResults = [
+    ...(searchResults?.driveFolders ?? []),
+    ...(searchResults?.folders ?? []),
+  ];
 
   const handleToggleStar = useCallback(
     (id: string, type: 'file' | 'folder', currentStarStatus: boolean) => {
@@ -92,11 +97,11 @@ export function SearchPage() {
         <div className="flex justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
         </div>
-      ) : results.length > 0 ? (
+      ) : fileResults.length > 0 || folderResults.length > 0 ? (
         <div className="bg-card rounded-xl border border-stone-200 overflow-hidden">
           <FileGrid
-            files={results}
-            subfolders={[]}
+            files={fileResults}
+            subfolders={folderResults}
             getDriveInfo={getDriveInfo}
             isTargetShared={isTargetShared}
             viewMode="list"
@@ -110,7 +115,7 @@ export function SearchPage() {
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-20 text-stone-500">
-          <p className="text-lg">No files found matching '{query}'.</p>
+          <p className="text-lg">No results found matching '{query}'.</p>
         </div>
       )}
 

@@ -7,6 +7,14 @@ interface AdminCreateUserPayload { username: string; password: string; name?: st
 export interface S3Credential { id: string; description: string | null; access_key_id: string; accessKeyId: string; workspace_id: string | null; workspaceId: string | null; workspace_name?: string | null; workspaceName?: string | null; created_at: string; createdAt: string; }
 interface LoginPayload { username: string; password: string; }
 
+/** Search results from GET /api/files/search — files + workspace folders + drive folders. */
+export interface SearchResults {
+  files: FileEntry[];
+  folders: WorkspaceFolder[];
+  driveFolders: DriveFolder[];
+  query: string;
+}
+
 export function getFilePreviewUrl(fileId: string): string {
   return `${API_BASE}/api/files/${fileId}/preview`;
 }
@@ -121,7 +129,7 @@ export const api = {
   // Files
   getFile: (id: string) => request<FileEntry>(`/api/files/${id}`),
   searchFiles: (query: string) =>
-    request<{ files: FileEntry[]; query: string }>(`/api/files/search?q=${encodeURIComponent(query)}`),
+    request<SearchResults>(`/api/files/search?q=${encodeURIComponent(query)}`),
   initiateUpload: (data: { name: string; mimeType: string; size: number; driveAccountId?: string; parentFolderId?: string }) =>
     request<UploadInitResponse>('/api/files/upload/init', {
       method: 'POST',
@@ -275,7 +283,7 @@ export const api = {
     if (query) params.set('q', query);
     if (workspaceId) params.set('workspaceId', workspaceId);
     if (metadata && Object.keys(metadata).length > 0) params.set('metadata', JSON.stringify(metadata));
-    return request<{ files: FileEntry[], query: string }>(`/api/files/search?${params.toString()}`);
+    return request<SearchResults>(`/api/files/search?${params.toString()}`);
   },
 
   // Workspaces & S3 Credentials
