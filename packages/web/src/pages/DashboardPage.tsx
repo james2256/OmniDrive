@@ -209,9 +209,9 @@ export function DashboardPage() {
       {/* Bento grid — 4 cols desktop. Cell count = content count, no empty cells. */}
       {hasDrives && (
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 auto-rows-[minmax(150px,auto)]">
-          {/* Storage hero — col-span-2 row-span-2 */}
+          {/* Storage hero — col-span-2 */}
           <article
-            className="lg:col-span-2 lg:row-span-2 bg-card border border-stone-200 rounded-2xl p-6 flex flex-col justify-between bento-reveal"
+            className="lg:col-span-2 bg-card border border-stone-200 rounded-2xl p-6 flex flex-col justify-between bento-reveal"
             style={{ animationDelay: '60ms' }}
           >
             <div className="flex items-center justify-between">
@@ -236,10 +236,34 @@ export function DashboardPage() {
             </div>
           </article>
 
-          {/* Category donut — col-span-2. Real visual (Recharts). */}
+          {/* Quick links — col-span-2 row-span-2, fills right side of hero. */}
+          <article
+            className="lg:col-span-2 lg:row-span-2 bg-surface border border-stone-200/70 rounded-2xl p-5 bento-reveal"
+            style={{ animationDelay: '120ms' }}
+          >
+            <span className="text-sm font-medium text-stone-500 mb-3 block">Quick access</span>
+            <div className="grid grid-cols-2 gap-2.5">
+              {quickLinks.map(({ to, label, Icon, hint }) => (
+                <button
+                  key={to}
+                  onClick={() => navigate(to)}
+                  className="group bg-card border border-stone-200 rounded-xl p-3 text-left hover:border-primary/40 hover:-translate-y-[1px] hover:shadow-sm transition-all"
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <Icon size={18} className="text-stone-500 group-hover:text-primary transition-colors" />
+                    <ArrowRight size={14} className="text-stone-300 group-hover:text-primary transition-colors" />
+                  </div>
+                  <div className="text-sm font-medium text-stone-800">{label}</div>
+                  <div className="text-xs text-stone-400 mt-0.5 truncate">{hint}</div>
+                </button>
+              ))}
+            </div>
+          </article>
+
+          {/* Category donut — col-span-2, below hero. */}
           <article
             className="lg:col-span-2 bg-card border border-stone-200 rounded-2xl p-5 flex flex-col bento-reveal"
-            style={{ animationDelay: '120ms' }}
+            style={{ animationDelay: '180ms' }}
           >
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm font-medium text-stone-500">By type</span>
@@ -302,30 +326,6 @@ export function DashboardPage() {
                 </ul>
               </div>
             )}
-          </article>
-
-          {/* Quick links — col-span-2, tinted bg-surface for background diversity. */}
-          <article
-            className="lg:col-span-2 bg-surface border border-stone-200/70 rounded-2xl p-5 bento-reveal"
-            style={{ animationDelay: '180ms' }}
-          >
-            <span className="text-sm font-medium text-stone-500 mb-3 block">Quick access</span>
-            <div className="grid grid-cols-2 gap-2.5">
-              {quickLinks.map(({ to, label, Icon, hint }) => (
-                <button
-                  key={to}
-                  onClick={() => navigate(to)}
-                  className="group bg-card border border-stone-200 rounded-xl p-3 text-left hover:border-primary/40 hover:-translate-y-[1px] hover:shadow-sm transition-all"
-                >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <Icon size={18} className="text-stone-500 group-hover:text-primary transition-colors" />
-                    <ArrowRight size={14} className="text-stone-300 group-hover:text-primary transition-colors" />
-                  </div>
-                  <div className="text-sm font-medium text-stone-800">{label}</div>
-                  <div className="text-xs text-stone-400 mt-0.5 truncate">{hint}</div>
-                </button>
-              ))}
-            </div>
           </article>
 
           {/* Connected drives — col-span-4 full width. */}
