@@ -5,10 +5,10 @@ export function PrivacyPolicyPage() {
 
   return (
     <PublicPageLayout title="Privacy Policy">
-      <p className="text-sm text-stone-600">Effective date: {effectiveDate}</p>
+      <p className="text-sm text-slate-600">Effective date: {effectiveDate}</p>
 
       <section className="space-y-4">
-        <h2 className="text-xl font-semibold text-stone-900">1. Introduction</h2>
+        <h2 className="text-xl font-semibold text-slate-900">1. Introduction</h2>
         <p>
           OmniDrive (&quot;we&quot;, &quot;our&quot;, or &quot;the Service&quot;) is a unified
           multi-Google Drive storage gateway operated at{' '}
@@ -21,13 +21,13 @@ export function PrivacyPolicyPage() {
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-xl font-semibold text-stone-900">2. Information We Collect</h2>
-        <h3 className="font-medium text-stone-900">2.1 Account information</h3>
+        <h2 className="text-xl font-semibold text-slate-900">2. Information We Collect</h2>
+        <h3 className="font-medium text-slate-900">2.1 Account information</h3>
         <p>
           When you register, we store your username, display name, optional email address, and a
           hashed password for authentication.
         </p>
-        <h3 className="font-medium text-stone-900">2.2 Google user data</h3>
+        <h3 className="font-medium text-slate-900">2.2 Google user data</h3>
         <p>
           When you connect a Google Drive account via OAuth, we access Google user data as permitted
           by the scopes you authorize, including:
@@ -42,7 +42,7 @@ export function PrivacyPolicyPage() {
           We store OAuth refresh and access tokens encrypted at rest (AES-256-GCM) to maintain your
           connected drives. We do not store your Google account password.
         </p>
-        <h3 className="font-medium text-stone-900">2.3 Usage data</h3>
+        <h3 className="font-medium text-slate-900">2.3 Usage data</h3>
         <p>
           We may log technical information such as IP addresses, request timestamps, and error logs
           for security, rate limiting, and service reliability.
@@ -50,7 +50,7 @@ export function PrivacyPolicyPage() {
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-xl font-semibold text-stone-900">3. How We Use Your Information</h2>
+        <h2 className="text-xl font-semibold text-slate-900">3. How We Use Your Information</h2>
         <p>We use collected information solely to:</p>
         <ul className="list-disc space-y-1 pl-6">
           <li>Authenticate you and maintain your session</li>
@@ -63,7 +63,7 @@ export function PrivacyPolicyPage() {
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-xl font-semibold text-stone-900">
+        <h2 className="text-xl font-semibold text-slate-900">
           4. Google API Services User Data Policy
         </h2>
         <p>
@@ -101,7 +101,7 @@ export function PrivacyPolicyPage() {
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-xl font-semibold text-stone-900">5. Data Storage and Security</h2>
+        <h2 className="text-xl font-semibold text-slate-900">5. Data Storage and Security</h2>
         <p>
           Data is stored on Cloudflare&apos;s edge infrastructure (D1 database and KV store).
           OAuth tokens are encrypted before storage. We use HTTPS for all communications, CSRF
@@ -110,7 +110,7 @@ export function PrivacyPolicyPage() {
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-xl font-semibold text-stone-900">6. Data Retention and Deletion</h2>
+        <h2 className="text-xl font-semibold text-slate-900">6. Data Retention and Deletion</h2>
         <p>
           We retain your account data and synced file metadata while your account is active.
           When you disconnect a Google Drive account, we delete the associated OAuth tokens.
@@ -120,7 +120,7 @@ export function PrivacyPolicyPage() {
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-xl font-semibold text-stone-900">7. Your Rights</h2>
+        <h2 className="text-xl font-semibold text-slate-900">7. Your Rights</h2>
         <p>
           You can revoke OmniDrive&apos;s access to your Google account at any time via{' '}
           <a
@@ -136,7 +136,7 @@ export function PrivacyPolicyPage() {
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-xl font-semibold text-stone-900">8. Children&apos;s Privacy</h2>
+        <h2 className="text-xl font-semibold text-slate-900">8. Children&apos;s Privacy</h2>
         <p>
           OmniDrive is not directed at children under 13. We do not knowingly collect personal
           information from children.
@@ -144,7 +144,7 @@ export function PrivacyPolicyPage() {
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-xl font-semibold text-stone-900">9. Changes to This Policy</h2>
+        <h2 className="text-xl font-semibold text-slate-900">9. Changes to This Policy</h2>
         <p>
           We may update this Privacy Policy from time to time. We will post the revised policy on
           this page with an updated effective date.
@@ -152,7 +152,7 @@ export function PrivacyPolicyPage() {
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-xl font-semibold text-stone-900">10. Contact</h2>
+        <h2 className="text-xl font-semibold text-slate-900">10. Contact</h2>
         <p>
           For privacy-related questions or data deletion requests, contact us at{' '}
           <a href="mailto:admin@example.com" className="text-primary hover:underline">

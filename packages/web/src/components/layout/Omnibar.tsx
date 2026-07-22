@@ -79,37 +79,37 @@ export const Omnibar: React.FC = () => {
 
   return (
     <div className="relative w-full" ref={wrapperRef}>
-      <div className="bg-surface border border-stone-300/60 hover:bg-card hover:shadow-md hover:border-stone-300 focus-within:bg-card focus-within:shadow-md focus-within:border-stone-300 rounded-full h-12 flex items-center px-4 transition-all">
-        <Search size={20} className="text-stone-600 mr-3" />
+      <div className="bg-surface border border-slate-300/60 hover:bg-card hover:shadow-md hover:border-slate-300 focus-within:bg-card focus-within:shadow-md focus-within:border-slate-300 rounded-full h-12 flex items-center px-4 transition-all">
+        <Search size={20} className="text-slate-600 mr-3" />
         <input
           type="text"
           placeholder="Search OmniDrive"
-          className="bg-transparent outline-none w-full text-stone-800 placeholder-gray-600"
+          className="bg-transparent outline-none w-full text-slate-800 placeholder-slate-600"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => { if (hasResults) setIsOpen(true); }}
         />
         <button
           onClick={() => setShowAdvanced(!showAdvanced)}
-          className={`p-1.5 rounded-full hover:bg-stone-100 ${showAdvanced ? 'text-blue-600' : 'text-stone-600'}`}
+          className={`p-1.5 rounded-full hover:bg-slate-100 ${showAdvanced ? 'text-blue-600' : 'text-slate-600'}`}
         >
           <SlidersHorizontal size={20} />
         </button>
       </div>
 
       {showAdvanced && (
-        <div className="absolute top-14 left-0 right-0 bg-card shadow-lg border border-stone-200 rounded-lg p-4 z-50 flex gap-2 animate-in fade-in-0 slide-in-from-top-2 duration-200">
+        <div className="absolute top-14 left-0 right-0 bg-card shadow-lg border border-slate-200 rounded-lg p-4 z-50 flex gap-2 animate-in fade-in-0 slide-in-from-top-2 duration-200">
           <input
             type="text"
             placeholder="Metadata Key (e.g. Status)"
-            className="border border-stone-300 rounded px-3 py-1.5 text-sm flex-1"
+            className="border border-slate-300 rounded px-3 py-1.5 text-sm flex-1"
             value={metadataKey}
             onChange={(e) => setMetadataKey(e.target.value)}
           />
           <input
             type="text"
             placeholder="Metadata Value (e.g. Approved)"
-            className="border border-stone-300 rounded px-3 py-1.5 text-sm flex-1"
+            className="border border-slate-300 rounded px-3 py-1.5 text-sm flex-1"
             value={metadataValue}
             onChange={(e) => setMetadataValue(e.target.value)}
           />
@@ -117,24 +117,24 @@ export const Omnibar: React.FC = () => {
       )}
 
       {isOpen && (query || metadataKey) && (
-        <div className="absolute top-14 left-0 right-0 bg-card shadow-lg border border-stone-200 rounded-lg max-h-96 overflow-y-auto z-40 animate-in fade-in-0 slide-in-from-top-2 duration-200">
+        <div className="absolute top-14 left-0 right-0 bg-card shadow-lg border border-slate-200 rounded-lg max-h-96 overflow-y-auto z-40 animate-in fade-in-0 slide-in-from-top-2 duration-200">
           {isSearching ? (
-            <div className="p-4 text-center text-sm text-stone-500">Searching...</div>
+            <div className="p-4 text-center text-sm text-slate-500">Searching...</div>
           ) : hasResults ? (
             <div className="py-2">
               {(folderResults.length > 0 || driveFolderResults.length > 0) && (
                 <>
-                  <div className="px-4 py-1.5 text-xs font-semibold text-stone-400 uppercase tracking-wide">Folders</div>
+                  <div className="px-4 py-1.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Folders</div>
                   {driveFolderResults.map((folder) => (
                     <button
                       key={`df-${folder.googleFolderId}`}
                       onClick={() => handleDriveFolderClick(folder)}
-                      className="w-full px-4 py-2 hover:bg-stone-50 flex items-center gap-3 text-left"
+                      className="w-full px-4 py-2 hover:bg-slate-50 flex items-center gap-3 text-left"
                     >
                       <Folder size={18} className="text-blue-500 shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-stone-800 truncate">{folder.name}</p>
-                        <p className="text-xs text-stone-500 truncate">{folder.driveEmail ?? 'Drive folder'}</p>
+                        <p className="text-sm font-medium text-slate-800 truncate">{folder.name}</p>
+                        <p className="text-xs text-slate-500 truncate">{folder.driveEmail ?? 'Drive folder'}</p>
                       </div>
                     </button>
                   ))}
@@ -142,12 +142,12 @@ export const Omnibar: React.FC = () => {
                     <button
                       key={`wf-${folder.id}`}
                       onClick={() => handleWorkspaceFolderClick(folder)}
-                      className="w-full px-4 py-2 hover:bg-stone-50 flex items-center gap-3 text-left"
+                      className="w-full px-4 py-2 hover:bg-slate-50 flex items-center gap-3 text-left"
                     >
                       <Folder size={18} className="text-blue-500 shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-stone-800 truncate">{folder.name}</p>
-                        <p className="text-xs text-stone-500 truncate">Workspace folder</p>
+                        <p className="text-sm font-medium text-slate-800 truncate">{folder.name}</p>
+                        <p className="text-xs text-slate-500 truncate">Workspace folder</p>
                       </div>
                     </button>
                   ))}
@@ -155,17 +155,17 @@ export const Omnibar: React.FC = () => {
               )}
               {fileResults.length > 0 && (
                 <>
-                  <div className="px-4 py-1.5 text-xs font-semibold text-stone-400 uppercase tracking-wide">Files</div>
+                  <div className="px-4 py-1.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Files</div>
                   {fileResults.map((file) => (
                     <button
                       key={file.id}
                       onClick={() => handleFileClick(file)}
-                      className="w-full px-4 py-2 hover:bg-stone-50 flex items-center gap-3 text-left"
+                      className="w-full px-4 py-2 hover:bg-slate-50 flex items-center gap-3 text-left"
                     >
-                      <File size={18} className="text-stone-500 shrink-0" />
+                      <File size={18} className="text-slate-500 shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-stone-800 truncate">{file.name}</p>
-                        <p className="text-xs text-stone-500 truncate">
+                        <p className="text-sm font-medium text-slate-800 truncate">{file.name}</p>
+                        <p className="text-xs text-slate-500 truncate">
                           {file.driveEmail ?? (file.workspaceId ? 'Workspace' : 'Personal')}
                         </p>
                       </div>
@@ -175,7 +175,7 @@ export const Omnibar: React.FC = () => {
               )}
             </div>
           ) : (
-            <div className="p-4 text-center text-sm text-stone-500">No results found</div>
+            <div className="p-4 text-center text-sm text-slate-500">No results found</div>
           )}
         </div>
       )}

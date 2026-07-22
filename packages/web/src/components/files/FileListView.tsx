@@ -50,9 +50,9 @@ export function FileListView(props: FileListViewProps) {
       <button
         type="button"
         onClick={() => toggleSort(field)}
-        className={`inline-flex items-center gap-1 hover:text-stone-700 transition-colors ${
+        className={`inline-flex items-center gap-1 hover:text-slate-700 transition-colors ${
           align === 'right' ? 'ml-auto' : ''
-        } ${active ? 'text-stone-800' : ''}`}
+        } ${active ? 'text-slate-800' : ''}`}
         aria-sort={active ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
       >
         {label}
@@ -73,7 +73,7 @@ export function FileListView(props: FileListViewProps) {
   return (
     <div className="w-full">
       {/* Table header */}
-      <div className={`grid ${listGridClass} gap-0 border-b border-stone-100 px-4 py-2 text-xs font-medium text-stone-500 uppercase tracking-wide group`}>
+      <div className={`grid ${listGridClass} gap-0 border-b border-slate-100 px-4 py-2 text-xs font-medium text-slate-500 uppercase tracking-wide group`}>
         <div className="w-[72px] flex items-center pl-3">
           <input
             type="checkbox"
@@ -113,12 +113,12 @@ export function FileListView(props: FileListViewProps) {
               onDoubleClick={() => interactions.handleFolderDoubleClick(folder)}
               onMouseEnter={() => interactions.handleFolderHover(folder)}
               onMouseLeave={interactions.handleHoverEnd}
-              className={`grid ${listGridClass} gap-0 items-center px-4 py-2.5 cursor-pointer transition-colors border-b border-stone-50 group ${
+              className={`grid ${listGridClass} gap-0 items-center px-4 py-2.5 cursor-pointer transition-colors border-b border-slate-50 group ${
                 isSelected
                   ? 'bg-blue-100 hover:bg-blue-200'
                   : hasError
                   ? 'bg-red-50 hover:bg-red-100'
-                  : 'hover:bg-stone-50'
+                  : 'hover:bg-slate-50'
               }`}
             >
               <div className="w-[72px] flex items-center gap-2 pl-3">
@@ -135,7 +135,7 @@ export function FileListView(props: FileListViewProps) {
                 <Folder size={20} className="text-blue-500 flex-shrink-0" fill="currentColor" />
               </div>
               <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                <span className="text-sm text-stone-800 font-medium truncate">{folder.name}</span>
+                <span className="text-sm text-slate-800 font-medium truncate">{folder.name}</span>
                 {isStarred && <Star className="fill-yellow-400 text-yellow-400 flex-shrink-0" size={14} />}
                 {shared && <Share2 size={12} className="text-blue-400 flex-shrink-0" />}
                 <MetadataBadges metadata={'metadata' in folder ? folder.metadata : undefined} />
@@ -146,8 +146,8 @@ export function FileListView(props: FileListViewProps) {
                   {renderDriveBadge(driveAccountId)}
                 </div>
               )}
-              <div className="text-right text-xs text-stone-400 hidden sm:block">—</div>
-              <div className="text-right text-xs text-stone-400 hidden sm:block">—</div>
+              <div className="text-right text-xs text-slate-400 hidden sm:block">—</div>
+              <div className="text-right text-xs text-slate-400 hidden sm:block">—</div>
               <div />
             </div>
           </ItemContextMenu>
@@ -167,8 +167,8 @@ export function FileListView(props: FileListViewProps) {
               onDoubleClick={() => interactions.handleFileDoubleClick(file)}
               onMouseEnter={() => interactions.handleFileHover(file)}
               onMouseLeave={interactions.handleHoverEnd}
-              className={`grid ${listGridClass} gap-0 items-center px-4 py-2.5 cursor-pointer transition-colors border-b border-stone-50 group ${
-                isSelected ? 'bg-blue-100 hover:bg-blue-200' : 'hover:bg-stone-50'
+              className={`grid ${listGridClass} gap-0 items-center px-4 py-2.5 cursor-pointer transition-colors border-b border-slate-50 group ${
+                isSelected ? 'bg-blue-100 hover:bg-blue-200' : 'hover:bg-slate-50'
               }`}
             >
               <div className="w-[72px] flex items-center gap-2 pl-3">
@@ -185,7 +185,7 @@ export function FileListView(props: FileListViewProps) {
                 <span className="text-xl flex-shrink-0"><FileIcon mimeType={file.mimeType} /></span>
               </div>
               <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                <span className="text-sm text-stone-800 truncate" title={file.name}>{file.name}</span>
+                <span className="text-sm text-slate-800 truncate" title={file.name}>{file.name}</span>
                 {file.isStarred && <Star className="fill-yellow-400 text-yellow-400 flex-shrink-0" size={14} />}
                 {shared && <Share2 size={12} className="text-blue-400 flex-shrink-0" />}
                 <MetadataBadges metadata={file.metadata} />
@@ -196,10 +196,10 @@ export function FileListView(props: FileListViewProps) {
                   {renderDriveBadge(file.driveAccountId)}
                 </div>
               )}
-              <div className="text-right text-xs text-stone-500 hidden sm:block">
+              <div className="text-right text-xs text-slate-500 hidden sm:block">
                 {!native ? formatFileSize(file.size) : '—'}
               </div>
-              <div className="text-right text-xs text-stone-500 hidden sm:block">
+              <div className="text-right text-xs text-slate-500 hidden sm:block">
                 {formatRelativeTime(file.googleModifiedAt ?? file.createdAt)}
               </div>
               <div />

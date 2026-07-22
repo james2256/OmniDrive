@@ -45,14 +45,14 @@ export const InfoPanel: React.FC = () => {
       return (
         <>
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold text-stone-800">Details</h2>
-            <button onClick={toggleInfoPanel} className="p-1.5 hover:bg-stone-100 rounded-full text-stone-500">
+            <h2 className="text-lg font-semibold text-slate-800">Details</h2>
+            <button onClick={toggleInfoPanel} className="p-1.5 hover:bg-slate-100 rounded-full text-slate-500">
               <X size={18} />
             </button>
           </div>
           <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
-            <File size={48} className="text-stone-300 mb-4" />
-            <p className="text-sm text-stone-500">Select a file or folder to see its details here.</p>
+            <File size={48} className="text-slate-300 mb-4" />
+            <p className="text-sm text-slate-500">Select a file or folder to see its details here.</p>
           </div>
         </>
       );
@@ -62,15 +62,15 @@ export const InfoPanel: React.FC = () => {
       return (
         <>
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold text-stone-800">Details</h2>
-            <button onClick={toggleInfoPanel} className="p-1.5 hover:bg-stone-100 rounded-full text-stone-500">
+            <h2 className="text-lg font-semibold text-slate-800">Details</h2>
+            <button onClick={toggleInfoPanel} className="p-1.5 hover:bg-slate-100 rounded-full text-slate-500">
               <X size={18} />
             </button>
           </div>
           <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
-            <File size={48} className="text-stone-300 mb-4" />
-            <p className="text-sm text-stone-800 font-medium">{selectedItems.length} items selected</p>
-            <p className="text-xs text-stone-500 mt-2">Select a single item to view its properties.</p>
+            <File size={48} className="text-slate-300 mb-4" />
+            <p className="text-sm text-slate-800 font-medium">{selectedItems.length} items selected</p>
+            <p className="text-xs text-slate-500 mt-2">Select a single item to view its properties.</p>
           </div>
         </>
       );
@@ -85,8 +85,8 @@ export const InfoPanel: React.FC = () => {
     return (
       <>
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-lg font-semibold text-stone-800">Details</h2>
-          <button onClick={toggleInfoPanel} className="p-1.5 hover:bg-stone-100 rounded-full text-stone-500 transition-colors">
+          <h2 className="text-lg font-semibold text-slate-800">Details</h2>
+          <button onClick={toggleInfoPanel} className="p-1.5 hover:bg-slate-100 rounded-full text-slate-500 transition-colors">
             <X size={18} />
           </button>
         </div>
@@ -97,41 +97,41 @@ export const InfoPanel: React.FC = () => {
               <Folder size={48} className="text-blue-500" fill="currentColor" />
             </div>
           ) : (
-            <div className="w-24 h-24 bg-stone-50 border border-stone-200 rounded-2xl flex items-center justify-center text-5xl shadow-sm">
+            <div className="w-24 h-24 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-center text-5xl shadow-sm">
               <FileIcon mimeType={item?.mimeType} />
             </div>
           )}
         </div>
 
-        <h3 className="text-base font-medium text-stone-800 text-center mb-6 break-words px-2">
+        <h3 className="text-base font-medium text-slate-800 text-center mb-6 break-words px-2">
           {item?.name}
         </h3>
 
         <div className="space-y-4">
-          <div className="border-t border-stone-100 pt-4">
-            <h4 className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">Properties</h4>
+          <div className="border-t border-slate-100 pt-4">
+            <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Properties</h4>
             <dl className="space-y-3 text-sm">
               {driveAccount && (
                 <div className="flex flex-col">
-                  <dt className="text-stone-500 mb-1 text-xs">Stored on</dt>
+                  <dt className="text-slate-500 mb-1 text-xs">Stored on</dt>
                   <dd>
                     <DriveBadge email={driveAccount.email} colorIndex={driveIndex} size="md" />
                   </dd>
                 </div>
               )}
               <div className="flex flex-col">
-                <dt className="text-stone-500 mb-0.5 text-xs">Type</dt>
-                <dd className="text-stone-800">{type === 'folder' ? 'Google Drive Folder' : item?.mimeType || 'Unknown file type'}</dd>
+                <dt className="text-slate-500 mb-0.5 text-xs">Type</dt>
+                <dd className="text-slate-800">{type === 'folder' ? 'Google Drive Folder' : item?.mimeType || 'Unknown file type'}</dd>
               </div>
               {type === 'file' && (
                 <div className="flex flex-col">
-                  <dt className="text-stone-500 mb-0.5 text-xs">Size</dt>
-                  <dd className="text-stone-800">{formatFileSize(item?.size ?? 0)}</dd>
+                  <dt className="text-slate-500 mb-0.5 text-xs">Size</dt>
+                  <dd className="text-slate-800">{formatFileSize(item?.size ?? 0)}</dd>
                 </div>
               )}
               <div className="flex flex-col">
-                <dt className="text-stone-500 mb-0.5 text-xs">Modified</dt>
-                <dd className="text-stone-800">
+                <dt className="text-slate-500 mb-0.5 text-xs">Modified</dt>
+                <dd className="text-slate-800">
                   {type === 'file'
                     ? formatRelativeTime(item?.googleModifiedAt ?? item?.createdAt ?? '')
                     : '—'}
@@ -139,14 +139,14 @@ export const InfoPanel: React.FC = () => {
               </div>
               {type === 'file' && item?.googleCreatedAt && (
                 <div className="flex flex-col">
-                  <dt className="text-stone-500 mb-0.5 text-xs">Created</dt>
-                  <dd className="text-stone-800">{formatRelativeTime(item?.googleCreatedAt ?? '')}</dd>
+                  <dt className="text-slate-500 mb-0.5 text-xs">Created</dt>
+                  <dd className="text-slate-800">{formatRelativeTime(item?.googleCreatedAt ?? '')}</dd>
                 </div>
               )}
               {type === 'folder' && item && 'lastSyncedAt' in item && (
                 <div className="flex flex-col">
-                  <dt className="text-stone-500 mb-0.5 text-xs">Last Synced</dt>
-                  <dd className="text-stone-800">
+                  <dt className="text-slate-500 mb-0.5 text-xs">Last Synced</dt>
+                  <dd className="text-slate-800">
                     {(item as unknown as FileEntry & { workspaceId?: string; lastSyncedAt?: string }).lastSyncedAt ? formatRelativeTime((item as unknown as FileEntry & { workspaceId?: string; lastSyncedAt?: string }).lastSyncedAt) : 'Never'}
                   </dd>
                 </div>
@@ -167,8 +167,8 @@ export const InfoPanel: React.FC = () => {
             )}
           </div>
 
-          <div className="border-t border-stone-100 pt-4">
-            <h4 className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">Tags & Metadata</h4>
+          <div className="border-t border-slate-100 pt-4">
+            <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Tags & Metadata</h4>
             {item && ('metadata' in item && item.metadata) ? (
               <div className="flex flex-wrap gap-2 mb-3">
                 {Object.entries(typeof (item as unknown as FileEntry & { workspaceId?: string; lastSyncedAt?: string }).metadata === 'string' ? JSON.parse(String((item as unknown as FileEntry & { workspaceId?: string; lastSyncedAt?: string }).metadata) || '{}') : (item as unknown as FileEntry & { workspaceId?: string; lastSyncedAt?: string }).metadata).map(([k, v]) => (
@@ -178,7 +178,7 @@ export const InfoPanel: React.FC = () => {
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-stone-400 mb-3">No tags applied.</p>
+              <p className="text-xs text-slate-400 mb-3">No tags applied.</p>
             )}
             <form
               onSubmit={async (e) => {
@@ -205,9 +205,9 @@ export const InfoPanel: React.FC = () => {
               }}
               className="flex gap-2"
             >
-              <input name="metaKey" placeholder="Key" className="w-1/3 border border-stone-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              <input name="metaValue" placeholder="Value" className="flex-1 border border-stone-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              <button type="submit" className="bg-stone-800 text-white px-2 py-1 rounded text-xs">Add</button>
+              <input name="metaKey" placeholder="Key" className="w-1/3 border border-slate-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <input name="metaValue" placeholder="Value" className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <button type="submit" className="bg-slate-800 text-white px-2 py-1 rounded text-xs">Add</button>
             </form>
           </div>
         </div>
@@ -226,7 +226,7 @@ export const InfoPanel: React.FC = () => {
         />
       )}
       <aside
-        className={`bg-card border-l border-stone-200 h-full flex-shrink-0 overflow-hidden transition-[width] duration-300 ease-in-out z-50 ${
+        className={`bg-card border-l border-slate-200 h-full flex-shrink-0 overflow-hidden transition-[width] duration-300 ease-in-out z-50 ${
           // Mobile: fixed drawer from right; Desktop: inline collapsible panel
           isInfoPanelOpen ? 'fixed right-0 top-16 bottom-0 w-[88%] max-w-sm shadow-xl md:relative md:top-0 md:shadow-none md:w-80 md:max-w-none' : 'w-0 md:w-0'
         }`}

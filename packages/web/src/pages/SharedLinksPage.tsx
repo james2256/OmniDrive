@@ -38,11 +38,11 @@ export function SharedLinksPage() {
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto w-full">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-stone-900 tracking-tight flex items-center gap-3">
+        <h1 className="text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
           <LinkIcon className="text-primary" size={32} />
           Shared Links
         </h1>
-        <p className="text-stone-500 mt-2 text-lg">
+        <p className="text-slate-500 mt-2 text-lg">
           Manage files and folders you have shared with others.
         </p>
       </div>
@@ -60,19 +60,19 @@ export function SharedLinksPage() {
           {links.map((link) => (
             <div
               key={link.id}
-              className="group bg-card rounded-2xl border border-stone-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col"
+              className="group bg-card rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col"
             >
-              <div className="p-5 border-b border-stone-100 flex-1">
+              <div className="p-5 border-b border-slate-100 flex-1">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3 overflow-hidden">
                     <div className={`p-3 rounded-xl flex-shrink-0 ${link.targetType === 'folder' ? 'bg-indigo-50 text-indigo-600' : 'bg-blue-50 text-blue-600'}`}>
                       {link.targetType === 'folder' ? <Folder size={24} /> : <FileText size={24} />}
                     </div>
                     <div className="min-w-0">
-                      <h3 className="text-stone-900 font-semibold truncate text-lg" title={link.targetName || link.targetId}>
+                      <h3 className="text-slate-900 font-semibold truncate text-lg" title={link.targetName || link.targetId}>
                         {link.targetName || 'Unknown ' + (link.targetType === 'folder' ? 'Folder' : 'File')}
                       </h3>
-                      <div className="flex items-center gap-1.5 text-xs text-stone-400 mt-1">
+                      <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-1">
                         <Clock size={12} />
                         <span>Created {formatDate(link.createdAt)}</span>
                       </div>
@@ -80,25 +80,25 @@ export function SharedLinksPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4 py-3 px-4 bg-stone-50 rounded-xl mt-4">
-                  <div className="flex items-center gap-2 text-sm text-stone-600">
-                    <Eye size={16} className="text-stone-400" />
+                <div className="flex items-center gap-4 py-3 px-4 bg-slate-50 rounded-xl mt-4">
+                  <div className="flex items-center gap-2 text-sm text-slate-600">
+                    <Eye size={16} className="text-slate-400" />
                     <span className="font-medium">{link.viewCount}</span>
-                    <span className="text-stone-400 text-xs uppercase tracking-wider">Views</span>
+                    <span className="text-slate-400 text-xs uppercase tracking-wider">Views</span>
                   </div>
-                  <div className="w-px h-8 bg-stone-200"></div>
-                  <div className="flex items-center gap-2 text-sm text-stone-600">
-                    <Download size={16} className="text-stone-400" />
+                  <div className="w-px h-8 bg-slate-200"></div>
+                  <div className="flex items-center gap-2 text-sm text-slate-600">
+                    <Download size={16} className="text-slate-400" />
                     <span className="font-medium">{link.downloadCount}</span>
-                    <span className="text-stone-400 text-xs uppercase tracking-wider">DLs</span>
+                    <span className="text-slate-400 text-xs uppercase tracking-wider">DLs</span>
                   </div>
                 </div>
               </div>
 
-              <div className="px-5 py-4 bg-stone-50 flex items-center justify-between gap-3">
+              <div className="px-5 py-4 bg-slate-50 flex items-center justify-between gap-3">
                 <button
                   onClick={() => copyToClipboard(link.id)}
-                  className="flex items-center justify-center gap-2 flex-1 py-2 px-4 rounded-lg bg-card border border-stone-200 text-stone-700 font-medium text-sm hover:bg-stone-50 hover:text-blue-600 hover:border-blue-200 transition-colors"
+                  className="flex items-center justify-center gap-2 flex-1 py-2 px-4 rounded-lg bg-card border border-slate-200 text-slate-700 font-medium text-sm hover:bg-slate-50 hover:text-blue-600 hover:border-blue-200 transition-colors"
                 >
                   {copiedId === link.id ? (
                     <>
@@ -114,14 +114,14 @@ export function SharedLinksPage() {
                 </button>
                 <button
                   onClick={() => setEditingLink(link)}
-                  className="p-2 rounded-lg text-stone-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                  className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                   title="Edit Settings"
                 >
                   <Settings size={18} />
                 </button>
                 <button
                   onClick={() => revoke(link.id)}
-                  className="p-2 rounded-lg text-stone-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                  className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
                   title="Stop Sharing"
                 >
                   <Trash2 size={18} />

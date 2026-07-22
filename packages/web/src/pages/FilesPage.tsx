@@ -156,12 +156,12 @@ export function FilesPage() {
                   placeholder="Filter..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-3 pr-8 py-2 text-sm border border-stone-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-3 pr-8 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 {searchQuery && (
                   <button
                     type="button"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 p-1"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
                     onClick={() => setSearchQuery('')}
                     aria-label="Clear filter"
                   >
@@ -170,10 +170,10 @@ export function FilesPage() {
                 )}
               </div>
 
-              <div className="flex items-center border border-stone-300 rounded-md overflow-hidden bg-card mr-1">
+              <div className="flex items-center border border-slate-300 rounded-md overflow-hidden bg-card mr-1">
                 <button
                   onClick={() => setViewMode('list')}
-                  className={`p-2 ${viewMode === 'list' ? 'bg-blue-100 text-stone-900' : 'text-stone-600 hover:bg-stone-50'}`}
+                  className={`p-2 ${viewMode === 'list' ? 'bg-blue-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50'}`}
                   title="List layout"
                   aria-label="List layout"
                 >
@@ -181,7 +181,7 @@ export function FilesPage() {
                 </button>
                 <button
                   onClick={() => setViewMode('grid')}
-                  className={`p-2 ${viewMode === 'grid' ? 'bg-blue-100 text-stone-900' : 'text-stone-600 hover:bg-stone-50'}`}
+                  className={`p-2 ${viewMode === 'grid' ? 'bg-blue-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50'}`}
                   title="Grid layout"
                   aria-label="Grid layout"
                 >
@@ -191,14 +191,14 @@ export function FilesPage() {
 
               <button
                 onClick={toggleInfoPanel}
-                className={`p-2 rounded-full mr-1 ${isInfoPanelOpen ? 'bg-blue-100 text-stone-900' : 'text-stone-600 hover:bg-stone-100'}`}
+                className={`p-2 rounded-full mr-1 ${isInfoPanelOpen ? 'bg-blue-100 text-slate-900' : 'text-slate-600 hover:bg-slate-100'}`}
                 title="View details"
                 aria-label="View details"
               >
                 <Info size={20} />
               </button>
 
-              <button className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-stone-700 bg-card border border-stone-300 rounded-md hover:bg-stone-50" onClick={handleCreateFolder}>
+              <button className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-slate-700 bg-card border border-slate-300 rounded-md hover:bg-slate-50" onClick={handleCreateFolder}>
                 <FolderPlus size={16} /> <span className="hidden sm:inline">New Folder</span>
               </button>
               <button className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700" onClick={() => setShowModal(true)}>
@@ -210,14 +210,14 @@ export function FilesPage() {
         {isLoading || isDrivesLoading ? (
           <div className="flex flex-col items-center justify-center p-16">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4" />
-            <p className="text-stone-500">Loading folder contents...</p>
+            <p className="text-slate-500">Loading folder contents...</p>
           </div>
         ) : drives.length === 0 ? (
-          <div className="text-center p-12 text-stone-500 border rounded-lg bg-card m-4 flex flex-col items-center shadow-sm">
-            <div className="w-16 h-16 bg-stone-100 rounded-full flex items-center justify-center mb-4">
-               <Info size={24} className="text-stone-400" />
+          <div className="text-center p-12 text-slate-500 border rounded-lg bg-card m-4 flex flex-col items-center shadow-sm">
+            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+               <Info size={24} className="text-slate-400" />
             </div>
-            <h3 className="text-lg font-medium text-stone-900 mb-2">No Google Drive Connected</h3>
+            <h3 className="text-lg font-medium text-slate-900 mb-2">No Google Drive Connected</h3>
             <p className="mb-6 max-w-sm text-center">You need to connect at least one Google Drive account to start using OmniDrive.</p>
             <button
               onClick={handleConnectGoogle}
@@ -228,7 +228,7 @@ export function FilesPage() {
             </button>
           </div>
         ) : (
-          <div className="flex-1 overflow-auto bg-card rounded-lg border border-stone-200 m-4 shadow-sm">
+          <div className="flex-1 overflow-auto bg-card rounded-lg border border-slate-200 m-4 shadow-sm">
             <FileGrid
               files={filteredFiles}
               subfolders={filteredSubfolders}

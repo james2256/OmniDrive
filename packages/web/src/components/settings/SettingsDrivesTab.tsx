@@ -95,7 +95,7 @@ export function SettingsDrivesTab() {
     <>
       {/* Section: Connected Drives */}
       <div>
-        <h2 className="text-sm font-semibold text-stone-500 uppercase tracking-wide mb-3">Connected Drives</h2>
+        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Connected Drives</h2>
         <div className="space-y-3">
           {drives.map((drive, i) => (
             <DriveAccountCard
@@ -107,7 +107,7 @@ export function SettingsDrivesTab() {
             />
           ))}
           {drives.length === 0 && (
-            <div className="text-center py-8 text-stone-400 border border-dashed border-stone-200 rounded-xl">
+            <div className="text-center py-8 text-slate-400 border border-dashed border-slate-200 rounded-xl">
               No drives connected yet
             </div>
           )}
@@ -116,7 +116,7 @@ export function SettingsDrivesTab() {
 
       {/* Section: Add Drive */}
       <div>
-        <h2 className="text-sm font-semibold text-stone-500 uppercase tracking-wide mb-3">Add Drive</h2>
+        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Add Drive</h2>
         <div className="flex gap-3 flex-wrap">
           <button
             onClick={handleConnectDrive}
@@ -126,7 +126,7 @@ export function SettingsDrivesTab() {
             {isConnecting ? <LoaderCircle size={18} className="animate-spin" /> : <Plus size={18} />} Add Google Drive
           </button>
           <button
-            className="flex items-center gap-2 px-4 py-2.5 bg-card text-stone-700 rounded-xl border border-stone-300 hover:bg-stone-50 transition-colors font-medium text-sm"
+            className="flex items-center gap-2 px-4 py-2.5 bg-card text-slate-700 rounded-xl border border-slate-300 hover:bg-slate-50 transition-colors font-medium text-sm"
             onClick={() => setShowSaForm(!showSaForm)}
           >
             <Key size={18} /> Add Service Account
@@ -137,19 +137,19 @@ export function SettingsDrivesTab() {
       {/* Service Account Form */}
       <div className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${showSaForm ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
         <div className="overflow-hidden">
-          <div className="bg-card border border-stone-200 rounded-2xl p-5">
+          <div className="bg-card border border-slate-200 rounded-2xl p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-base font-semibold text-stone-800">Add Service Account</h3>
+            <h3 className="text-base font-semibold text-slate-800">Add Service Account</h3>
             <button
               onClick={() => setShowSaForm(false)}
-              className="p-1.5 hover:bg-stone-100 rounded-full text-stone-500 transition-colors"
+              className="p-1.5 hover:bg-slate-100 rounded-full text-slate-500 transition-colors"
             >
               <X size={18} />
             </button>
           </div>
           <form onSubmit={handleAddServiceAccount} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-stone-700 mb-1.5">
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">
                 Service Account JSON
               </label>
               <textarea
@@ -157,12 +157,12 @@ export function SettingsDrivesTab() {
                 onChange={(e) => setSaCredentials(e.target.value)}
                 placeholder="Paste service account JSON key..."
                 rows={6}
-                className="w-full font-mono text-xs border border-stone-300 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                className="w-full font-mono text-xs border border-slate-300 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-stone-700 mb-1.5">
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">
                 Shared Folder ID
               </label>
               <input
@@ -170,14 +170,14 @@ export function SettingsDrivesTab() {
                 value={saFolderId}
                 onChange={(e) => setSaFolderId(e.target.value)}
                 placeholder="Google Drive folder ID shared with SA"
-                className="w-full border border-stone-300 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-slate-300 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
             </div>
             <div className="flex gap-3 justify-end pt-2">
               <button
                 type="button"
-                className="px-4 py-2 text-sm font-medium text-stone-700 bg-card border border-stone-300 rounded-xl hover:bg-stone-50 transition-colors"
+                className="px-4 py-2 text-sm font-medium text-slate-700 bg-card border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors"
                 onClick={() => setShowSaForm(false)}
               >
                 Cancel

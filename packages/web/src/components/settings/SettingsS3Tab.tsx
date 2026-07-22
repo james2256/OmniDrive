@@ -116,11 +116,11 @@ export function SettingsS3Tab() {
   return (
     <>
       {/* Section: S3 API Keys */}
-      <div className="border-t border-stone-200 pt-6">
+      <div className="border-t border-slate-200 pt-6">
         <div className="flex justify-between items-center mb-4">
           <div>
-            <h2 className="text-sm font-semibold text-stone-500 uppercase tracking-wide">S3 API Keys</h2>
-            <p className="text-xs text-stone-400 mt-1">Manage workspace-scoped and global S3-compatible credentials for accessing object storage.</p>
+            <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">S3 API Keys</h2>
+            <p className="text-xs text-slate-400 mt-1">Manage workspace-scoped and global S3-compatible credentials for accessing object storage.</p>
           </div>
           <button
             onClick={() => setShowCreateModal(true)}
@@ -131,34 +131,34 @@ export function SettingsS3Tab() {
         </div>
 
         {loadingS3 ? (
-          <div className="flex items-center justify-center py-8 text-stone-400">
+          <div className="flex items-center justify-center py-8 text-slate-400">
             <LoaderCircle className="animate-spin mr-2" size={18} />
             Loading S3 credentials...
           </div>
         ) : s3Keys.length === 0 ? (
-          <div className="text-center py-8 text-stone-400 border border-dashed border-stone-200 rounded-xl">
+          <div className="text-center py-8 text-slate-400 border border-dashed border-slate-200 rounded-xl">
             No S3 API keys generated yet.
           </div>
         ) : (
-          <div className="bg-card border border-stone-200 rounded-xl overflow-hidden shadow-sm">
+          <div className="bg-card border border-slate-200 rounded-xl overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-stone-50 border-b border-stone-200">
-                    <th className="px-4 py-3 text-xs font-semibold text-stone-500 uppercase tracking-wider">Description</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-stone-500 uppercase tracking-wider">Access Key ID</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-stone-500 uppercase tracking-wider">Scope</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-stone-500 uppercase tracking-wider">Created At</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-stone-500 uppercase tracking-wider text-right">Actions</th>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Description</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Access Key ID</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Scope</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Created At</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-150">
+                <tbody className="divide-y divide-slate-200">
                   {s3Keys.map((key: S3Credential) => (
-                    <tr key={key.id} className="hover:bg-stone-50/50 transition-colors">
-                      <td className="px-4 py-3.5 text-sm text-stone-800 font-medium">
-                        {key.description || <span className="text-stone-400 italic">No description</span>}
+                    <tr key={key.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-4 py-3.5 text-sm text-slate-800 font-medium">
+                        {key.description || <span className="text-slate-400 italic">No description</span>}
                       </td>
-                      <td className="px-4 py-3.5 text-xs font-mono text-stone-600 bg-stone-50/50 rounded select-all font-semibold">
+                      <td className="px-4 py-3.5 text-xs font-mono text-slate-600 bg-slate-50/50 rounded select-all font-semibold">
                         {key.access_key_id || key.accessKeyId}
                       </td>
                       <td className="px-4 py-3.5 text-sm">
@@ -172,13 +172,13 @@ export function SettingsS3Tab() {
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3.5 text-xs text-stone-400">
+                      <td className="px-4 py-3.5 text-xs text-slate-400">
                         {parseSqliteDate(key.created_at || key.createdAt || '').toLocaleString()}
                       </td>
                       <td className="px-4 py-3.5 text-right">
                         <button
                           onClick={() => handleRevokeKey(key.id)}
-                          className="p-1 text-stone-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                          className="p-1 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"
                           title="Revoke Key"
                         >
                           <Trash2 size={16} />
@@ -197,14 +197,14 @@ export function SettingsS3Tab() {
       <Dialog open={showCreateModal} onOpenChange={(open) => !open && !isCreatingKey && setShowCreateModal(false)}>
         <DialogContent className="sm:max-w-[425px] rounded-2xl">
           <DialogHeader>
-            <DialogTitle className="text-lg font-semibold text-stone-800">Generate S3 API Key</DialogTitle>
-            <DialogDescription className="text-xs text-stone-400">
+            <DialogTitle className="text-lg font-semibold text-slate-800">Generate S3 API Key</DialogTitle>
+            <DialogDescription className="text-xs text-slate-400">
               Create credentials to access OmniDrive storage with S3 compatible applications.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreateKey} className="space-y-4 pt-2">
             <div>
-              <label className="block text-xs font-semibold text-stone-500 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
                 Description
               </label>
               <input
@@ -212,19 +212,19 @@ export function SettingsS3Tab() {
                 value={newKeyDescription}
                 onChange={(e) => setNewKeyDescription(e.target.value)}
                 placeholder="e.g. Rclone desktop client, backup script"
-                className="w-full border border-stone-300 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-slate-300 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
                 maxLength={100}
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-stone-500 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
                 Scope
               </label>
               <select
                 value={newKeyScope}
                 onChange={(e) => setNewKeyScope(e.target.value)}
-                className="w-full border border-stone-300 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-card"
+                className="w-full border border-slate-300 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-card"
               >
                 <option value="">Global (All Workspaces)</option>
                 {workspaces.map((w: { id: string; name: string; role: string }) => (
@@ -237,7 +237,7 @@ export function SettingsS3Tab() {
             <div className="flex gap-3 justify-end pt-4">
               <button
                 type="button"
-                className="px-4 py-2 text-sm font-medium text-stone-700 bg-card border border-stone-300 rounded-xl hover:bg-stone-50 transition-colors"
+                className="px-4 py-2 text-sm font-medium text-slate-700 bg-card border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors"
                 onClick={() => setShowCreateModal(false)}
                 disabled={isCreatingKey}
               >
@@ -264,11 +264,11 @@ export function SettingsS3Tab() {
           onEscapeKeyDown={(e) => e.preventDefault()}
         >
           <DialogHeader>
-            <DialogTitle className="text-lg font-semibold text-stone-800 flex items-center gap-2">
+            <DialogTitle className="text-lg font-semibold text-slate-800 flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block animate-ping" />
               S3 Key Created Successfully
             </DialogTitle>
-            <DialogDescription className="text-xs text-stone-400">
+            <DialogDescription className="text-xs text-slate-400">
               Save these credentials. For security, the secret key will never be shown again.
             </DialogDescription>
           </DialogHeader>
@@ -284,17 +284,17 @@ export function SettingsS3Tab() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-stone-500 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
                   Description
                 </label>
-                <div className="text-sm font-medium text-stone-800 bg-stone-50 border border-stone-150 rounded-xl px-3 py-2">
-                  {createdCredential.description || <span className="text-stone-400 italic">No description</span>}
+                <div className="text-sm font-medium text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                  {createdCredential.description || <span className="text-slate-400 italic">No description</span>}
                 </div>
               </div>
 
               <div>
                 <div className="flex justify-between items-center mb-1.5">
-                  <label className="block text-xs font-semibold text-stone-500 uppercase tracking-wider">
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     Access Key ID
                   </label>
                   <button
@@ -314,14 +314,14 @@ export function SettingsS3Tab() {
                     )}
                   </button>
                 </div>
-                <div className="font-mono text-xs text-stone-700 bg-stone-50 border border-stone-150 rounded-xl px-3 py-2.5 break-all select-all">
+                <div className="font-mono text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 break-all select-all">
                   {createdCredential.accessKeyId}
                 </div>
               </div>
 
               <div>
                 <div className="flex justify-between items-center mb-1.5">
-                  <label className="block text-xs font-semibold text-stone-500 uppercase tracking-wider">
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     Secret Access Key
                   </label>
                   <button
@@ -341,12 +341,12 @@ export function SettingsS3Tab() {
                     )}
                   </button>
                 </div>
-                <div className="font-mono text-xs text-stone-700 bg-stone-50 border border-stone-150 rounded-xl px-3 py-2.5 break-all select-all">
+                <div className="font-mono text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 break-all select-all">
                   {createdCredential.secretAccessKey}
                 </div>
               </div>
 
-              <div className="flex justify-end pt-4 border-t border-stone-100">
+              <div className="flex justify-end pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   className="px-5 py-2 text-sm font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors shadow-sm"

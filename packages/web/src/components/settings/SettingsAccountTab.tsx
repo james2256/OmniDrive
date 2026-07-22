@@ -32,11 +32,11 @@ export function SettingsAccountTab() {
 
   return (
     <div>
-      <h2 className="text-sm font-semibold text-stone-500 uppercase tracking-wide mb-3">Account</h2>
-      <form onSubmit={handleChangePassword} className="bg-card border border-stone-200 rounded-2xl p-5 space-y-4 max-w-md">
-        <p className="text-sm text-stone-600">Change your login password. Other devices will be signed out.</p>
+      <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Account</h2>
+      <form onSubmit={handleChangePassword} className="bg-card border border-slate-200 rounded-2xl p-5 space-y-4 max-w-md">
+        <p className="text-sm text-slate-600">Change your login password. Other devices will be signed out.</p>
         <div>
-          <label htmlFor="current-password" className="block text-sm font-medium text-stone-700 mb-1.5">
+          <label htmlFor="current-password" className="block text-sm font-medium text-slate-700 mb-1.5">
             Current password
           </label>
           <input
@@ -46,11 +46,11 @@ export function SettingsAccountTab() {
             required
             value={currentPassword}
             onChange={(e) => setCurrentPassword(e.target.value)}
-            className="w-full border border-stone-300 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-card"
+            className="w-full border border-slate-300 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-card"
           />
         </div>
         <div>
-          <label htmlFor="new-password" className="block text-sm font-medium text-stone-700 mb-1.5">
+          <label htmlFor="new-password" className="block text-sm font-medium text-slate-700 mb-1.5">
             New password
           </label>
           <input
@@ -61,12 +61,12 @@ export function SettingsAccountTab() {
             minLength={8}
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
-            className="w-full border border-stone-300 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-card"
+            className="w-full border border-slate-300 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-card"
           />
-          <p className="mt-1 text-xs text-stone-500">Min 8 chars, with upper, lower, and a number.</p>
+          <p className="mt-1 text-xs text-slate-500">Min 8 chars, with upper, lower, and a number.</p>
         </div>
         <div>
-          <label htmlFor="confirm-password" className="block text-sm font-medium text-stone-700 mb-1.5">
+          <label htmlFor="confirm-password" className="block text-sm font-medium text-slate-700 mb-1.5">
             Confirm new password
           </label>
           <input
@@ -77,7 +77,7 @@ export function SettingsAccountTab() {
             minLength={8}
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            className="w-full border border-stone-300 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-card"
+            className="w-full border border-slate-300 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-card"
           />
         </div>
         <div className="flex justify-end pt-1">

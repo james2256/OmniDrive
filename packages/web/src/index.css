@@ -6,12 +6,12 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  --color-background: #faf9f5;
-  --color-foreground: #141413;
+  --color-background: #f8fafc;
+  --color-foreground: #0f172a;
   --color-primary: #2563EB;
   --color-primary-foreground: #ffffff;
-  --color-surface: #f5f0e8;
-  --color-card: #efe9de;
+  --color-surface: #eef2f7;
+  --color-card: #ffffff;
 
   --radius-lg: 0.5rem;
   --radius-md: calc(0.5rem - 2px);
@@ -32,13 +32,13 @@
   }
 
   /* Drive identity colors — assigned round-robin by getDriveColor(index).
-     Distinct, Google-Workspace-ish, none overlap the page primary. */
+     First color matches brand primary; rest are distinct accent colors. */
   :root {
-    --drive-1: #2563EB; /* blue   — matches brand primary (electric) */
-    --drive-2: #00897B; /* teal   */
-    --drive-3: #E8710A; /* amber  */
-    --drive-4: #D93025; /* red    */
-    --drive-5: #188038; /* green  */
+    --drive-1: #2563EB; /* blue   — brand primary */
+    --drive-2: #0EA5E9; /* sky    — from logo cyan gradient */
+    --drive-3: #7C3AED; /* violet */
+    --drive-4: #F59E0B; /* amber  */
+    --drive-5: #10B981; /* emerald */
   }
 
   /* Bento cell reveal — CSS-driven stagger via animation-delay.

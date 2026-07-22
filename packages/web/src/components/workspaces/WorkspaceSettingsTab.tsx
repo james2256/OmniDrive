@@ -53,13 +53,13 @@ export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
   return (
     <div className="p-8 max-w-4xl mx-auto flex flex-col gap-8">
       <section className="bg-card rounded-lg shadow p-6">
-        <h2 className="text-xl font-semibold mb-4 text-stone-900">Storage & Quota</h2>
+        <h2 className="text-xl font-semibold mb-4 text-slate-900">Storage & Quota</h2>
         <div className="mb-6">
-          <p className="text-sm text-stone-600 mb-2">
+          <p className="text-sm text-slate-600 mb-2">
             Storage limits enforce a hard cap on the workspace size.
           </p>
           {maxBytes ? (
-            <div className="bg-stone-100 rounded p-4 flex justify-between items-center">
+            <div className="bg-slate-100 rounded p-4 flex justify-between items-center">
               <span>Quota: <strong>{Math.round(maxBytes / (1024 * 1024 * 1024))} GB</strong></span>
               <button onClick={() => { if (quotaPolicy?.id) handleDeletePolicy(quotaPolicy.id); }} className="text-red-600 text-sm hover:underline">Remove Quota</button>
             </div>
@@ -70,7 +70,7 @@ export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
                 placeholder="Limit in GB" 
                 value={quotaInput} 
                 onChange={(e) => setQuotaInput(e.target.value)}
-                className="border border-stone-300 rounded px-3 py-1.5 text-sm"
+                className="border border-slate-300 rounded px-3 py-1.5 text-sm"
               />
               <button 
                 onClick={handleSetQuota} 
@@ -85,12 +85,12 @@ export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
       </section>
 
       <section className="bg-card rounded-lg shadow overflow-hidden">
-        <div className="p-6 border-b border-stone-200">
-          <h2 className="text-xl font-semibold text-stone-900">Governance Policies</h2>
-          <p className="text-sm text-stone-600 mt-1">Manage active retention and quota rules for this workspace.</p>
+        <div className="p-6 border-b border-slate-200">
+          <h2 className="text-xl font-semibold text-slate-900">Governance Policies</h2>
+          <p className="text-sm text-slate-600 mt-1">Manage active retention and quota rules for this workspace.</p>
         </div>
         <table className="w-full text-left">
-          <thead className="bg-stone-50 border-b border-stone-200 text-sm text-stone-500">
+          <thead className="bg-slate-50 border-b border-slate-200 text-sm text-slate-500">
             <tr>
               <th className="px-6 py-3 font-medium">Type</th>
               <th className="px-6 py-3 font-medium">Target</th>
@@ -98,14 +98,14 @@ export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
               <th className="px-6 py-3 font-medium text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody className="divide-y divide-slate-200">
             {policies.map(p => {
               const config = JSON.parse(p.config);
               return (
-                <tr key={p.id} className="hover:bg-stone-50">
-                  <td className="px-6 py-4 text-sm font-medium text-stone-900">{p.policyType.replace('_', ' ')}</td>
-                  <td className="px-6 py-4 text-sm text-stone-500">{p.targetType} {p.targetId ? `(${p.targetId})` : ''}</td>
-                  <td className="px-6 py-4 text-sm text-stone-500 font-mono text-xs">
+                <tr key={p.id} className="hover:bg-slate-50">
+                  <td className="px-6 py-4 text-sm font-medium text-slate-900">{p.policyType.replace('_', ' ')}</td>
+                  <td className="px-6 py-4 text-sm text-slate-500">{p.targetType} {p.targetId ? `(${p.targetId})` : ''}</td>
+                  <td className="px-6 py-4 text-sm text-slate-500 font-mono text-xs">
                     {p.policyType === 'storage_quota' ? `${Math.round(config.max_bytes / (1024*1024*1024))} GB limit` : `${config.action} (${config.days || 'indefinite'} days)`}
                   </td>
                   <td className="px-6 py-4 text-sm text-right">
@@ -116,7 +116,7 @@ export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
             })}
             {policies.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-6 py-8 text-center text-stone-500 text-sm">No governance policies active.</td>
+                <td colSpan={4} className="px-6 py-8 text-center text-slate-500 text-sm">No governance policies active.</td>
               </tr>
             )}
           </tbody>

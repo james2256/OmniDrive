@@ -81,8 +81,8 @@ export function CreateFolderModal({ open, parentId, title, onClose, onSuccess, d
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-md p-0 gap-0 rounded-2xl overflow-hidden flex flex-col">
-        <div className="flex items-center p-5 border-b border-stone-100 shrink-0">
-          <DialogTitle className="text-lg font-semibold text-stone-800 flex items-center gap-2">
+        <div className="flex items-center p-5 border-b border-slate-100 shrink-0">
+          <DialogTitle className="text-lg font-semibold text-slate-800 flex items-center gap-2">
             <FolderPlus size={20} className="text-blue-500" />
             {title}
           </DialogTitle>
@@ -98,11 +98,11 @@ export function CreateFolderModal({ open, parentId, title, onClose, onSuccess, d
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             {showDrivePicker && (
               <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-stone-700">Target Drive</label>
+                <label className="text-sm font-medium text-slate-700">Target Drive</label>
                 <select
                   value={selectedDriveId}
                   onChange={(e) => setSelectedDriveId(e.target.value)}
-                  className="px-3 py-2 bg-card border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
+                  className="px-3 py-2 bg-card border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
                 >
                   <option value="">Select a drive…</option>
                   {(drives ?? []).map((drive, i) => (
@@ -115,7 +115,7 @@ export function CreateFolderModal({ open, parentId, title, onClose, onSuccess, d
             )}
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-stone-700">
+              <label className="text-sm font-medium text-slate-700">
                 {entityLabel} name
               </label>
               <input
@@ -124,14 +124,14 @@ export function CreateFolderModal({ open, parentId, title, onClose, onSuccess, d
                 placeholder={`Enter ${entityLabel.toLowerCase()} name`}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="px-3 py-2 bg-card border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
+                className="px-3 py-2 bg-card border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
               />
             </div>
 
-            <div className="flex justify-end gap-3 mt-2 pt-4 border-t border-stone-100">
+            <div className="flex justify-end gap-3 mt-2 pt-4 border-t border-slate-100">
               <button
                 type="button"
-                className="px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-100 rounded-lg transition-colors"
+                className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
                 onClick={onClose}
               >
                 Cancel

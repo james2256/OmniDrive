@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { api } from '../lib/api';
 
-// Link styles for cream card (#efe9de): primary #2563EB is 4.28:1 (fails AA);
+// Link styles for card (#ffffff): primary #2563EB is 4.28:1 (fails AA);
 // blue-700 + permanent underline pass contrast and "links rely on color".
 const linkClass = 'text-blue-700 underline hover:text-blue-800';
 
@@ -33,7 +33,7 @@ export function LoginPage() {
   return (
     <main className="min-h-[100dvh] flex items-center justify-center bg-surface px-4">
       <div className="w-full max-w-sm">
-        <div className="bg-card border border-stone-200 rounded-2xl shadow-sm p-10 text-center">
+        <div className="bg-card border border-slate-200 rounded-2xl shadow-sm p-10 text-center">
           <div className="flex flex-col items-center justify-center mb-1">
             <img
               src="/logo.png?v=2"
@@ -44,9 +44,9 @@ export function LoginPage() {
               decoding="async"
               className="w-16 h-16 object-contain mb-3"
             />
-            <h1 className="text-3xl font-bold text-stone-900">OmniDrive</h1>
+            <h1 className="text-3xl font-bold text-slate-900">OmniDrive</h1>
           </div>
-          <p className="text-stone-600 text-sm mb-8">
+          <p className="text-slate-600 text-sm mb-8">
             Sign in to your account
           </p>
 
@@ -61,7 +61,7 @@ export function LoginPage() {
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4 text-left">
             <div>
-              <label htmlFor="login-username" className="block text-sm font-medium text-stone-700 mb-1">
+              <label htmlFor="login-username" className="block text-sm font-medium text-slate-700 mb-1">
                 Username
               </label>
               <input
@@ -72,14 +72,14 @@ export function LoginPage() {
                 required
                 value={username}
                 onChange={e => setUsername(e.target.value)}
-                className="w-full px-4 py-2 border border-stone-300 rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
 
             {isRegister && (
               <>
                 <div>
-                  <label htmlFor="login-name" className="block text-sm font-medium text-stone-700 mb-1">
+                  <label htmlFor="login-name" className="block text-sm font-medium text-slate-700 mb-1">
                     Name
                   </label>
                   <input
@@ -89,11 +89,11 @@ export function LoginPage() {
                     autoComplete="name"
                     value={name}
                     onChange={e => setName(e.target.value)}
-                    className="w-full px-4 py-2 border border-stone-300 rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
                 <div>
-                  <label htmlFor="login-email" className="block text-sm font-medium text-stone-700 mb-1">
+                  <label htmlFor="login-email" className="block text-sm font-medium text-slate-700 mb-1">
                     Email (Optional)
                   </label>
                   <input
@@ -103,11 +103,11 @@ export function LoginPage() {
                     autoComplete="email"
                     value={email}
                     onChange={e => setEmail(e.target.value)}
-                    className="w-full px-4 py-2 border border-stone-300 rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
                 <div>
-                  <label htmlFor="login-invitation" className="block text-sm font-medium text-stone-700 mb-1">
+                  <label htmlFor="login-invitation" className="block text-sm font-medium text-slate-700 mb-1">
                     Invitation Code (Required)
                   </label>
                   <input
@@ -118,14 +118,14 @@ export function LoginPage() {
                     required
                     value={invitationCode}
                     onChange={e => setInvitationCode(e.target.value)}
-                    className="w-full px-4 py-2 border border-stone-300 rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
               </>
             )}
 
             <div>
-              <label htmlFor="login-password" className="block text-sm font-medium text-stone-700 mb-1">
+              <label htmlFor="login-password" className="block text-sm font-medium text-slate-700 mb-1">
                 Password
               </label>
               <input
@@ -136,7 +136,7 @@ export function LoginPage() {
                 required
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                className="w-full px-4 py-2 border border-stone-300 rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
 
@@ -158,7 +158,7 @@ export function LoginPage() {
             </button>
           </div>
 
-          <p className="mt-8 text-xs text-stone-600">
+          <p className="mt-8 text-xs text-slate-600">
             By signing in, you agree to our{' '}
             <a href="/terms" className={linkClass}>Terms of Service</a>
             {' '}and{' '}

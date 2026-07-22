@@ -128,16 +128,16 @@ export function SharedWithMePage() {
 
       <div className="p-4 sm:p-6 space-y-6">
         {/* Breadcrumb */}
-        <nav className="flex items-center gap-1 text-sm text-stone-600">
+        <nav className="flex items-center gap-1 text-sm text-slate-600">
           {breadcrumb.map((item, i) => (
             <span key={item.id ?? `fallback-${i}`} className="flex items-center gap-1">
-              {i > 0 && <ChevronRight size={14} className="text-stone-400" />}
+              {i > 0 && <ChevronRight size={14} className="text-slate-400" />}
               {i < breadcrumb.length - 1 ? (
-                <Link to="/shared-with-me" className="hover:text-stone-900 hover:underline">
+                <Link to="/shared-with-me" className="hover:text-slate-900 hover:underline">
                   {item.name}
                 </Link>
               ) : (
-                <span className="font-medium text-stone-800">{item.name}</span>
+                <span className="font-medium text-slate-800">{item.name}</span>
               )}
             </span>
           ))}
@@ -148,7 +148,7 @@ export function SharedWithMePage() {
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
           </div>
         ) : subfolders.length > 0 || files.length > 0 ? (
-          <div className="bg-card rounded-xl border border-stone-200 overflow-hidden">
+          <div className="bg-card rounded-xl border border-slate-200 overflow-hidden">
             <FileGrid
               files={files}
               subfolders={subfolders}
@@ -169,7 +169,7 @@ export function SharedWithMePage() {
             />
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center py-20 text-stone-500">
+          <div className="flex flex-col items-center justify-center py-20 text-slate-500">
             <p className="text-lg">No shared items found.</p>
           </div>
         )}

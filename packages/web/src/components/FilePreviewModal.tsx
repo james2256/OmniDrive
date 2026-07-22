@@ -58,14 +58,14 @@ export function FilePreviewModal({ open, file, onClose }: FilePreviewModalProps)
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl p-0 gap-0 rounded-2xl overflow-hidden flex flex-col max-h-full">
         {/* Header */}
-        <div className="flex items-start p-5 border-b border-stone-100 shrink-0">
+        <div className="flex items-start p-5 border-b border-slate-100 shrink-0">
           <div className="flex items-center gap-4 min-w-0 flex-1">
             <span className="text-4xl shrink-0"><FileIcon mimeType={file?.mimeType} /></span>
             <div className="min-w-0">
-              <DialogTitle className="text-lg font-semibold text-stone-800 truncate" title={file?.name}>
+              <DialogTitle className="text-lg font-semibold text-slate-800 truncate" title={file?.name}>
                 {file?.name}
               </DialogTitle>
-              <div className="text-xs text-stone-500 truncate">
+              <div className="text-xs text-slate-500 truncate">
                 {file?.driveEmail || 'Google Drive'}
               </div>
             </div>
@@ -77,9 +77,9 @@ export function FilePreviewModal({ open, file, onClose }: FilePreviewModalProps)
           <div className="p-6 overflow-y-auto">
             {/* Image preview via authenticated API proxy */}
             {isImage && (
-              <div className="mb-6 rounded-xl overflow-hidden bg-stone-50 border border-stone-200 flex justify-center items-center p-2 min-h-[200px]">
+              <div className="mb-6 rounded-xl overflow-hidden bg-slate-50 border border-slate-200 flex justify-center items-center p-2 min-h-[200px]">
                 {isLoading ? (
-                  <div className="flex flex-col items-center justify-center text-stone-400 py-12">
+                  <div className="flex flex-col items-center justify-center text-slate-400 py-12">
                     <LoaderCircle className="w-8 h-8 animate-spin mb-2" />
                     <span className="text-sm">Loading preview…</span>
                   </div>
@@ -91,7 +91,7 @@ export function FilePreviewModal({ open, file, onClose }: FilePreviewModalProps)
                     onError={() => setImageError(true)}
                   />
                 ) : (
-                  <div className="flex flex-col items-center justify-center text-stone-400 py-12">
+                  <div className="flex flex-col items-center justify-center text-slate-400 py-12">
                     <FileIcon mimeType={file.mimeType} className="w-16 h-16 mb-2" />
                     <span className="text-sm">Preview unavailable</span>
                   </div>
@@ -100,26 +100,26 @@ export function FilePreviewModal({ open, file, onClose }: FilePreviewModalProps)
             )}
 
             {/* File Info */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm bg-stone-50 p-4 rounded-xl border border-stone-100">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm bg-slate-50 p-4 rounded-xl border border-slate-100">
               <div>
-                <div className="text-stone-500 text-xs uppercase tracking-wide font-medium mb-1">Size</div>
-                <div className="text-stone-800 font-medium">{formatFileSize(file.size)}</div>
+                <div className="text-slate-500 text-xs uppercase tracking-wide font-medium mb-1">Size</div>
+                <div className="text-slate-800 font-medium">{formatFileSize(file.size)}</div>
               </div>
               <div>
-                <div className="text-stone-500 text-xs uppercase tracking-wide font-medium mb-1">Type</div>
-                <div className="text-stone-800 font-medium truncate" title={file.mimeType ?? 'Unknown'}>
+                <div className="text-slate-500 text-xs uppercase tracking-wide font-medium mb-1">Type</div>
+                <div className="text-slate-800 font-medium truncate" title={file.mimeType ?? 'Unknown'}>
                   {file.mimeType ?? 'Unknown'}
                 </div>
               </div>
               <div>
-                <div className="text-stone-500 text-xs uppercase tracking-wide font-medium mb-1">Modified</div>
-                <div className="text-stone-800 font-medium truncate">
+                <div className="text-slate-500 text-xs uppercase tracking-wide font-medium mb-1">Modified</div>
+                <div className="text-slate-800 font-medium truncate">
                   {file.googleModifiedAt ? formatRelativeTime(file.googleModifiedAt) : '—'}
                 </div>
               </div>
               <div>
-                <div className="text-stone-500 text-xs uppercase tracking-wide font-medium mb-1">Created</div>
-                <div className="text-stone-800 font-medium truncate">
+                <div className="text-slate-500 text-xs uppercase tracking-wide font-medium mb-1">Created</div>
+                <div className="text-slate-800 font-medium truncate">
                   {file.googleCreatedAt ? formatRelativeTime(file.googleCreatedAt) : '—'}
                 </div>
               </div>
@@ -129,13 +129,13 @@ export function FilePreviewModal({ open, file, onClose }: FilePreviewModalProps)
 
         {/* Footer Actions */}
         {file && (
-          <div className="p-5 border-t border-stone-100 bg-stone-50 flex gap-3 justify-end shrink-0">
+          <div className="p-5 border-t border-slate-100 bg-slate-50 flex gap-3 justify-end shrink-0">
             {file.webViewLink && (
               <a
                 href={file.webViewLink}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-stone-700 bg-card border border-stone-300 rounded-xl hover:bg-stone-100 transition-colors shadow-sm"
+                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-slate-700 bg-card border border-slate-300 rounded-xl hover:bg-slate-100 transition-colors shadow-sm"
                 style={{ textDecoration: 'none' }}
               >
                 <ExternalLink size={18} /> Open in Drive

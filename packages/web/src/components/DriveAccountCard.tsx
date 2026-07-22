@@ -23,7 +23,7 @@ export function DriveAccountCard({ drive, index, onSync, onDisconnect }: DriveAc
   };
 
   return (
-    <div className="bg-card border border-stone-200 rounded-2xl p-5 hover:shadow-sm transition-shadow">
+    <div className="bg-card border border-slate-200 rounded-2xl p-5 hover:shadow-sm transition-shadow">
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
           <div
@@ -33,8 +33,8 @@ export function DriveAccountCard({ drive, index, onSync, onDisconnect }: DriveAc
             <HardDrive size={18} color="white" />
           </div>
           <div>
-            <div className="text-sm font-semibold text-stone-800">{drive.email}</div>
-            <div className="text-xs text-stone-400">
+            <div className="text-sm font-semibold text-slate-800">{drive.email}</div>
+            <div className="text-xs text-slate-400">
               {drive.type === 'service_account' ? 'Service Account' : 'OAuth'}
               {drive.isPrimary && <span className="ml-1.5 text-blue-500 font-medium">· Primary</span>}
               {drive.health === 'auth_expired' && (
@@ -56,7 +56,7 @@ export function DriveAccountCard({ drive, index, onSync, onDisconnect }: DriveAc
               )}
             </div>
             {drive.lastSyncedAt && (
-              <div className="text-[10px] text-stone-400 mt-0.5">
+              <div className="text-[10px] text-slate-400 mt-0.5">
                 Last synced: {new Date(drive.lastSyncedAt).toLocaleString()}
               </div>
             )}
@@ -64,7 +64,7 @@ export function DriveAccountCard({ drive, index, onSync, onDisconnect }: DriveAc
         </div>
         <div className="flex gap-2">
           <button
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-600 bg-stone-50 border border-stone-200 rounded-lg hover:bg-stone-100 transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors disabled:opacity-50"
             onClick={handleSync}
             disabled={isSyncing}
           >
@@ -92,7 +92,7 @@ export function DriveAccountCard({ drive, index, onSync, onDisconnect }: DriveAc
       </div>
 
       <QuotaBar used={drive.usedQuota} total={drive.totalQuota} color={color} showLabel={false} />
-      <div className="flex justify-between mt-2 text-xs text-stone-400">
+      <div className="flex justify-between mt-2 text-xs text-slate-400">
         <span>{formatFileSize(drive.freeSpace)} free of {formatFileSize(drive.totalQuota)}</span>
         <span>{Math.min(drive.usagePercent, 100).toFixed(1)}%</span>
       </div>

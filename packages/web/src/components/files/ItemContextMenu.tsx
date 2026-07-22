@@ -48,7 +48,7 @@ interface ItemContextMenuContentProps {
   isStarred?: boolean;
 }
 
-const MENU_ITEM_CLASS = 'px-3 py-2 text-sm text-stone-700 cursor-pointer hover:bg-stone-100 outline-none flex items-center';
+const MENU_ITEM_CLASS = 'px-3 py-2 text-sm text-slate-700 cursor-pointer hover:bg-slate-100 outline-none flex items-center';
 const MENU_ITEM_DANGER_CLASS = 'px-3 py-2 text-sm text-red-600 cursor-pointer hover:bg-red-50 outline-none flex items-center';
 
 /**
@@ -93,11 +93,11 @@ const ItemContextMenuContent: React.FC<ItemContextMenuContentProps> = ({ type, i
   } = actions;
 
   return (
-    <ContextMenuContent className="w-48 bg-card border border-stone-200 shadow-xl rounded-xl overflow-hidden py-1">
+    <ContextMenuContent className="w-48 bg-card border border-slate-200 shadow-xl rounded-xl overflow-hidden py-1">
       {/* View Info — available for both files and folders */}
       {onViewInfo && (
         <ContextMenuItem className={MENU_ITEM_CLASS} onClick={() => onViewInfo(item, type)}>
-          <Info size={16} className="mr-3 text-stone-500" />
+          <Info size={16} className="mr-3 text-slate-500" />
           View Info
         </ContextMenuItem>
       )}
@@ -107,7 +107,7 @@ const ItemContextMenuContent: React.FC<ItemContextMenuContentProps> = ({ type, i
           {/* Trash view: Restore + Delete Forever only */}
           {type === 'file' && onRestore && fileId && (
             <ContextMenuItem className={MENU_ITEM_CLASS} onClick={() => onRestore(fileId)}>
-              <RefreshCw size={16} className="mr-3 text-stone-500" />
+              <RefreshCw size={16} className="mr-3 text-slate-500" />
               Restore
             </ContextMenuItem>
           )}
@@ -116,7 +116,7 @@ const ItemContextMenuContent: React.FC<ItemContextMenuContentProps> = ({ type, i
               className={MENU_ITEM_CLASS}
               onClick={() => onRestoreFolder(driveAccountId, driveFolder.googleFolderId)}
             >
-              <RefreshCw size={16} className="mr-3 text-stone-500" />
+              <RefreshCw size={16} className="mr-3 text-slate-500" />
               Restore
             </ContextMenuItem>
           )}
@@ -141,7 +141,7 @@ const ItemContextMenuContent: React.FC<ItemContextMenuContentProps> = ({ type, i
           {/* Normal view: full action set */}
           {type === 'file' && file && onPreviewFile && (
             <ContextMenuItem className={MENU_ITEM_CLASS} onClick={() => onPreviewFile(file)}>
-              <Eye size={16} className="mr-3 text-stone-500" />
+              <Eye size={16} className="mr-3 text-slate-500" />
               Preview
             </ContextMenuItem>
           )}

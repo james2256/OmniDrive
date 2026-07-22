@@ -84,13 +84,13 @@ export function SearchPage() {
   return (
     <div className="p-4 sm:p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-stone-800">
+        <h1 className="text-2xl font-semibold text-slate-800">
           {query ? `Search results for "${query}"` : 'Search'}
         </h1>
       </div>
 
       {!query ? (
-        <div className="flex flex-col items-center justify-center py-20 text-stone-500">
+        <div className="flex flex-col items-center justify-center py-20 text-slate-500">
           <p className="text-lg">Please enter a search term.</p>
         </div>
       ) : isLoading ? (
@@ -98,7 +98,7 @@ export function SearchPage() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
         </div>
       ) : fileResults.length > 0 || folderResults.length > 0 ? (
-        <div className="bg-card rounded-xl border border-stone-200 overflow-hidden">
+        <div className="bg-card rounded-xl border border-slate-200 overflow-hidden">
           <FileGrid
             files={fileResults}
             subfolders={folderResults}
@@ -114,7 +114,7 @@ export function SearchPage() {
           />
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center py-20 text-stone-500">
+        <div className="flex flex-col items-center justify-center py-20 text-slate-500">
           <p className="text-lg">No results found matching '{query}'.</p>
         </div>
       )}

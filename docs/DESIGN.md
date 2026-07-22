@@ -4,7 +4,7 @@ Visual guide and component patterns for the OmniDrive frontend (`packages/web`).
 
 ## Design Philosophy
 
-OmniDrive adopts a **Claude-inspired warm canvas** design system (ref: [getdesign.md/claude](https://getdesign.md/claude/design-md)) with a cobalt brand override — clean, bento-driven, and functional. Light mode with a cream canvas floor, grounded cream cards, warm ink text, a cobalt blue accent, and an asymmetric dashboard. Not a pure dark mode.
+OmniDrive adopts a **blue-brand** design system with a cobalt primary accent — clean, bento-driven, and functional. Light mode with a cool slate canvas floor, clean white cards, slate ink text, a cobalt blue accent, and an asymmetric dashboard. Not a pure dark mode.
 
 | Principle | Implementation |
 |-----------|----------------|
@@ -37,12 +37,12 @@ Defined in `packages/web/src/index.css` via `@theme` (Tailwind v4 CSS-first conf
 @import "tw-animate-css";
 
 @theme {
-  --color-background: #faf9f5;          /* Canvas — cream floor, deliberately not pure white */
-  --color-foreground: #141413;          /* Ink — warm near-black (not cool) */
-  --color-primary: #2563EB;             /* Cobalt blue — brand CTA/accent (override of Claude coral) */
+  --color-background: #f8fafc;          /* Canvas — slate floor, deliberately not pure white */
+  --color-foreground: #0f172a;          /* Ink — slate-900 */
+  --color-primary: #2563EB;             /* Cobalt blue — brand CTA/accent  */
   --color-primary-foreground: #ffffff;
-  --color-surface: #f5f0e8;             /* Surface-soft — sidebar, shell, section bands */
-  --color-card: #efe9de;                /* Surface-card — grounded panels, one step darker than canvas */
+  --color-surface: #eef2f7;             /* Surface-soft — sidebar, shell, section bands */
+  --color-card: #ffffff;                /* Surface-card — grounded panels, one step darker than canvas */
 
   --radius-lg: 0.5rem;
   --radius-md: calc(0.5rem - 2px);
@@ -74,31 +74,31 @@ button:not(:disabled),
 
 Any new clickable element that is not a native `<button>` should use `role="button"` (or the Radix `asChild` slot pattern) so it picks up this rule. Do not sprinkle `cursor-pointer` utility classes manually.
 
-**`border-stone-300` consistency fix.** All text inputs, selects, modals, dropdowns, and bento cards use the same `border-stone-200` / `border-stone-300` warm gray border. When the project migrated to Tailwind 4 (whose default border color changed from `gray-200` to `currentColor`), every interactive border was audited and pinned to `border-stone-300` (or `border-stone-200` for softer card edges) — never `border-gray-*` (cool) and never the bare `border` utility (which now resolves to `currentColor`). New inputs should default to `border border-stone-300 rounded-lg bg-card focus:border-primary`.
+**`border-slate-300` consistency fix.** All text inputs, selects, modals, dropdowns, and bento cards use the same `border-slate-200` / `border-slate-300` cool gray border. When the project migrated to Tailwind 4 (whose default border color changed from `gray-200` to `currentColor`), every interactive border was audited and pinned to `border-slate-300` (or `border-slate-200` for softer card edges) — never `border-gray-*` (cool) and never the bare `border` utility (which now resolves to `currentColor`). New inputs should default to `border border-slate-300 rounded-lg bg-card focus:border-primary`.
 
-### Claude Color Hierarchy
+### Color Hierarchy
 
 | Layer | Token | Hex | Role |
 |-------|-------|-----|------|
-| Canvas (floor) | `bg-background` | `#faf9f5` | Page floor — cream, lighter than cards |
-| Surface (shell) | `bg-surface` | `#f5f0e8` | Sidebar, app shell, section divider |
-| Card (grounded) | `bg-card` | `#efe9de` | Panel cards — **darker than floor** (grounded, not floating) |
-| Ink (main text) | `text-foreground` | `#141413` | Warm near-black, not cool gray |
-| Primary (accent) | `bg-primary` | `#2563EB` | Cobalt blue — brand override (Claude uses coral `#cc785c`) |
+| Canvas (floor) | `bg-background` | `#f8fafc` | Page floor — slate-50, lighter than cards |
+| Surface (shell) | `bg-surface` | `#eef2f7` | Sidebar, app shell, section divider |
+| Card (grounded) | `bg-card` | `#ffffff` | Panel cards — **darker than floor** (grounded, not floating) |
+| Ink (main text) | `text-foreground` | `#0f172a` | Slate-900 near-black, not cool gray |
+| Primary (accent) | `bg-primary` | `#2563EB` | Cobalt blue — brand override (
 
 ### Color Usage
 
 | Token | Usage |
 |-------|-------|
-| `bg-background` | Page floor / canvas (`#faf9f5` cream — lighter than cards) |
-| `bg-surface` | App shell & sidebar (`#f5f0e8` surface-soft) |
-| `bg-card` | All elevated surfaces — bento cards, modal, dropdown, context menu, input, InfoPanel, toast (`#efe9de` grounded panel — darker than floor) |
-| `border-stone-*` | Warm gray borders (consistent warm tone with Claude canvas). Inputs/selects/bento cards pin to `border-stone-300` or `border-stone-200` — see **Tailwind 4 Migration Notes** below for why bare `border` is forbidden |
-| `text-foreground` | Main text (`#141413` warm ink) |
-| `text-stone-*` | Secondary text, muted, navigation (warm gray — consistent warm tone, not cool `text-gray-*`) |
+| `bg-background` | Page floor / canvas (`#f8fafc` slate-50 — lighter than cards) |
+| `bg-surface` | App shell & sidebar (`#eef2f7` surface-soft) |
+| `bg-card` | All elevated surfaces — bento cards, modal, dropdown, context menu, input, InfoPanel, toast (`#ffffff` clean white panel) |
+| `border-slate-*` | Cool gray borders (consistent cool tone matching the brand). Inputs/selects/bento cards pin to `border-slate-300` or `border-slate-200` — see **Tailwind 4 Migration Notes** below for why bare `border` is forbidden |
+| `text-foreground` | Main text (`#0f172a` slate ink) |
+| `text-slate-*` | Secondary text, muted, navigation (cool gray — consistent cool tone, not cool `text-gray-*`) |
 | `bg-primary` / `text-primary` | Primary buttons, links (cobalt `#2563EB` brand override) |
-| `bg-blue-100 text-stone-900` | Active nav item (sidebar) — cobalt accent pop on warm field |
-| `hover:bg-stone-100` | Nav item hover (sidebar) |
+| `bg-blue-100 text-slate-900` | Active nav item (sidebar) — cobalt accent pop on cool field |
+| `hover:bg-slate-100` | Nav item hover (sidebar) |
 
 ### Typography
 
@@ -282,7 +282,7 @@ The home dashboard (`DashboardPage.tsx`) uses an asymmetric 4-column bento grid 
 6. **Error** — use `toastStore` for user feedback
 7. **Admin-only UI** — check `user?.role === 'super_admin'` as in Sidebar
 8. **Clickable non-`<button>` elements** — add `role="button"` so the preflight `cursor: pointer` rule applies; do not sprinkle `cursor-pointer` utilities
-9. **Borders** — pin interactive borders to `border-stone-300` (or `border-stone-200` for soft card edges). Never use the bare `border` utility (Tailwind 4 resolves it to `currentColor`) and never `border-gray-*`
+9. **Borders** — pin interactive borders to `border-slate-300` (or `border-slate-200` for soft card edges). Never use the bare `border` utility (Tailwind 4 resolves it to `currentColor`) and never `border-gray-*`
 
 ## Anti-Patterns (Do Not)
 
@@ -292,8 +292,8 @@ The home dashboard (`DashboardPage.tsx`) uses an asymmetric 4-column bento grid 
 - Do not nest cards-inside-cards excessively
 - Do not use inline styles except for a temporary error boundary (`App.tsx` connection error)
 - Do not create custom button components — extend `components/ui/button.tsx`
-- Do not use bare `border` (Tailwind 4 default is `currentColor`) or cool `border-gray-*` — use `border-stone-200` / `border-stone-300` for warm consistency
+- Do not use bare `border` (Tailwind 4 default is `currentColor`) or cool `border-gray-*` — use `border-slate-200` / `border-slate-300` for cool consistency
 
 ## Visual Reference
 
-Target aesthetic: **Claude-inspired warm canvas with cobalt brand override** — cream sidebar `#f5f0e8` (`bg-surface`), grounded cards `#efe9de` (`bg-card`, darker than the `#faf9f5` floor), cobalt primary `#2563EB`, pill navigation, asymmetric bento grid Dashboard, per-type donut breakdown.
+Target aesthetic: **blue-brand with cobalt brand override** — slate sidebar `#eef2f7` (`bg-surface`), grounded cards `#ffffff` (`bg-card`, darker than the `#f8fafc` floor), cobalt primary `#2563EB`, pill navigation, asymmetric bento grid Dashboard, per-type donut breakdown.

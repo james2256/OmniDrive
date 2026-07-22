@@ -28,7 +28,7 @@ const TermsOfServicePage = lazyWithRetry(() => import('./pages/TermsOfServicePag
 function PageFallback() {
   return (
     <div
-      className="min-h-[100dvh] flex items-center justify-center bg-surface text-stone-600 text-sm"
+      className="min-h-[100dvh] flex items-center justify-center bg-surface text-slate-600 text-sm"
       role="status"
       aria-live="polite"
     >
@@ -61,14 +61,14 @@ export const App = () => {
   if (setupError) {
     return (
       <main className="min-h-[100dvh] flex flex-col items-center justify-center gap-4 bg-surface px-4">
-        <h1 className="text-lg font-semibold text-stone-900">Connection Error</h1>
-        <p className="text-sm text-stone-600 text-center max-w-sm" role="alert">
+        <h1 className="text-lg font-semibold text-slate-900">Connection Error</h1>
+        <p className="text-sm text-slate-600 text-center max-w-sm" role="alert">
           {setupError}
         </p>
         <button
           type="button"
           onClick={checkSetupStatus}
-          className="px-4 py-2 rounded-lg border border-stone-300 bg-card text-stone-800 text-sm font-medium hover:bg-stone-50"
+          className="px-4 py-2 rounded-lg border border-slate-300 bg-card text-slate-800 text-sm font-medium hover:bg-slate-50"
         >
           Retry
         </button>

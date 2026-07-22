@@ -90,8 +90,8 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-md p-0 gap-0 rounded-2xl overflow-hidden flex flex-col max-h-full">
-        <div className="flex items-center p-5 border-b border-stone-100 shrink-0">
-          <DialogTitle className="text-lg font-semibold text-stone-800 flex items-center gap-2">
+        <div className="flex items-center p-5 border-b border-slate-100 shrink-0">
+          <DialogTitle className="text-lg font-semibold text-slate-800 flex items-center gap-2">
             <Share2 size={20} className="text-blue-500" />
             Share {targetType === 'file' ? 'File' : 'Folder'}
           </DialogTitle>
@@ -107,28 +107,28 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
           {!sharedUrl ? (
             <form onSubmit={handleShare} className="flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-stone-700 flex items-center gap-1.5">
-                  <Lock size={14} className="text-stone-400" /> Password (optional)
+                <label className="text-sm font-medium text-slate-700 flex items-center gap-1.5">
+                  <Lock size={14} className="text-slate-400" /> Password (optional)
                 </label>
                 <input
                   type="password"
                   placeholder="Leave blank for no password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="px-3 py-2 bg-card border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
+                  className="px-3 py-2 bg-card border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
                 />
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-stone-700 flex items-center gap-1.5">
-                  <Calendar size={14} className="text-stone-400" /> Expiration Date (optional)
+                <label className="text-sm font-medium text-slate-700 flex items-center gap-1.5">
+                  <Calendar size={14} className="text-slate-400" /> Expiration Date (optional)
                 </label>
                 <input
                   type="datetime-local"
                   value={expiresAt}
                   min={currentDateTime}
                   onChange={(e) => setExpiresAt(e.target.value)}
-                  className="px-3 py-2 bg-card border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
+                  className="px-3 py-2 bg-card border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
                 />
               </div>
 
@@ -136,7 +136,7 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
                 <button
                   type="button"
                   onClick={() => setShowAdvanced(!showAdvanced)}
-                  className="flex items-center text-sm font-medium text-stone-600 hover:text-stone-800 transition-colors"
+                  className="flex items-center text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors"
                 >
                   <Settings size={14} className="mr-1.5" />
                   Advanced Settings
@@ -145,47 +145,47 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
 
                 <div className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${showAdvanced ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
                   <div className="overflow-hidden">
-                    <div className="flex flex-col gap-3 mt-3 p-4 bg-stone-50 rounded-xl border border-stone-200">
-                      <label className="flex items-center gap-2.5 text-sm text-stone-700 cursor-pointer">
+                    <div className="flex flex-col gap-3 mt-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                      <label className="flex items-center gap-2.5 text-sm text-slate-700 cursor-pointer">
                         <input
                           type="checkbox"
                           checked={allowDownloads}
                           onChange={(e) => setAllowDownloads(e.target.checked)}
-                          className="w-4 h-4 rounded border-stone-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                         />
                         <span className="select-none">Allow Downloads</span>
                       </label>
 
-                      <label className="flex items-center gap-2.5 text-sm text-stone-700 cursor-pointer">
+                      <label className="flex items-center gap-2.5 text-sm text-slate-700 cursor-pointer">
                         <input
                           type="checkbox"
                           checked={requireEmail}
                           onChange={(e) => setRequireEmail(e.target.checked)}
-                          className="w-4 h-4 rounded border-stone-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                         />
                         <span className="select-none">Require Email to View</span>
                       </label>
 
                       <div className="flex flex-col gap-1.5 mt-2">
-                        <label className="text-xs font-semibold text-stone-600 uppercase tracking-wide">Max Downloads</label>
+                        <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Max Downloads</label>
                         <input
                           type="number"
                           min="1"
                           value={maxDownloads}
                           onChange={(e) => setMaxDownloads(e.target.value)}
                           placeholder="e.g. 10 (Leave blank for unlimited)"
-                          className="px-3 py-2 bg-card border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="px-3 py-2 bg-card border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                       </div>
 
                       <div className="flex flex-col gap-1.5 mt-2">
-                        <label className="text-xs font-semibold text-stone-600 uppercase tracking-wide">Webhook URL</label>
+                        <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Webhook URL</label>
                         <input
                           type="url"
                           value={webhookUrl}
                           onChange={(e) => setWebhookUrl(e.target.value)}
                           placeholder="e.g. https://your-api.com/webhook"
-                          className="px-3 py-2 bg-card border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="px-3 py-2 bg-card border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                       </div>
                     </div>
@@ -193,10 +193,10 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-stone-100">
+              <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-slate-100">
                 <button
                   type="button"
-                  className="px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-100 rounded-lg transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
                   onClick={onClose}
                 >
                   Cancel
@@ -216,7 +216,7 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
             </form>
           ) : (
             <div className="flex flex-col gap-4">
-              <p className="text-sm text-stone-600 bg-blue-50 p-3 rounded-lg border border-blue-100">
+              <p className="text-sm text-slate-600 bg-blue-50 p-3 rounded-lg border border-blue-100">
                 Anyone with this link can access the {targetType}.
               </p>
               <div className="flex gap-2">
@@ -224,18 +224,18 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
                   type="text"
                   readOnly
                   value={sharedUrl}
-                  className="flex-1 px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-600 focus:outline-none"
+                  className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-600 focus:outline-none"
                   onClick={(e) => e.currentTarget.select()}
                 />
                 <button
-                  className="flex items-center justify-center w-10 h-10 text-stone-700 bg-card border border-stone-300 rounded-lg hover:bg-stone-50 transition-colors shrink-0"
+                  className="flex items-center justify-center w-10 h-10 text-slate-700 bg-card border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors shrink-0"
                   onClick={copyToClipboard}
                   title="Copy to clipboard"
                 >
                   {copied ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
                 </button>
               </div>
-              <div className="flex justify-end mt-4 pt-4 border-t border-stone-100">
+              <div className="flex justify-end mt-4 pt-4 border-t border-slate-100">
                 <button
                   className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
                   onClick={onClose}

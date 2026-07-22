@@ -46,12 +46,12 @@ export function WorkspaceSidebar({
   const rootFolders = childrenMap.get(null) || [];
 
   return (
-    <div className="w-64 border-r border-stone-200 bg-stone-50/50 flex flex-col h-full overflow-y-auto py-4">
+    <div className="w-64 border-r border-slate-200 bg-slate-50/50 flex flex-col h-full overflow-y-auto py-4">
       <div className="px-4 mb-2 flex items-center justify-between group">
-        <h3 className="text-xs font-semibold text-stone-500 uppercase tracking-wider">Workspaces</h3>
+        <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Workspaces</h3>
         <button 
           onClick={() => onNewSubfolder(null)} 
-          className="text-stone-400 hover:text-stone-600 transition-colors"
+          className="text-slate-400 hover:text-slate-600 transition-colors"
           title="New Workspace"
         >
           <Plus size={16} />
@@ -59,7 +59,7 @@ export function WorkspaceSidebar({
       </div>
       <div className="flex-1">
         {rootFolders.length === 0 ? (
-          <p className="px-4 text-sm text-stone-500 italic">No workspaces yet.</p>
+          <p className="px-4 text-sm text-slate-500 italic">No workspaces yet.</p>
         ) : (
           rootFolders.map(folder => (
             <WorkspaceTreeNode

@@ -52,13 +52,13 @@ export function TrashPage() {
   return (
     <div className="p-4 sm:p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-stone-800">Trash</h1>
+        <h1 className="text-2xl font-semibold text-slate-800">Trash</h1>
       </div>
 
       {isLoading ? (
         <ListSkeleton rows={6} />
       ) : hasItems ? (
-        <div className="bg-card rounded-xl border border-stone-200 overflow-hidden">
+        <div className="bg-card rounded-xl border border-slate-200 overflow-hidden">
           <FileGrid
             files={fileResults}
             subfolders={folderResults}

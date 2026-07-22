@@ -82,23 +82,23 @@ export function MoveModal({ open, items, driveId, onClose, onSuccess }: MoveModa
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg p-0 gap-0 rounded-2xl overflow-hidden flex flex-col max-h-[80vh]">
-        <div className="flex items-center justify-between p-4 border-b border-stone-200 shrink-0">
-          <DialogTitle className="text-lg font-semibold text-stone-800">
+        <div className="flex items-center justify-between p-4 border-b border-slate-200 shrink-0">
+          <DialogTitle className="text-lg font-semibold text-slate-800">
             Move {items.length} item{items.length > 1 ? 's' : ''}
           </DialogTitle>
         </div>
 
         {/* Breadcrumb */}
-        <div className="flex items-center gap-1 px-4 py-2 text-sm text-stone-600 border-b border-stone-100 shrink-0 overflow-x-auto">
+        <div className="flex items-center gap-1 px-4 py-2 text-sm text-slate-600 border-b border-slate-100 shrink-0 overflow-x-auto">
           {breadcrumb.map((item, i) => (
             <span key={item.id ?? `bc-${i}`} className="flex items-center gap-1 whitespace-nowrap">
-              {i > 0 && <ChevronRight size={14} className="text-stone-400" />}
+              {i > 0 && <ChevronRight size={14} className="text-slate-400" />}
               {i < breadcrumb.length - 1 ? (
-                <button onClick={() => handleBreadcrumbClick(i)} className="hover:text-stone-900 hover:underline">
+                <button onClick={() => handleBreadcrumbClick(i)} className="hover:text-slate-900 hover:underline">
                   {item.name}
                 </button>
               ) : (
-                <span className="font-medium text-stone-800">{item.name}</span>
+                <span className="font-medium text-slate-800">{item.name}</span>
               )}
             </span>
           ))}
@@ -107,7 +107,7 @@ export function MoveModal({ open, items, driveId, onClose, onSuccess }: MoveModa
         {/* Folder list */}
         <div className="flex-1 overflow-y-auto p-2 min-h-[200px]">
           {subfolders.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-stone-400">
+            <div className="flex flex-col items-center justify-center py-12 text-slate-400">
               <Folder size={32} className="mb-2" />
               <p className="text-sm">No subfolders here</p>
             </div>
@@ -116,25 +116,25 @@ export function MoveModal({ open, items, driveId, onClose, onSuccess }: MoveModa
               <button
                 key={folder.googleFolderId}
                 onClick={() => handleFolderClick(folder.googleFolderId, folder.name)}
-                className="flex items-center gap-3 w-full px-3 py-2 rounded-lg hover:bg-stone-100 transition-colors text-left"
+                className="flex items-center gap-3 w-full px-3 py-2 rounded-lg hover:bg-slate-100 transition-colors text-left"
               >
-                <FolderInput size={18} className="text-stone-500 shrink-0" />
-                <span className="text-sm text-stone-700 truncate">{folder.name}</span>
+                <FolderInput size={18} className="text-slate-500 shrink-0" />
+                <span className="text-sm text-slate-700 truncate">{folder.name}</span>
               </button>
             ))
           )}
         </div>
 
         {/* Actions */}
-        <div className="flex justify-between items-center p-4 border-t border-stone-200 shrink-0">
-          <span className="text-xs text-stone-500">
+        <div className="flex justify-between items-center p-4 border-t border-slate-200 shrink-0">
+          <span className="text-xs text-slate-500">
             Destination: {breadcrumb[breadcrumb.length - 1]?.name || 'My Drive'}
           </span>
           <div className="flex gap-2">
             <button
               onClick={onClose}
               disabled={isMoving}
-              className="px-4 py-2 text-sm font-medium text-stone-600 bg-stone-50 border border-stone-200 rounded-lg hover:bg-stone-100 transition-colors disabled:opacity-50"
+              className="px-4 py-2 text-sm font-medium text-slate-600 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors disabled:opacity-50"
             >
               Cancel
             </button>

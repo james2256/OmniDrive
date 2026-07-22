@@ -251,19 +251,19 @@ export function WorkspacesPage() {
             <h3 className="text-lg font-bold mb-4">Set Retention Policy</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">Action</label>
-                <select id="retentionAction" className="w-full border-stone-300 rounded p-2 text-sm border">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Action</label>
+                <select id="retentionAction" className="w-full border-slate-300 rounded p-2 text-sm border">
                   <option value="auto_delete">Auto-Delete (Retention limit)</option>
                   <option value="prevent_deletion">Prevent Deletion (Legal Hold)</option>
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">Days</label>
-                <input id="retentionDays" type="number" defaultValue={30} className="w-full border border-stone-300 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <label className="block text-sm font-medium text-slate-700 mb-1">Days</label>
+                <input id="retentionDays" type="number" defaultValue={30} className="w-full border border-slate-300 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
             </div>
             <div className="mt-6 flex justify-end gap-3">
-              <button className="px-4 py-2 text-sm text-stone-600 hover:bg-stone-100 rounded" onClick={() => setRetentionTargetId(null)}>Cancel</button>
+              <button className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded" onClick={() => setRetentionTargetId(null)}>Cancel</button>
               <button className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700" onClick={async () => {
                 const action = (document.getElementById('retentionAction') as HTMLSelectElement).value;
                 const days = parseInt((document.getElementById('retentionDays') as HTMLInputElement).value, 10);

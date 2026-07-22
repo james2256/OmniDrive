@@ -66,9 +66,9 @@ export function PublicSharedPage() {
   const renderContent = (): ReactNode => {
     if (loading) {
       return (
-        <div className="bg-card p-10 rounded-2xl shadow-xl max-w-md w-full border border-stone-100 flex flex-col items-center">
+        <div className="bg-card p-10 rounded-2xl shadow-xl max-w-md w-full border border-slate-100 flex flex-col items-center">
           <LoaderCircle className="animate-spin text-blue-500 mb-4" size={48} />
-          <p className="text-stone-500 font-medium">Loading...</p>
+          <p className="text-slate-500 font-medium">Loading...</p>
         </div>
       );
     }
@@ -77,21 +77,21 @@ export function PublicSharedPage() {
       return (
         <div className="bg-card p-10 rounded-2xl shadow-xl max-w-md w-full border border-red-200 flex flex-col items-center">
           <CircleAlert size={48} className="text-red-500 mb-4" />
-          <h2 className="text-2xl font-bold text-stone-800 mb-2">Error</h2>
-          <p className="text-stone-500">{error}</p>
+          <h2 className="text-2xl font-bold text-slate-800 mb-2">Error</h2>
+          <p className="text-slate-500">{error}</p>
         </div>
       );
     }
 
     if (meta?.requiresPassword) {
       return (
-        <div className="bg-card p-10 rounded-2xl shadow-xl max-w-md w-full border border-stone-100">
+        <div className="bg-card p-10 rounded-2xl shadow-xl max-w-md w-full border border-slate-100">
           <div className="text-center mb-8">
             <div className="flex justify-center mb-4">
               <Lock size={48} className="text-blue-500" />
             </div>
-            <h2 className="text-2xl font-bold text-stone-800 mb-2">Password Required</h2>
-            <p className="text-stone-500">This shared link is protected by a password.</p>
+            <h2 className="text-2xl font-bold text-slate-800 mb-2">Password Required</h2>
+            <p className="text-slate-500">This shared link is protected by a password.</p>
           </div>
 
           <form onSubmit={handlePasswordSubmit}>
@@ -103,7 +103,7 @@ export function PublicSharedPage() {
                 id="shared-password"
                 type="password"
                 autoComplete="current-password"
-                className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-xl text-stone-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                 placeholder="Enter password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -131,19 +131,19 @@ export function PublicSharedPage() {
     }
 
     return (
-      <div className="bg-card p-10 rounded-2xl shadow-xl max-w-md w-full border border-stone-100 text-center">
+      <div className="bg-card p-10 rounded-2xl shadow-xl max-w-md w-full border border-slate-100 text-center">
         {meta?.type === 'folder' ? (
           <div className="mb-8">
             <div className="mb-4 flex justify-center"><Folder size={72} className="text-blue-500" fill="currentColor" /></div>
-            <h2 className="text-2xl font-bold text-stone-800 mb-2">Shared Folder</h2>
-            <p className="text-stone-500">Folder view is not supported yet.</p>
+            <h2 className="text-2xl font-bold text-slate-800 mb-2">Shared Folder</h2>
+            <p className="text-slate-500">Folder view is not supported yet.</p>
           </div>
         ) : (
           <div className="mb-8">
             <div className="text-7xl mb-4 leading-none flex justify-center"><FileIcon mimeType={meta?.target?.mimeType || null} /></div>
-            <h2 className="text-2xl font-bold text-stone-800 mb-2 break-words">{meta?.target?.name || 'Unknown File'}</h2>
+            <h2 className="text-2xl font-bold text-slate-800 mb-2 break-words">{meta?.target?.name || 'Unknown File'}</h2>
             {typeof meta?.target?.size === 'number' && (
-              <p className="text-stone-500">{formatFileSize(meta.target.size)}</p>
+              <p className="text-slate-500">{formatFileSize(meta.target.size)}</p>
             )}
           </div>
         )}
@@ -160,7 +160,7 @@ export function PublicSharedPage() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-stone-50 p-4 sm:p-6">
+    <main className="min-h-screen flex items-center justify-center bg-slate-50 p-4 sm:p-6">
       {renderContent()}
     </main>
   );

@@ -52,7 +52,7 @@ export function FileGridView(props: FileViewSharedProps) {
                   ? 'bg-blue-100 border-blue-300'
                   : hasError
                   ? 'border-red-300 bg-red-50 hover:border-red-400'
-                  : 'border-stone-300 bg-card hover:bg-blue-50 hover:border-blue-200'
+                  : 'border-slate-300 bg-card hover:bg-blue-50 hover:border-blue-200'
               }`}
             >
               <input
@@ -67,7 +67,7 @@ export function FileGridView(props: FileViewSharedProps) {
               />
               <div className="flex items-center gap-3 min-w-0">
                 <Folder size={20} className="text-blue-500 flex-shrink-0 ml-5" fill="currentColor" />
-                <div className="flex-1 truncate text-sm font-medium text-stone-800">
+                <div className="flex-1 truncate text-sm font-medium text-slate-800">
                   {folder.name}
                 </div>
                 <div className="flex gap-1 items-center">
@@ -97,7 +97,7 @@ export function FileGridView(props: FileViewSharedProps) {
               className={`p-3 border rounded-xl cursor-pointer flex flex-col justify-between h-40 transition-all group relative ${
                 isSelected
                   ? 'bg-blue-100 border-blue-300'
-                  : 'bg-card border-stone-300 hover:bg-blue-50 hover:border-blue-200'
+                  : 'bg-card border-slate-300 hover:bg-blue-50 hover:border-blue-200'
               }`}
             >
               <input
@@ -118,11 +118,11 @@ export function FileGridView(props: FileViewSharedProps) {
                 </div>
               </div>
               <div>
-                <div className="font-medium text-xs text-stone-800 truncate mb-1 leading-snug" title={file.name}>
+                <div className="font-medium text-xs text-slate-800 truncate mb-1 leading-snug" title={file.name}>
                   {file.name}
                 </div>
                 <div className="mb-1.5">{renderDriveBadge(file.driveAccountId)}</div>
-                <div className="flex items-center text-xs text-stone-400 gap-1.5">
+                <div className="flex items-center text-xs text-slate-400 gap-1.5">
                   {!native && <span className="truncate">{formatFileSize(file.size)}</span>}
                   {!native && <span>·</span>}
                   <span className="truncate">{formatRelativeTime(file.googleModifiedAt ?? file.createdAt)}</span>

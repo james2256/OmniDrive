@@ -20,9 +20,9 @@ export function SetupPage() {
   return (
     <main className="min-h-[100dvh] flex items-center justify-center bg-surface px-4">
       <div className="w-full max-w-sm">
-        <div className="bg-card border border-stone-200 rounded-2xl shadow-sm p-10 text-center">
-          <h1 className="text-3xl font-bold text-stone-900 mb-2">Welcome to OmniDrive</h1>
-          <p className="text-stone-600 text-sm mb-6">Create the first Super Admin account to get started.</p>
+        <div className="bg-card border border-slate-200 rounded-2xl shadow-sm p-10 text-center">
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">Welcome to OmniDrive</h1>
+          <p className="text-slate-600 text-sm mb-6">Create the first Super Admin account to get started.</p>
           {errorMsg && (
             <div role="alert" className="mb-4 text-red-700 text-sm">
               {errorMsg}
@@ -30,7 +30,7 @@ export function SetupPage() {
           )}
           <form onSubmit={handleSubmit} className="flex flex-col gap-4 text-left">
             <div>
-              <label htmlFor="setup-username" className="block text-sm font-medium text-stone-700 mb-1">
+              <label htmlFor="setup-username" className="block text-sm font-medium text-slate-700 mb-1">
                 Admin Username
               </label>
               <input
@@ -41,11 +41,11 @@ export function SetupPage() {
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-4 py-2 border border-stone-300 rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
             <div>
-              <label htmlFor="setup-password" className="block text-sm font-medium text-stone-700 mb-1">
+              <label htmlFor="setup-password" className="block text-sm font-medium text-slate-700 mb-1">
                 Admin Password
               </label>
               <input
@@ -56,7 +56,7 @@ export function SetupPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2 border border-stone-300 rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
             <button

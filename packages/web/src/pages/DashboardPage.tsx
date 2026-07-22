@@ -51,7 +51,7 @@ const CATEGORY_META: {
   color: string;
   Icon: typeof ImageIcon;
 }[] = [
-  { key: 'documents', label: 'Documents', color: '#3b82f6', Icon: FileText },
+  { key: 'documents', label: 'Documents', color: '#2563EB', Icon: FileText },
   { key: 'images', label: 'Images', color: '#ef4444', Icon: ImageIcon },
   { key: 'videos', label: 'Videos', color: '#f59e0b', Icon: Film },
   { key: 'audio', label: 'Audio', color: '#10b981', Icon: Music },
@@ -134,7 +134,7 @@ export function DashboardPage() {
       .filter((c) => c.value > 0)
       .sort((a, b) => b.value - a.value);
     if ((category.others ?? 0) > 0) {
-      rows.push({ name: 'Other', value: category.others, color: '#9ca3af' });
+      rows.push({ name: 'Other', value: category.others, color: '#cbd5e1' });
     }
     return rows;
   }, [category]);
@@ -155,17 +155,17 @@ export function DashboardPage() {
       {/* Greeting + refresh */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-stone-800">
+          <h1 className="text-2xl font-semibold text-slate-800">
             {greeting()}{user ? `, ${firstName(user.name)}` : ''}
           </h1>
-          <p className="text-sm text-stone-500 mt-0.5">
+          <p className="text-sm text-slate-500 mt-0.5">
             {hasDrives
               ? `${driveCount} drive${driveCount > 1 ? 's' : ''} connected · ${formatFileSize(totalFree)} free`
               : 'Connect a Google Drive to get started'}
           </p>
         </div>
         <button
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-stone-600 bg-card border border-stone-300 rounded-lg hover:bg-stone-50 transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-600 bg-card border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
           onClick={() => {
             queryClient.invalidateQueries({ queryKey: qk.recent });
             queryClient.invalidateQueries({ queryKey: qk.category });
@@ -179,12 +179,12 @@ export function DashboardPage() {
 
       {/* Empty state — no drives yet. */}
       {!hasDrives && !isLoading && (
-        <div className="bg-card border border-stone-200 rounded-2xl p-8 sm:p-12 text-center bento-reveal">
+        <div className="bg-card border border-slate-200 rounded-2xl p-8 sm:p-12 text-center bento-reveal">
           <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-4">
             <Cloud size={26} className="text-primary" />
           </div>
-          <h2 className="text-lg font-semibold text-stone-800">No drives connected</h2>
-          <p className="text-sm text-stone-500 mt-1 max-w-md mx-auto">
+          <h2 className="text-lg font-semibold text-slate-800">No drives connected</h2>
+          <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">
             Connect your first Google Drive to start syncing, browsing, and sharing files from one place.
           </p>
           <button
@@ -200,9 +200,9 @@ export function DashboardPage() {
       {/* Loading skeleton — matches bento shape */}
       {isLoading && (
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 auto-rows-[minmax(150px,auto)]">
-          <div className="lg:col-span-2 bg-card border border-stone-200 rounded-2xl animate-pulse" />
-          <div className="lg:col-span-2 lg:row-span-2 bg-card border border-stone-200 rounded-2xl animate-pulse" />
-          <div className="lg:col-span-2 bg-card border border-stone-200 rounded-2xl animate-pulse" />
+          <div className="lg:col-span-2 bg-card border border-slate-200 rounded-2xl animate-pulse" />
+          <div className="lg:col-span-2 lg:row-span-2 bg-card border border-slate-200 rounded-2xl animate-pulse" />
+          <div className="lg:col-span-2 bg-card border border-slate-200 rounded-2xl animate-pulse" />
         </div>
       )}
 
@@ -211,18 +211,18 @@ export function DashboardPage() {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 auto-rows-[minmax(150px,auto)]">
           {/* Storage hero — col-span-2 */}
           <article
-            className="lg:col-span-2 bg-card border border-stone-200 rounded-2xl p-6 flex flex-col justify-between bento-reveal"
+            className="lg:col-span-2 bg-card border border-slate-200 rounded-2xl p-6 flex flex-col justify-between bento-reveal"
             style={{ animationDelay: '60ms' }}
           >
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-stone-500">Total storage</span>
-              <span className="text-xs text-stone-400">{driveCount} drives</span>
+              <span className="text-sm font-medium text-slate-500">Total storage</span>
+              <span className="text-xs text-slate-400">{driveCount} drives</span>
             </div>
             <div className="my-4">
-              <div className="text-5xl sm:text-6xl font-semibold text-stone-800 tracking-tight leading-none">
-                {usedPercent.toFixed(1)}<span className="text-2xl text-stone-400 ml-1">%</span>
+              <div className="text-5xl sm:text-6xl font-semibold text-slate-800 tracking-tight leading-none">
+                {usedPercent.toFixed(1)}<span className="text-2xl text-slate-400 ml-1">%</span>
               </div>
-              <p className="text-sm text-stone-500 mt-2">
+              <p className="text-sm text-slate-500 mt-2">
                 {formatFileSize(totalUsed)} of {formatFileSize(totalQuota)} used
               </p>
             </div>
@@ -230,27 +230,27 @@ export function DashboardPage() {
               <QuotaBar used={totalUsed} total={totalQuota} showLabel={false} />
               <div className="flex gap-4 mt-3 text-sm">
                 <span className="text-primary font-medium">{formatFileSize(totalFree)} free</span>
-                <span className="text-stone-300">·</span>
-                <span className="text-stone-500">{formatFileSize(totalUsed)} used</span>
+                <span className="text-slate-300">·</span>
+                <span className="text-slate-500">{formatFileSize(totalUsed)} used</span>
               </div>
             </div>
           </article>
 
           {/* Category donut — col-span-2 row-span-2, fills right side of hero. */}
           <article
-            className="lg:col-span-2 lg:row-span-2 bg-card border border-stone-200 rounded-2xl p-5 flex flex-col bento-reveal"
+            className="lg:col-span-2 lg:row-span-2 bg-card border border-slate-200 rounded-2xl p-5 flex flex-col bento-reveal"
             style={{ animationDelay: '120ms' }}
           >
             <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-medium text-stone-500">By type</span>
+              <span className="text-sm font-medium text-slate-500">By type</span>
               {totalCategoryBytes > 0 && (
-                <span className="text-xs text-stone-400">{formatFileSize(totalCategoryBytes)}</span>
+                <span className="text-xs text-slate-400">{formatFileSize(totalCategoryBytes)}</span>
               )}
             </div>
 
             {donutData.length === 0 ? (
               <div className="flex-1 flex items-center justify-center">
-                <p className="text-sm text-stone-400">No files synced yet.</p>
+                <p className="text-sm text-slate-400">No files synced yet.</p>
               </div>
             ) : (
               <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 flex-1 min-h-0">
@@ -275,8 +275,8 @@ export function DashboardPage() {
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <span className="text-xs text-stone-400 leading-none">used</span>
-                    <span className="text-sm font-semibold text-stone-700 leading-tight mt-0.5">
+                    <span className="text-xs text-slate-400 leading-none">used</span>
+                    <span className="text-sm font-semibold text-slate-700 leading-tight mt-0.5">
                       {formatFileSize(totalUsed)}
                     </span>
                   </div>
@@ -286,18 +286,18 @@ export function DashboardPage() {
                     const pct = totalCategoryBytes > 0 ? (c.value / totalCategoryBytes) * 100 : 0;
                     return (
                       <li key={c.name} className="flex items-center justify-between text-sm gap-2">
-                        <span className="flex items-center gap-2 text-stone-600 min-w-0">
+                        <span className="flex items-center gap-2 text-slate-600 min-w-0">
                           <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c.color }} />
                           <span className="truncate">{c.name}</span>
                         </span>
-                        <span className="text-stone-400 text-xs flex-shrink-0">
+                        <span className="text-slate-400 text-xs flex-shrink-0">
                           {pct.toFixed(0)}%
                         </span>
                       </li>
                     );
                   })}
                   {donutData.length > 4 && (
-                    <li className="text-xs text-stone-400 pt-1">+{donutData.length - 4} more</li>
+                    <li className="text-xs text-slate-400 pt-1">+{donutData.length - 4} more</li>
                   )}
                 </ul>
               </div>
@@ -306,25 +306,25 @@ export function DashboardPage() {
 
           {/* Quick links — col-span-2, below hero. */}
           <article
-            className="lg:col-span-2 bg-card border border-stone-200 rounded-2xl p-5 flex flex-col bento-reveal"
+            className="lg:col-span-2 bg-card border border-slate-200 rounded-2xl p-5 flex flex-col bento-reveal"
             style={{ animationDelay: '180ms' }}
           >
             <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-medium text-stone-500">Quick access</span>
+              <span className="text-sm font-medium text-slate-500">Quick access</span>
             </div>
             <div className="grid grid-cols-2 gap-2.5 flex-1">
               {quickLinks.map(({ to, label, Icon, hint }) => (
                 <button
                   key={to}
                   onClick={() => navigate(to)}
-                  className="group bg-surface border border-stone-200/70 rounded-xl p-3 text-left hover:border-primary/40 hover:-translate-y-[1px] hover:shadow-sm transition-all"
+                  className="group bg-surface border border-slate-200/70 rounded-xl p-3 text-left hover:border-primary/40 hover:-translate-y-[1px] hover:shadow-sm transition-all"
                 >
                   <div className="flex items-center justify-between mb-1.5">
-                    <Icon size={18} className="text-stone-500 group-hover:text-primary transition-colors" />
-                    <ArrowRight size={14} className="text-stone-300 group-hover:text-primary transition-colors" />
+                    <Icon size={18} className="text-slate-500 group-hover:text-primary transition-colors" />
+                    <ArrowRight size={14} className="text-slate-300 group-hover:text-primary transition-colors" />
                   </div>
-                  <div className="text-sm font-medium text-stone-800">{label}</div>
-                  <div className="text-xs text-stone-400 mt-0.5 truncate">{hint}</div>
+                  <div className="text-sm font-medium text-slate-800">{label}</div>
+                  <div className="text-xs text-slate-400 mt-0.5 truncate">{hint}</div>
                 </button>
               ))}
             </div>
@@ -335,12 +335,12 @@ export function DashboardPage() {
             className="lg:col-span-4 bento-reveal"
             style={{ animationDelay: '240ms' }}
           >
-            <h2 className="text-sm font-medium text-stone-500 mb-3">Connected drives</h2>
+            <h2 className="text-sm font-medium text-slate-500 mb-3">Connected drives</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {drives.map((drive, i) => (
                 <div
                   key={drive.id}
-                  className="bg-card border border-stone-200 rounded-xl p-4 hover:shadow-sm transition-shadow"
+                  className="bg-card border border-slate-200 rounded-xl p-4 hover:shadow-sm transition-shadow"
                 >
                   <div className="flex items-center gap-3 mb-3">
                     <div
@@ -350,15 +350,15 @@ export function DashboardPage() {
                       <HardDrive size={16} color="white" />
                     </div>
                     <div className="min-w-0">
-                      <div className="text-sm font-medium text-stone-800 truncate">{drive.email}</div>
-                      <div className="text-xs text-stone-400">
+                      <div className="text-sm font-medium text-slate-800 truncate">{drive.email}</div>
+                      <div className="text-xs text-slate-400">
                         {drive.type === 'service_account' ? 'Service Account' : 'OAuth'}
                         {drive.isPrimary && <span className="ml-1.5 text-primary font-medium">· Primary</span>}
                       </div>
                     </div>
                   </div>
                   <QuotaBar used={drive.usedQuota} total={drive.totalQuota} color={getDriveColor(i)} showLabel={false} />
-                  <div className="flex justify-between mt-2 text-xs text-stone-400">
+                  <div className="flex justify-between mt-2 text-xs text-slate-400">
                     <span>{formatFileSize(drive.usedQuota)} used</span>
                     <span>{Math.min(drive.usagePercent, 100).toFixed(1)}%</span>
                   </div>
@@ -369,13 +369,13 @@ export function DashboardPage() {
 
           {/* Recent files — col-span-3, big. */}
           <article
-            className="lg:col-span-3 bg-card border border-stone-200 rounded-2xl overflow-hidden bento-reveal"
+            className="lg:col-span-3 bg-card border border-slate-200 rounded-2xl overflow-hidden bento-reveal"
             style={{ animationDelay: '300ms' }}
           >
             <div className="flex items-center justify-between p-5 pb-3">
               <div className="flex items-center gap-2">
-                <Clock size={16} className="text-stone-400" />
-                <h2 className="text-sm font-medium text-stone-500">Recent</h2>
+                <Clock size={16} className="text-slate-400" />
+                <h2 className="text-sm font-medium text-slate-500">Recent</h2>
               </div>
               {hasRecent && (
                 <button
@@ -407,7 +407,7 @@ export function DashboardPage() {
               />
             ) : (
               <div className="p-8 text-center">
-                <p className="text-sm text-stone-500">No recent files yet.</p>
+                <p className="text-sm text-slate-500">No recent files yet.</p>
                 <button
                   className="mt-3 text-xs text-primary hover:underline"
                   onClick={() => navigate('/files/root')}
@@ -421,15 +421,15 @@ export function DashboardPage() {
           {/* Admin tools — col-span-1, conditional. Fills last cell only for admins. */}
           {user?.role === 'super_admin' && (
             <article
-              className="lg:col-span-1 bg-card border border-stone-200 rounded-2xl p-5 flex flex-col justify-between bento-reveal"
+              className="lg:col-span-1 bg-card border border-slate-200 rounded-2xl p-5 flex flex-col justify-between bento-reveal"
               style={{ animationDelay: '360ms' }}
             >
               <div>
-                <div className="w-9 h-9 rounded-lg bg-stone-50 flex items-center justify-center mb-3">
-                  <Users size={18} className="text-stone-500" />
+                <div className="w-9 h-9 rounded-lg bg-slate-50 flex items-center justify-center mb-3">
+                  <Users size={18} className="text-slate-500" />
                 </div>
-                <div className="text-sm font-medium text-stone-800">Admin tools</div>
-                <p className="text-xs text-stone-400 mt-1">Manage users and invitations.</p>
+                <div className="text-sm font-medium text-slate-800">Admin tools</div>
+                <p className="text-xs text-slate-400 mt-1">Manage users and invitations.</p>
               </div>
               <button
                 className="mt-4 inline-flex items-center gap-1.5 text-sm text-primary hover:gap-2 transition-all"
