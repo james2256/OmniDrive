@@ -213,7 +213,7 @@ node scripts/onboard-deploy.mjs   # initial setup/deploy wizard
 - API client: `src/lib/api.ts` — all fetches to backend go through here
 - UI components: Radix primitives in `src/components/ui/`
 - Layout: `AppLayout` → `Sidebar` + `Header` + `MainContent`
-- Styling: Tailwind CSS — follow tokens in `tailwind.config.js` (see `DESIGN.md`)
+- Styling: Tailwind CSS 4 — follow tokens in `src/index.css` `@theme` block (see `DESIGN.md`)
 
 ### General Conventions
 

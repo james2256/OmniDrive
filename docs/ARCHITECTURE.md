@@ -33,6 +33,30 @@ OmniDrive architecture document — a multi-Google Drive storage gateway on the 
 | Worker | `@omnidrive/worker` | Cloudflare Workers / Node (Docker) | `src/index.ts` |
 | Web | `@omnidrive/web` | Browser (static via Pages) | `src/main.tsx` |
 
+## Tech Stack
+
+| Layer | Tool | Version | Notes |
+|-------|------|---------|-------|
+| Runtime | Node.js | 24 LTS | Required for local dev / Docker self-host |
+| Language | TypeScript | 6.0.3 | Strict mode (`strict`, `noImplicitAny`, `noUnusedLocals`, …) in `tsconfig.base.json` |
+| Backend framework | Hono | 4.12.x | Edge-first HTTP framework, runs on Workers and Node |
+| Backend runtime | Cloudflare Workers | wrangler 4.112.0 | `wrangler.toml` declares D1/KV bindings + cron |
+| Validation | Zod | 4.4.x | `zValidator` on every route; centralised schemas in `lib/schemas.ts` |
+| Database | Cloudflare D1 (SQLite) | — | 23 tables, see `docs/SCHEMA.md` |
+| Cache / tokens | Cloudflare KV | — | OAuth tokens (AES-256-GCM), quota cache |
+| Frontend framework | React | 19.2.7 | Functional components + hooks only |
+| Build tool | Vite | 8.1.5 | Dev server proxies `/api/*` to Worker |
+| CSS | Tailwind CSS | 4.3.3 | CSS-first config with `@theme` in `app.css`; `tw-animate-css` 1.4.0 replaces `tailwindcss-animate` |
+| UI primitives | Radix UI | latest | `@radix-ui/react-{dialog,dropdown-menu,context-menu,slot}` |
+| Icons | lucide-react | 1.25.0 | — |
+| Upload | react-dropzone | 19.1.1 | — |
+| Server state | TanStack Query | 5.101.x | Query keys centralised in `lib/queryKeys.ts` |
+| Client state | Zustand | 5.0.x | Stores: UI, auth, upload, selection, toast |
+| Charts | Recharts | 3.10.x | Dashboard bento grid |
+| Lint | ESLint | 10.7.0 | Flat config (`eslint.config.mjs`); `eslint-plugin-react` removed, `eslint-plugin-react-hooks` + `eslint-plugin-security` kept |
+| Test runner | Vitest | 4.1.10 | Both worker and web packages |
+| Integration test pool | `@cloudflare/vitest-pool-workers` | 0.18.6 | Real D1 via Miniflare (see Testing Strategy) |
+
 ## Backend Architecture
 
 ### Request Pipeline
@@ -92,7 +116,30 @@ D1 / KV / Google API
 | `AuditService` | `services/audit.service.ts` | Workspace audit logging |
 | `PolicyService` | `services/policy.service.ts` | Quota & data retention |
 | `UploadRouter` | `services/upload-router.ts` | Pick the drive with most free space for upload; spillover if preferred drive is full |
+| `FileService` | `services/file.service.ts` | Trash / restore / permanent-delete / rename / move / copy with workspace RBAC. Injects `FileRepository` + `FolderRepository` + `DriveRepository` + `GoogleDriveService` + `PolicyService`. The `DriveRepository` was added so `FileService` can power global search across the user's drives without going through `routes/drives.ts`. |
 | `computeDriveQuota` | `lib/storage-quota.ts` | Compute total/used/free/percent + fallback chain & override |
+
+### Repository Pattern
+
+ADR-0003 (`docs/adr/0003-repository-pattern.md`) introduced a data-access layer between services and D1. **All SQL lives in repository classes; routes and services never write inline `db.prepare(...)` SQL** (with one deferred exception, see below).
+
+Nine repositories exist today, one per logical domain:
+
+| Repository | File | Owns |
+|------------|------|------|
+| `AdminRepository` | `repositories/admin.repository.ts` | Users, invitations, audit (read-only admin views) |
+| `AuthRepository` | `repositories/auth.repository.ts` | `users`, `sessions`, setup state |
+| `AutomationRepository` | `repositories/automation.repository.ts` | `automations` CRUD |
+| `DriveRepository` | `repositories/drive.repository.ts` | `drive_accounts`, quota cache helpers |
+| `FileRepository` | `repositories/file.repository.ts` | `files` UPSERT (sync engine), search, recent, trash |
+| `FolderRepository` | `repositories/folder.repository.ts` | `folders` + `workspace_folders` |
+| `S3CredentialsRepository` | `repositories/s3-credentials.repository.ts` | `s3_credentials` API keys |
+| `SharedRepository` | `repositories/shared.repository.ts` | `shared_links` + password-hash + verify helpers |
+| `WorkspaceRepository` | `repositories/workspace.repository.ts` | `workspaces`, `workspace_members`, RBAC role lookups |
+
+**Rule:** routes are thin orchestrators — they validate input (Zod), call a service, and return JSON. Services own business logic and RBAC (`assertCanMutate`). Repositories own SQL.
+
+**Deferred:** `routes/s3.ts` (854 lines, 37 inline `db.prepare(...)` calls) is intentionally **not** migrated to a repository yet — the S3 XML / SigV4 / multipart logic is interleaved with SQL inside the `PUT`/`POST` handlers, and extracting it safely requires the integration-test coverage that now exists (see Testing Strategy). A `// ponytail:` marker at the top of the file records the deferral and the trigger condition.
 
 ### Middleware
 
@@ -204,11 +251,35 @@ Client (rclone/aws-cli)
 Google Drive API (stream read/write)
 ```
 
-**Multipart upload**: parts buffered as temp files in a Google Drive folder → stream-concatenated on complete.
+**Multipart upload**: S3 clients (rclone, aws-cli, …) split large objects into parts and upload them in parallel. OmniDrive buffers each part as a separate file inside a **per-upload temp folder in Google Drive** (`.omnidrive_multipart_<uploadId>`), tracking parts in the `s3_multipart_uploads` + `s3_multipart_parts` tables. On `CompleteMultipartUpload` the parts are stream-concatenated into the final object and the temp folder is deleted; on `AbortMultipartUpload` the temp folder is trashed. This avoids buffering any part in Worker memory and stays within the Cloudflare 128 MB / subrequest limits.
 
 **Bucket lifecycle** (`?lifecycle` subresource on `/s3/:bucket`): `PutBucketLifecycleConfiguration` / `GetBucketLifecycleConfiguration` / `DeleteBucketLifecycleConfiguration`. Rule `Expiration/Days` per prefix is stored in `s3_lifecycle_rules`. Cron `*/30` **trashes** objects older than the window (recoverable ~30 days via Google, not a hard delete). The XML parser is regex-based (`services/s3-lifecycle.ts`), no XML dependency.
 
 ## Frontend Architecture
+
+### Pages
+
+17 page components under `packages/web/src/pages/`, wired in `App.tsx`:
+
+| Page | Route | Auth | Purpose |
+|------|-------|------|---------|
+| `LandingPage` | `/home` | Public | Marketing landing |
+| `PrivacyPolicyPage` | `/privacy` | Public | Privacy policy |
+| `TermsOfServicePage` | `/terms` | Public | Terms of service |
+| `SetupPage` | `/setup` | Public | First-run admin setup |
+| `LoginPage` | `/login` | Public | Login form |
+| `PublicSharedPage` | `/shared/:id` | Public | Public shared-link download (password-gated) |
+| `DashboardPage` | `/` | Auth | Bento-grid dashboard (storage hero, category donut, recent files, quick access) |
+| `SearchPage` | `/search` | Auth | Omnibar-driven global search results |
+| `FilesPage` | `/files[/:folderId]` | Auth | File browser (grid + list view) |
+| `WorkspacesPage` | `/workspaces` | Auth | Workspace CRUD + members + audit + settings tabs |
+| `AutomationsPage` | `/automations` | Auth | Automation rules |
+| `SettingsPage` | `/settings`, `/settings/drives` | Auth | Account, drives, S3 keys tabs |
+| `SharedLinksPage` | `/shared` | Auth | Shared links I've created |
+| `SharedWithMePage` | `/shared-with-me[/:folderId]` | Auth | Files others have shared with me |
+| `TrashPage` | `/trash` | Auth | Trashed files (restore / permanent delete) |
+| `StarredPage` | `/starred` | Auth | Starred files |
+| `AdminUsersPage` | `/admin/users` | Super admin | User admin, invitations, audit |
 
 ### Routing & Guards
 
@@ -216,19 +287,49 @@ Google Drive API (stream read/write)
 App
  ├── SetupGuard     → redirect /setup if no admin exists
  ├── AuthGuard      → redirect /login if no session
- └── AppLayout      → authenticated shell
+ └── AppLayout      → authenticated shell (Header + Sidebar + MainContent)
       └── Pages (Dashboard, Files, Workspaces, ...)
 ```
+
+### State Management
+
+Two complementary stores — **Zustand for client/UI state, TanStack Query for server state**:
+
+| Store | File | Holds |
+|-------|------|-------|
+| `useUIStore` | `stores/useUIStore.ts` | Sidebar collapse, view mode (grid/list), sort, info-panel open |
+| `useAuthStore` | `stores/useAuthStore.ts` | Current user, isSetup flag |
+| `useUploadStore` | `stores/useUploadStore.ts` | Upload queue + progress |
+| `useSelectionStore` | `stores/useSelectionStore.ts` | Multi-select file/folder ids |
+| `useToastStore` | `stores/useToastStore.ts` | Toast queue |
+
+TanStack Query (`@tanstack/react-query` 5.x) caches server state. Query keys are centralised in `lib/queryKeys.ts`, and cache invalidation goes through `lib/invalidate.ts` so mutation hooks can blast the right keys after writes.
+
+### Key Components
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| `Omnibar` | `components/layout/Omnibar.tsx` | Global search box in the header. Hits `/api/files/search` and renders grouped folder + file results; selecting a folder navigates to it, selecting a file opens the preview modal. |
+| `FileGrid` / `FileGridView` / `FileListView` | `components/files/` | File browser with grid + list modes, drag-select, context menu (`ItemContextMenu`), drag-and-drop (`DropZone` via `react-dropzone` 19.1.1) |
+| `ShareModal` / `EditShareModal` | `components/` | Create / edit shared links (password, expiry, role) |
+| `DashboardPage` bento grid | `pages/DashboardPage.tsx` | 4-column responsive bento (`bento-reveal` animation): storage hero (`StorageHero`), category donut (Recharts), recent files tile, quick-access tile. Uses `lg:col-span-*` / `lg:row-span-*` for asymmetric layout. |
+| `UploadModal` | `components/UploadModal.tsx` | Upload progress modal wired to `useUploadStore` |
+| `MoveModal` / `MoveDriveModal` | `components/` | Move files between folders / drives |
+| `FilePreviewModal` | `components/FilePreviewModal.tsx` | Inline file preview |
+| Settings tabs | `components/settings/` | `SettingsAccountTab`, `SettingsDrivesTab`, `SettingsS3Tab` (split out from the old 646-line `SettingsPage`) |
+| Workspace tabs | `components/workspaces/` | `WorkspaceFilesTab`, `WorkspaceMembersTab`, `WorkspaceSettingsTab`, `WorkspaceAuditTab`, `WorkspaceSidebar`, `WorkspaceTreeNode` |
 
 ### Data Flow
 
 ```
 Page Component
-    → Zustand Store (optional cache)
+    → Zustand Store (UI state: selection, view mode, toasts)
+    → TanStack Query (server state: useFilesQuery, useWorkspacesQuery, …)
     → api.ts request()
     → fetch(API_BASE + path, { credentials: 'include' })
     → Worker REST endpoint
     → JSON response
+    → TanStack Query cache → component re-render
 ```
 
 ### Dev Proxy
@@ -296,13 +397,29 @@ docker-compose.yml
 
 ## Testing Strategy
 
-| Area | Location | Framework |
-|------|----------|-----------|
-| Worker unit tests | `packages/worker/tests/` | Vitest |
-| Worker src tests | `packages/worker/src/tests/` | Vitest |
-| Web component tests | `packages/web/src/**/*.test.tsx` | Vitest + Testing Library |
+**370 tests total** across three suites:
 
-**High-value test suites**: S3 API (33 tests), SigV4 auth, sync, validation, workspaces.
+| Suite | Count | Location | Framework |
+|-------|-------|----------|-----------|
+| Worker unit | 246 | `packages/worker/tests/*.test.ts` (38 files) + `packages/worker/src/tests/` | Vitest 4.1.10 |
+| Worker integration | 65 | `packages/worker/tests/integration/*.test.ts` (9 files) | Vitest 4.1.10 + `@cloudflare/vitest-pool-workers` 0.18.6 |
+| Web | 59 | `packages/web/src/**/*.test.{ts,tsx}` (13 files) | Vitest 4.1.10 + Testing Library (jsdom) |
+
+### Integration tests
+
+The integration suite uses `@cloudflare/vitest-pool-workers` 0.18.6 with the `cloudflareTest()` plugin (configured in `packages/worker/vitest.integration.config.mts`). Tests run against a **real D1 instance spun up by Miniflare** using the same `wrangler.toml` bindings as production — no `vi.fn()` mocks for D1. A seed fixture (`tests/integration/helpers.ts`) inserts 1 user, 1 drive, files, and workspaces before each test.
+
+Run them with:
+
+```bash
+npm run test:worker                       # unit only
+npm run test:integration --prefix packages/worker   # integration only
+npm run test                              # everything (worker + web)
+```
+
+Integration suites cover: `repositories.test.ts` (every repository), `shared-links-quota`, `auth-flow`, `workspace-rbac`, `s3-protocol`, `oauth-callback`, `folder-browsing`, `shared-link-download`, `files-sql`.
+
+**High-value unit suites**: S3 API (33 tests), SigV4 auth, sync, validation, workspaces.
 
 ## Extension Points
 

@@ -20,7 +20,9 @@ OmniDrive adopts a **Claude-inspired warm canvas** design system (ref: [getdesig
 |-------|---------|
 | Framework | React 19 |
 | Routing | React Router v7 |
-| Styling | Tailwind CSS 3.4 |
+| Styling | Tailwind CSS 4.3 (CSS-first config via `@theme` in `src/index.css`) |
+| CSS pipeline | `@tailwindcss/postcss` + Lightning CSS (autoprefixer removed — Lightning CSS handles vendor prefixing internally) |
+| Animations | `tw-animate-css` 1.4 (replaces `tailwindcss-animate` for Radix expand/collapse + fade/zoom keyframes) |
 | Primitives | Radix UI (Dialog, Dropdown, Context Menu) |
 | Icons | Lucide React |
 | Charts | Recharts (storage category overview) |
@@ -28,27 +30,51 @@ OmniDrive adopts a **Claude-inspired warm canvas** design system (ref: [getdesig
 
 ## Design Tokens
 
-Defined in `packages/web/tailwind.config.js`:
+Defined in `packages/web/src/index.css` via `@theme` (Tailwind v4 CSS-first config — `tailwind.config.js` was deleted):
 
-```js
-colors: {
-  // Claude design system (getdesign.md/claude) — warm cream canvas, grounded cards.
-  // Brand override: cobalt #2563EB replaces Claude's coral #cc785c for CTA/accent.
-  background: "#faf9f5", // Canvas — cream floor, deliberately not pure white
-  foreground: "#141413", // Ink — warm near-black (not cool)
-  primary: {
-    DEFAULT: "#2563EB", // Cobalt blue — brand CTA/accent (override of Claude coral)
-    foreground: "#ffffff",
-  },
-  surface: "#f5f0e8", // Surface-soft — sidebar, shell, section bands
-  card: "#efe9de", // Surface-card — grounded panels, one step darker than canvas
-}
-borderRadius: {
-  lg: "0.5rem",
-  md: "calc(0.5rem - 2px)",
-  sm: "calc(0.5rem - 4px)",
+```css
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme {
+  --color-background: #faf9f5;          /* Canvas — cream floor, deliberately not pure white */
+  --color-foreground: #141413;          /* Ink — warm near-black (not cool) */
+  --color-primary: #2563EB;             /* Cobalt blue — brand CTA/accent (override of Claude coral) */
+  --color-primary-foreground: #ffffff;
+  --color-surface: #f5f0e8;             /* Surface-soft — sidebar, shell, section bands */
+  --color-card: #efe9de;                /* Surface-card — grounded panels, one step darker than canvas */
+
+  --radius-lg: 0.5rem;
+  --radius-md: calc(0.5rem - 2px);
+  --radius-sm: calc(0.5rem - 4px);
 }
 ```
+
+### Tailwind 4 Migration Notes
+
+The frontend was migrated from Tailwind CSS 3.4 to 4.3. Config moved out of JS into CSS. Key changes to keep in mind when editing styles:
+
+| Area | Tailwind 3 (before) | Tailwind 4 (after) |
+|------|---------------------|---------------------|
+| Entry directives | `@tailwind base; @tailwind components; @tailwind utilities;` | `@import "tailwindcss";` (single import) |
+| Theme config | `tailwind.config.js` `theme.extend` object | `@theme { --color-*: ...; --radius-*: ...; }` in `src/index.css` |
+| Animation plugin | `tailwindcss-animate` (PostCSS plugin) | `tw-animate-css` (imported as CSS — same keyframes, e.g. `animate-in fade-in`, `data-[state=open]:animate-in`) |
+| Vendor prefixes | `autoprefixer` PostCSS plugin | Removed — Tailwind 4 ships Lightning CSS which prefixes internally |
+| PostCSS pipeline | `tailwindcss` + `autoprefixer` | `@tailwindcss/postcss` only (see `postcss.config.js`) |
+| Config file | `packages/web/tailwind.config.js` | **Deleted.** All tokens now live in `packages/web/src/index.css` |
+
+**`cursor: pointer` preflight fix.** Tailwind 4 intentionally removed `cursor: pointer` from `<button>` in preflight. OmniDrive's UX expects the pointer cursor on all clickable buttons, so it is restored in `src/index.css` `@layer base`:
+
+```css
+button:not(:disabled),
+[role="button"]:not(:disabled) {
+  cursor: pointer;
+}
+```
+
+Any new clickable element that is not a native `<button>` should use `role="button"` (or the Radix `asChild` slot pattern) so it picks up this rule. Do not sprinkle `cursor-pointer` utility classes manually.
+
+**`border-stone-300` consistency fix.** All text inputs, selects, modals, dropdowns, and bento cards use the same `border-stone-200` / `border-stone-300` warm gray border. When the project migrated to Tailwind 4 (whose default border color changed from `gray-200` to `currentColor`), every interactive border was audited and pinned to `border-stone-300` (or `border-stone-200` for softer card edges) — never `border-gray-*` (cool) and never the bare `border` utility (which now resolves to `currentColor`). New inputs should default to `border border-stone-300 rounded-lg bg-card focus:border-primary`.
 
 ### Claude Color Hierarchy
 
@@ -67,7 +93,7 @@ borderRadius: {
 | `bg-background` | Page floor / canvas (`#faf9f5` cream — lighter than cards) |
 | `bg-surface` | App shell & sidebar (`#f5f0e8` surface-soft) |
 | `bg-card` | All elevated surfaces — bento cards, modal, dropdown, context menu, input, InfoPanel, toast (`#efe9de` grounded panel — darker than floor) |
-| `border-stone-*` | Warm gray borders (consistent warm tone with Claude canvas) |
+| `border-stone-*` | Warm gray borders (consistent warm tone with Claude canvas). Inputs/selects/bento cards pin to `border-stone-300` or `border-stone-200` — see **Tailwind 4 Migration Notes** below for why bare `border` is forbidden |
 | `text-foreground` | Main text (`#141413` warm ink) |
 | `text-stone-*` | Secondary text, muted, navigation (warm gray — consistent warm tone, not cool `text-gray-*`) |
 | `bg-primary` / `text-primary` | Primary buttons, links (cobalt `#2563EB` brand override) |
@@ -142,6 +168,23 @@ Menu order (from `Sidebar.tsx`):
 | `/trash` | `TrashPage` | Trashed files |
 | `/starred` | `StarredPage` | Starred files |
 | `/admin/users` | `AdminUsersPage` | User management |
+
+### Dashboard Bento Grid
+
+The home dashboard (`DashboardPage.tsx`) uses an asymmetric 4-column bento grid on desktop (`grid grid-cols-1 lg:grid-cols-4 gap-4 auto-rows-[minmax(150px,auto)]`). Cells fill in source order with explicit `lg:col-span-*` / `lg:row-span-*` — no empty cells, no row gaps, mobile collapses to a single column.
+
+| Cell | Span | Content |
+|------|------|---------|
+| **Total storage** (hero) | `lg:col-span-2` | Large `%` used (5xl/6xl), free/used totals, `QuotaBar`, drive count badge |
+| **By type** (donut) | `lg:col-span-2 lg:row-span-2` | Recharts donut (per-category bytes: documents/images/videos/audio/archives/other) + top-4 legend with percentages, centered `used` total inside donut hole |
+| **Quick access** | `lg:col-span-2` | 2×2 tile grid — My Drive, Starred, Shared, Workspaces. Each tile is a `<button>` to `navigate(to)` with hover lift (`hover:-translate-y-[1px] hover:shadow-sm`) |
+| **Connected drives** | `lg:col-span-4` | Full-width row of drive cards (1/2/3 cols responsive) — drive color avatar (round-robin via `getDriveColor(i)`), email, type, per-drive `QuotaBar`, usage % |
+| **Recent** | `lg:col-span-3` | Inline `FileGrid` (list view) of recent files + folders, "View all" → `/files/root` |
+| **Admin tools** | `lg:col-span-1` | `super_admin` only — fills the cell beside Recent; hidden for non-admins so the row stays tidy |
+
+**Reveal animation:** every cell gets the `bento-reveal` class with a staggered inline `animationDelay` (60ms → 360ms in 60ms steps). Defined in `src/index.css` `@layer base` — `transform+opacity` only, and `prefers-reduced-motion: reduce` collapses to a static reveal. No Motion/Framer dep.
+
+**Empty / loading states:** the grid is replaced by a centered "No drives connected" card (`bento-reveal`) when `drives.length === 0`, or a 3-cell pulsing skeleton matching the bento shape (`animate-pulse`) while the drives query loads.
 
 ## Reusable UI Components
 
@@ -231,22 +274,26 @@ Menu order (from `Sidebar.tsx`):
 
 ## Guide to Adding New UI
 
-1. **Use existing tokens** — do not hardcode colors outside `tailwind.config.js`
+1. **Use existing tokens** — do not hardcode colors; extend `@theme` in `src/index.css` if a new token is genuinely needed (do **not** reintroduce `tailwind.config.js`)
 2. **Follow the sidebar nav pattern** — `rounded-full`, `gap-3`, 20px icon
 3. **Modal** — use `components/ui/dialog.tsx`
 4. **API calls** — add a method in `lib/api.ts`, do not fetch directly in components
 5. **Loading state** — return `null` or a skeleton, do not flash empty
 6. **Error** — use `toastStore` for user feedback
 7. **Admin-only UI** — check `user?.role === 'super_admin'` as in Sidebar
+8. **Clickable non-`<button>` elements** — add `role="button"` so the preflight `cursor: pointer` rule applies; do not sprinkle `cursor-pointer` utilities
+9. **Borders** — pin interactive borders to `border-stone-300` (or `border-stone-200` for soft card edges). Never use the bare `border` utility (Tailwind 4 resolves it to `currentColor`) and never `border-gray-*`
 
 ## Anti-Patterns (Do Not)
 
 - Do not introduce a new CSS framework (Bootstrap, MUI, etc.)
+- Do not reintroduce `tailwind.config.js` — Tailwind v4 config lives in `src/index.css` via `@theme`. Do not re-add `@tailwind base/components/utilities` directives or `tailwindcss-animate`/`autoprefixer` PostCSS plugins either.
 - Do not add a dark mode toggle without updating all tokens (not yet in the codebase)
 - Do not nest cards-inside-cards excessively
 - Do not use inline styles except for a temporary error boundary (`App.tsx` connection error)
 - Do not create custom button components — extend `components/ui/button.tsx`
+- Do not use bare `border` (Tailwind 4 default is `currentColor`) or cool `border-gray-*` — use `border-stone-200` / `border-stone-300` for warm consistency
 
 ## Visual Reference
 
-Target aesthetic: **premium SaaS cobalt** — sidebar `#F1F5F9`, primary blue `#2563EB`, pill navigation, bento grid Dashboard, per-type donut breakdown.
+Target aesthetic: **Claude-inspired warm canvas with cobalt brand override** — cream sidebar `#f5f0e8` (`bg-surface`), grounded cards `#efe9de` (`bg-card`, darker than the `#faf9f5` floor), cobalt primary `#2563EB`, pill navigation, asymmetric bento grid Dashboard, per-type donut breakdown.

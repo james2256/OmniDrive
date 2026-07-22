@@ -3,7 +3,7 @@
 **Unified multi-Google Drive storage gateway built on Cloudflare Workers.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue.svg)](https://www.typescriptlang.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-6.0-blue.svg)](https://www.typescriptlang.org/)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-orange.svg)](https://workers.cloudflare.com/)
 
 ---
@@ -22,7 +22,7 @@ OmniDrive lets you connect multiple Google Drive accounts and manage all your fi
 - **🔒 Shared Links** — Share files with password protection, expiration dates, and download limits
 - **⚡ Automation Rules** — Auto-move or auto-delete files based on name or extension patterns
 - **🔄 Resilient Background Sync** — Automatic sync via Google Drive Changes API (cron every 30 minutes). Features OOM-safe chunk processing using generators, resume-able syncs across restarts via `next_page_token`, atomic upserts for performance, and graceful shutdown (SIGTERM) to prevent concurrent syncs.
-- **🌙 Dark Mode** — Modern dark theme UI with Notion-style hierarchical workspace sidebar
+- **🎨 Modern UI** — Warm canvas design system with bento-grid dashboard, responsive layout, and Notion-style hierarchical workspace sidebar
 - **☁️ S3 Object Storage API** — S3-compatible API (path-style access) exposing each workspace as a bucket; supports rclone, aws-cli, boto3, and AWS SDK with full Multipart Upload support
 
 ## Security
@@ -66,10 +66,13 @@ force_path_style = true
 | **Backend** | [Hono](https://hono.dev/) on [Cloudflare Workers](https://workers.cloudflare.com/) |
 | **Database** | [Cloudflare D1](https://developers.cloudflare.com/d1/) (SQLite) |
 | **Session Store** | [Cloudflare KV](https://developers.cloudflare.com/kv/) |
-| **Frontend** | [React 19](https://react.dev/) + [Vite](https://vite.dev/) |
-| **State Management** | [Zustand](https://zustand.docs.pmnd.rs/) |
-| **Language** | [TypeScript](https://www.typescriptlang.org/) |
-| **Auth** | Google OAuth 2.0 |
+| **Frontend** | [React 19](https://react.dev/) + [Vite 8](https://vite.dev/) |
+| **Styling** | [Tailwind CSS 4](https://tailwindcss.com/) (CSS-first `@theme` config) |
+| **State Management** | [Zustand](https://zustand.docs.pmnd.rs/) + [TanStack Query](https://tanstack.com/query) |
+| **Language** | [TypeScript 6](https://www.typescriptlang.org/) |
+| **Testing** | [Vitest 4](https://vitest.dev/) + `@cloudflare/vitest-pool-workers` |
+| **Auth** | Google OAuth 2.0 (PKCE) |
+| **Runtime** | [Node.js 24](https://nodejs.org/) LTS |
 
 ## Architecture
 
@@ -93,20 +96,26 @@ omnidrive/
 │           ├── lib/         # API client, utilities
 │           └── types/       # TypeScript types
 ├── docs/                # Project documentation
-│   ├── AGENTS.md        # AI agent guide
+│   ├── PRD.md           # Product requirements document
+│   ├── API.md           # API reference (all endpoints)
 │   ├── ARCHITECTURE.md  # System architecture
-│   ├── SCHEMA.md        # D1 database schema
-│   ├── DESIGN.md        # UI/UX design system
-│   └── CHANGELOG.md     # Change history
+│   ├── DEPLOYMENT.md    # Deployment guide (local/Docker/Cloudflare)
+│   ├── SCHEMA.md        # D1 database schema (23 tables)
+│   ├── DESIGN.md        # UI/UX design system + Tailwind 4
+│   ├── AGENTS.md        # AI agent coding guide
+│   ├── CONTRIBUTING.md  # Contributing guide
+│   └── adr/             # Architecture decision records
 ├── Makefile             # Deployment automation
 └── package.json         # Monorepo root (npm workspaces)
 ```
 
-The backend and frontend communicate via REST API. In development, Vite's dev server proxies `/api/*` requests to the local Worker on port 8787.
+The backend and frontend communicate via REST API. In development, Vite's dev server proxies `/api/*` and `/s3/*` requests to the local Worker on port 8888.
+
+**Testing:** 370 tests (246 worker unit + 65 worker integration + 59 web component) run against real D1 via Miniflare. Run with `npm test`.
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org/) 18+ and npm
+- [Node.js](https://nodejs.org/) 24+ and npm
 - A [Cloudflare account](https://dash.cloudflare.com/sign-up) (free tier works)
 - A [Google Cloud project](https://console.cloud.google.com/) with the Google Drive API enabled
 - An OAuth 2.0 Client ID (Web application type) from Google Cloud Console
@@ -118,7 +127,7 @@ The backend and frontend communicate via REST API. In development, Vite's dev se
 Before running the deployment wizard, ensure you have a Google OAuth App configured:
 1. Go to [Google Cloud Console](https://console.cloud.google.com/) → APIs & Services → Credentials
 2. Create an **OAuth 2.0 Client ID** (Web application type)
-3. Add `http://localhost:8787/api/auth/google/callback` as an authorized redirect URI (if running locally) or your production domain callback.
+3. Add `http://localhost:8888/api/auth/callback` as an authorized redirect URI (if running locally) or your production domain callback.
 4. Keep the Client ID and Client Secret handy.
 
 ### 2. Run the Interactive Setup (Quickstart)
@@ -182,9 +191,7 @@ If you prefer not to use the `deploy.sh` script, you can deploy manually:
 
 ## Environment Variables
 
-OmniDrive uses a **single centralized `.env` file** at the root of the project to manage both Web and Worker configurations.
-
-### Global Configuration (set in `/.env`)
+OmniDrive uses a **single centralized `.env` file** at the root of the project to manage both Web and Worker configurations. See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for the complete guide.
 
 Copy `/.env.example` to `/.env` and fill in your values. This file is automatically read by both Vite and Wrangler during local development.
 
@@ -194,14 +201,24 @@ Copy `/.env.example` to `/.env` and fill in your values. This file is automatica
 | `WORKER_PORT` | Port for the Cloudflare Worker API | `8888` |
 | `FRONTEND_URL` | Frontend origin for CORS and redirects | `http://localhost:8999` |
 | `WORKER_URL` | Worker URL for OAuth callback | `http://localhost:8888` |
-| `VITE_API_URL` | Worker API base URL for the frontend | `http://localhost:8888` |
+| `VITE_API_URL` | Worker API base URL for the frontend (empty = same-origin) | |
 | `GOOGLE_CLIENT_ID` | Google OAuth 2.0 Client ID | |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth 2.0 Client Secret | |
-| `JWT_SECRET` | JWT signing key for shared links (min 32 chars) | |
-| `TOKEN_ENCRYPTION_KEY` | AES-256-GCM key for encrypting OAuth tokens (32 chars)| |
+| `JWT_SECRET` | Session JWT signing key (min 32 chars) | |
+| `TOKEN_ENCRYPTION_KEY` | AES-256-GCM key for encrypting OAuth tokens + S3 secrets | |
 
 *Note: For production on Cloudflare, backend secrets should be set via `wrangler secret put`, and non-secrets in `wrangler.toml` under `[vars]`. The frontend uses `packages/web/.env.production`.*
 
-## License
+## Documentation
 
-[MIT](LICENSE) © 2026 abilfida
+| Document | Description |
+|----------|-------------|
+| [docs/PRD.md](docs/PRD.md) | Product requirements — features, user stories, functional requirements |
+| [docs/API.md](docs/API.md) | API reference — all endpoints, request/response shapes, status codes |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture — request pipeline, service layer, repository pattern |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Deployment guide — local dev, Docker self-hosted, Cloudflare production |
+| [docs/SCHEMA.md](docs/SCHEMA.md) | Database schema — all 23 D1 tables with relationships |
+| [docs/DESIGN.md](docs/DESIGN.md) | Design system — colors, typography, Tailwind 4 migration notes |
+| [docs/AGENTS.md](docs/AGENTS.md) | AI agent guide — coding conventions, patterns, anti-patterns |
+| [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | Contributing guide — development setup, commit conventions |
+
