@@ -46,7 +46,7 @@ export function SettingsAccountTab() {
             required
             value={currentPassword}
             onChange={(e) => setCurrentPassword(e.target.value)}
-            className="w-full border border-slate-300 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-card"
+            className="w-full border border-slate-400 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-card"
           />
         </div>
         <div>
@@ -61,7 +61,7 @@ export function SettingsAccountTab() {
             minLength={8}
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
-            className="w-full border border-slate-300 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-card"
+            className="w-full border border-slate-400 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-card"
           />
           <p className="mt-1 text-xs text-slate-500">Min 8 chars, with upper, lower, and a number.</p>
         </div>
@@ -77,7 +77,7 @@ export function SettingsAccountTab() {
             minLength={8}
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            className="w-full border border-slate-300 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-card"
+            className="w-full border border-slate-400 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-card"
           />
         </div>
         <div className="flex justify-end pt-1">

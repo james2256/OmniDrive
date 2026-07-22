@@ -80,7 +80,7 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({ onActionComplete, 
         <button
           onClick={onMoveDriveRequested}
           disabled={isProcessing || !allFiles}
-          className={`flex items-center gap-2 px-3 py-2 rounded-full transition-colors text-sm font-medium ${!allFiles ? 'opacity-50 cursor-not-allowed text-slate-400' : 'hover:bg-slate-100 text-slate-600'}`}
+          className={`flex items-center gap-2 px-3 py-2 rounded-full transition-colors text-sm font-medium ${!allFiles ? 'opacity-50 cursor-not-allowed text-slate-500' : 'hover:bg-slate-100 text-slate-600'}`}
           title={!allFiles ? 'Can only move files to another drive' : 'Move to another drive'}
         >
           <HardDrive size={16} /> <span>Move Drive</span>
@@ -88,7 +88,7 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({ onActionComplete, 
         <button
           onClick={onWorkspaceRequested}
           disabled={isProcessing || !allFiles}
-          className={`flex items-center gap-2 px-3 py-2 rounded-full transition-colors text-sm font-medium ${!allFiles ? 'opacity-50 cursor-not-allowed text-slate-400' : 'hover:bg-slate-100 text-slate-600'}`}
+          className={`flex items-center gap-2 px-3 py-2 rounded-full transition-colors text-sm font-medium ${!allFiles ? 'opacity-50 cursor-not-allowed text-slate-500' : 'hover:bg-slate-100 text-slate-600'}`}
           title={!allFiles ? 'Can only add files to Workspace' : 'Add to Workspace'}
         >
           <Star size={16} /> <span>Workspace</span>

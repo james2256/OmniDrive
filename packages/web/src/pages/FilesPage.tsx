@@ -156,12 +156,12 @@ export function FilesPage() {
                   placeholder="Filter..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-3 pr-8 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-3 pr-8 py-2 text-sm border border-slate-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 {searchQuery && (
                   <button
                     type="button"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-600 p-1"
                     onClick={() => setSearchQuery('')}
                     aria-label="Clear filter"
                   >
@@ -170,7 +170,7 @@ export function FilesPage() {
                 )}
               </div>
 
-              <div className="flex items-center border border-slate-300 rounded-md overflow-hidden bg-card mr-1">
+              <div className="flex items-center border border-slate-400 rounded-md overflow-hidden bg-card mr-1">
                 <button
                   onClick={() => setViewMode('list')}
                   className={`p-2 ${viewMode === 'list' ? 'bg-blue-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50'}`}
@@ -198,7 +198,7 @@ export function FilesPage() {
                 <Info size={20} />
               </button>
 
-              <button className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-slate-700 bg-card border border-slate-300 rounded-md hover:bg-slate-50" onClick={handleCreateFolder}>
+              <button className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-slate-700 bg-card border border-slate-400 rounded-md hover:bg-slate-50" onClick={handleCreateFolder}>
                 <FolderPlus size={16} /> <span className="hidden sm:inline">New Folder</span>
               </button>
               <button className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700" onClick={() => setShowModal(true)}>
@@ -215,7 +215,7 @@ export function FilesPage() {
         ) : drives.length === 0 ? (
           <div className="text-center p-12 text-slate-500 border rounded-lg bg-card m-4 flex flex-col items-center shadow-sm">
             <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-               <Info size={24} className="text-slate-400" />
+               <Info size={24} className="text-slate-500" />
             </div>
             <h3 className="text-lg font-medium text-slate-900 mb-2">No Google Drive Connected</h3>
             <p className="mb-6 max-w-sm text-center">You need to connect at least one Google Drive account to start using OmniDrive.</p>

@@ -178,7 +178,7 @@ export const InfoPanel: React.FC = () => {
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-slate-400 mb-3">No tags applied.</p>
+              <p className="text-xs text-slate-500 mb-3">No tags applied.</p>
             )}
             <form
               onSubmit={async (e) => {
@@ -205,8 +205,8 @@ export const InfoPanel: React.FC = () => {
               }}
               className="flex gap-2"
             >
-              <input name="metaKey" placeholder="Key" className="w-1/3 border border-slate-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              <input name="metaValue" placeholder="Value" className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <input name="metaKey" placeholder="Key" className="w-1/3 border border-slate-400 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <input name="metaValue" placeholder="Value" className="flex-1 border border-slate-400 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
               <button type="submit" className="bg-slate-800 text-white px-2 py-1 rounded text-xs">Add</button>
             </form>
           </div>

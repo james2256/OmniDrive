@@ -94,27 +94,27 @@ export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
           <form onSubmit={handleUpdate} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-slate-700 flex items-center gap-1.5">
-                <Lock size={14} className="text-slate-400" /> New Password (optional)
+                <Lock size={14} className="text-slate-500" /> New Password (optional)
               </label>
               <input
                 type="password"
                 placeholder="Leave blank to keep current password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="px-3 py-2 bg-card border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
+                className="px-3 py-2 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
               />
             </div>
 
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-slate-700 flex items-center gap-1.5">
-                <Calendar size={14} className="text-slate-400" /> Expiration Date (optional)
+                <Calendar size={14} className="text-slate-500" /> Expiration Date (optional)
               </label>
               <input
                 type="datetime-local"
                 value={expiresAt}
                 min={currentDateTime}
                 onChange={(e) => setExpiresAt(e.target.value)}
-                className="px-3 py-2 bg-card border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
+                className="px-3 py-2 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
               />
             </div>
 
@@ -137,7 +137,7 @@ export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
                         type="checkbox"
                         checked={allowDownloads}
                         onChange={(e) => setAllowDownloads(e.target.checked)}
-                        className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        className="w-4 h-4 rounded border-slate-400 text-blue-600 focus:ring-blue-500 cursor-pointer"
                       />
                       <span className="select-none">Allow Downloads</span>
                     </label>
@@ -148,7 +148,7 @@ export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
                           type="checkbox"
                           checked={allowUploads}
                           onChange={(e) => setAllowUploads(e.target.checked)}
-                          className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          className="w-4 h-4 rounded border-slate-400 text-blue-600 focus:ring-blue-500 cursor-pointer"
                         />
                         <span className="select-none">Allow Uploads (Public Drop folder)</span>
                       </label>
@@ -159,7 +159,7 @@ export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
                         type="checkbox"
                         checked={requireEmail}
                         onChange={(e) => setRequireEmail(e.target.checked)}
-                        className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        className="w-4 h-4 rounded border-slate-400 text-blue-600 focus:ring-blue-500 cursor-pointer"
                       />
                       <span className="select-none">Require Email to View</span>
                     </label>
@@ -172,7 +172,7 @@ export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
                         value={maxDownloads}
                         onChange={(e) => setMaxDownloads(e.target.value)}
                         placeholder="e.g. 10 (Leave blank for unlimited)"
-                        className="px-3 py-2 bg-card border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="px-3 py-2 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
 
@@ -183,7 +183,7 @@ export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
                         value={webhookUrl}
                         onChange={(e) => setWebhookUrl(e.target.value)}
                         placeholder="e.g. https://your-api.com/webhook"
-                        className="px-3 py-2 bg-card border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="px-3 py-2 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
                   </div>

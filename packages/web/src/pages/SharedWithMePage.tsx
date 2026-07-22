@@ -131,7 +131,7 @@ export function SharedWithMePage() {
         <nav className="flex items-center gap-1 text-sm text-slate-600">
           {breadcrumb.map((item, i) => (
             <span key={item.id ?? `fallback-${i}`} className="flex items-center gap-1">
-              {i > 0 && <ChevronRight size={14} className="text-slate-400" />}
+              {i > 0 && <ChevronRight size={14} className="text-slate-500" />}
               {i < breadcrumb.length - 1 ? (
                 <Link to="/shared-with-me" className="hover:text-slate-900 hover:underline">
                   {item.name}

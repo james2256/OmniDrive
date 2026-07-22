@@ -70,7 +70,7 @@ export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
                 placeholder="Limit in GB" 
                 value={quotaInput} 
                 onChange={(e) => setQuotaInput(e.target.value)}
-                className="border border-slate-300 rounded px-3 py-1.5 text-sm"
+                className="border border-slate-400 rounded px-3 py-1.5 text-sm"
               />
               <button 
                 onClick={handleSetQuota} 

@@ -75,7 +75,7 @@ export const SidebarStorage: React.FC = () => {
             <div key={idx} className="flex justify-between text-xs">
               <div className="flex items-center gap-1.5">
                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
-                <span className="text-slate-600 dark:text-slate-400">{item.name}</span>
+                <span className="text-slate-600 dark:text-slate-500">{item.name}</span>
               </div>
               <span className="text-slate-500 text-[10px]">
                 {formatFileSize(item.value)} ({pct.toFixed(1)}%)

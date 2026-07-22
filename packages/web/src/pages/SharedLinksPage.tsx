@@ -72,7 +72,7 @@ export function SharedLinksPage() {
                       <h3 className="text-slate-900 font-semibold truncate text-lg" title={link.targetName || link.targetId}>
                         {link.targetName || 'Unknown ' + (link.targetType === 'folder' ? 'Folder' : 'File')}
                       </h3>
-                      <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-1">
+                      <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1">
                         <Clock size={12} />
                         <span>Created {formatDate(link.createdAt)}</span>
                       </div>
@@ -82,15 +82,15 @@ export function SharedLinksPage() {
 
                 <div className="flex items-center gap-4 py-3 px-4 bg-slate-50 rounded-xl mt-4">
                   <div className="flex items-center gap-2 text-sm text-slate-600">
-                    <Eye size={16} className="text-slate-400" />
+                    <Eye size={16} className="text-slate-500" />
                     <span className="font-medium">{link.viewCount}</span>
-                    <span className="text-slate-400 text-xs uppercase tracking-wider">Views</span>
+                    <span className="text-slate-500 text-xs uppercase tracking-wider">Views</span>
                   </div>
                   <div className="w-px h-8 bg-slate-200"></div>
                   <div className="flex items-center gap-2 text-sm text-slate-600">
-                    <Download size={16} className="text-slate-400" />
+                    <Download size={16} className="text-slate-500" />
                     <span className="font-medium">{link.downloadCount}</span>
-                    <span className="text-slate-400 text-xs uppercase tracking-wider">DLs</span>
+                    <span className="text-slate-500 text-xs uppercase tracking-wider">DLs</span>
                   </div>
                 </div>
               </div>
@@ -114,14 +114,14 @@ export function SharedLinksPage() {
                 </button>
                 <button
                   onClick={() => setEditingLink(link)}
-                  className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                  className="p-2 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                   title="Edit Settings"
                 >
                   <Settings size={18} />
                 </button>
                 <button
                   onClick={() => revoke(link.id)}
-                  className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                  className="p-2 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors"
                   title="Stop Sharing"
                 >
                   <Trash2 size={18} />

@@ -18,7 +18,7 @@ export function MetadataBadges({ metadata }: { metadata?: string | Record<string
           </span>
         ))}
         {entries.length > 2 && (
-          <span className="text-slate-400 text-[10px]">+{entries.length - 2}</span>
+          <span className="text-slate-500 text-[10px]">+{entries.length - 2}</span>
         )}
       </div>
     );

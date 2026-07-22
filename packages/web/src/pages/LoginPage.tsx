@@ -72,7 +72,7 @@ export function LoginPage() {
                 required
                 value={username}
                 onChange={e => setUsername(e.target.value)}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-2 border border-slate-400 rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
 
@@ -89,7 +89,7 @@ export function LoginPage() {
                     autoComplete="name"
                     value={name}
                     onChange={e => setName(e.target.value)}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full px-4 py-2 border border-slate-400 rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
                 <div>
@@ -103,7 +103,7 @@ export function LoginPage() {
                     autoComplete="email"
                     value={email}
                     onChange={e => setEmail(e.target.value)}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full px-4 py-2 border border-slate-400 rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
                 <div>
@@ -118,7 +118,7 @@ export function LoginPage() {
                     required
                     value={invitationCode}
                     onChange={e => setInvitationCode(e.target.value)}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full px-4 py-2 border border-slate-400 rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
               </>
@@ -136,7 +136,7 @@ export function LoginPage() {
                 required
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-2 border border-slate-400 rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
 

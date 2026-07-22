@@ -68,7 +68,7 @@ export const App = () => {
         <button
           type="button"
           onClick={checkSetupStatus}
-          className="px-4 py-2 rounded-lg border border-slate-300 bg-card text-slate-800 text-sm font-medium hover:bg-slate-50"
+          className="px-4 py-2 rounded-lg border border-slate-400 bg-card text-slate-800 text-sm font-medium hover:bg-slate-50"
         >
           Retry
         </button>

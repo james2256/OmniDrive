@@ -57,10 +57,10 @@ export function WorkspaceMainView({
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <h1 className="text-2xl sm:text-3xl font-semibold text-slate-900 truncate">{activeFolder.name}</h1>
           <div className="flex gap-2 flex-shrink-0">
-            <button onClick={onCreateFolder} className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-slate-700 bg-card border border-slate-300 rounded-md hover:bg-slate-50">
+            <button onClick={onCreateFolder} className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-slate-700 bg-card border border-slate-400 rounded-md hover:bg-slate-50">
               <FolderPlus size={16} /> New Folder
             </button>
-            <button onClick={onSync} disabled={isSyncing} className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-slate-700 bg-card border border-slate-300 rounded-md hover:bg-slate-50">
+            <button onClick={onSync} disabled={isSyncing} className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-slate-700 bg-card border border-slate-400 rounded-md hover:bg-slate-50">
               <RefreshCw size={16} className={isSyncing ? 'animate-spin' : ''} /> Sync
             </button>
           </div>
@@ -75,7 +75,7 @@ export function WorkspaceMainView({
               className={`pb-2 text-sm font-medium capitalize border-b-2 transition-colors ${
                 activeTab === tab 
                   ? 'border-slate-900 text-slate-900' 
-                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-400'
               }`}
             >
               {tab.charAt(0).toUpperCase() + tab.slice(1)}

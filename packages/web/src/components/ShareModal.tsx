@@ -108,27 +108,27 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
             <form onSubmit={handleShare} className="flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium text-slate-700 flex items-center gap-1.5">
-                  <Lock size={14} className="text-slate-400" /> Password (optional)
+                  <Lock size={14} className="text-slate-500" /> Password (optional)
                 </label>
                 <input
                   type="password"
                   placeholder="Leave blank for no password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="px-3 py-2 bg-card border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
+                  className="px-3 py-2 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
                 />
               </div>
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium text-slate-700 flex items-center gap-1.5">
-                  <Calendar size={14} className="text-slate-400" /> Expiration Date (optional)
+                  <Calendar size={14} className="text-slate-500" /> Expiration Date (optional)
                 </label>
                 <input
                   type="datetime-local"
                   value={expiresAt}
                   min={currentDateTime}
                   onChange={(e) => setExpiresAt(e.target.value)}
-                  className="px-3 py-2 bg-card border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
+                  className="px-3 py-2 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
                 />
               </div>
 
@@ -151,7 +151,7 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
                           type="checkbox"
                           checked={allowDownloads}
                           onChange={(e) => setAllowDownloads(e.target.checked)}
-                          className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          className="w-4 h-4 rounded border-slate-400 text-blue-600 focus:ring-blue-500 cursor-pointer"
                         />
                         <span className="select-none">Allow Downloads</span>
                       </label>
@@ -161,7 +161,7 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
                           type="checkbox"
                           checked={requireEmail}
                           onChange={(e) => setRequireEmail(e.target.checked)}
-                          className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          className="w-4 h-4 rounded border-slate-400 text-blue-600 focus:ring-blue-500 cursor-pointer"
                         />
                         <span className="select-none">Require Email to View</span>
                       </label>
@@ -174,7 +174,7 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
                           value={maxDownloads}
                           onChange={(e) => setMaxDownloads(e.target.value)}
                           placeholder="e.g. 10 (Leave blank for unlimited)"
-                          className="px-3 py-2 bg-card border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="px-3 py-2 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                       </div>
 
@@ -185,7 +185,7 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
                           value={webhookUrl}
                           onChange={(e) => setWebhookUrl(e.target.value)}
                           placeholder="e.g. https://your-api.com/webhook"
-                          className="px-3 py-2 bg-card border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="px-3 py-2 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                       </div>
                     </div>
@@ -228,7 +228,7 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
                   onClick={(e) => e.currentTarget.select()}
                 />
                 <button
-                  className="flex items-center justify-center w-10 h-10 text-slate-700 bg-card border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors shrink-0"
+                  className="flex items-center justify-center w-10 h-10 text-slate-700 bg-card border border-slate-400 rounded-lg hover:bg-slate-50 transition-colors shrink-0"
                   onClick={copyToClipboard}
                   title="Copy to clipboard"
                 >

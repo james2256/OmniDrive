@@ -51,7 +51,7 @@ export function WorkspaceSidebar({
         <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Workspaces</h3>
         <button 
           onClick={() => onNewSubfolder(null)} 
-          className="text-slate-400 hover:text-slate-600 transition-colors"
+          className="text-slate-500 hover:text-slate-600 transition-colors"
           title="New Workspace"
         >
           <Plus size={16} />

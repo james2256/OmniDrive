@@ -252,14 +252,14 @@ export function WorkspacesPage() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Action</label>
-                <select id="retentionAction" className="w-full border-slate-300 rounded p-2 text-sm border">
+                <select id="retentionAction" className="w-full border-slate-400 rounded p-2 text-sm border">
                   <option value="auto_delete">Auto-Delete (Retention limit)</option>
                   <option value="prevent_deletion">Prevent Deletion (Legal Hold)</option>
                 </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Days</label>
-                <input id="retentionDays" type="number" defaultValue={30} className="w-full border border-slate-300 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <input id="retentionDays" type="number" defaultValue={30} className="w-full border border-slate-400 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
             </div>
             <div className="mt-6 flex justify-end gap-3">

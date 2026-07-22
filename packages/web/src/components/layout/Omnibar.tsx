@@ -79,7 +79,7 @@ export const Omnibar: React.FC = () => {
 
   return (
     <div className="relative w-full" ref={wrapperRef}>
-      <div className="bg-surface border border-slate-300/60 hover:bg-card hover:shadow-md hover:border-slate-300 focus-within:bg-card focus-within:shadow-md focus-within:border-slate-300 rounded-full h-12 flex items-center px-4 transition-all">
+      <div className="bg-surface border border-slate-400/60 hover:bg-card hover:shadow-md hover:border-slate-400 focus-within:bg-card focus-within:shadow-md focus-within:border-slate-400 rounded-full h-12 flex items-center px-4 transition-all">
         <Search size={20} className="text-slate-600 mr-3" />
         <input
           type="text"
@@ -102,14 +102,14 @@ export const Omnibar: React.FC = () => {
           <input
             type="text"
             placeholder="Metadata Key (e.g. Status)"
-            className="border border-slate-300 rounded px-3 py-1.5 text-sm flex-1"
+            className="border border-slate-400 rounded px-3 py-1.5 text-sm flex-1"
             value={metadataKey}
             onChange={(e) => setMetadataKey(e.target.value)}
           />
           <input
             type="text"
             placeholder="Metadata Value (e.g. Approved)"
-            className="border border-slate-300 rounded px-3 py-1.5 text-sm flex-1"
+            className="border border-slate-400 rounded px-3 py-1.5 text-sm flex-1"
             value={metadataValue}
             onChange={(e) => setMetadataValue(e.target.value)}
           />
@@ -124,7 +124,7 @@ export const Omnibar: React.FC = () => {
             <div className="py-2">
               {(folderResults.length > 0 || driveFolderResults.length > 0) && (
                 <>
-                  <div className="px-4 py-1.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Folders</div>
+                  <div className="px-4 py-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Folders</div>
                   {driveFolderResults.map((folder) => (
                     <button
                       key={`df-${folder.googleFolderId}`}
@@ -155,7 +155,7 @@ export const Omnibar: React.FC = () => {
               )}
               {fileResults.length > 0 && (
                 <>
-                  <div className="px-4 py-1.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Files</div>
+                  <div className="px-4 py-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Files</div>
                   {fileResults.map((file) => (
                     <button
                       key={file.id}

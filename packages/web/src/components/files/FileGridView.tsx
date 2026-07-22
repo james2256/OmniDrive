@@ -52,7 +52,7 @@ export function FileGridView(props: FileViewSharedProps) {
                   ? 'bg-blue-100 border-blue-300'
                   : hasError
                   ? 'border-red-300 bg-red-50 hover:border-red-400'
-                  : 'border-slate-300 bg-card hover:bg-blue-50 hover:border-blue-200'
+                  : 'border-slate-400 bg-card hover:bg-blue-50 hover:border-blue-200'
               }`}
             >
               <input
@@ -97,7 +97,7 @@ export function FileGridView(props: FileViewSharedProps) {
               className={`p-3 border rounded-xl cursor-pointer flex flex-col justify-between h-40 transition-all group relative ${
                 isSelected
                   ? 'bg-blue-100 border-blue-300'
-                  : 'bg-card border-slate-300 hover:bg-blue-50 hover:border-blue-200'
+                  : 'bg-card border-slate-400 hover:bg-blue-50 hover:border-blue-200'
               }`}
             >
               <input
@@ -122,7 +122,7 @@ export function FileGridView(props: FileViewSharedProps) {
                   {file.name}
                 </div>
                 <div className="mb-1.5">{renderDriveBadge(file.driveAccountId)}</div>
-                <div className="flex items-center text-xs text-slate-400 gap-1.5">
+                <div className="flex items-center text-xs text-slate-500 gap-1.5">
                   {!native && <span className="truncate">{formatFileSize(file.size)}</span>}
                   {!native && <span>·</span>}
                   <span className="truncate">{formatRelativeTime(file.googleModifiedAt ?? file.createdAt)}</span>

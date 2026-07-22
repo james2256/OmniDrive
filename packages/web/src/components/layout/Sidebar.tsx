@@ -86,7 +86,7 @@ export const Sidebar: React.FC = () => {
       {isSidebarOpen && <SidebarStorage />}
 
       {/* Version and Links */}
-      <div className="mt-4 px-3 flex items-center justify-between text-xs text-slate-400">
+      <div className="mt-4 px-3 flex items-center justify-between text-xs text-slate-500">
         <a
           href={pkg.repository.url.replace('.git', '')}
           target="_blank"

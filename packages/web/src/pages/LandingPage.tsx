@@ -70,7 +70,7 @@ export function LandingPage() {
                 href="https://github.com/james2256/OmniDrive"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="rounded-lg border border-slate-300 bg-card px-6 py-3 text-base font-medium text-slate-700 hover:bg-slate-50"
+                className="rounded-lg border border-slate-400 bg-card px-6 py-3 text-base font-medium text-slate-700 hover:bg-slate-50"
               >
                 View on GitHub
               </a>

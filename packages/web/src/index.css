@@ -6,12 +6,14 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  --color-background: #f8fafc;
-  --color-foreground: #0f172a;
+  --color-background: #F3F4F6;
+  --color-foreground: #0F172A;
+
   --color-primary: #2563EB;
-  --color-primary-foreground: #ffffff;
-  --color-surface: #eef2f7;
-  --color-card: #ffffff;
+  --color-primary-foreground: #FFFFFF;
+
+  --color-surface: #E5E7EB;
+  --color-card: #FCFCFD;
 
   --radius-lg: 0.5rem;
   --radius-md: calc(0.5rem - 2px);
@@ -34,11 +36,12 @@
   /* Drive identity colors — assigned round-robin by getDriveColor(index).
      First color matches brand primary; rest are distinct accent colors. */
   :root {
-    --drive-1: #2563EB; /* blue   — brand primary */
-    --drive-2: #0EA5E9; /* sky    — from logo cyan gradient */
-    --drive-3: #7C3AED; /* violet */
-    --drive-4: #F59E0B; /* amber  */
-    --drive-5: #10B981; /* emerald */
+    --drive-1: #2563EB; /* Blue */
+    --drive-2: #A855F7; /* Purple */
+    --drive-3: #F97316; /* Orange */
+    --drive-4: #EF4444; /* Red */
+    --drive-5: #22C55E; /* Green */
+    --drive-6: #06B6D4; /* Cyan */
   }
 
   /* Bento cell reveal — CSS-driven stagger via animation-delay.
@@ -57,7 +60,7 @@
      Applied to all scrollable containers (sidebar, info panel, modals, main content). */
   * {
     scrollbar-width: thin;
-    scrollbar-color: #cbd5e1 transparent;
+    scrollbar-color: #94a3b8 transparent;
   }
   *::-webkit-scrollbar {
     width: 6px;
@@ -67,10 +70,10 @@
     background: transparent;
   }
   *::-webkit-scrollbar-thumb {
-    background-color: #cbd5e1;
+    background-color: #94a3b8;
     border-radius: 3px;
   }
   *::-webkit-scrollbar-thumb:hover {
-    background-color: #94a3b8;
+    background-color: #64748b;
   }
 }

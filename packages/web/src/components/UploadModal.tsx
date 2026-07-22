@@ -77,7 +77,7 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
               />
               <label
                 htmlFor="modal-file-upload"
-                className="cursor-pointer flex flex-col items-center gap-3 text-slate-400 hover:text-blue-500 transition-colors"
+                className="cursor-pointer flex flex-col items-center gap-3 text-slate-500 hover:text-blue-500 transition-colors"
               >
                 <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center text-blue-500">
                   <Upload size={24} />
@@ -89,7 +89,7 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
             queue.map((item) => (
               <div key={item.id} className="flex items-center gap-3 py-3 border-b border-slate-50 last:border-0">
                 <span className="flex-1 text-sm text-slate-700 truncate">{item.file.name}</span>
-                <span className="text-xs text-slate-400 whitespace-nowrap">{formatFileSize(item.file.size)}</span>
+                <span className="text-xs text-slate-500 whitespace-nowrap">{formatFileSize(item.file.size)}</span>
                 {item.status === 'uploading' && (
                   <span className="text-xs text-blue-600 min-w-[40px] text-right font-medium">{item.progress}%</span>
                 )}
@@ -98,7 +98,7 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
                 </div>
                 {item.status === 'pending' && !isUploading && (
                   <button
-                    className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors"
+                    className="p-1 text-slate-500 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors"
                     onClick={() => removeFile(item.id)}
                   >
                     <X size={14} />
@@ -123,7 +123,7 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
                   value=""
                   checked={!selectedDriveId}
                   onChange={() => setSelectedDriveId('')}
-                  className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500"
+                  className="w-4 h-4 text-blue-600 border-slate-400 focus:ring-blue-500"
                 />
                 <span className="text-sm text-slate-800">Auto (most free space)</span>
               </label>
@@ -135,7 +135,7 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
                     value={drive.id}
                     checked={selectedDriveId === drive.id}
                     onChange={() => setSelectedDriveId(drive.id)}
-                    className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500"
+                    className="w-4 h-4 text-blue-600 border-slate-400 focus:ring-blue-500"
                   />
                   <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: getDriveColor(i) }} />
                   <span className="text-sm text-slate-800 flex-1 truncate">{drive.email}</span>

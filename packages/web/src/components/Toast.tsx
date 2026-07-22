@@ -34,7 +34,7 @@ export function ToastContainer() {
           <span className="flex-1 text-sm font-medium text-slate-700">{toast.message}</span>
           <button
             type="button"
-            className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+            className="p-1 text-slate-500 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
             onClick={() => removeToast(toast.id)}
             aria-label="Close notification"
           >

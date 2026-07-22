@@ -107,7 +107,7 @@ export function SettingsDrivesTab() {
             />
           ))}
           {drives.length === 0 && (
-            <div className="text-center py-8 text-slate-400 border border-dashed border-slate-200 rounded-xl">
+            <div className="text-center py-8 text-slate-500 border border-dashed border-slate-200 rounded-xl">
               No drives connected yet
             </div>
           )}
@@ -126,7 +126,7 @@ export function SettingsDrivesTab() {
             {isConnecting ? <LoaderCircle size={18} className="animate-spin" /> : <Plus size={18} />} Add Google Drive
           </button>
           <button
-            className="flex items-center gap-2 px-4 py-2.5 bg-card text-slate-700 rounded-xl border border-slate-300 hover:bg-slate-50 transition-colors font-medium text-sm"
+            className="flex items-center gap-2 px-4 py-2.5 bg-card text-slate-700 rounded-xl border border-slate-400 hover:bg-slate-50 transition-colors font-medium text-sm"
             onClick={() => setShowSaForm(!showSaForm)}
           >
             <Key size={18} /> Add Service Account
@@ -157,7 +157,7 @@ export function SettingsDrivesTab() {
                 onChange={(e) => setSaCredentials(e.target.value)}
                 placeholder="Paste service account JSON key..."
                 rows={6}
-                className="w-full font-mono text-xs border border-slate-300 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                className="w-full font-mono text-xs border border-slate-400 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                 required
               />
             </div>
@@ -170,14 +170,14 @@ export function SettingsDrivesTab() {
                 value={saFolderId}
                 onChange={(e) => setSaFolderId(e.target.value)}
                 placeholder="Google Drive folder ID shared with SA"
-                className="w-full border border-slate-300 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-slate-400 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
             </div>
             <div className="flex gap-3 justify-end pt-2">
               <button
                 type="button"
-                className="px-4 py-2 text-sm font-medium text-slate-700 bg-card border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors"
+                className="px-4 py-2 text-sm font-medium text-slate-700 bg-card border border-slate-400 rounded-xl hover:bg-slate-50 transition-colors"
                 onClick={() => setShowSaForm(false)}
               >
                 Cancel

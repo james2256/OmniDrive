@@ -36,7 +36,7 @@ export function WorkspaceTreeNode({
           <button 
             data-testid={`tree-node-toggle-${folder.id}`}
             onClick={(e) => { e.stopPropagation(); onToggle(folder.id); }}
-            className="p-0.5 rounded hover:bg-slate-200 text-slate-400"
+            className="p-0.5 rounded hover:bg-slate-200 text-slate-500"
           >
             {hasChildren ? (
               isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />

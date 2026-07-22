@@ -22,12 +22,12 @@ export function AutomationsPage() {
 
       <div className="bg-card border border-slate-200 rounded-xl overflow-hidden shadow-sm">
         {isLoading ? (
-          <div className="p-8 text-center text-slate-400">
+          <div className="p-8 text-center text-slate-500">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-3" />
             Loading rules...
           </div>
         ) : rules.length === 0 ? (
-          <div className="p-8 text-center text-slate-400">
+          <div className="p-8 text-center text-slate-500">
             No automation rules yet.
           </div>
         ) : (

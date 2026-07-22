@@ -59,23 +59,23 @@ const AddUserModal: React.FC<{ open: boolean, onClose: () => void, onSuccess: ()
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Username *</label>
-              <input required value={username} onChange={e => setUsername(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none" />
+              <input required value={username} onChange={e => setUsername(e.target.value)} className="w-full px-3 py-2 border border-slate-400 rounded-md focus:ring-2 focus:ring-blue-500 outline-none" />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Password *</label>
-              <input required type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none" />
+              <input required type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-3 py-2 border border-slate-400 rounded-md focus:ring-2 focus:ring-blue-500 outline-none" />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
-              <input value={name} onChange={e => setName(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none" />
+              <input value={name} onChange={e => setName(e.target.value)} className="w-full px-3 py-2 border border-slate-400 rounded-md focus:ring-2 focus:ring-blue-500 outline-none" />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none" />
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full px-3 py-2 border border-slate-400 rounded-md focus:ring-2 focus:ring-blue-500 outline-none" />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
-              <select value={role} onChange={e => setRole(e.target.value as 'super_admin' | 'member')} className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none">
+              <select value={role} onChange={e => setRole(e.target.value as 'super_admin' | 'member')} className="w-full px-3 py-2 border border-slate-400 rounded-md focus:ring-2 focus:ring-blue-500 outline-none">
                 <option value="member">Member</option>
                 <option value="super_admin">Super Admin</option>
               </select>
@@ -283,7 +283,7 @@ export const AdminUsersPage: React.FC = () => {
                 value={inviteCode}
                 onChange={e => setInviteCode(e.target.value)}
                 placeholder="Code (e.g. TEAM-2026)"
-                className="border border-slate-300 px-3 py-2 rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                className="border border-slate-400 px-3 py-2 rounded focus:ring-2 focus:ring-blue-500 outline-none"
                 required
               />
               <input
@@ -291,7 +291,7 @@ export const AdminUsersPage: React.FC = () => {
                 value={inviteMaxUses}
                 onChange={e => setInviteMaxUses(Number(e.target.value))}
                 placeholder="Max Uses"
-                className="border border-slate-300 w-24 px-3 py-2 rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                className="border border-slate-400 w-24 px-3 py-2 rounded focus:ring-2 focus:ring-blue-500 outline-none"
                 required
                 min="0"
               />
@@ -348,7 +348,7 @@ export const AdminUsersPage: React.FC = () => {
           <DialogFooter>
             <button
               onClick={() => setUserToDelete(null)}
-              className="px-4 py-2 border border-slate-300 rounded-md text-slate-700 hover:bg-slate-50"
+              className="px-4 py-2 border border-slate-400 rounded-md text-slate-700 hover:bg-slate-50"
             >
               Cancel
             </button>

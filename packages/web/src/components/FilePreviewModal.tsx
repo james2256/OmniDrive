@@ -79,7 +79,7 @@ export function FilePreviewModal({ open, file, onClose }: FilePreviewModalProps)
             {isImage && (
               <div className="mb-6 rounded-xl overflow-hidden bg-slate-50 border border-slate-200 flex justify-center items-center p-2 min-h-[200px]">
                 {isLoading ? (
-                  <div className="flex flex-col items-center justify-center text-slate-400 py-12">
+                  <div className="flex flex-col items-center justify-center text-slate-500 py-12">
                     <LoaderCircle className="w-8 h-8 animate-spin mb-2" />
                     <span className="text-sm">Loading preview…</span>
                   </div>
@@ -91,7 +91,7 @@ export function FilePreviewModal({ open, file, onClose }: FilePreviewModalProps)
                     onError={() => setImageError(true)}
                   />
                 ) : (
-                  <div className="flex flex-col items-center justify-center text-slate-400 py-12">
+                  <div className="flex flex-col items-center justify-center text-slate-500 py-12">
                     <FileIcon mimeType={file.mimeType} className="w-16 h-16 mb-2" />
                     <span className="text-sm">Preview unavailable</span>
                   </div>
@@ -135,7 +135,7 @@ export function FilePreviewModal({ open, file, onClose }: FilePreviewModalProps)
                 href={file.webViewLink}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-slate-700 bg-card border border-slate-300 rounded-xl hover:bg-slate-100 transition-colors shadow-sm"
+                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-slate-700 bg-card border border-slate-400 rounded-xl hover:bg-slate-100 transition-colors shadow-sm"
                 style={{ textDecoration: 'none' }}
               >
                 <ExternalLink size={18} /> Open in Drive

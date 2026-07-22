@@ -146,8 +146,8 @@ export function FileListView(props: FileListViewProps) {
                   {renderDriveBadge(driveAccountId)}
                 </div>
               )}
-              <div className="text-right text-xs text-slate-400 hidden sm:block">—</div>
-              <div className="text-right text-xs text-slate-400 hidden sm:block">—</div>
+              <div className="text-right text-xs text-slate-500 hidden sm:block">—</div>
+              <div className="text-right text-xs text-slate-500 hidden sm:block">—</div>
               <div />
             </div>
           </ItemContextMenu>

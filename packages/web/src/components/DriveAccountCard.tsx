@@ -34,7 +34,7 @@ export function DriveAccountCard({ drive, index, onSync, onDisconnect }: DriveAc
           </div>
           <div>
             <div className="text-sm font-semibold text-slate-800">{drive.email}</div>
-            <div className="text-xs text-slate-400">
+            <div className="text-xs text-slate-500">
               {drive.type === 'service_account' ? 'Service Account' : 'OAuth'}
               {drive.isPrimary && <span className="ml-1.5 text-blue-500 font-medium">· Primary</span>}
               {drive.health === 'auth_expired' && (
@@ -56,7 +56,7 @@ export function DriveAccountCard({ drive, index, onSync, onDisconnect }: DriveAc
               )}
             </div>
             {drive.lastSyncedAt && (
-              <div className="text-[10px] text-slate-400 mt-0.5">
+              <div className="text-[10px] text-slate-500 mt-0.5">
                 Last synced: {new Date(drive.lastSyncedAt).toLocaleString()}
               </div>
             )}
@@ -92,7 +92,7 @@ export function DriveAccountCard({ drive, index, onSync, onDisconnect }: DriveAc
       </div>
 
       <QuotaBar used={drive.usedQuota} total={drive.totalQuota} color={color} showLabel={false} />
-      <div className="flex justify-between mt-2 text-xs text-slate-400">
+      <div className="flex justify-between mt-2 text-xs text-slate-500">
         <span>{formatFileSize(drive.freeSpace)} free of {formatFileSize(drive.totalQuota)}</span>
         <span>{Math.min(drive.usagePercent, 100).toFixed(1)}%</span>
       </div>

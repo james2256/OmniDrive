@@ -67,7 +67,7 @@ export function FileGrid(props: FileGridProps) {
 
   if (files.length === 0 && subfolders.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+      <div className="flex flex-col items-center justify-center py-20 text-slate-500">
         <p className="text-6xl mb-4">📂</p>
         <p className="text-lg font-medium text-slate-500">This folder is empty</p>
         <p className="text-sm mt-1">Drag &amp; drop files here or click Upload</p>

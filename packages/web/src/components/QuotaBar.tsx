@@ -30,7 +30,7 @@ export function QuotaBar({ used, total, color, showLabel = true }: QuotaBarProps
         />
       </div>
       {showLabel && (
-        <div className="flex justify-between mt-1.5 text-xs text-slate-400">
+        <div className="flex justify-between mt-1.5 text-xs text-slate-500">
           <span>{formatFileSize(used)} used</span>
           <span>{formatFileSize(total)} total</span>
         </div>

@@ -165,7 +165,7 @@ export function DashboardPage() {
           </p>
         </div>
         <button
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-600 bg-card border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-600 bg-card border border-slate-400 rounded-lg hover:bg-slate-50 transition-colors"
           onClick={() => {
             queryClient.invalidateQueries({ queryKey: qk.recent });
             queryClient.invalidateQueries({ queryKey: qk.category });
@@ -216,11 +216,11 @@ export function DashboardPage() {
           >
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-slate-500">Total storage</span>
-              <span className="text-xs text-slate-400">{driveCount} drives</span>
+              <span className="text-xs text-slate-500">{driveCount} drives</span>
             </div>
             <div className="my-4">
               <div className="text-5xl sm:text-6xl font-semibold text-slate-800 tracking-tight leading-none">
-                {usedPercent.toFixed(1)}<span className="text-2xl text-slate-400 ml-1">%</span>
+                {usedPercent.toFixed(1)}<span className="text-2xl text-slate-500 ml-1">%</span>
               </div>
               <p className="text-sm text-slate-500 mt-2">
                 {formatFileSize(totalUsed)} of {formatFileSize(totalQuota)} used
@@ -244,13 +244,13 @@ export function DashboardPage() {
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm font-medium text-slate-500">By type</span>
               {totalCategoryBytes > 0 && (
-                <span className="text-xs text-slate-400">{formatFileSize(totalCategoryBytes)}</span>
+                <span className="text-xs text-slate-500">{formatFileSize(totalCategoryBytes)}</span>
               )}
             </div>
 
             {donutData.length === 0 ? (
               <div className="flex-1 flex items-center justify-center">
-                <p className="text-sm text-slate-400">No files synced yet.</p>
+                <p className="text-sm text-slate-500">No files synced yet.</p>
               </div>
             ) : (
               <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 flex-1 min-h-0">
@@ -275,7 +275,7 @@ export function DashboardPage() {
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <span className="text-xs text-slate-400 leading-none">used</span>
+                    <span className="text-xs text-slate-500 leading-none">used</span>
                     <span className="text-sm font-semibold text-slate-700 leading-tight mt-0.5">
                       {formatFileSize(totalUsed)}
                     </span>
@@ -290,14 +290,14 @@ export function DashboardPage() {
                           <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c.color }} />
                           <span className="truncate">{c.name}</span>
                         </span>
-                        <span className="text-slate-400 text-xs flex-shrink-0">
+                        <span className="text-slate-500 text-xs flex-shrink-0">
                           {pct.toFixed(0)}%
                         </span>
                       </li>
                     );
                   })}
                   {donutData.length > 4 && (
-                    <li className="text-xs text-slate-400 pt-1">+{donutData.length - 4} more</li>
+                    <li className="text-xs text-slate-500 pt-1">+{donutData.length - 4} more</li>
                   )}
                 </ul>
               </div>
@@ -324,7 +324,7 @@ export function DashboardPage() {
                     <ArrowRight size={14} className="text-slate-300 group-hover:text-primary transition-colors" />
                   </div>
                   <div className="text-sm font-medium text-slate-800">{label}</div>
-                  <div className="text-xs text-slate-400 mt-0.5 truncate">{hint}</div>
+                  <div className="text-xs text-slate-500 mt-0.5 truncate">{hint}</div>
                 </button>
               ))}
             </div>
@@ -351,14 +351,14 @@ export function DashboardPage() {
                     </div>
                     <div className="min-w-0">
                       <div className="text-sm font-medium text-slate-800 truncate">{drive.email}</div>
-                      <div className="text-xs text-slate-400">
+                      <div className="text-xs text-slate-500">
                         {drive.type === 'service_account' ? 'Service Account' : 'OAuth'}
                         {drive.isPrimary && <span className="ml-1.5 text-primary font-medium">· Primary</span>}
                       </div>
                     </div>
                   </div>
                   <QuotaBar used={drive.usedQuota} total={drive.totalQuota} color={getDriveColor(i)} showLabel={false} />
-                  <div className="flex justify-between mt-2 text-xs text-slate-400">
+                  <div className="flex justify-between mt-2 text-xs text-slate-500">
                     <span>{formatFileSize(drive.usedQuota)} used</span>
                     <span>{Math.min(drive.usagePercent, 100).toFixed(1)}%</span>
                   </div>
@@ -374,7 +374,7 @@ export function DashboardPage() {
           >
             <div className="flex items-center justify-between p-5 pb-3">
               <div className="flex items-center gap-2">
-                <Clock size={16} className="text-slate-400" />
+                <Clock size={16} className="text-slate-500" />
                 <h2 className="text-sm font-medium text-slate-500">Recent</h2>
               </div>
               {hasRecent && (
@@ -429,7 +429,7 @@ export function DashboardPage() {
                   <Users size={18} className="text-slate-500" />
                 </div>
                 <div className="text-sm font-medium text-slate-800">Admin tools</div>
-                <p className="text-xs text-slate-400 mt-1">Manage users and invitations.</p>
+                <p className="text-xs text-slate-500 mt-1">Manage users and invitations.</p>
               </div>
               <button
                 className="mt-4 inline-flex items-center gap-1.5 text-sm text-primary hover:gap-2 transition-all"

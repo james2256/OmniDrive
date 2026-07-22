@@ -92,7 +92,7 @@ export function MoveModal({ open, items, driveId, onClose, onSuccess }: MoveModa
         <div className="flex items-center gap-1 px-4 py-2 text-sm text-slate-600 border-b border-slate-100 shrink-0 overflow-x-auto">
           {breadcrumb.map((item, i) => (
             <span key={item.id ?? `bc-${i}`} className="flex items-center gap-1 whitespace-nowrap">
-              {i > 0 && <ChevronRight size={14} className="text-slate-400" />}
+              {i > 0 && <ChevronRight size={14} className="text-slate-500" />}
               {i < breadcrumb.length - 1 ? (
                 <button onClick={() => handleBreadcrumbClick(i)} className="hover:text-slate-900 hover:underline">
                   {item.name}
@@ -107,7 +107,7 @@ export function MoveModal({ open, items, driveId, onClose, onSuccess }: MoveModa
         {/* Folder list */}
         <div className="flex-1 overflow-y-auto p-2 min-h-[200px]">
           {subfolders.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+            <div className="flex flex-col items-center justify-center py-12 text-slate-500">
               <Folder size={32} className="mb-2" />
               <p className="text-sm">No subfolders here</p>
             </div>
