@@ -15,7 +15,7 @@ OmniDrive lets you connect multiple Google Drive accounts and manage all your fi
 ## Features
 
 - **🔗 Multi-Drive Accounts** — Connect multiple Google Drive accounts via OAuth or Service Account JSON keys
-- **🏢 Enterprise Workspaces** — Team workspaces replacing virtual folders, with RBAC, Quotas, Data Retention Policies, and Audit Logging
+- **🏢 Enterprise Workspaces** — Team workspaces with RBAC (viewer → owner), Quotas, Data Retention Policies, and Audit Logging
 - **📁 Unified File Browsing** — Browse files across all connected drives in a single merged view
 - **🔍 Global Search & Metadata** — Unified global search with metadata filtering, custom file metadata properties, and visual badges
 - **⬆️ Smart Upload & Bulk Actions** — Drag-and-drop upload, automatic drive selection, and bulk operations (Move, Delete)
@@ -33,7 +33,7 @@ OmniDrive implements a robust security model to protect your files and data:
 - **Rate Limiting**: Built-in sliding window rate limiters protect authentication and public endpoints from brute-force attacks.
 - **OAuth PKCE**: Authentication flow uses Proof Key for Code Exchange (S256) for enhanced security.
 - **Strict Access Control**: Enforced RBAC role escalation prevention and IDOR (Insecure Direct Object Reference) prevention on all resource access.
-
+- **Fail-Fast Env Validation**: Zod-validated environment at boot — missing secrets crash immediately instead of failing silently at runtime.
 
 ## S3 Object Storage API
 
@@ -69,7 +69,7 @@ force_path_style = true
 | **Frontend** | [React 19](https://react.dev/) + [Vite 8](https://vite.dev/) |
 | **Styling** | [Tailwind CSS 4](https://tailwindcss.com/) (CSS-first `@theme` config) |
 | **State Management** | [Zustand](https://zustand.docs.pmnd.rs/) + [TanStack Query](https://tanstack.com/query) |
-| **Language** | [TypeScript 6](https://www.typescriptlang.org/) |
+| **Language** | [TypeScript 6](https://www.typescriptlang.org/) (strict mode) |
 | **Testing** | [Vitest 4](https://vitest.dev/) + `@cloudflare/vitest-pool-workers` |
 | **Auth** | Google OAuth 2.0 (PKCE) |
 | **Runtime** | [Node.js 24](https://nodejs.org/) LTS |
@@ -79,39 +79,47 @@ force_path_style = true
 ```
 omnidrive/
 ├── packages/
-│   ├── worker/          # Cloudflare Worker (API backend)
+│   ├── worker/              # Cloudflare Worker (API backend)
 │   │   ├── src/
-│   │   │   ├── routes/      # API route handlers
-│   │   │   ├── services/    # Business logic (Google Drive, sync, auth)
-│   │   │   ├── middleware/  # Auth guard, CORS, error handling
-│   │   │   ├── db/          # D1 schema
-│   │   │   └── types/       # TypeScript types
-│   │   └── tests/           # Vitest unit tests
-│   └── web/             # React SPA (frontend)
+│   │   │   ├── routes/          # 10 route files (thin orchestrators)
+│   │   │   ├── services/        # 14 service files (business logic + RBAC)
+│   │   │   ├── repositories/    # 9 repository files (all SQL)
+│   │   │   ├── middleware/      # 11 middleware (auth, CORS, CSRF, rate limit, request ID, RBAC, S3 auth, shared services)
+│   │   │   ├── lib/             # 16 utility files (crypto, validation, env, logger, schemas, password, PKCE, cursor, etc.)
+│   │   │   ├── db/              # D1 schema
+│   │   │   └── types/           # TypeScript types
+│   │   ├── migrations/          # 4 D1 migrations
+│   │   └── tests/               # 48 unit test files + 9 integration test files
+│   └── web/                 # React SPA (frontend)
 │       └── src/
-│           ├── components/  # UI components
-│           ├── pages/       # Route pages
-│           ├── stores/      # Zustand state stores
-│           ├── hooks/       # Custom React hooks
-│           ├── lib/         # API client, utilities
-│           └── types/       # TypeScript types
-├── docs/                # Project documentation
-│   ├── PRD.md           # Product requirements document
-│   ├── API.md           # API reference (all endpoints)
-│   ├── ARCHITECTURE.md  # System architecture
-│   ├── DEPLOYMENT.md    # Deployment guide (local/Docker/Cloudflare)
-│   ├── SCHEMA.md        # D1 database schema (23 tables)
-│   ├── DESIGN.md        # UI/UX design system + Tailwind 4
-│   ├── AGENTS.md        # AI agent coding guide
-│   ├── CONTRIBUTING.md  # Contributing guide
-│   └── adr/             # Architecture decision records
-├── Makefile             # Deployment automation
-└── package.json         # Monorepo root (npm workspaces)
+│           ├── components/      # 6 dirs: files, layout, legal, settings, ui, workspaces
+│           ├── pages/           # 19 pages (Dashboard, Files, Settings, Admin, Search, etc.)
+│           ├── stores/          # 6 Zustand stores (auth, UI, upload, toast, selection, automation)
+│           ├── hooks/           # 5 TanStack Query hooks (drives, file mutations, folder mutations, shared links, merged drive)
+│           ├── lib/             # API client, query keys, invalidation helpers, utilities
+│           └── types/           # TypeScript types
+├── docs/                    # Project documentation
+│   ├── PRD.md               # Product requirements document
+│   ├── API.md               # API reference (all endpoints)
+│   ├── ARCHITECTURE.md      # System architecture
+│   ├── DEPLOYMENT.md        # Deployment guide (local/Docker/Cloudflare)
+│   ├── SCHEMA.md            # D1 database schema
+│   ├── DESIGN.md            # UI/UX design system
+│   ├── AGENTS.md            # AI agent coding guide
+│   ├── CONTRIBUTING.md      # Contributing guide
+│   └── adr/                 # 8 Architecture Decision Records
+├── scripts/                 # Deployment + onboarding scripts
+├── Makefile                 # Deployment automation (10 targets)
+└── package.json             # Monorepo root (npm workspaces)
 ```
 
-The backend and frontend communicate via REST API. In development, Vite's dev server proxies `/api/*` and `/s3/*` requests to the local Worker on port 8888.
+**Repository Pattern:** All SQL lives in `repositories/`. Services own business logic + RBAC. Routes are thin orchestrators (parse → validate → call service → return JSON). 8 of 10 routes have zero inline SQL; the remaining 2 (`s3.ts` with 37, `auth.ts /callback` with 8) are deferred with `ponytail:` comments.
 
-**Testing:** 370 tests (246 worker unit + 65 worker integration + 59 web component) run against real D1 via Miniflare. Run with `npm test`.
+**Testing:** 63 test files (48 worker unit + 9 worker integration + 16 web component) run against real D1 via Miniflare. Run with `npm test`.
+
+**Structured Logging:** Every request gets a UUID (`x-request-id` header). All error logs are JSON with `requestId`, `path`, `errorClass`, and `stack` — filterable in `wrangler tail`.
+
+The backend and frontend communicate via REST API. In development, Vite's dev server proxies `/api/*` and `/s3/*` requests to the local Worker on port 8888.
 
 ## Prerequisites
 
@@ -147,7 +155,44 @@ Follow the prompts to select your deployment target:
 
 Or use the [Cloudflare Pages dashboard](https://dash.cloudflare.com/?to=/:account/pages) for automatic deployments from your Git repo if you prefer CI/CD.
 
-### 3. Manual Deployment to Cloudflare
+### 3. Manual Local Development Setup
+
+If you prefer to set up manually:
+
+```bash
+git clone https://github.com/james2256/OmniDrive.git
+cd OmniDrive
+npm install
+
+# Create local D1 database + run migrations
+cd packages/worker
+npx wrangler d1 create omnidrive  # copy database_id into wrangler.toml
+npm run db:migrate:local
+
+# Generate secrets (.dev.vars — read by Wrangler for local dev)
+node -e "
+const jwt = crypto.randomUUID().replace(/-/g,'');
+const key = crypto.randomUUID().replace(/-/g,'');
+require('fs').writeFileSync('.dev.vars',
+  'JWT_SECRET=' + jwt + '\n' +
+  'TOKEN_ENCRYPTION_KEY=' + key + '\n' +
+  'WORKER_URL=http://localhost:8888\n' +
+  'FRONTEND_URL=http://localhost:8999\n' +
+  'GOOGLE_CLIENT_ID=\n' +
+  'GOOGLE_CLIENT_SECRET=\n'
+);
+"
+
+# Start both worker + web
+cd ~/OmniDrive
+npm run dev
+```
+
+Open **http://localhost:8999** — the app redirects to `/setup` to create your first admin account.
+
+> **Note:** Google OAuth credentials are optional for local testing. Username/password auth works without them. Add them to `.dev.vars` only if you want to test the "Connect Google Drive" flow.
+
+### 4. Manual Deployment to Cloudflare
 
 If you prefer not to use the `deploy.sh` script, you can deploy manually:
 
@@ -193,6 +238,8 @@ If you prefer not to use the `deploy.sh` script, you can deploy manually:
 
 OmniDrive uses a **single centralized `.env` file** at the root of the project to manage both Web and Worker configurations. See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for the complete guide.
 
+For local development, Wrangler reads secrets from `packages/worker/.dev.vars` (not `.env`). See the manual setup instructions above.
+
 Copy `/.env.example` to `/.env` and fill in your values. This file is automatically read by both Vite and Wrangler during local development.
 
 | Variable | Description | Default |
@@ -216,9 +263,10 @@ Copy `/.env.example` to `/.env` and fill in your values. This file is automatica
 | [docs/PRD.md](docs/PRD.md) | Product requirements — features, user stories, functional requirements |
 | [docs/API.md](docs/API.md) | API reference — all endpoints, request/response shapes, status codes |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture — request pipeline, service layer, repository pattern |
-| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Deployment guide — local dev, Docker self-hosted, Cloudflare production |
-| [docs/SCHEMA.md](docs/SCHEMA.md) | Database schema — all 23 D1 tables with relationships |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Deployment guide — local dev, Docker self-host, Cloudflare production |
+| [docs/SCHEMA.md](docs/SCHEMA.md) | Database schema — all D1 tables with relationships |
 | [docs/DESIGN.md](docs/DESIGN.md) | Design system — colors, typography, Tailwind 4 migration notes |
 | [docs/AGENTS.md](docs/AGENTS.md) | AI agent guide — coding conventions, patterns, anti-patterns |
-| [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | Contributing guide — development setup, commit conventions |
-
+| [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | Contributing guide — development setup, commit conventions, debugging guide |
+| [docs/DEBUGGING.md](docs/DEBUGGING.md) | Debugging guide — local dev, production, common issues, D1 queries |
+| [docs/TESTING.md](docs/TESTING.md) | Testing guide — test suites, commands, patterns, writing new tests |
