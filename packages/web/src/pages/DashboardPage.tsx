@@ -199,9 +199,9 @@ export function DashboardPage() {
 
       {/* Loading skeleton — matches bento shape */}
       {isLoading && (
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 auto-rows-[minmax(140px,auto)]">
-          <div className="lg:col-span-2 lg:row-span-2 bg-card border border-stone-200 rounded-2xl animate-pulse" />
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 auto-rows-[minmax(150px,auto)]">
           <div className="lg:col-span-2 bg-card border border-stone-200 rounded-2xl animate-pulse" />
+          <div className="lg:col-span-2 lg:row-span-2 bg-card border border-stone-200 rounded-2xl animate-pulse" />
           <div className="lg:col-span-2 bg-card border border-stone-200 rounded-2xl animate-pulse" />
         </div>
       )}
@@ -236,34 +236,10 @@ export function DashboardPage() {
             </div>
           </article>
 
-          {/* Quick links — col-span-2 row-span-2, fills right side of hero. */}
+          {/* Category donut — col-span-2 row-span-2, fills right side of hero. */}
           <article
-            className="lg:col-span-2 lg:row-span-2 bg-surface border border-stone-200/70 rounded-2xl p-5 bento-reveal"
+            className="lg:col-span-2 lg:row-span-2 bg-card border border-stone-200 rounded-2xl p-5 flex flex-col bento-reveal"
             style={{ animationDelay: '120ms' }}
-          >
-            <span className="text-sm font-medium text-stone-500 mb-3 block">Quick access</span>
-            <div className="grid grid-cols-2 gap-2.5">
-              {quickLinks.map(({ to, label, Icon, hint }) => (
-                <button
-                  key={to}
-                  onClick={() => navigate(to)}
-                  className="group bg-card border border-stone-200 rounded-xl p-3 text-left hover:border-primary/40 hover:-translate-y-[1px] hover:shadow-sm transition-all"
-                >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <Icon size={18} className="text-stone-500 group-hover:text-primary transition-colors" />
-                    <ArrowRight size={14} className="text-stone-300 group-hover:text-primary transition-colors" />
-                  </div>
-                  <div className="text-sm font-medium text-stone-800">{label}</div>
-                  <div className="text-xs text-stone-400 mt-0.5 truncate">{hint}</div>
-                </button>
-              ))}
-            </div>
-          </article>
-
-          {/* Category donut — col-span-2, below hero. */}
-          <article
-            className="lg:col-span-2 bg-card border border-stone-200 rounded-2xl p-5 flex flex-col bento-reveal"
-            style={{ animationDelay: '180ms' }}
           >
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm font-medium text-stone-500">By type</span>
@@ -277,8 +253,8 @@ export function DashboardPage() {
                 <p className="text-sm text-stone-400">No files synced yet.</p>
               </div>
             ) : (
-              <div className="flex items-center gap-4 flex-1">
-                <div className="relative w-24 h-24 sm:w-28 sm:h-28 flex-shrink-0">
+              <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 flex-1 min-h-0">
+                <div className="relative w-32 h-32 sm:w-36 sm:h-36 lg:w-40 lg:h-40 flex-shrink-0">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
@@ -305,7 +281,7 @@ export function DashboardPage() {
                     </span>
                   </div>
                 </div>
-                <ul className="flex-1 space-y-1.5 min-w-0">
+                <ul className="flex-1 space-y-2 min-w-0 w-full sm:w-auto">
                   {donutData.slice(0, 4).map((c) => {
                     const pct = totalCategoryBytes > 0 ? (c.value / totalCategoryBytes) * 100 : 0;
                     return (
@@ -326,6 +302,32 @@ export function DashboardPage() {
                 </ul>
               </div>
             )}
+          </article>
+
+          {/* Quick links — col-span-2, below hero. */}
+          <article
+            className="lg:col-span-2 bg-card border border-stone-200 rounded-2xl p-5 flex flex-col bento-reveal"
+            style={{ animationDelay: '180ms' }}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-medium text-stone-500">Quick access</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5 flex-1">
+              {quickLinks.map(({ to, label, Icon, hint }) => (
+                <button
+                  key={to}
+                  onClick={() => navigate(to)}
+                  className="group bg-surface border border-stone-200/70 rounded-xl p-3 text-left hover:border-primary/40 hover:-translate-y-[1px] hover:shadow-sm transition-all"
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <Icon size={18} className="text-stone-500 group-hover:text-primary transition-colors" />
+                    <ArrowRight size={14} className="text-stone-300 group-hover:text-primary transition-colors" />
+                  </div>
+                  <div className="text-sm font-medium text-stone-800">{label}</div>
+                  <div className="text-xs text-stone-400 mt-0.5 truncate">{hint}</div>
+                </button>
+              ))}
+            </div>
           </article>
 
           {/* Connected drives — col-span-4 full width. */}
