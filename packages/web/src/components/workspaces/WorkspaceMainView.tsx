@@ -27,7 +27,7 @@ export function WorkspaceMainView({
     return (
       <div className="flex-1 flex flex-col items-center justify-center text-slate-500 bg-slate-50 border-l border-slate-200 gap-4">
         <p>Select or create a Workspace to get started.</p>
-        <button onClick={onCreateRootFolder} className="flex items-center gap-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors">
+        <button onClick={onCreateRootFolder} className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors">
           <FolderPlus size={16} /> New Workspace
         </button>
       </div>
@@ -37,7 +37,7 @@ export function WorkspaceMainView({
   return (
     <div className="flex-1 flex flex-col h-full bg-card border-l border-slate-200">
       {/* Header Area */}
-      <div className="px-4 sm:px-8 pt-4 sm:pt-8 pb-4 border-b border-slate-200 flex flex-col gap-4">
+      <div className="px-4 sm:px-8 pt-4 sm:pt-8 pb-4 border-b border-slate-200 flex flex-col gap-3">
         {/* Breadcrumbs */}
         <div className="flex items-center text-sm text-slate-500 gap-2 min-w-0">
           {onToggleSidebar && (

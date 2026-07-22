@@ -129,13 +129,13 @@ export function FilePreviewModal({ open, file, onClose }: FilePreviewModalProps)
 
         {/* Footer Actions */}
         {file && (
-          <div className="p-5 border-t border-slate-100 bg-slate-50 flex gap-3 justify-end shrink-0">
+          <div className="p-4 border-t border-slate-100 bg-slate-50 flex gap-3 justify-end shrink-0">
             {file.webViewLink && (
               <a
                 href={file.webViewLink}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-slate-700 bg-card border border-slate-400 rounded-xl hover:bg-slate-100 transition-colors shadow-sm"
+                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-700 bg-card border border-slate-400 rounded-xl hover:bg-slate-100 transition-colors shadow-sm"
                 style={{ textDecoration: 'none' }}
               >
                 <ExternalLink size={18} /> Open in Drive
@@ -146,7 +146,7 @@ export function FilePreviewModal({ open, file, onClose }: FilePreviewModalProps)
                 href={`${import.meta.env.VITE_API_URL || ''}/api/files/${file.id}/download`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
+                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
                 style={{ textDecoration: 'none' }}
               >
                 <Download size={18} /> Download

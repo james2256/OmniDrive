@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { FileGrid } from '../components/files/FileGrid';
+import { BulkActionBar } from '../components/layout/BulkActionBar';
 import { api } from '../lib/api';
 import { useDrives } from '../hooks/useDrives';
 import { qk } from '../lib/queryKeys';
@@ -15,6 +16,7 @@ import { Trash2 } from 'lucide-react';
 export function TrashPage() {
   const { data: drivesData } = useDrives();
   const drives = useMemo(() => drivesData?.drives ?? [], [drivesData]);
+  const queryClient = useQueryClient();
 
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
   const [confirmFileDelete, setConfirmFileDelete] = useState<string | null>(null);
@@ -54,6 +56,11 @@ export function TrashPage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
+      <BulkActionBar
+        isTrashView={true}
+        onActionComplete={() => queryClient.invalidateQueries({ queryKey: qk.trash })}
+      />
+
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-slate-800">Trash</h1>
       </div>

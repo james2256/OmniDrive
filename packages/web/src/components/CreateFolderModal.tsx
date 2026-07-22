@@ -131,14 +131,14 @@ export function CreateFolderModal({ open, parentId, title, onClose, onSuccess, d
             <div className="flex justify-end gap-3 mt-2 pt-4 border-t border-slate-100">
               <button
                 type="button"
-                className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                className="px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
                 onClick={onClose}
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="flex items-center justify-center min-w-[100px] px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center justify-center  px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={loading || (showDrivePicker && !selectedDriveId)}
               >
                 {loading ? (

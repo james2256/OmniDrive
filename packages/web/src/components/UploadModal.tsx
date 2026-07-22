@@ -147,10 +147,10 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
         )}
 
         {/* Actions */}
-        <div className="p-5 flex justify-end gap-3 shrink-0">
+        <div className="p-4 flex justify-end gap-3 shrink-0">
           {allDone ? (
             <button
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+              className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
               onClick={handleClose}
             >
               Done
@@ -158,14 +158,14 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
           ) : (
             <>
               <button
-                className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
+                className="px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
                 onClick={handleClose}
                 disabled={isUploading}
               >
                 Cancel
               </button>
               <button
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={handleUpload}
                 disabled={isUploading || queue.length === 0}
               >

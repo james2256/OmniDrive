@@ -177,14 +177,14 @@ export function SettingsDrivesTab() {
             <div className="flex gap-3 justify-end pt-2">
               <button
                 type="button"
-                className="px-4 py-2 text-sm font-medium text-slate-700 bg-card border border-slate-400 rounded-xl hover:bg-slate-50 transition-colors"
+                className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-card border border-slate-400 rounded-xl hover:bg-slate-50 transition-colors"
                 onClick={() => setShowSaForm(false)}
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors"
+                className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors"
               >
                 Add Account
               </button>

@@ -9,7 +9,6 @@ import {
 import { Folder, Download, Trash2, Pencil, ExternalLink, Share2, RefreshCw, Eye, Star, Info } from 'lucide-react';
 import type { FileEntry, DriveFolder, WorkspaceFolder } from '../../types';
 import type { ItemActions, ItemKind } from './types';
-import { isGoogleNative } from './utils';
 
 interface ItemContextMenuProps {
   type: ItemKind;
@@ -64,7 +63,6 @@ const MENU_ITEM_DANGER_CLASS = 'px-3 py-2 text-sm text-red-600 cursor-pointer ho
 const ItemContextMenuContent: React.FC<ItemContextMenuContentProps> = ({ type, item, actions, isTrashView, isStarred }) => {
   const file = type === 'file' ? (item as FileEntry) : undefined;
   const driveFolder = type === 'folder' && 'googleFolderId' in item ? (item as DriveFolder) : undefined;
-  const native = file ? isGoogleNative(file.mimeType) : false;
 
   const fileId = file?.id;
   const webViewLink = file?.webViewLink;
@@ -145,7 +143,7 @@ const ItemContextMenuContent: React.FC<ItemContextMenuContentProps> = ({ type, i
               Preview
             </ContextMenuItem>
           )}
-          {type === 'file' && file && native && webViewLink && (
+          {type === 'file' && file && webViewLink && (
             <ContextMenuItem onClick={() => window.open(webViewLink, '_blank', 'noopener,noreferrer')}>
               <ExternalLink className="mr-2 h-4 w-4" /> Open in Google
             </ContextMenuItem>
@@ -157,7 +155,7 @@ const ItemContextMenuContent: React.FC<ItemContextMenuContentProps> = ({ type, i
               <ExternalLink className="mr-2 h-4 w-4" /> Open in Google
             </ContextMenuItem>
           )}
-          {type === 'file' && file && !native && file.webContentLink && (
+          {type === 'file' && file && (
             <ContextMenuItem onClick={() => { window.location.href = `${import.meta.env.VITE_API_URL || ''}/api/files/${file.id}/download`; }}>
               <Download className="mr-2 h-4 w-4" /> Download
             </ContextMenuItem>

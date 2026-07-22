@@ -89,7 +89,7 @@ export function MoveModal({ open, items, driveId, onClose, onSuccess }: MoveModa
         </div>
 
         {/* Breadcrumb */}
-        <div className="flex items-center gap-1 px-4 py-2 text-sm text-slate-600 border-b border-slate-100 shrink-0 overflow-x-auto">
+        <div className="flex items-center gap-1 px-3 py-1.5 text-sm text-slate-600 border-b border-slate-100 shrink-0 overflow-x-auto">
           {breadcrumb.map((item, i) => (
             <span key={item.id ?? `bc-${i}`} className="flex items-center gap-1 whitespace-nowrap">
               {i > 0 && <ChevronRight size={14} className="text-slate-500" />}
@@ -134,14 +134,14 @@ export function MoveModal({ open, items, driveId, onClose, onSuccess }: MoveModa
             <button
               onClick={onClose}
               disabled={isMoving}
-              className="px-4 py-2 text-sm font-medium text-slate-600 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors disabled:opacity-50"
+              className="px-3 py-1.5 text-sm font-medium text-slate-600 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               onClick={handleMove}
               disabled={isMoving}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
             >
               {isMoving ? <LoaderCircle size={16} className="animate-spin" /> : null}
               {isMoving ? 'Moving...' : 'Move here'}
