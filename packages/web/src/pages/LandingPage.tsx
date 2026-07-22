@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Cloud, FolderSync, Link2, Shield, Users } from 'lucide-react';
+import { LogoWordmark } from '../components/LogoWordmark';
 
 const features = [
   {
@@ -35,8 +36,8 @@ export function LandingPage() {
       <header className="border-b border-slate-200 bg-card">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4 sm:px-6">
           <div className="flex items-center gap-2.5">
-            <img src="/logo.png?v=2" alt="OmniDrive" className="h-8 w-8 object-contain" />
-            <span className="text-lg font-semibold text-slate-900">OmniDrive</span>
+            <img src="/logo.svg" alt="OmniDrive" className="w-10 h-auto object-contain" />
+            <LogoWordmark className="h-7 w-auto" label="" />
           </div>
           <Link
             to="/login"
@@ -50,7 +51,7 @@ export function LandingPage() {
       <main>
         <section className="mx-auto max-w-5xl px-4 py-16 sm:px-6 sm:py-24">
           <div className="mx-auto max-w-2xl text-center">
-            <img src="/logo.png?v=2" alt="OmniDrive" className="mx-auto mb-6 h-20 w-20 object-contain" />
+            <img src="/logo.svg" alt="OmniDrive" className="mx-auto mb-6 w-24 h-auto object-contain" />
             <h1 className="text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
               Unified multi-Google Drive storage gateway
             </h1>

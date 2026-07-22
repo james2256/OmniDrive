@@ -18,6 +18,6 @@ describe('Header', () => {
         <Header />
       </MemoryRouter>
     );
-    expect(screen.getByText('OmniDrive')).toBeDefined();
+    expect(screen.getByAltText('OmniDrive')).toBeDefined();
   });
 });
