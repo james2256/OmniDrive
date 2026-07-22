@@ -22,6 +22,16 @@ export interface ItemActions {
   onShare?: (id: string, type: ItemKind) => void;
   onRenameFile?: (id: string, name: string) => void;
   onRenameFolder?: (driveId: string, folderId: string, name: string) => void;
+  /**
+   * Request to rename a file — opens the RenameDialog (parent-managed) with
+   * the file's current name. Replaces the previous inline `prompt()` flow.
+   */
+  onRenameFileRequest?: (fileId: string, currentName: string) => void;
+  /**
+   * Request to rename a Google Drive folder — opens the RenameDialog
+   * (parent-managed) with the folder's current name.
+   */
+  onRenameFolderRequest?: (driveId: string, folderId: string, currentName: string) => void;
   onDeleteFile?: (id: string) => void;
   onDeleteFolder?: (driveId: string, folderId: string) => void;
   onMoveDrive?: (file: FileEntry) => void;

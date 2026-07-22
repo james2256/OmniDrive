@@ -77,14 +77,14 @@ export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !loading && onClose()}>
       <DialogContent className="max-w-md p-0 gap-0 rounded-2xl overflow-hidden flex flex-col max-h-full">
-        <div className="flex items-center p-5 border-b border-slate-200 shrink-0">
+        <div className="flex items-center p-4 border-b border-slate-200 shrink-0">
           <DialogTitle className="text-lg font-semibold text-slate-800 flex items-center gap-2">
             <Settings size={20} className="text-blue-500" />
             Edit Settings
           </DialogTitle>
         </div>
 
-        <div className="p-6 overflow-y-auto">
+        <div className="p-4 overflow-y-auto">
           {error && (
             <div className="text-red-500 mb-4 text-sm bg-red-50 p-3 rounded-lg border border-red-100">
               {error}

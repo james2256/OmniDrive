@@ -99,6 +99,9 @@ vi.mock('lucide-react', () => ({
   LayoutGrid: () => <svg data-testid="layout-grid-icon" />,
   List: () => <svg data-testid="list-icon" />,
   Info: () => <svg data-testid="info-icon" />,
+  Pen: () => <svg data-testid="pen-icon" />,
+  LoaderCircle: () => <svg data-testid="loader-circle-icon" />,
+  TriangleAlert: () => <svg data-testid="triangle-alert-icon" />,
 }));
 
 describe('FilesPage', () => {

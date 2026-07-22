@@ -9,6 +9,7 @@ import { MoveModal } from '../components/MoveModal';
 import { ShareModal } from '../components/ShareModal';
 import { MoveDriveModal } from '../components/MoveDriveModal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { RenameDialog } from '../components/RenameDialog';
 import { api } from '../lib/api';
 import { useDrives } from '../hooks/useDrives';
 import type { FileEntry, DriveFolder, BreadcrumbItem, WorkspaceFolder } from '../types';
@@ -39,6 +40,11 @@ export function SharedWithMePage() {
   const [moveDriveFiles, setMoveDriveFiles] = useState<FileEntry[]>([]);
   const [confirmFileDelete, setConfirmFileDelete] = useState<string | null>(null);
   const [confirmFolderDelete, setConfirmFolderDelete] = useState<{ driveId: string; folderId: string } | null>(null);
+  const [renameTarget, setRenameTarget] = useState<
+    | { kind: 'file'; id: string; currentName: string }
+    | { kind: 'folder'; driveId: string; folderId: string; currentName: string }
+    | null
+  >(null);
 
   const queryKey = folderId && driveIdParam
     ? qk.sharedWithMeFolder(driveIdParam, folderId)
@@ -102,6 +108,24 @@ export function SharedWithMePage() {
 
   const handleRenameFolder = (driveId: string, folderId: string, name: string) => {
     renameDriveFolderMut.mutate({ driveId, folderId, name });
+  };
+
+  const handleRenameFileRequest = (fileId: string, currentName: string) => {
+    setRenameTarget({ kind: 'file', id: fileId, currentName });
+  };
+
+  const handleRenameFolderRequest = (driveId: string, folderId: string, currentName: string) => {
+    setRenameTarget({ kind: 'folder', driveId, folderId, currentName });
+  };
+
+  const handleRenameConfirm = (newName: string) => {
+    if (!renameTarget) return;
+    if (renameTarget.kind === 'file') {
+      handleRenameFile(renameTarget.id, newName);
+    } else {
+      handleRenameFolder(renameTarget.driveId, renameTarget.folderId, newName);
+    }
+    setRenameTarget(null);
   };
 
   const handleToggleStar = (id: string, type: 'file' | 'folder', currentStarStatus: boolean, driveId?: string) => {
@@ -211,6 +235,8 @@ export function SharedWithMePage() {
                 onShare: (id, type) => setShareTarget({ id, type }),
                 onRenameFile: handleRenameFile,
                 onRenameFolder: handleRenameFolder,
+                onRenameFileRequest: handleRenameFileRequest,
+                onRenameFolderRequest: handleRenameFolderRequest,
                 onDeleteFile: handleDeleteFile,
                 onDeleteFolder: handleDeleteFolder,
                 onViewInfo: handleViewInfo,
@@ -284,6 +310,15 @@ export function SharedWithMePage() {
           setConfirmFolderDelete(null);
         }}
         onClose={() => setConfirmFolderDelete(null)}
+      />
+
+      <RenameDialog
+        open={renameTarget !== null}
+        initialName={renameTarget?.currentName ?? ''}
+        title={renameTarget?.kind === 'folder' ? 'Rename Folder' : 'Rename File'}
+        loading={renameFileMut.isPending || renameDriveFolderMut.isPending}
+        onConfirm={handleRenameConfirm}
+        onClose={() => setRenameTarget(null)}
       />
     </div>
   );

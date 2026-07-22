@@ -82,7 +82,7 @@ export function MoveModal({ open, items, driveId, onClose, onSuccess }: MoveModa
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !isMoving && onClose()}>
       <DialogContent className="max-w-lg p-0 gap-0 rounded-2xl overflow-hidden flex flex-col max-h-[80vh]">
-        <div className="flex items-center justify-between p-5 border-b border-slate-200 shrink-0">
+        <div className="flex items-center justify-between p-4 border-b border-slate-200 shrink-0">
           <DialogTitle className="text-lg font-semibold text-slate-800">
             Move {items.length} item{items.length > 1 ? 's' : ''}
           </DialogTitle>

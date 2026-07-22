@@ -14,11 +14,9 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
   DialogTitle,
 } from '../components/ui/dialog';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 
 const AddUserModal: React.FC<{ open: boolean, onClose: () => void, onSuccess: () => void }> = ({ open, onClose, onSuccess }) => {
   const [username, setUsername] = useState('');
@@ -52,10 +50,10 @@ const AddUserModal: React.FC<{ open: boolean, onClose: () => void, onSuccess: ()
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-md p-0 gap-0 rounded-2xl overflow-hidden">
-        <div className="flex items-center px-6 py-4 border-b border-slate-100 shrink-0">
+        <div className="flex items-center p-4 border-b border-slate-200 shrink-0">
           <DialogTitle className="text-lg font-medium text-slate-900">Add User</DialogTitle>
         </div>
-        <form onSubmit={handleSubmit} className="p-6">
+        <form onSubmit={handleSubmit} className="p-4">
           {error && <div className="mb-4 text-sm text-red-600 bg-red-50 p-2 rounded">{error}</div>}
           <div className="space-y-4">
             <div>
@@ -339,30 +337,15 @@ export const AdminUsersPage: React.FC = () => {
         }}
       />
 
-      <Dialog open={!!userToDelete} onOpenChange={(open) => !open && setUserToDelete(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete User</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete this user? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <button
-              onClick={() => setUserToDelete(null)}
-              className="px-4 py-2 border border-slate-400 rounded-md text-slate-700 hover:bg-slate-50"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={confirmDeleteUser}
-              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
-            >
-              Delete
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={!!userToDelete}
+        title="Delete User"
+        message="Are you sure you want to delete this user? This action cannot be undone."
+        confirmText="Delete User"
+        variant="danger"
+        onConfirm={confirmDeleteUser}
+        onClose={() => setUserToDelete(null)}
+      />
     </div>
   );
 };

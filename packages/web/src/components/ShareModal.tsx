@@ -90,14 +90,14 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !loading && onClose()}>
       <DialogContent className="max-w-md p-0 gap-0 rounded-2xl overflow-hidden flex flex-col max-h-full">
-        <div className="flex items-center p-5 border-b border-slate-200 shrink-0">
+        <div className="flex items-center p-4 border-b border-slate-200 shrink-0">
           <DialogTitle className="text-lg font-semibold text-slate-800 flex items-center gap-2">
             <Share2 size={20} className="text-blue-500" />
             Share {targetType === 'file' ? 'File' : 'Folder'}
           </DialogTitle>
         </div>
 
-        <div className="p-6 overflow-y-auto">
+        <div className="p-4 overflow-y-auto">
           {error && (
             <div className="text-red-500 mb-4 text-sm bg-red-50 p-3 rounded-lg border border-red-100">
               {error}
@@ -105,7 +105,7 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
           )}
 
           {!sharedUrl ? (
-            <form onSubmit={handleShare} className="flex flex-col gap-4">
+            <form onSubmit={handleShare} className="flex flex-col gap-3">
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium text-slate-700 flex items-center gap-1.5">
                   <Lock size={14} className="text-slate-500" /> Password (optional)
@@ -215,7 +215,7 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
               </div>
             </form>
           ) : (
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-3">
               <p className="text-sm text-slate-600 bg-blue-50 p-3 rounded-lg border border-blue-100">
                 Anyone with this link can access the {targetType}.
               </p>

@@ -5,6 +5,7 @@ import { WorkspaceSidebar } from '../components/workspaces/WorkspaceSidebar';
 import { WorkspaceMainView } from '../components/workspaces/WorkspaceMainView';
 import { CreateFolderModal } from '../components/CreateFolderModal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { RenameDialog } from '../components/RenameDialog';
 import { useToastStore } from '../stores/useToastStore';
 import { useSelectionStore, type SelectedItem } from '../stores/useSelectionStore';
 import { useUIStore } from '../stores/useUIStore';
@@ -25,6 +26,8 @@ export function WorkspacesPage() {
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<{ id: string; currentName: string } | null>(null);
+  const [isRenaming, setIsRenaming] = useState(false);
 
   const fetchTree = useCallback(async () => {
     try {
@@ -68,17 +71,23 @@ export function WorkspacesPage() {
     setCreateModal({ parentId: parentId ?? null, title });
   };
 
-  const handleRename = async (id: string) => {
+  const handleRename = (id: string) => {
     const folder = folders.find(f => f.id === id);
     if (!folder) return;
-    const name = prompt('Rename workspace:', folder.name);
-    if (name?.trim() && name.trim() !== folder.name) {
-      try {
-        await api.updateFolder(id, { name: name.trim() });
-        fetchTree();
-      } catch {
-        addToast('error', 'Failed to rename workspace');
-      }
+    setRenameTarget({ id, currentName: folder.name });
+  };
+
+  const confirmRename = async (newName: string) => {
+    if (!renameTarget) return;
+    setIsRenaming(true);
+    try {
+      await api.updateFolder(renameTarget.id, { name: newName });
+      fetchTree();
+      setRenameTarget(null);
+    } catch {
+      addToast('error', 'Failed to rename workspace');
+    } finally {
+      setIsRenaming(false);
     }
   };
 
@@ -265,6 +274,14 @@ export function WorkspacesPage() {
         loading={isDeleting}
         onConfirm={confirmDelete}
         onClose={() => !isDeleting && setDeleteTargetId(null)}
+      />
+      <RenameDialog
+        open={renameTarget !== null}
+        initialName={renameTarget?.currentName ?? ''}
+        title="Rename Workspace"
+        loading={isRenaming}
+        onConfirm={confirmRename}
+        onClose={() => !isRenaming && setRenameTarget(null)}
       />
       {retentionTargetId && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">

@@ -207,7 +207,7 @@ export function SettingsS3Tab() {
       {/* Create S3 Key Dialog */}
       <Dialog open={showCreateModal} onOpenChange={(open) => !open && !isCreatingKey && setShowCreateModal(false)}>
         <DialogContent className="max-w-md p-0 gap-0 rounded-2xl overflow-hidden flex flex-col">
-          <div className="flex flex-col p-5 border-b border-slate-200 shrink-0">
+          <div className="flex flex-col p-4 border-b border-slate-200 shrink-0">
             <DialogTitle className="text-lg font-semibold text-slate-800">Generate S3 API Key</DialogTitle>
             <DialogDescription className="text-xs text-slate-500">
               Create credentials to access OmniDrive storage with S3 compatible applications.
@@ -274,7 +274,7 @@ export function SettingsS3Tab() {
           onPointerDownOutside={(e) => e.preventDefault()}
           onEscapeKeyDown={(e) => e.preventDefault()}
         >
-          <div className="flex flex-col p-5 border-b border-slate-200 shrink-0">
+          <div className="flex flex-col p-4 border-b border-slate-200 shrink-0">
             <DialogTitle className="text-lg font-semibold text-slate-800 flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block animate-ping" />
               S3 Key Created Successfully

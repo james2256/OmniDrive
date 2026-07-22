@@ -81,21 +81,21 @@ export function CreateFolderModal({ open, parentId, title, onClose, onSuccess, d
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !loading && onClose()}>
       <DialogContent className="max-w-md p-0 gap-0 rounded-2xl overflow-hidden flex flex-col">
-        <div className="flex items-center p-5 border-b border-slate-200 shrink-0">
+        <div className="flex items-center p-4 border-b border-slate-200 shrink-0">
           <DialogTitle className="text-lg font-semibold text-slate-800 flex items-center gap-2">
             <FolderPlus size={20} className="text-blue-500" />
             {title}
           </DialogTitle>
         </div>
 
-        <div className="p-6">
+        <div className="p-4">
           {error && (
             <div className="text-red-500 mb-4 text-sm bg-red-50 p-3 rounded-lg border border-red-100">
               {error}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-3">
             {showDrivePicker && (
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium text-slate-700">Target Drive</label>

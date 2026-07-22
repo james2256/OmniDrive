@@ -32,7 +32,7 @@ export function AddToWorkspaceModal({ open, file, onClose, onSuccess }: Props) {
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-md p-0 gap-0 rounded-2xl overflow-hidden flex flex-col max-h-[80vh]">
-        <div className="flex items-center p-5 border-b border-slate-200 shrink-0">
+        <div className="flex items-center p-4 border-b border-slate-200 shrink-0">
           <DialogTitle className="text-lg font-semibold text-slate-800">Add to Workspace</DialogTitle>
         </div>
         <div className="p-4 overflow-y-auto flex-1 space-y-2">

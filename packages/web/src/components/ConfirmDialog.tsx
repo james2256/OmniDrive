@@ -32,20 +32,20 @@ export function ConfirmDialog({
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !loading && onClose()}>
       <DialogContent className="max-w-sm p-0 gap-0 rounded-2xl overflow-hidden flex flex-col">
-        <div className="flex items-center gap-3 p-5 border-b border-slate-200 shrink-0">
+        <div className="flex items-center gap-3 p-4 border-b border-slate-200 shrink-0">
           <TriangleAlert size={20} className={variant === 'danger' ? 'text-red-500' : variant === 'warning' ? 'text-amber-500' : 'text-blue-500'} />
           <DialogTitle className="text-lg font-semibold text-slate-800">{title}</DialogTitle>
         </div>
-        <div className="p-5">
+        <div className="p-4">
           <DialogDescription className="text-sm text-slate-600 leading-relaxed">
             {message}
           </DialogDescription>
-          <div className="flex justify-end gap-3 mt-6">
+          <div className="flex justify-end gap-3 mt-4">
             <button
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="px-4 py-2 text-sm font-medium text-slate-700 bg-card border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 transition-colors"
+              className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-card border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 transition-colors"
             >
               {cancelText}
             </button>
@@ -53,7 +53,7 @@ export function ConfirmDialog({
               type="button"
               onClick={onConfirm}
               disabled={loading}
-              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-50 transition-colors ${confirmColor}`}
+              className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white rounded-lg disabled:opacity-50 transition-colors ${confirmColor}`}
             >
               {loading && <LoaderCircle size={14} className="animate-spin" />}
               {confirmText}

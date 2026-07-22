@@ -85,8 +85,8 @@ const ItemContextMenuContent: React.FC<ItemContextMenuContentProps> = ({ type, i
     onToggleStar,
     onAddToWorkspace,
     onSetRetentionPolicy,
-    onRenameFile,
-    onRenameFolder,
+    onRenameFileRequest,
+    onRenameFolderRequest,
     onMoveDrive,
     onDeleteFile,
     onDeleteFolder,
@@ -182,22 +182,16 @@ const ItemContextMenuContent: React.FC<ItemContextMenuContentProps> = ({ type, i
               <Folder className="mr-2 h-4 w-4" /> Set Retention Policy
             </ContextMenuItem>
           )}
-          {type === 'file' && onRenameFile && fileId && name && (
+          {type === 'file' && onRenameFileRequest && fileId && name && (
             <ContextMenuItem
-              onClick={() => {
-                const newName = prompt('Rename file:', name);
-                if (newName && newName !== name) onRenameFile(fileId, newName);
-              }}
+              onClick={() => onRenameFileRequest(fileId, name)}
             >
               <Pencil className="mr-2 h-4 w-4" /> Rename
             </ContextMenuItem>
           )}
-          {type === 'folder' && onRenameFolder && driveAccountId && driveFolder && name && (
+          {type === 'folder' && onRenameFolderRequest && driveAccountId && driveFolder && name && (
             <ContextMenuItem
-              onClick={() => {
-                const newName = prompt('Rename folder:', name);
-                if (newName && newName !== name) onRenameFolder(driveAccountId, driveFolder.googleFolderId, newName);
-              }}
+              onClick={() => onRenameFolderRequest(driveAccountId, driveFolder.googleFolderId, name)}
             >
               <Pencil className="mr-2 h-4 w-4" /> Rename
             </ContextMenuItem>

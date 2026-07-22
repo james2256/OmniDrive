@@ -13,6 +13,7 @@ import { MoveModal } from '../components/MoveModal';
 import { AddToWorkspaceModal } from '../components/workspaces/AddToWorkspaceModal';
 import { CreateFolderModal } from '../components/CreateFolderModal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { RenameDialog } from '../components/RenameDialog';
 import { Upload, FolderPlus, X, LayoutGrid, List, Info } from 'lucide-react';
 import { useToastStore } from '../stores/useToastStore';
 import { useSharedLinks } from '../hooks/useSharedLinks';
@@ -28,6 +29,11 @@ import {
 import {
   useStarFolder, useUnstarFolder, useDeleteDriveFolder, useRenameDriveFolder,
 } from '../hooks/useFolderMutations';
+
+type RenameTarget =
+  | { kind: 'file'; id: string; currentName: string }
+  | { kind: 'folder'; driveId: string; folderId: string; currentName: string }
+  | null;
 
 export function FilesPage() {
   const { folderId = 'root' } = useParams<{ folderId: string }>();
@@ -46,6 +52,7 @@ export function FilesPage() {
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<RenameTarget>(null);
   const { viewMode, setViewMode, isInfoPanelOpen, toggleInfoPanel, setIsInfoPanelOpen } = useUIStore();
   const { clearSelection, toggleSelection, selectedItems } = useSelectionStore();
 
@@ -103,6 +110,24 @@ export function FilesPage() {
 
   const handleRenameFolder = (driveId: string, folderId: string, name: string) => {
     renameDriveFolderMut.mutate({ driveId, folderId, name });
+  };
+
+  const handleRenameFileRequest = (fileId: string, currentName: string) => {
+    setRenameTarget({ kind: 'file', id: fileId, currentName });
+  };
+
+  const handleRenameFolderRequest = (driveId: string, folderId: string, currentName: string) => {
+    setRenameTarget({ kind: 'folder', driveId, folderId, currentName });
+  };
+
+  const handleRenameConfirm = (newName: string) => {
+    if (!renameTarget) return;
+    if (renameTarget.kind === 'file') {
+      handleRenameFile(renameTarget.id, newName);
+    } else {
+      handleRenameFolder(renameTarget.driveId, renameTarget.folderId, newName);
+    }
+    setRenameTarget(null);
   };
 
   const handleToggleStar = (id: string, type: 'file' | 'folder', currentStarStatus: boolean, driveId?: string) => {
@@ -240,6 +265,8 @@ export function FilesPage() {
                 onShare: (id, type) => setShareTarget({ id, type }),
                 onRenameFile: handleRenameFile,
                 onRenameFolder: handleRenameFolder,
+                onRenameFileRequest: handleRenameFileRequest,
+                onRenameFolderRequest: handleRenameFolderRequest,
                 onDeleteFile: handleDeleteFile,
                 onDeleteFolder: handleDeleteFolder,
                 onMoveDrive: (file) => setMoveDriveFiles([file]),
@@ -326,6 +353,15 @@ export function FilesPage() {
             setConfirmFolderDelete(null);
           }}
           onClose={() => setConfirmFolderDelete(null)}
+        />
+
+        <RenameDialog
+          open={renameTarget !== null}
+          initialName={renameTarget?.currentName ?? ''}
+          title={renameTarget?.kind === 'folder' ? 'Rename Folder' : 'Rename File'}
+          loading={renameFileMut.isPending || renameDriveFolderMut.isPending}
+          onConfirm={handleRenameConfirm}
+          onClose={() => setRenameTarget(null)}
         />
       </div>
     </DropZone>
