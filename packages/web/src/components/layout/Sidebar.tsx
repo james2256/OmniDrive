@@ -36,7 +36,7 @@ export const Sidebar: React.FC = () => {
     }`;
 
   const navContent = (
-    <div className="w-64 h-full flex flex-col p-3 gap-1">
+    <div className="w-64 h-full flex flex-col p-3 gap-1 overflow-y-auto">
       {/* Navigation */}
       <nav className="flex flex-col gap-0.5">
         <NavLink to="/" end className={navLinkClass}>

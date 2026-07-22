@@ -234,7 +234,7 @@ export const InfoPanel: React.FC = () => {
       >
       {/* Fixed-width inner wrapper so content stays put while the aside width animates */}
       <div
-        className={`w-[88%] max-w-sm md:w-80 h-full flex flex-col p-4 transition-opacity duration-200 ${
+        className={`w-[88%] max-w-sm md:w-80 h-full flex flex-col p-4 overflow-y-auto transition-opacity duration-200 ${
           isInfoPanelOpen ? 'opacity-100' : 'pointer-events-none opacity-0'
         }`}
       >
