@@ -170,12 +170,12 @@ export function SettingsS3Tab() {
                         {key.description || <span className="text-slate-500 italic">No description</span>}
                       </td>
                       <td className="px-4 py-3.5 text-xs font-mono text-slate-600 bg-slate-50/50 rounded select-all font-semibold">
-                        {key.access_key_id || key.accessKeyId}
+                        {key.accessKeyId}
                       </td>
                       <td className="px-4 py-3.5 text-sm">
-                        {key.workspace_id || key.workspaceId ? (
+                        {key.workspaceId ? (
                           <span className="px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-50 text-blue-700 border border-blue-150">
-                            Workspace: {key.workspace_name || key.workspaceName || 'Unknown'}
+                            Workspace: {key.workspaceName || 'Unknown'}
                           </span>
                         ) : (
                           <span className="px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-50 text-green-700 border border-green-150">
@@ -184,7 +184,7 @@ export function SettingsS3Tab() {
                         )}
                       </td>
                       <td className="px-4 py-3.5 text-xs text-slate-500">
-                        {parseSqliteDate(key.created_at || key.createdAt || '').toLocaleString()}
+                        {parseSqliteDate(key.createdAt).toLocaleString()}
                       </td>
                       <td className="px-4 py-3.5 text-right">
                         <button

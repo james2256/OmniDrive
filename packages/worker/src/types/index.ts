@@ -87,6 +87,7 @@ export interface SharedLink {
   targetType: 'file' | 'folder';
   targetId: string;
   targetName?: string;
+  targetMimeType?: string | null;
   passwordHash?: string | null;
   expiresAt?: string | null;
   allowDownloads: boolean;
@@ -237,6 +238,7 @@ export function mapSharedLinkRow(row: Record<string, unknown>): SharedLink {
     targetType: targetType as 'file' | 'folder',
     targetId: row.target_id as string,
     targetName: (row.targetName as string) ?? undefined,
+    targetMimeType: (row.targetMimeType as string | null) ?? null,
     passwordHash: (row.password_hash as string | null | undefined) ?? null,
     expiresAt: (row.expires_at as string | null | undefined) ?? null,
     allowDownloads: Boolean(row.allow_downloads ?? 1),
@@ -246,6 +248,52 @@ export function mapSharedLinkRow(row: Record<string, unknown>): SharedLink {
     webhookUrl: (row.webhook_url as string | null | undefined) ?? null,
     viewCount: (row.view_count as number | undefined) || 0,
     downloadCount: (row.download_count as number | undefined) || 0,
+    createdAt: row.created_at as string,
+  };
+}
+
+export interface S3Credential {
+  id: string;
+  description: string | null;
+  accessKeyId: string;
+  workspaceId: string | null;
+  workspaceName: string | null;
+  createdAt: string;
+}
+
+export function mapS3CredentialRow(row: Record<string, unknown>): S3Credential {
+  return {
+    id: row.id as string,
+    description: (row.description as string | null) ?? null,
+    accessKeyId: row.access_key_id as string,
+    workspaceId: (row.workspace_id as string | null) ?? null,
+    workspaceName: (row.workspace_name as string | null) ?? null,
+    createdAt: row.created_at as string,
+  };
+}
+
+export interface AuditLog {
+  id: string;
+  workspaceId: string | null;
+  actorId: string;
+  actorEmail: string | null;
+  actionType: string;
+  resourceId: string | null;
+  resourceName: string | null;
+  metadata: string | null;
+  createdAt: string;
+}
+
+export function mapAuditLogRow(row: Record<string, unknown>): AuditLog {
+  return {
+    id: row.id as string,
+    workspaceId: (row.workspace_id as string | null) ?? null,
+    actorId: row.actor_id as string,
+    actorEmail: (row.actor_email as string | null) ?? null,
+    actionType: row.action_type as string,
+    resourceId: (row.resource_id as string | null) ?? null,
+    resourceName: (row.resource_name as string | null) ?? null,
+    metadata: (row.metadata as string | null) ?? null,
     createdAt: row.created_at as string,
   };
 }

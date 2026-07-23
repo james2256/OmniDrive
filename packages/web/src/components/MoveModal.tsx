@@ -36,6 +36,15 @@ export function MoveModal({ open, items, driveId, onClose, onSuccess }: MoveModa
     fetchFolders();
   }, [fetchFolders]);
 
+  // Reset navigation to root each time the modal opens so stale location
+  // from a previous move doesn't persist.
+  useEffect(() => {
+    if (open) {
+      setCurrentFolderId('root');
+      setBreadcrumb([{ id: 'root', name: 'My Drive' }]);
+    }
+  }, [open]);
+
   const handleMove = async () => {
     setIsMoving(true);
     let success = 0;

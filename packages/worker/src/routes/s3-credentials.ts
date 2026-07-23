@@ -6,6 +6,7 @@ import { getWorkspaceRole, hasPermission } from '../middleware/rbac';
 import { zValidator } from '@hono/zod-validator';
 import { createS3CredentialsSchema, zodErrorHook } from '../lib/schemas';
 import type { AppContext } from '../types/env';
+import { mapS3CredentialRow } from '../types';
 
 export const s3CredentialsRouter = new Hono<AppContext>();
 
@@ -48,7 +49,7 @@ s3CredentialsRouter.post('/', zValidator('json', createS3CredentialsSchema, zodE
 
 s3CredentialsRouter.get('/', async (c) => {
   const { results } = await c.get('s3CredentialsRepo').findAllByUser(c.get('userId'));
-  return c.json(results);
+  return c.json(results.map((r: Record<string, unknown>) => mapS3CredentialRow(r)));
 });
 
 s3CredentialsRouter.delete('/:id', async (c) => {

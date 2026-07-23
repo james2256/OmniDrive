@@ -35,6 +35,22 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
     };
   }, []);
 
+  // Reset form state each time the modal opens so stale input/URL don't persist.
+  useEffect(() => {
+    if (open) {
+      setPassword('');
+      setExpiresAt('');
+      setShowAdvanced(false);
+      setAllowDownloads(true);
+      setMaxDownloads('');
+      setRequireEmail(false);
+      setWebhookUrl('');
+      setSharedUrl('');
+      setCopied(false);
+      setError('');
+    }
+  }, [open]);
+
   const handleShare = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);

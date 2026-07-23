@@ -170,6 +170,7 @@ export interface AuditLog {
   id: string;
   workspaceId: string | null;
   actorId: string;
+  actorEmail: string | null;
   actionType: string;
   resourceId: string | null;
   resourceName: string | null;

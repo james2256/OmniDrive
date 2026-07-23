@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Link as LinkIcon, FileText, Folder, Eye, Download, Trash2, Copy, Check, Clock, Settings } from 'lucide-react';
+import { Link as LinkIcon, Folder, Eye, Download, Trash2, Copy, Check, Clock, Settings } from 'lucide-react';
 import { useToastStore } from '../stores/useToastStore';
 import { EditShareModal } from '../components/EditShareModal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { FileIcon } from '../components/files/FileIcon';
 import { useSharedLinks, useRevokeSharedLink } from '../hooks/useSharedLinks';
 import { EmptyState, ListSkeleton } from '../components/EmptyState';
 import type { SharedLink } from '../lib/api';
@@ -71,8 +72,8 @@ export function SharedLinksPage() {
               <div className="p-5 border-b border-slate-100 flex-1">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3 overflow-hidden">
-                    <div className={`p-3 rounded-xl flex-shrink-0 ${link.targetType === 'folder' ? 'bg-indigo-50 text-indigo-600' : 'bg-blue-50 text-blue-600'}`}>
-                      {link.targetType === 'folder' ? <Folder size={24} /> : <FileText size={24} />}
+                    <div className={`p-3 rounded-xl flex-shrink-0 text-2xl ${link.targetType === 'folder' ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-50'}`}>
+                      {link.targetType === 'folder' ? <Folder size={24} /> : <FileIcon mimeType={link.targetMimeType} />}
                     </div>
                     <div className="min-w-0">
                       <h3 className="text-slate-900 font-semibold truncate text-lg" title={link.targetName || link.targetId}>

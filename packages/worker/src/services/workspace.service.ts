@@ -4,6 +4,7 @@ import { AuditService } from './audit.service';
 import { getWorkspaceRole, hasPermission } from '../middleware/rbac';
 import { AppError } from '../middleware/error-handler';
 import type { WorkspaceRole } from '../lib/schemas';
+import { mapAuditLogRow, type AuditLog } from '../types';
 
 /**
  * Business logic layer for workspace management.
@@ -141,14 +142,14 @@ export class WorkspaceService {
    * Get audit logs for a workspace.
    * RBAC: owner/manager/auditor only (NOT membership — excludes viewers, commenters, editors).
    */
-  async getAuditLogs(userId: string, workspaceId: string) {
+  async getAuditLogs(userId: string, workspaceId: string): Promise<AuditLog[]> {
     const role = await getWorkspaceRole(this.db, workspaceId, userId);
     if (!role || (role !== 'owner' && role !== 'manager' && role !== 'auditor')) {
       throw new AppError(403, 'Forbidden');
     }
 
     const { results } = await this.workspaceRepo.findAuditLogs(workspaceId);
-    return results;
+    return results.map((r: Record<string, unknown>) => mapAuditLogRow(r));
   }
 
   /**

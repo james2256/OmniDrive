@@ -16,7 +16,10 @@ export function AddToWorkspaceModal({ open, file, onClose, onSuccess }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (open) api.getWorkspaceTree().then(res => setFolders(res.folders));
+    if (open) {
+      setSelectedId(null);
+      api.getWorkspaceTree().then(res => setFolders(res.folders));
+    }
   }, [open]);
 
   const handleAdd = async () => {

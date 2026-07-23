@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Calendar, Lock, Settings, ChevronDown, ChevronUp } from 'lucide-react';
 import { updateSharedLink } from '../lib/api';
 import type { SharedLink } from '../lib/api';
@@ -37,6 +37,22 @@ export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
   const [error, setError] = useState('');
   const { addToast } = useToastStore();
   const invalidateSharedLinks = useInvalidateSharedLinks();
+
+  // Re-read all settings from `link` each time the modal opens so switching
+  // between links doesn't show the previous link's stale form state.
+  useEffect(() => {
+    if (open && link) {
+      setPassword('');
+      setExpiresAt(getInitialDate(link.expiresAt ?? null));
+      setShowAdvanced(false);
+      setAllowDownloads(link.allowDownloads ?? true);
+      setAllowUploads(link.allowUploads ?? false);
+      setMaxDownloads(link.maxDownloads ? String(link.maxDownloads) : '');
+      setRequireEmail(link.requireEmail ?? false);
+      setWebhookUrl(link.webhookUrl || '');
+      setError('');
+    }
+  }, [open, link]);
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -113,7 +113,7 @@ sharedRouter.delete('/:id', authGuard, async (c) => {
 
 sharedRouter.get('/:id/meta', async (c) => {
   const sharedService = c.get('sharedService');
-  const { link, target } = await sharedService.getPublicMeta(c.req.param('id'));
+  const { link, target, targetName } = await sharedService.getPublicMeta(c.req.param('id'));
 
   const validation = await validateSharedLink(c, link);
   if (!validation.ok) {
@@ -128,7 +128,7 @@ sharedRouter.get('/:id/meta', async (c) => {
   if (link.targetType === 'file') {
     return c.json({ target, type: 'file' });
   }
-  return c.json({ targetId: link.targetId, type: 'folder' });
+  return c.json({ targetId: link.targetId, type: 'folder', targetName });
 });
 
 // Password verification for password-protected links

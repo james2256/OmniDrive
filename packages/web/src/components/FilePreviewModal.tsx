@@ -3,7 +3,7 @@ import { ExternalLink, Download, LoaderCircle } from 'lucide-react';
 import type { FileEntry } from '../types';
 import { formatFileSize, formatRelativeTime } from '../lib/utils';
 import { fetchFilePreviewBlob } from '../lib/api';
-import { FileIcon } from './files/FileIcon';
+import { FileIcon, getFileTypeName } from './files/FileIcon';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 
 interface FilePreviewModalProps {
@@ -107,8 +107,8 @@ export function FilePreviewModal({ open, file, onClose }: FilePreviewModalProps)
               </div>
               <div>
                 <div className="text-slate-500 text-xs uppercase tracking-wide font-medium mb-1">Type</div>
-                <div className="text-slate-800 font-medium truncate" title={file.mimeType ?? 'Unknown'}>
-                  {file.mimeType ?? 'Unknown'}
+                <div className="text-slate-800 font-medium truncate" title={file.mimeType ?? 'File'}>
+                  {getFileTypeName(file.mimeType)}
                 </div>
               </div>
               <div>

@@ -3,7 +3,7 @@ import { useUploadStore } from '../stores/useUploadStore';
 import { useDrives } from '../hooks/useDrives';
 import { useToastStore } from '../stores/useToastStore';
 import { formatFileSize, getDriveColor } from '../lib/utils';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 
 interface UploadModalProps {
@@ -20,6 +20,12 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
   const drives = drivesData?.drives ?? [];
   const { addToast } = useToastStore();
   const [selectedDriveId, setSelectedDriveId] = useState<string>(driveId || '');
+
+  // Sync selected drive when the `driveId` prop changes (e.g. navigating to
+  // a different drive's folder and re-opening the upload modal).
+  useEffect(() => {
+    setSelectedDriveId(driveId || '');
+  }, [driveId]);
 
   const handleUpload = async () => {
     try {

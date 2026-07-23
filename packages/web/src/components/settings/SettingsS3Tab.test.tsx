@@ -73,17 +73,18 @@ describe('SettingsS3Tab', () => {
       {
         id: 'k1',
         description: 'rclone laptop',
-        access_key_id: 'OMNIABCDEF1234567890',
-        workspace_id: null,
-        created_at: '2026-01-15 10:30:00',
+        accessKeyId: 'OMNIABCDEF1234567890',
+        workspaceId: null,
+        workspaceName: null,
+        createdAt: '2026-01-15 10:30:00',
       },
       {
         id: 'k2',
         description: 'aws-cli scoped',
-        access_key_id: 'OMNIXYZ0987654321',
-        workspace_id: 'ws-1',
-        workspace_name: 'Team Project',
-        created_at: '2026-02-20 14:00:00',
+        accessKeyId: 'OMNIXYZ0987654321',
+        workspaceId: 'ws-1',
+        workspaceName: 'Team Project',
+        createdAt: '2026-02-20 14:00:00',
       },
     ]);
 
@@ -149,9 +150,10 @@ describe('SettingsS3Tab', () => {
       {
         id: 'k1',
         description: 'old key',
-        access_key_id: 'OMNIOLD1234567890',
-        workspace_id: null,
-        created_at: '2026-01-15 10:30:00',
+        accessKeyId: 'OMNIOLD1234567890',
+        workspaceId: null,
+        workspaceName: null,
+        createdAt: '2026-01-15 10:30:00',
       },
     ]);
     (api.deleteS3Credential as Mock).mockResolvedValue({ success: true });

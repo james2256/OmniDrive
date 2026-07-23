@@ -271,7 +271,7 @@ describe('S3 Credentials API', () => {
     const getBody = await getRes.json() as any;
     expect(getBody).toBeInstanceOf(Array);
     expect(getBody[0].id).toBe('cred-123');
-    expect(getBody[0].workspace_id).toBe('workspace-123');
-    expect(getBody[0].workspace_name).toBe('My Workspace');
+    expect(getBody[0].workspaceId).toBe('workspace-123');
+    expect(getBody[0].workspaceName).toBe('My Workspace');
   });
 });

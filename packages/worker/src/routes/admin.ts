@@ -6,6 +6,7 @@ import { generateId } from '../lib/id';
 import { hashPassword } from '../lib/password';
 import { zValidator } from '@hono/zod-validator';
 import { createInvitationSchema, adminCreateUserSchema, zodErrorHook } from '../lib/schemas';
+import { mapAuditLogRow } from '../types';
 
 export const adminRouter = new Hono<AppContext>({ strict: false });
 
@@ -52,7 +53,7 @@ adminRouter.delete('/invitations/:id', async (c) => {
 
 adminRouter.get('/audit-logs', async (c) => {
   const { results } = await c.get('adminRepo').findRecentAuditLogs();
-  return c.json({ logs: results });
+  return c.json({ logs: results.map((r: Record<string, unknown>) => mapAuditLogRow(r)) });
 });
 
 adminRouter.get('/users', async (c) => {

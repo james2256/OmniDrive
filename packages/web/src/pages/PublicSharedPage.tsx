@@ -137,7 +137,7 @@ export function PublicSharedPage() {
             <div className="mx-auto mb-4 w-20 h-20 sm:w-24 sm:h-24 bg-blue-50 rounded-2xl flex items-center justify-center shadow-sm">
               <Folder size={48} className="text-blue-500" fill="currentColor" />
             </div>
-            <h2 className="text-2xl font-bold text-slate-800 mb-2">Shared Folder</h2>
+            <h2 className="text-2xl font-bold text-slate-800 mb-2 break-words">{meta?.targetName || 'Shared Folder'}</h2>
             <p className="text-slate-500">Folder view is not supported yet.</p>
           </div>
         ) : (

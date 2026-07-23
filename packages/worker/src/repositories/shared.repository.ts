@@ -26,15 +26,28 @@ export class SharedRepository {
       .bind(id, userId).first<SharedLinkRow>();
   }
 
-  /** List all shared links for a user, with target name via JOIN. */
+  /** List all shared links for a user, with target name + mime type via JOIN. */
   findAllByUserWithTargetName(userId: string) {
     return this.db.prepare(`
-      SELECT s.*, COALESCE(f.name, v.name) as targetName
+      SELECT s.*, COALESCE(f.name, v.name, df.name) as targetName, f.mime_type as targetMimeType
       FROM shared_links s
       LEFT JOIN files f ON s.target_type = 'file' AND s.target_id = f.id
       LEFT JOIN workspace_folders v ON s.target_type = 'folder' AND s.target_id = v.id
+      LEFT JOIN drive_folders df ON s.target_type = 'folder' AND s.target_id = df.google_folder_id
       WHERE s.user_id = ?
     `).bind(userId).all();
+  }
+
+  /** Resolve a folder's name by ID (checks both workspace_folders and drive_folders). */
+  async findFolderName(folderId: string): Promise<string | null> {
+    const row = await this.db.prepare(`
+      SELECT name FROM (
+        SELECT name FROM workspace_folders WHERE id = ?
+        UNION ALL
+        SELECT name FROM drive_folders WHERE google_folder_id = ?
+      ) LIMIT 1
+    `).bind(folderId, folderId).first<{ name: string }>();
+    return row?.name ?? null;
   }
 
   // ─── Mutations ───

@@ -7,8 +7,8 @@ import { hashSharedPassword } from '../lib/password';
 import { validateWebhookUrlAsync } from '../lib/validation';
 import { AppError, NotFoundError, ForbiddenError } from '../middleware/error-handler';
 import { getWorkspaceRole, hasPermission } from '../middleware/rbac';
-import { mapSharedLinkRow } from '../types';
-import type { SharedLink, FileRow } from '../types';
+import { mapSharedLinkRow, mapFileRow } from '../types';
+import type { SharedLink, FileRow, FileEntry } from '../types';
 
 /**
  * Business logic layer for shared links.
@@ -148,8 +148,8 @@ export class SharedService {
 
   // ─── Public endpoints (no auth) ───
 
-  /** Get shared link metadata + target file (for public preview). */
-  async getPublicMeta(id: string): Promise<{ link: SharedLink; target?: FileRow }> {
+  /** Get shared link metadata + target file/folder name (for public preview). */
+  async getPublicMeta(id: string): Promise<{ link: SharedLink; target?: FileEntry; targetName?: string }> {
     const row = await this.sharedRepo.findById(id);
     if (!row) throw new NotFoundError('Link not found');
 
@@ -158,9 +158,10 @@ export class SharedService {
     if (link.targetType === 'file') {
       const file = await this.fileRepo.findById(link.targetId);
       if (!file) throw new NotFoundError('File not found');
-      return { link, target: file };
+      return { link, target: mapFileRow(file as unknown as Record<string, unknown>) };
     }
-    return { link };
+    const folderName = await this.sharedRepo.findFolderName(link.targetId);
+    return { link, targetName: folderName ?? undefined };
   }
 
   /** Get shared link for validation (no target fetch). */

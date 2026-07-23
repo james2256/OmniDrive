@@ -3,7 +3,7 @@ import { useSelectionStore } from '../../stores/useSelectionStore';
 import { formatFileSize, formatRelativeTime } from '../../lib/utils';
 import type { FileEntry } from '../../types';
 import { api } from '../../lib/api';
-import { FileIcon } from '../files/FileIcon';
+import { FileIcon, getFileTypeName } from '../files/FileIcon';
 import { DriveBadge } from '../DriveBadge';
 import { X, File, Folder, LoaderCircle, RefreshCw } from 'lucide-react';
 import { useUIStore } from '../../stores/useUIStore';
@@ -121,7 +121,7 @@ export const InfoPanel: React.FC = () => {
               )}
               <div className="flex flex-col">
                 <dt className="text-slate-500 mb-0.5 text-xs">Type</dt>
-                <dd className="text-slate-800">{type === 'folder' ? 'Google Drive Folder' : item?.mimeType || 'Unknown file type'}</dd>
+                <dd className="text-slate-800">{type === 'folder' ? 'Folder' : getFileTypeName(item?.mimeType)}</dd>
               </div>
               {type === 'file' && (
                 <div className="flex flex-col">

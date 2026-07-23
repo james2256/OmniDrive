@@ -4,7 +4,7 @@ import type { SessionData, AdminUser, DriveAccount, AutomationRule, AggregateQuo
 interface RegisterPayload extends LoginPayload { name?: string; email?: string; invitation_code?: string; }
 export interface Invitation { id: string; code: string; max_uses: number; used_count: number; expires_at: string | null; created_at: string; }
 interface AdminCreateUserPayload { username: string; password: string; name?: string; email?: string; role?: string; }
-export interface S3Credential { id: string; description: string | null; access_key_id: string; accessKeyId: string; workspace_id: string | null; workspaceId: string | null; workspace_name?: string | null; workspaceName?: string | null; created_at: string; createdAt: string; }
+export interface S3Credential { id: string; description: string | null; accessKeyId: string; workspaceId: string | null; workspaceName: string | null; createdAt: string; }
 interface LoginPayload { username: string; password: string; }
 
 /** Search results from GET /api/files/search — files + workspace folders + drive folders. */
@@ -305,6 +305,7 @@ export interface SharedLink {
   targetType: 'file' | 'folder';
   targetId: string;
   targetName?: string;
+  targetMimeType?: string | null;
   expiresAt: string | null;
   viewCount: number;
   downloadCount: number;
@@ -319,6 +320,7 @@ export interface SharedLink {
 export interface SharedMetaResponse {
   type?: 'file' | 'folder';
   target?: FileEntry;
+  targetName?: string;
   targetId?: string;
   requiresPassword?: boolean;
 }
