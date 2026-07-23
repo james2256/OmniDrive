@@ -90,9 +90,9 @@ export function MoveModal({ open, items, driveId, onClose, onSuccess }: MoveModa
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !isMoving && onClose()}>
-      <DialogContent className="max-w-lg p-0 gap-0 rounded-2xl overflow-hidden flex flex-col max-h-[80vh]">
-        <div className="flex items-center justify-between p-4 border-b border-slate-200 shrink-0">
-          <DialogTitle className="text-lg font-semibold text-slate-800">
+      <DialogContent className="max-w-lg p-0 gap-0 rounded-xl overflow-hidden flex flex-col max-h-[80vh]">
+        <div className="flex items-center justify-between p-3 sm:p-4 border-b border-slate-200 shrink-0">
+          <DialogTitle className="text-base font-semibold text-slate-800">
             Move {items.length} item{items.length > 1 ? 's' : ''}
           </DialogTitle>
         </div>
@@ -114,7 +114,7 @@ export function MoveModal({ open, items, driveId, onClose, onSuccess }: MoveModa
         </div>
 
         {/* Folder list */}
-        <div className="flex-1 overflow-y-auto p-2 min-h-[200px]">
+        <div className="flex-1 overflow-y-auto p-2 min-h-[180px]">
           {subfolders.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-slate-500">
               <Folder size={32} className="mb-2" />
@@ -135,7 +135,7 @@ export function MoveModal({ open, items, driveId, onClose, onSuccess }: MoveModa
         </div>
 
         {/* Actions */}
-        <div className="flex justify-between items-center p-4 border-t border-slate-200 shrink-0">
+        <div className="flex justify-between items-center p-3 sm:p-4 border-t border-slate-200 shrink-0">
           <span className="text-xs text-slate-500">
             Destination: {breadcrumb[breadcrumb.length - 1]?.name || 'My Drive'}
           </span>

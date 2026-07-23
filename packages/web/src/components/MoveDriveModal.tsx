@@ -62,16 +62,16 @@ export function MoveDriveModal({ files, onClose, onSuccess }: MoveDriveModalProp
 
   return (
     <Dialog open={files.length > 0} onOpenChange={(open) => !open && !isMoving && onClose()}>
-      <DialogContent className="max-w-md p-0 gap-0 rounded-2xl overflow-hidden flex flex-col">
-        <div className="flex flex-col p-4 border-b border-slate-200 shrink-0">
-          <DialogTitle className="text-lg font-semibold text-slate-800">Move to Another Drive</DialogTitle>
-          <DialogDescription className="text-sm text-slate-500 mt-1">
+      <DialogContent className="max-w-md p-0 gap-0 rounded-xl overflow-hidden flex flex-col">
+        <div className="flex flex-col p-3 sm:p-4 border-b border-slate-200 shrink-0">
+          <DialogTitle className="text-base font-semibold text-slate-800">Move to Another Drive</DialogTitle>
+          <DialogDescription className="text-xs text-slate-500 mt-1">
             Select a destination drive to move {files.length} item(s). This may take a moment depending on the file size.
           </DialogDescription>
         </div>
 
-        <div className="overflow-y-auto p-4 flex-1">
-          <div className="grid gap-3">
+        <div className="overflow-y-auto p-3 sm:p-4 flex-1">
+          <div className="grid gap-2.5">
             {availableDrives.length === 0 ? (
               <p className="text-sm text-center text-slate-500 py-4">
                 No other drives available. Please connect another Google Drive account.

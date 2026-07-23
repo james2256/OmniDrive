@@ -36,13 +36,13 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed left-[50%] top-[50%] z-50 grid w-[calc(100%-1rem)] max-w-lg max-h-[85vh] overflow-hidden translate-x-[-50%] translate-y-[-50%] gap-4 border border-slate-200 bg-card p-4 sm:p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 rounded-lg sm:rounded-lg dark:border-slate-800 dark:bg-slate-950",
+        "fixed left-[50%] top-[50%] z-50 grid w-[calc(100%-1rem)] max-w-lg max-h-[85vh] overflow-hidden translate-x-[-50%] translate-y-[-50%] gap-3 border border-slate-200 bg-card p-3 sm:p-4 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 rounded-xl dark:border-slate-800 dark:bg-slate-950",
         className
       )}
       {...props}
     >
       {children}
-      <DialogPrimitive.Close className="absolute right-3 top-3 z-20 rounded-md p-1 opacity-60 ring-offset-white transition-opacity hover:opacity-100 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 disabled:pointer-events-none dark:ring-offset-slate-950 dark:focus:ring-slate-400 dark:hover:bg-slate-800">
+      <DialogPrimitive.Close className="absolute right-2.5 top-2.5 z-20 rounded-md p-1 opacity-60 ring-offset-white transition-opacity hover:opacity-100 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 disabled:pointer-events-none dark:ring-offset-slate-950 dark:focus:ring-slate-400 dark:hover:bg-slate-800">
         <X className="h-4 w-4" />
         <span className="sr-only">Close</span>
       </DialogPrimitive.Close>

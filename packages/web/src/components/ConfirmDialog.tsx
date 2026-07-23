@@ -31,16 +31,16 @@ export function ConfirmDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !loading && onClose()}>
-      <DialogContent className="max-w-sm p-0 gap-0 rounded-2xl overflow-hidden flex flex-col">
-        <div className="flex items-center gap-3 p-4 border-b border-slate-200 shrink-0">
-          <TriangleAlert size={20} className={variant === 'danger' ? 'text-red-500' : variant === 'warning' ? 'text-amber-500' : 'text-blue-500'} />
-          <DialogTitle className="text-lg font-semibold text-slate-800">{title}</DialogTitle>
+      <DialogContent className="max-w-sm p-0 gap-0 rounded-xl overflow-hidden flex flex-col">
+        <div className="flex items-center gap-3 p-3 sm:p-4 border-b border-slate-200 shrink-0">
+          <TriangleAlert size={18} className={variant === 'danger' ? 'text-red-500' : variant === 'warning' ? 'text-amber-500' : 'text-blue-500'} />
+          <DialogTitle className="text-base font-semibold text-slate-800">{title}</DialogTitle>
         </div>
-        <div className="p-4">
+        <div className="p-3 sm:p-4">
           <DialogDescription className="text-sm text-slate-600 leading-relaxed">
             {message}
           </DialogDescription>
-          <div className="flex justify-end gap-3 mt-4">
+          <div className="flex justify-end gap-2 mt-3">
             <button
               type="button"
               onClick={onClose}

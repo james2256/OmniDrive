@@ -285,8 +285,8 @@ export function WorkspacesPage() {
       />
       {retentionTargetId && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-card rounded-lg shadow-lg p-6 max-w-md w-full">
-            <h3 className="text-lg font-bold mb-4">Set Retention Policy</h3>
+          <div className="bg-card rounded-lg shadow-lg p-4 sm:p-6 max-w-md w-full">
+            <h3 className="text-base sm:text-lg font-bold mb-4">Set Retention Policy</h3>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Action</label>
@@ -300,7 +300,7 @@ export function WorkspacesPage() {
                 <input id="retentionDays" type="number" defaultValue={30} className="w-full border border-slate-400 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
             </div>
-            <div className="mt-6 flex justify-end gap-3">
+            <div className="mt-4 sm:mt-6 flex justify-end gap-2 sm:gap-3">
               <button className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded" onClick={() => setRetentionTargetId(null)}>Cancel</button>
               <button className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700" onClick={async () => {
                 const action = (document.getElementById('retentionAction') as HTMLSelectElement).value;

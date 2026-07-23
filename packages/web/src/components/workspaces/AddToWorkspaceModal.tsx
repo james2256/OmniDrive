@@ -34,11 +34,11 @@ export function AddToWorkspaceModal({ open, file, onClose, onSuccess }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md p-0 gap-0 rounded-2xl overflow-hidden flex flex-col max-h-[80vh]">
-        <div className="flex items-center p-4 border-b border-slate-200 shrink-0">
-          <DialogTitle className="text-lg font-semibold text-slate-800">Add to Workspace</DialogTitle>
+      <DialogContent className="max-w-md p-0 gap-0 rounded-xl overflow-hidden flex flex-col max-h-[80vh]">
+        <div className="flex items-center p-3 sm:p-4 border-b border-slate-200 shrink-0">
+          <DialogTitle className="text-base font-semibold text-slate-800">Add to Workspace</DialogTitle>
         </div>
-        <div className="p-4 overflow-y-auto flex-1 space-y-2">
+        <div className="p-3 sm:p-4 overflow-y-auto flex-1 space-y-2">
           {folders.map(folder => (
             <button
               key={folder.id}
@@ -50,7 +50,7 @@ export function AddToWorkspaceModal({ open, file, onClose, onSuccess }: Props) {
             </button>
           ))}
         </div>
-        <div className="p-4 border-t flex justify-end gap-3 shrink-0">
+        <div className="p-3 sm:p-4 border-t flex justify-end gap-2 shrink-0">
           <button onClick={onClose} className="px-3 py-1.5 font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors">Cancel</button>
           <button onClick={handleAdd} disabled={!selectedId} className="px-3 py-1.5 font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">Add</button>
         </div>

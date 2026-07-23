@@ -155,7 +155,7 @@ export function DashboardPage() {
       {/* Greeting + refresh */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-800">
+          <h1 className="text-xl sm:text-2xl font-semibold text-slate-800">
             {greeting()}{user ? `, ${firstName(user.name)}` : ''}
           </h1>
           <p className="text-sm text-slate-500 mt-0.5">
@@ -199,19 +199,19 @@ export function DashboardPage() {
 
       {/* Loading skeleton — matches bento shape */}
       {isLoading && (
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 auto-rows-[minmax(150px,auto)]">
-          <div className="lg:col-span-2 bg-card border border-slate-200 rounded-2xl animate-pulse" />
-          <div className="lg:col-span-2 lg:row-span-2 bg-card border border-slate-200 rounded-2xl animate-pulse" />
-          <div className="lg:col-span-2 bg-card border border-slate-200 rounded-2xl animate-pulse" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 auto-rows-[minmax(150px,auto)]">
+          <div className="md:col-span-2 lg:col-span-2 bg-card border border-slate-200 rounded-2xl animate-pulse" />
+          <div className="md:col-span-2 lg:col-span-2 lg:row-span-2 bg-card border border-slate-200 rounded-2xl animate-pulse" />
+          <div className="md:col-span-2 lg:col-span-2 bg-card border border-slate-200 rounded-2xl animate-pulse" />
         </div>
       )}
 
       {/* Bento grid — 4 cols desktop. Cell count = content count, no empty cells. */}
       {hasDrives && (
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 auto-rows-[minmax(150px,auto)]">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 auto-rows-[minmax(150px,auto)]">
           {/* Storage hero — col-span-2 */}
           <article
-            className="lg:col-span-2 bg-card border border-slate-200 rounded-2xl p-6 flex flex-col justify-between bento-reveal"
+            className="md:col-span-2 lg:col-span-2 bg-card border border-slate-200 rounded-2xl p-4 sm:p-6 flex flex-col justify-between bento-reveal"
             style={{ animationDelay: '60ms' }}
           >
             <div className="flex items-center justify-between">
@@ -219,7 +219,7 @@ export function DashboardPage() {
               <span className="text-xs text-slate-500">{driveCount} drives</span>
             </div>
             <div className="my-4">
-              <div className="text-5xl sm:text-6xl font-semibold text-slate-800 tracking-tight leading-none">
+              <div className="text-4xl sm:text-5xl lg:text-6xl font-semibold text-slate-800 tracking-tight leading-none">
                 {usedPercent.toFixed(1)}<span className="text-2xl text-slate-500 ml-1">%</span>
               </div>
               <p className="text-sm text-slate-500 mt-2">
@@ -238,7 +238,7 @@ export function DashboardPage() {
 
           {/* Category donut — col-span-2 row-span-2, fills right side of hero. */}
           <article
-            className="lg:col-span-2 lg:row-span-2 bg-card border border-slate-200 rounded-2xl p-5 flex flex-col bento-reveal"
+            className="md:col-span-2 lg:col-span-2 lg:row-span-2 bg-card border border-slate-200 rounded-2xl p-4 sm:p-5 flex flex-col bento-reveal"
             style={{ animationDelay: '120ms' }}
           >
             <div className="flex items-center justify-between mb-3">
@@ -306,13 +306,13 @@ export function DashboardPage() {
 
           {/* Quick links — col-span-2, below hero. */}
           <article
-            className="lg:col-span-2 bg-card border border-slate-200 rounded-2xl p-5 flex flex-col bento-reveal"
+            className="md:col-span-2 lg:col-span-2 bg-card border border-slate-200 rounded-2xl p-4 sm:p-5 flex flex-col bento-reveal"
             style={{ animationDelay: '180ms' }}
           >
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm font-medium text-slate-500">Quick access</span>
             </div>
-            <div className="grid grid-cols-2 gap-2.5 flex-1">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 gap-2.5 flex-1">
               {quickLinks.map(({ to, label, Icon, hint }) => (
                 <button
                   key={to}
@@ -332,7 +332,7 @@ export function DashboardPage() {
 
           {/* Connected drives — col-span-4 full width. */}
           <article
-            className="lg:col-span-4 bento-reveal"
+            className="md:col-span-2 lg:col-span-4 bento-reveal"
             style={{ animationDelay: '240ms' }}
           >
             <h2 className="text-sm font-medium text-slate-500 mb-3">Connected drives</h2>
@@ -369,10 +369,10 @@ export function DashboardPage() {
 
           {/* Recent files — col-span-3, big. */}
           <article
-            className="lg:col-span-3 bg-card border border-slate-200 rounded-2xl overflow-hidden bento-reveal"
+            className="md:col-span-2 lg:col-span-3 bg-card border border-slate-200 rounded-2xl overflow-hidden bento-reveal"
             style={{ animationDelay: '300ms' }}
           >
-            <div className="flex items-center justify-between p-5 pb-3">
+            <div className="flex items-center justify-between p-4 sm:p-5 pb-3">
               <div className="flex items-center gap-2">
                 <Clock size={16} className="text-slate-500" />
                 <h2 className="text-sm font-medium text-slate-500">Recent</h2>
@@ -406,7 +406,7 @@ export function DashboardPage() {
                 }}
               />
             ) : (
-              <div className="p-8 text-center">
+              <div className="p-6 sm:p-8 text-center">
                 <p className="text-sm text-slate-500">No recent files yet.</p>
                 <button
                   className="mt-3 text-xs text-primary hover:underline"
@@ -421,7 +421,7 @@ export function DashboardPage() {
           {/* Admin tools — col-span-1, conditional. Fills last cell only for admins. */}
           {user?.role === 'super_admin' && (
             <article
-              className="lg:col-span-1 bg-card border border-slate-200 rounded-2xl p-5 flex flex-col justify-between bento-reveal"
+              className="md:col-span-1 lg:col-span-1 bg-card border border-slate-200 rounded-2xl p-4 sm:p-5 flex flex-col justify-between bento-reveal"
               style={{ animationDelay: '360ms' }}
             >
               <div>

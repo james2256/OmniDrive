@@ -37,7 +37,7 @@ export function WorkspaceMainView({
   return (
     <div className="flex-1 flex flex-col h-full bg-card border-l border-slate-200">
       {/* Header Area */}
-      <div className="px-4 sm:px-8 pt-4 sm:pt-8 pb-4 border-b border-slate-200 flex flex-col gap-3">
+      <div className="px-4 sm:px-6 pt-4 sm:pt-6 pb-4 border-b border-slate-200 flex flex-col gap-3">
         {/* Breadcrumbs */}
         <div className="flex items-center text-sm text-slate-500 gap-2 min-w-0">
           {onToggleSidebar && (
@@ -67,7 +67,7 @@ export function WorkspaceMainView({
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-6 mt-4">
+        <div className="flex gap-4 sm:gap-6 mt-4">
           {(['files', 'members', 'settings', 'audit'] as const).map(tab => (
             <button 
               key={tab}

@@ -1,6 +1,6 @@
 export function WorkspaceMembersTab() {
   return (
-    <div className="flex items-center justify-center h-full p-12 text-slate-500">
+    <div className="flex items-center justify-center h-full p-6 sm:p-12 text-slate-500">
       <p>Members (Coming Soon)</p>
     </div>
   );

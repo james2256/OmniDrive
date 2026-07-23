@@ -65,9 +65,9 @@ export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
   const maxBytes = quotaPolicy ? JSON.parse(quotaPolicy.config).max_bytes : null;
 
   return (
-    <div className="p-8 max-w-4xl mx-auto flex flex-col gap-8">
-      <section className="bg-card rounded-lg shadow p-6">
-        <h2 className="text-xl font-semibold mb-4 text-slate-900">Storage & Quota</h2>
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto flex flex-col gap-4 sm:gap-6">
+      <section className="bg-card rounded-lg shadow p-4 sm:p-6">
+        <h2 className="text-lg sm:text-xl font-semibold mb-4 text-slate-900">Storage & Quota</h2>
         <div className="mb-6">
           <p className="text-sm text-slate-600 mb-2">
             Storage limits enforce a hard cap on the workspace size.
@@ -99,42 +99,44 @@ export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
       </section>
 
       <section className="bg-card rounded-lg shadow overflow-hidden">
-        <div className="p-6 border-b border-slate-200">
-          <h2 className="text-xl font-semibold text-slate-900">Governance Policies</h2>
+        <div className="p-4 sm:p-6 border-b border-slate-200">
+          <h2 className="text-lg sm:text-xl font-semibold text-slate-900">Governance Policies</h2>
           <p className="text-sm text-slate-600 mt-1">Manage active retention and quota rules for this workspace.</p>
         </div>
-        <table className="w-full text-left">
-          <thead className="bg-slate-50 border-b border-slate-200 text-sm text-slate-500">
-            <tr>
-              <th className="px-6 py-3 font-medium">Type</th>
-              <th className="px-6 py-3 font-medium">Target</th>
-              <th className="px-6 py-3 font-medium">Configuration</th>
-              <th className="px-6 py-3 font-medium text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200">
-            {policies.map(p => {
-              const config = JSON.parse(p.config);
-              return (
-                <tr key={p.id} className="hover:bg-slate-50">
-                  <td className="px-6 py-4 text-sm font-medium text-slate-900">{p.policyType.replace('_', ' ')}</td>
-                  <td className="px-6 py-4 text-sm text-slate-500">{p.targetType} {p.targetId ? `(${p.targetId})` : ''}</td>
-                  <td className="px-6 py-4 text-sm text-slate-500 font-mono text-xs">
-                    {p.policyType === 'storage_quota' ? `${Math.round(config.max_bytes / (1024*1024*1024))} GB limit` : `${config.action} (${config.days || 'indefinite'} days)`}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-right">
-                    <button onClick={() => handleDeletePolicy(p.id)} className="text-red-600 hover:text-red-800 font-medium">Delete</button>
-                  </td>
-                </tr>
-              );
-            })}
-            {policies.length === 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead className="bg-slate-50 border-b border-slate-200 text-sm text-slate-500">
               <tr>
-                <td colSpan={4} className="px-6 py-8 text-center text-slate-500 text-sm">No governance policies active.</td>
+                <th className="px-3 sm:px-6 py-3 font-medium">Type</th>
+                <th className="px-3 sm:px-6 py-3 font-medium">Target</th>
+                <th className="px-3 sm:px-6 py-3 font-medium">Configuration</th>
+                <th className="px-3 sm:px-6 py-3 font-medium text-right">Actions</th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-200">
+              {policies.map(p => {
+                const config = JSON.parse(p.config);
+                return (
+                  <tr key={p.id} className="hover:bg-slate-50">
+                    <td className="px-3 sm:px-6 py-4 text-sm font-medium text-slate-900">{p.policyType.replace('_', ' ')}</td>
+                    <td className="px-3 sm:px-6 py-4 text-sm text-slate-500">{p.targetType} {p.targetId ? `(${p.targetId})` : ''}</td>
+                    <td className="px-3 sm:px-6 py-4 text-sm text-slate-500 font-mono text-xs">
+                      {p.policyType === 'storage_quota' ? `${Math.round(config.max_bytes / (1024*1024*1024))} GB limit` : `${config.action} (${config.days || 'indefinite'} days)`}
+                    </td>
+                    <td className="px-3 sm:px-6 py-4 text-sm text-right">
+                      <button onClick={() => handleDeletePolicy(p.id)} className="text-red-600 hover:text-red-800 font-medium">Delete</button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {policies.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-3 sm:px-6 py-8 text-center text-slate-500 text-sm">No governance policies active.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <ConfirmDialog

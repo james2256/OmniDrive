@@ -56,13 +56,13 @@ export function FilePreviewModal({ open, file, onClose }: FilePreviewModalProps)
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-2xl p-0 gap-0 rounded-2xl overflow-hidden flex flex-col max-h-full">
+      <DialogContent className="max-w-2xl p-0 gap-0 rounded-xl overflow-hidden flex flex-col max-h-full">
         {/* Header */}
-        <div className="flex items-start p-4 border-b border-slate-200 shrink-0">
-          <div className="flex items-center gap-4 min-w-0 flex-1">
-            <span className="text-4xl shrink-0"><FileIcon mimeType={file?.mimeType} /></span>
+        <div className="flex items-start p-3 sm:p-4 border-b border-slate-200 shrink-0">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <span className="text-3xl shrink-0"><FileIcon mimeType={file?.mimeType} /></span>
             <div className="min-w-0">
-              <DialogTitle className="text-lg font-semibold text-slate-800 truncate" title={file?.name}>
+              <DialogTitle className="text-base font-semibold text-slate-800 truncate" title={file?.name}>
                 {file?.name}
               </DialogTitle>
               <div className="text-xs text-slate-500 truncate">

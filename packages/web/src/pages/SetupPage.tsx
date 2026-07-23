@@ -20,7 +20,7 @@ export function SetupPage() {
   return (
     <main className="min-h-[100dvh] flex items-center justify-center bg-surface px-4">
       <div className="w-full max-w-sm">
-        <div className="bg-card border border-slate-200 rounded-2xl shadow-sm p-10 text-center">
+        <div className="bg-card border border-slate-200 rounded-2xl shadow-sm p-8 sm:p-10 text-center">
           <h1 className="text-3xl font-bold text-slate-900 mb-2">Welcome to OmniDrive</h1>
           <p className="text-slate-600 text-sm mb-6">Create the first Super Admin account to get started.</p>
           {errorMsg && (

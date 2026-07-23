@@ -206,14 +206,14 @@ export function SettingsS3Tab() {
 
       {/* Create S3 Key Dialog */}
       <Dialog open={showCreateModal} onOpenChange={(open) => !open && !isCreatingKey && setShowCreateModal(false)}>
-        <DialogContent className="max-w-md p-0 gap-0 rounded-2xl overflow-hidden flex flex-col">
-          <div className="flex flex-col p-4 border-b border-slate-200 shrink-0">
-            <DialogTitle className="text-lg font-semibold text-slate-800">Generate S3 API Key</DialogTitle>
+        <DialogContent className="max-w-md p-0 gap-0 rounded-xl overflow-hidden flex flex-col">
+          <div className="flex flex-col p-3 sm:p-4 border-b border-slate-200 shrink-0">
+            <DialogTitle className="text-base font-semibold text-slate-800">Generate S3 API Key</DialogTitle>
             <DialogDescription className="text-xs text-slate-500">
               Create credentials to access OmniDrive storage with S3 compatible applications.
             </DialogDescription>
           </div>
-          <form onSubmit={handleCreateKey} className="space-y-4 p-4 overflow-y-auto">
+          <form onSubmit={handleCreateKey} className="space-y-3 p-3 sm:p-4 overflow-y-auto">
             <div>
               <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
                 Description
@@ -245,7 +245,7 @@ export function SettingsS3Tab() {
                 ))}
               </select>
             </div>
-            <div className="flex gap-3 justify-end pt-4">
+            <div className="flex gap-2 justify-end pt-3">
               <button
                 type="button"
                 className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-card border border-slate-400 rounded-xl hover:bg-slate-50 transition-colors"
@@ -270,12 +270,12 @@ export function SettingsS3Tab() {
       {/* Success Modal - Credentials Display */}
       <Dialog open={createdCredential !== null} onOpenChange={(open) => !open && setCreatedCredential(null)}>
         <DialogContent
-          className="sm:max-w-[480px] p-0 gap-0 rounded-2xl overflow-hidden flex flex-col"
+          className="sm:max-w-[460px] p-0 gap-0 rounded-xl overflow-hidden flex flex-col"
           onPointerDownOutside={(e) => e.preventDefault()}
           onEscapeKeyDown={(e) => e.preventDefault()}
         >
-          <div className="flex flex-col p-4 border-b border-slate-200 shrink-0">
-            <DialogTitle className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+          <div className="flex flex-col p-3 sm:p-4 border-b border-slate-200 shrink-0">
+            <DialogTitle className="text-base font-semibold text-slate-800 flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block animate-ping" />
               S3 Key Created Successfully
             </DialogTitle>
@@ -285,7 +285,7 @@ export function SettingsS3Tab() {
           </div>
 
           {createdCredential && (
-            <div className="space-y-4 p-4 overflow-y-auto">
+            <div className="space-y-3 p-3 sm:p-4 overflow-y-auto">
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex gap-3">
                 <TriangleAlert className="text-amber-600 flex-shrink-0 mt-0.5" size={18} />
                 <div className="text-xs text-amber-800">

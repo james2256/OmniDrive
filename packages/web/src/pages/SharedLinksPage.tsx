@@ -43,13 +43,13 @@ export function SharedLinksPage() {
   };
 
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto w-full">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
-          <LinkIcon className="text-primary" size={32} />
-          Shared Links
+    <div className="p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full">
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-2 sm:gap-3">
+          <LinkIcon className="text-primary" size={24} />
+          <span>Shared Links</span>
         </h1>
-        <p className="text-slate-500 mt-2 text-lg">
+        <p className="text-slate-500 mt-1 sm:mt-2 text-sm sm:text-lg">
           Manage files and folders you have shared with others.
         </p>
       </div>
@@ -63,13 +63,13 @@ export function SharedLinksPage() {
           description="Right-click any file or folder to create a shareable link."
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {links.map((link) => (
             <div
               key={link.id}
               className="group bg-card rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col"
             >
-              <div className="p-5 border-b border-slate-100 flex-1">
+              <div className="p-4 sm:p-5 border-b border-slate-100 flex-1">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3 overflow-hidden">
                     <div className={`p-3 rounded-xl flex-shrink-0 text-2xl ${link.targetType === 'folder' ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-50'}`}>

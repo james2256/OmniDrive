@@ -80,15 +80,15 @@ export function CreateFolderModal({ open, parentId, title, onClose, onSuccess, d
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !loading && onClose()}>
-      <DialogContent className="max-w-md p-0 gap-0 rounded-2xl overflow-hidden flex flex-col">
-        <div className="flex items-center p-4 border-b border-slate-200 shrink-0">
-          <DialogTitle className="text-lg font-semibold text-slate-800 flex items-center gap-2">
-            <FolderPlus size={20} className="text-blue-500" />
+      <DialogContent className="max-w-md p-0 gap-0 rounded-xl overflow-hidden flex flex-col">
+        <div className="flex items-center p-3 sm:p-4 border-b border-slate-200 shrink-0">
+          <DialogTitle className="text-base font-semibold text-slate-800 flex items-center gap-2">
+            <FolderPlus size={18} className="text-blue-500" />
             {title}
           </DialogTitle>
         </div>
 
-        <div className="p-4">
+        <div className="p-3 sm:p-4">
           {error && (
             <div className="text-red-500 mb-4 text-sm bg-red-50 p-3 rounded-lg border border-red-100">
               {error}
@@ -128,7 +128,7 @@ export function CreateFolderModal({ open, parentId, title, onClose, onSuccess, d
               />
             </div>
 
-            <div className="flex justify-end gap-3 mt-2 pt-4 border-t border-slate-100">
+            <div className="flex justify-end gap-2 mt-2 pt-3 border-t border-slate-100">
               <button
                 type="button"
                 className="px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"

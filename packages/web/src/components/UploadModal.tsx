@@ -59,15 +59,15 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
   return (
     <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
       <DialogContent
-        className="max-w-md p-0 gap-0 rounded-2xl overflow-hidden flex flex-col max-h-full"
+        className="max-w-md p-0 gap-0 rounded-xl overflow-hidden flex flex-col max-h-full"
         onInteractOutside={(e) => { if (isUploading) e.preventDefault(); }}
       >
-        <div className="flex items-center p-4 border-b border-slate-200 shrink-0">
-          <DialogTitle className="text-lg font-semibold text-slate-800">Upload Files</DialogTitle>
+        <div className="flex items-center p-3 sm:p-4 border-b border-slate-200 shrink-0">
+          <DialogTitle className="text-base font-semibold text-slate-800">Upload Files</DialogTitle>
         </div>
 
         {/* File list or File Picker */}
-        <div className="max-h-[200px] overflow-y-auto px-6 py-2 border-b border-slate-100">
+        <div className="max-h-[180px] overflow-y-auto px-4 py-2 border-b border-slate-100">
           {queue.length === 0 ? (
             <div className="py-8 flex flex-col items-center justify-center">
               <input
@@ -117,8 +117,8 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
 
         {/* Drive selector */}
         {!isUploading && !allDone && (
-          <div className="p-4 pb-2">
-            <label className="block text-sm font-medium text-slate-700 mb-3">
+          <div className="p-3 sm:p-4 pb-2">
+            <label className="block text-sm font-medium text-slate-700 mb-2">
               Target Drive
             </label>
             <div className="flex flex-col gap-2">
@@ -153,7 +153,7 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
         )}
 
         {/* Actions */}
-        <div className="p-4 flex justify-end gap-3 shrink-0">
+        <div className="p-3 sm:p-4 flex justify-end gap-2 shrink-0">
           {allDone ? (
             <button
               className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"

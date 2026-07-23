@@ -35,12 +35,12 @@ export function RenameDialog({ open, initialName, title, onConfirm, onClose, loa
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !loading && onClose()}>
-      <DialogContent className="max-w-sm p-0 gap-0 rounded-2xl overflow-hidden flex flex-col">
-        <div className="flex items-center gap-3 p-4 border-b border-slate-200 shrink-0">
-          <Pen size={18} className="text-blue-500" />
-          <DialogTitle className="text-base font-semibold text-slate-800">{title}</DialogTitle>
+      <DialogContent className="max-w-sm p-0 gap-0 rounded-xl overflow-hidden flex flex-col">
+        <div className="flex items-center gap-3 p-3 sm:p-4 border-b border-slate-200 shrink-0">
+          <Pen size={16} className="text-blue-500" />
+          <DialogTitle className="text-sm font-semibold text-slate-800">{title}</DialogTitle>
         </div>
-        <form onSubmit={handleSubmit} className="p-4">
+        <form onSubmit={handleSubmit} className="p-3 sm:p-4">
           <input
             ref={inputRef}
             type="text"
@@ -49,7 +49,7 @@ export function RenameDialog({ open, initialName, title, onConfirm, onClose, loa
             className="w-full px-3 py-2 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
             placeholder="Enter new name"
           />
-          <div className="flex justify-end gap-2 mt-4">
+          <div className="flex justify-end gap-2 mt-3">
             <button
               type="button"
               onClick={onClose}

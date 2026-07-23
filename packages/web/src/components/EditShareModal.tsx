@@ -92,22 +92,22 @@ export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !loading && onClose()}>
-      <DialogContent className="max-w-md p-0 gap-0 rounded-2xl overflow-hidden flex flex-col max-h-full">
-        <div className="flex items-center p-4 border-b border-slate-200 shrink-0">
-          <DialogTitle className="text-lg font-semibold text-slate-800 flex items-center gap-2">
-            <Settings size={20} className="text-blue-500" />
+      <DialogContent className="max-w-md p-0 gap-0 rounded-xl overflow-hidden flex flex-col max-h-full">
+        <div className="flex items-center p-3 sm:p-4 border-b border-slate-200 shrink-0">
+          <DialogTitle className="text-base font-semibold text-slate-800 flex items-center gap-2">
+            <Settings size={18} className="text-blue-500" />
             Edit Settings
           </DialogTitle>
         </div>
 
-        <div className="p-4 overflow-y-auto">
+        <div className="p-3 sm:p-4 overflow-y-auto">
           {error && (
             <div className="text-red-500 mb-4 text-sm bg-red-50 p-3 rounded-lg border border-red-100">
               {error}
             </div>
           )}
 
-          <form onSubmit={handleUpdate} className="flex flex-col gap-3">
+          <form onSubmit={handleUpdate} className="flex flex-col gap-2.5">
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-slate-700 flex items-center gap-1.5">
                 <Lock size={14} className="text-slate-500" /> New Password (optional)
@@ -147,7 +147,7 @@ export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
 
               <div className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${showAdvanced ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
                 <div className="overflow-hidden">
-                  <div className="flex flex-col gap-3 mt-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                  <div className="flex flex-col gap-2.5 mt-2.5 p-3 bg-slate-50 rounded-lg border border-slate-200">
                     <label className="flex items-center gap-2.5 text-sm text-slate-700 cursor-pointer">
                       <input
                         type="checkbox"
@@ -207,7 +207,7 @@ export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-slate-100">
+            <div className="flex justify-end gap-2 mt-3 pt-3 border-t border-slate-100">
               <button
                 type="button"
                 className="px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
