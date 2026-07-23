@@ -140,7 +140,9 @@ describe('FilesPage', () => {
     expect(screen.getByText('My Drive')).toBeTruthy();
     expect(screen.getByTestId('file-grid')).toBeTruthy();
     expect(screen.getByTestId('drop-zone')).toBeTruthy();
-    expect(screen.getByRole('button', { name: /upload/i }) || screen.getByText('Upload')).toBeTruthy();
+    // Upload button: desktop version has text, mobile version has title
+    const uploadBtns = screen.getAllByTestId('upload-icon');
+    expect(uploadBtns.length).toBeGreaterThan(0);
   });
 
   it('renders files and subfolders in the grid', async () => {
@@ -169,7 +171,8 @@ describe('FilesPage', () => {
   it('opens create folder modal when New Folder button clicked', async () => {
     render(<FilesPage />);
 
-    const newFolderBtn = screen.getByRole('button', { name: /new folder/i }) || screen.getByText('New Folder');
+    // Find by title (mobile) or text (desktop) — jsdom renders mobile view
+    const newFolderBtn = screen.getAllByTestId('folder-plus-icon')[0].closest('button')!;
     fireEvent.click(newFolderBtn);
 
     expect(screen.getByTestId('create-folder-modal')).toBeTruthy();
@@ -181,7 +184,8 @@ describe('FilesPage', () => {
 
     render(<FilesPage />);
 
-    const uploadBtn = screen.getByRole('button', { name: /upload/i }) || screen.getByText('Upload');
+    // Find by title (mobile) or text (desktop) — jsdom renders mobile view
+    const uploadBtn = screen.getAllByTestId('upload-icon')[0].closest('button')!;
     fireEvent.click(uploadBtn);
 
     expect(setShowModal).toHaveBeenCalledWith(true);

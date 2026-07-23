@@ -168,16 +168,16 @@ export function FilesPage() {
           }}
         />
 
-        <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3 px-4 pt-4 mb-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3 px-4 pt-4 mb-4">
             {/* Mobile Row 1: filter + view toggle + info | Desktop: right side */}
-            <div className="flex gap-1.5 sm:gap-2 items-center order-1 sm:order-2 sm:ml-auto">
-              <div className="relative w-20 sm:w-48 flex-shrink-0">
+            <div className="flex gap-2 items-center order-1 sm:order-2 sm:ml-auto">
+              <div className="relative w-28 sm:w-48 flex-shrink-0">
                 <input
                   type="text"
                   placeholder="Filter..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-2.5 sm:pl-3 pr-7 sm:pr-8 py-1.5 sm:py-2 text-xs sm:text-sm border border-slate-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-3 pr-8 py-2 text-sm border border-slate-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 {searchQuery && (
                   <button
@@ -194,29 +194,29 @@ export function FilesPage() {
               <div className="flex items-center border border-slate-400 rounded-md overflow-hidden bg-card flex-shrink-0">
                 <button
                   onClick={() => setViewMode('list')}
-                  className={`p-1.5 sm:p-2 ${viewMode === 'list' ? 'bg-blue-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50'}`}
+                  className={`p-2 ${viewMode === 'list' ? 'bg-blue-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50'}`}
                   title="List layout"
                   aria-label="List layout"
                 >
-                  <List size={16} />
+                  <List size={18} />
                 </button>
                 <button
                   onClick={() => setViewMode('grid')}
-                  className={`p-1.5 sm:p-2 ${viewMode === 'grid' ? 'bg-blue-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50'}`}
+                  className={`p-2 ${viewMode === 'grid' ? 'bg-blue-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50'}`}
                   title="Grid layout"
                   aria-label="Grid layout"
                 >
-                  <LayoutGrid size={16} />
+                  <LayoutGrid size={18} />
                 </button>
               </div>
 
               <button
                 onClick={toggleInfoPanel}
-                className={`p-1.5 sm:p-2 rounded-full flex-shrink-0 ${isInfoPanelOpen ? 'bg-blue-100 text-slate-900' : 'text-slate-600 hover:bg-slate-100'}`}
+                className={`p-2 rounded-full flex-shrink-0 ${isInfoPanelOpen ? 'bg-blue-100 text-slate-900' : 'text-slate-600 hover:bg-slate-100'}`}
                 title="View details"
                 aria-label="View details"
               >
-                <Info size={18} />
+                <Info size={20} />
               </button>
 
               {/* Desktop: folder + upload inline with filter row */}
@@ -231,12 +231,12 @@ export function FilesPage() {
             </div>
 
             {/* Mobile Row 2: folder + upload */}
-            <div className="flex gap-1.5 sm:hidden order-2">
-              <button className="flex items-center justify-center p-1.5 text-sm font-medium text-slate-700 bg-card border border-slate-400 rounded-md hover:bg-slate-50 flex-shrink-0" onClick={handleCreateFolder} title="New Folder">
-                <FolderPlus size={16} />
+            <div className="flex gap-2 sm:hidden order-2">
+              <button className="flex items-center justify-center gap-1 p-2 text-sm font-medium text-slate-700 bg-card border border-slate-400 rounded-md hover:bg-slate-50 flex-shrink-0 flex-1" onClick={handleCreateFolder} title="New Folder">
+                <FolderPlus size={18} /> <span>New Folder</span>
               </button>
-              <button className="flex items-center justify-center p-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 flex-shrink-0" onClick={() => setShowModal(true)} title="Upload">
-                <Upload size={16} />
+              <button className="flex items-center justify-center gap-1 p-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 flex-shrink-0 flex-1" onClick={() => setShowModal(true)} title="Upload">
+                <Upload size={18} /> <span>Upload</span>
               </button>
             </div>
 
