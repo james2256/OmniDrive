@@ -214,20 +214,20 @@ export const AdminUsersPage: React.FC = () => {
             </div>
 
             <div className="bg-card border border-slate-200 rounded-lg overflow-hidden overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+              <table className="w-full text-left border-collapse min-w-[500px]">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="px-3 sm:px-6 py-3 text-xs font-medium text-slate-500 uppercase">Name</th>
-                    <th className="px-3 sm:px-6 py-3 text-xs font-medium text-slate-500 uppercase">Email</th>
-                    <th className="px-3 sm:px-6 py-3 text-xs font-medium text-slate-500 uppercase">Role</th>
-                    <th className="px-3 sm:px-6 py-3 text-xs font-medium text-slate-500 uppercase">Status</th>
-                    <th className="px-3 sm:px-6 py-3 text-xs font-medium text-slate-500 uppercase">Actions</th>
+                    <th className="px-2 sm:px-6 py-3 text-xs font-medium text-slate-500 uppercase">Name</th>
+                    <th className="px-2 sm:px-6 py-3 text-xs font-medium text-slate-500 uppercase">Email</th>
+                    <th className="px-2 sm:px-6 py-3 text-xs font-medium text-slate-500 uppercase">Role</th>
+                    <th className="px-2 sm:px-6 py-3 text-xs font-medium text-slate-500 uppercase">Status</th>
+                    <th className="px-2 sm:px-6 py-3 text-xs font-medium text-slate-500 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
                   {users.map((userItem) => (
                     <tr key={userItem.id} className="hover:bg-slate-50">
-                      <td className="px-3 sm:px-6 py-4">
+                      <td className="px-2 sm:px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-medium overflow-hidden">
                             {userItem.avatarUrl ? <img src={userItem.avatarUrl} alt="" className="w-full h-full object-cover" /> : (userItem.name || userItem.email || '?').charAt(0).toUpperCase()}
@@ -235,18 +235,18 @@ export const AdminUsersPage: React.FC = () => {
                           <span className="text-sm font-medium text-slate-900">{userItem.name || userItem.username || 'Unknown'}</span>
                         </div>
                       </td>
-                      <td className="px-3 sm:px-6 py-4 text-sm text-slate-500">{userItem.email || '-'}</td>
-                      <td className="px-3 sm:px-6 py-4 text-sm">
+                      <td className="px-2 sm:px-6 py-4 text-sm text-slate-500">{userItem.email || '-'}</td>
+                      <td className="px-2 sm:px-6 py-4 text-sm">
                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${userItem.role === 'super_admin' ? 'bg-purple-100 text-purple-800' : 'bg-slate-100 text-slate-800'}`}>
                           {userItem.role || 'member'}
                         </span>
                       </td>
-                      <td className="px-3 sm:px-6 py-4 text-sm">
+                      <td className="px-2 sm:px-6 py-4 text-sm">
                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${userItem.status === 'blocked' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
                           {userItem.status || 'active'}
                         </span>
                       </td>
-                      <td className="px-3 sm:px-6 py-4 text-sm text-slate-500">
+                      <td className="px-2 sm:px-6 py-4 text-sm text-slate-500">
                         {(userItem.username !== user?.username && userItem.id !== user?.userId) && (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>

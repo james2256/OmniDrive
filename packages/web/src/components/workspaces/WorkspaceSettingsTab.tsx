@@ -107,10 +107,10 @@ export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
           <table className="w-full text-left">
             <thead className="bg-slate-50 border-b border-slate-200 text-sm text-slate-500">
               <tr>
-                <th className="px-3 sm:px-6 py-3 font-medium">Type</th>
-                <th className="px-3 sm:px-6 py-3 font-medium">Target</th>
-                <th className="px-3 sm:px-6 py-3 font-medium">Configuration</th>
-                <th className="px-3 sm:px-6 py-3 font-medium text-right">Actions</th>
+                <th className="px-2 sm:px-6 py-3 font-medium">Type</th>
+                <th className="px-2 sm:px-6 py-3 font-medium">Target</th>
+                <th className="px-2 sm:px-6 py-3 font-medium">Configuration</th>
+                <th className="px-2 sm:px-6 py-3 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -118,12 +118,12 @@ export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
                 const config = JSON.parse(p.config);
                 return (
                   <tr key={p.id} className="hover:bg-slate-50">
-                    <td className="px-3 sm:px-6 py-4 text-sm font-medium text-slate-900">{p.policyType.replace('_', ' ')}</td>
-                    <td className="px-3 sm:px-6 py-4 text-sm text-slate-500">{p.targetType} {p.targetId ? `(${p.targetId})` : ''}</td>
-                    <td className="px-3 sm:px-6 py-4 text-sm text-slate-500 font-mono text-xs">
+                    <td className="px-2 sm:px-6 py-4 text-sm font-medium text-slate-900">{p.policyType.replace('_', ' ')}</td>
+                    <td className="px-2 sm:px-6 py-4 text-sm text-slate-500">{p.targetType} {p.targetId ? `(${p.targetId})` : ''}</td>
+                    <td className="px-2 sm:px-6 py-4 text-sm text-slate-500 font-mono text-xs">
                       {p.policyType === 'storage_quota' ? `${Math.round(config.max_bytes / (1024*1024*1024))} GB limit` : `${config.action} (${config.days || 'indefinite'} days)`}
                     </td>
-                    <td className="px-3 sm:px-6 py-4 text-sm text-right">
+                    <td className="px-2 sm:px-6 py-4 text-sm text-right">
                       <button onClick={() => handleDeletePolicy(p.id)} className="text-red-600 hover:text-red-800 font-medium">Delete</button>
                     </td>
                   </tr>
@@ -131,7 +131,7 @@ export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
               })}
               {policies.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-3 sm:px-6 py-8 text-center text-slate-500 text-sm">No governance policies active.</td>
+                  <td colSpan={4} className="px-2 sm:px-6 py-8 text-center text-slate-500 text-sm">No governance policies active.</td>
                 </tr>
               )}
             </tbody>
