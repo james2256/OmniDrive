@@ -11,7 +11,6 @@ import {
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
 import { Omnibar } from './Omnibar';
-import { LogoWordmark } from '../LogoWordmark';
 
 export const Header: React.FC = () => {
   const toggleSidebar = useUIStore((state) => state.toggleSidebar);
@@ -39,8 +38,8 @@ export const Header: React.FC = () => {
           <Menu size={24} />
         </button>
         <div className="flex items-center gap-2 min-w-0">
-          <img src="/logo.svg" alt="OmniDrive" className="w-14 h-auto object-contain flex-shrink-0" />
-          <LogoWordmark className="h-9 w-auto flex-shrink-0 hidden sm:block" label="" />
+          <img src="/logo.svg" alt="OmniDrive" className="w-12 h-auto sm:w-14 object-contain flex-shrink-0" />
+          <img src="/logowordmark.svg" alt="" aria-hidden="true" decoding="async" className="h-5 sm:h-6 w-auto flex-shrink-0" />
         </div>
       </div>
 

@@ -1,7 +1,6 @@
 // packages/web/src/pages/LoginPage.tsx
 import { useState } from 'react';
 import { api } from '../lib/api';
-import { LogoWordmark } from '../components/LogoWordmark';
 
 // Link styles for card (#ffffff): primary #2563EB is 4.28:1 (fails AA);
 // blue-700 + permanent underline pass contrast and "links rely on color".
@@ -41,9 +40,15 @@ export function LoginPage() {
               alt="OmniDrive"
               fetchPriority="high"
               decoding="async"
-              className="w-16 h-auto object-contain mb-3"
+              className="w-16 h-auto sm:w-18 object-contain mb-3"
             />
-            <LogoWordmark className="h-10 w-auto" label="" />
+            <img
+              src="/logotag.svg"
+              alt=""
+              aria-hidden="true"
+              decoding="async"
+              className="h-7 sm:h-8 w-auto"
+            />
           </div>
           <p className="text-slate-600 text-sm mb-8">
             Sign in to your account

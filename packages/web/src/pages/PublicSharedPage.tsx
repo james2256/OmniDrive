@@ -134,13 +134,17 @@ export function PublicSharedPage() {
       <div className="bg-card p-10 rounded-2xl shadow-xl max-w-md w-full border border-slate-100 text-center">
         {meta?.type === 'folder' ? (
           <div className="mb-8">
-            <div className="mb-4 flex justify-center"><Folder size={72} className="text-blue-500" fill="currentColor" /></div>
+            <div className="mx-auto mb-4 w-20 h-20 sm:w-24 sm:h-24 bg-blue-50 rounded-2xl flex items-center justify-center shadow-sm">
+              <Folder size={48} className="text-blue-500" fill="currentColor" />
+            </div>
             <h2 className="text-2xl font-bold text-slate-800 mb-2">Shared Folder</h2>
             <p className="text-slate-500">Folder view is not supported yet.</p>
           </div>
         ) : (
           <div className="mb-8">
-            <div className="text-7xl mb-4 leading-none flex justify-center"><FileIcon mimeType={meta?.target?.mimeType || null} /></div>
+            <div className="mx-auto mb-4 w-20 h-20 sm:w-24 sm:h-24 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-center text-4xl sm:text-5xl shadow-sm">
+              <FileIcon mimeType={meta?.target?.mimeType || null} />
+            </div>
             <h2 className="text-2xl font-bold text-slate-800 mb-2 break-words">{meta?.target?.name || 'Unknown File'}</h2>
             {typeof meta?.target?.size === 'number' && (
               <p className="text-slate-500">{formatFileSize(meta.target.size)}</p>
@@ -160,7 +164,11 @@ export function PublicSharedPage() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-slate-50 p-4 sm:p-6">
+    <main className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-4 sm:p-6 gap-6">
+      <div className="flex items-center gap-3">
+        <img src="/logo.svg" alt="OmniDrive" className="w-12 h-auto sm:w-14 object-contain flex-shrink-0" />
+        <img src="/logotag.svg" alt="" aria-hidden="true" decoding="async" className="h-6 sm:h-7 w-auto flex-shrink-0" />
+      </div>
       {renderContent()}
     </main>
   );

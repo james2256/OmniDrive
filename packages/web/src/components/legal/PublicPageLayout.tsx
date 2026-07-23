@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom';
-import { LogoWordmark } from '../LogoWordmark';
 
 interface PublicPageLayoutProps {
   title: string;
@@ -12,8 +11,8 @@ export function PublicPageLayout({ title, children }: PublicPageLayoutProps) {
       <header className="border-b border-slate-200 bg-card">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4 sm:px-6">
           <Link to="/home" className="flex items-center gap-2.5 text-slate-900 hover:opacity-80">
-            <img src="/logo.svg" alt="OmniDrive" className="w-10 h-auto object-contain" />
-            <LogoWordmark className="h-7 w-auto" label="" />
+            <img src="/logo.svg" alt="OmniDrive" className="w-10 h-auto sm:w-14 object-contain" />
+            <img src="/logowordmark.svg" alt="" aria-hidden="true" decoding="async" className="h-5 sm:h-6 w-auto" />
           </Link>
           <Link
             to="/login"

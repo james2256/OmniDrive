@@ -12,7 +12,7 @@ export default defineConfig(({ mode }) => {
       // Split heavy vendor so dashboard/recharts isn't on the login critical path
       rolldownOptions: {
         output: {
-          advancedChunks: {
+          codeSplitting: {
             groups: [
               { name: 'recharts', test: /node_modules\/(?:recharts|d3-|victory-)/ },
               { name: 'react', test: /node_modules\/(?:react-dom|react\/|scheduler)/ },
