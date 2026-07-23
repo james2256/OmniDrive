@@ -62,8 +62,8 @@ export function FileListView(props: FileListViewProps) {
   // Single grid layout — all columns visible on all screens.
   // Mobile: minimal checkbox column, more room for name. Desktop: full widths.
   const listGridClass = showDriveColumn
-    ? 'grid-cols-[44px_1fr_80px_70px_80px_32px] sm:grid-cols-[72px_1fr_140px_120px_140px_44px]'
-    : 'grid-cols-[44px_1fr_70px_80px_32px] sm:grid-cols-[72px_1fr_120px_140px_44px]';
+    ? 'grid-cols-[38px_1fr_80px_70px_80px_10px] sm:grid-cols-[72px_1fr_140px_120px_140px_44px]'
+    : 'grid-cols-[38px_1fr_70px_80px_10px] sm:grid-cols-[72px_1fr_120px_140px_44px]';
 
   const allItems: SelectedItem[] = [
     ...sortedSubfolders.map((f) => ({ type: 'folder' as const, item: f })),
@@ -73,7 +73,7 @@ export function FileListView(props: FileListViewProps) {
   return (
     <div className="w-full overflow-x-auto">
       {/* Table header */}
-      <div className={`grid ${listGridClass} gap-0 bg-surface border-b-2 border-slate-200 px-2 sm:px-4 py-2.5 text-xs font-semibold text-slate-600 uppercase tracking-wide sticky top-0 z-10 group min-w-[400px]`}>
+      <div className={`grid ${listGridClass} gap-0 bg-surface border-b-2 border-slate-200 px-2 sm:px-4 py-2.5 text-xs font-semibold text-slate-600 uppercase tracking-wide sticky top-0 z-10 group min-w-[600px]`}>
         <div className="flex items-center justify-center">
           <input
             type="checkbox"
@@ -113,7 +113,7 @@ export function FileListView(props: FileListViewProps) {
               onDoubleClick={() => interactions.handleFolderDoubleClick(folder)}
               onMouseEnter={() => interactions.handleFolderHover(folder)}
               onMouseLeave={interactions.handleHoverEnd}
-              className={`grid ${listGridClass} gap-0 items-center px-2 sm:px-4 py-2.5 cursor-pointer transition-colors border-b border-slate-200 group min-w-[400px] ${
+              className={`grid ${listGridClass} gap-0 items-center px-2 sm:px-4 py-2.5 cursor-pointer transition-colors border-b border-slate-200 group min-w-[600px] ${
                 isSelected
                   ? 'bg-blue-100 hover:bg-blue-200'
                   : hasError
@@ -166,7 +166,7 @@ export function FileListView(props: FileListViewProps) {
               onDoubleClick={() => interactions.handleFileDoubleClick(file)}
               onMouseEnter={() => interactions.handleFileHover(file)}
               onMouseLeave={interactions.handleHoverEnd}
-              className={`grid ${listGridClass} gap-0 items-center px-2 sm:px-4 py-2.5 cursor-pointer transition-colors border-b border-slate-200 group min-w-[400px] ${
+              className={`grid ${listGridClass} gap-0 items-center px-2 sm:px-4 py-2.5 cursor-pointer transition-colors border-b border-slate-200 group min-w-[600px] ${
                 isSelected ? 'bg-blue-100 hover:bg-blue-200' : 'hover:bg-slate-50'
               }`}
             >
