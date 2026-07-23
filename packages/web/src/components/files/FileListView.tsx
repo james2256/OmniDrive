@@ -27,12 +27,10 @@ export function FileListView(props: FileListViewProps) {
     showDriveColumn,
   } = props;
 
-  // Sort state — read directly from the store (no prop drilling).
   const sortField = useUIStore((s) => s.sortField);
   const sortDirection = useUIStore((s) => s.sortDirection);
   const toggleSort = useUIStore((s) => s.toggleSort);
 
-  // Selection state — read directly from the store.
   const selectedItems = useSelectionStore((s) => s.selectedItems);
   const selectAll = useSelectionStore((s) => s.selectAll);
   const clearSelection = useSelectionStore((s) => s.clearSelection);
@@ -61,18 +59,22 @@ export function FileListView(props: FileListViewProps) {
     );
   };
 
-  // Desktop: 5-column grid (checkbox, name, drive, size, modified, actions)
-  // Mobile: 2-row card — row 1: icon + name + badges, row 2: drive + size · modified
+  // Single grid layout — all columns visible on all screens.
+  // Mobile: tighter padding + smaller widths. Desktop: full widths.
+  const listGridClass = showDriveColumn
+    ? 'grid-cols-[auto_1fr_100px_80px_90px_36px] sm:grid-cols-[auto_1fr_140px_120px_140px_44px]'
+    : 'grid-cols-[auto_1fr_80px_90px_36px] sm:grid-cols-[auto_1fr_120px_140px_44px]';
+
   const allItems: SelectedItem[] = [
     ...sortedSubfolders.map((f) => ({ type: 'folder' as const, item: f })),
     ...sortedFiles.map((f) => ({ type: 'file' as const, item: f })),
   ];
 
   return (
-    <div className="w-full">
-      {/* Table header — desktop only */}
-      <div className="hidden sm:grid grid-cols-[auto_1fr_140px_120px_140px_44px] gap-0 bg-surface border-b-2 border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-600 uppercase tracking-wide sticky top-0 z-10 group">
-        <div className="w-[72px] flex items-center pl-3">
+    <div className="w-full overflow-x-auto">
+      {/* Table header */}
+      <div className={`grid ${listGridClass} gap-0 bg-surface border-b-2 border-slate-200 px-3 sm:px-4 py-2.5 text-xs font-semibold text-slate-600 uppercase tracking-wide sticky top-0 z-10 group min-w-[500px]`}>
+        <div className="w-[60px] sm:w-[72px] flex items-center pl-2 sm:pl-3">
           <input
             type="checkbox"
             className={`w-4 h-4 cursor-pointer ${hasSelection ? 'opacity-100' : 'opacity-30 group-hover:opacity-100 transition-opacity'}`}
@@ -106,13 +108,12 @@ export function FileListView(props: FileListViewProps) {
 
         return (
           <ItemContextMenu key={key} type="folder" item={folder} actions={actions} isTrashView={isTrashView} isStarred={isStarred}>
-            {/* Desktop row */}
             <div
               onClick={(e) => interactions.handleClick(e, { type: 'folder', item: folder })}
               onDoubleClick={() => interactions.handleFolderDoubleClick(folder)}
               onMouseEnter={() => interactions.handleFolderHover(folder)}
               onMouseLeave={interactions.handleHoverEnd}
-              className={`hidden sm:grid grid-cols-[auto_1fr_140px_120px_140px_44px] gap-0 items-center px-4 py-2.5 cursor-pointer transition-colors border-b border-slate-200 group ${
+              className={`grid ${listGridClass} gap-0 items-center px-3 sm:px-4 py-2.5 cursor-pointer transition-colors border-b border-slate-200 group min-w-[500px] ${
                 isSelected
                   ? 'bg-blue-100 hover:bg-blue-200'
                   : hasError
@@ -120,7 +121,7 @@ export function FileListView(props: FileListViewProps) {
                   : 'hover:bg-slate-50'
               }`}
             >
-              <div className="w-[72px] flex items-center gap-2 pl-3">
+              <div className="w-[60px] sm:w-[72px] flex items-center gap-2 pl-2 sm:pl-3">
                 <input
                   type="checkbox"
                   className={`w-4 h-4 cursor-pointer flex-shrink-0 ${hasSelection ? 'opacity-100' : 'opacity-30 group-hover:opacity-100 transition-opacity'}`}
@@ -148,36 +149,6 @@ export function FileListView(props: FileListViewProps) {
               <div className="text-right text-xs text-slate-500">—</div>
               <div />
             </div>
-
-            {/* Mobile card */}
-            <div
-              onClick={(e) => interactions.handleClick(e, { type: 'folder', item: folder })}
-              className={`sm:hidden flex items-center gap-2 px-3 py-2.5 cursor-pointer border-b border-slate-200 ${
-                isSelected ? 'bg-blue-100' : hasError ? 'bg-red-50' : 'hover:bg-slate-50'
-              }`}
-            >
-              <input
-                type="checkbox"
-                className={`w-4 h-4 cursor-pointer flex-shrink-0 ${hasSelection ? 'opacity-100' : 'opacity-30'}`}
-                checked={isSelected}
-                readOnly
-                onClick={(e) => {
-                  e.stopPropagation();
-                  interactions.handleClick(e, { type: 'folder', item: folder });
-                }}
-              />
-              <Folder size={18} className="text-blue-500 flex-shrink-0" fill="currentColor" />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-sm text-slate-800 font-medium truncate">{folder.name}</span>
-                  {isStarred && <Star className="fill-yellow-400 text-yellow-400 flex-shrink-0" size={12} />}
-                  {shared && <Share2 size={10} className="text-blue-400 flex-shrink-0" />}
-                </div>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  {renderDriveBadge(driveAccountId)}
-                </div>
-              </div>
-            </div>
           </ItemContextMenu>
         );
       })}
@@ -190,17 +161,16 @@ export function FileListView(props: FileListViewProps) {
 
         return (
           <ItemContextMenu key={file.id} type="file" item={file} actions={actions} isTrashView={isTrashView} isStarred={file.isStarred}>
-            {/* Desktop row */}
             <div
               onClick={(e) => interactions.handleClick(e, { type: 'file', item: file })}
               onDoubleClick={() => interactions.handleFileDoubleClick(file)}
               onMouseEnter={() => interactions.handleFileHover(file)}
               onMouseLeave={interactions.handleHoverEnd}
-              className={`hidden sm:grid grid-cols-[auto_1fr_140px_120px_140px_44px] gap-0 items-center px-4 py-2.5 cursor-pointer transition-colors border-b border-slate-200 group ${
+              className={`grid ${listGridClass} gap-0 items-center px-3 sm:px-4 py-2.5 cursor-pointer transition-colors border-b border-slate-200 group min-w-[500px] ${
                 isSelected ? 'bg-blue-100 hover:bg-blue-200' : 'hover:bg-slate-50'
               }`}
             >
-              <div className="w-[72px] flex items-center gap-2 pl-3">
+              <div className="w-[60px] sm:w-[72px] flex items-center gap-2 pl-2 sm:pl-3">
                 <input
                   type="checkbox"
                   className={`w-4 h-4 cursor-pointer flex-shrink-0 ${hasSelection ? 'opacity-100' : 'opacity-30 group-hover:opacity-100 transition-opacity'}`}
@@ -231,44 +201,6 @@ export function FileListView(props: FileListViewProps) {
                 {formatRelativeTime(file.googleModifiedAt ?? file.createdAt)}
               </div>
               <div />
-            </div>
-
-            {/* Mobile card */}
-            <div
-              onClick={(e) => interactions.handleClick(e, { type: 'file', item: file })}
-              className={`sm:hidden flex items-center gap-2 px-3 py-2.5 cursor-pointer border-b border-slate-200 ${
-                isSelected ? 'bg-blue-100' : 'hover:bg-slate-50'
-              }`}
-            >
-              <input
-                type="checkbox"
-                className={`w-4 h-4 cursor-pointer flex-shrink-0 ${hasSelection ? 'opacity-100' : 'opacity-30'}`}
-                checked={isSelected}
-                readOnly
-                onClick={(e) => {
-                  e.stopPropagation();
-                  interactions.handleClick(e, { type: 'file', item: file });
-                }}
-              />
-              <span className="text-lg flex-shrink-0"><FileIcon mimeType={file.mimeType} /></span>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-sm text-slate-800 truncate" title={file.name}>{file.name}</span>
-                  {file.isStarred && <Star className="fill-yellow-400 text-yellow-400 flex-shrink-0" size={12} />}
-                  {shared && <Share2 size={10} className="text-blue-400 flex-shrink-0" />}
-                </div>
-                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                  {renderDriveBadge(file.driveAccountId)}
-                  {!native && (
-                    <>
-                      <span className="text-[10px] text-slate-400">·</span>
-                      <span className="text-[10px] text-slate-500">{formatFileSize(file.size)}</span>
-                    </>
-                  )}
-                  <span className="text-[10px] text-slate-400">·</span>
-                  <span className="text-[10px] text-slate-500">{formatRelativeTime(file.googleModifiedAt ?? file.createdAt)}</span>
-                </div>
-              </div>
             </div>
           </ItemContextMenu>
         );

@@ -6,9 +6,10 @@ import {
   ContextMenuTrigger,
   ContextMenuSeparator,
 } from '../ui/context-menu';
-import { Folder, Download, Trash2, Pencil, ExternalLink, Share2, RefreshCw, Eye, Star, Info } from 'lucide-react';
+import { Folder, Download, Trash2, Pencil, ExternalLink, Share2, RefreshCw, Eye, Star, Info, FolderInput } from 'lucide-react';
 import type { FileEntry, DriveFolder, WorkspaceFolder } from '../../types';
 import type { ItemActions, ItemKind } from './types';
+import type { SelectedItem } from '../../stores/useSelectionStore';
 
 interface ItemContextMenuProps {
   type: ItemKind;
@@ -86,6 +87,7 @@ const ItemContextMenuContent: React.FC<ItemContextMenuContentProps> = ({ type, i
     onRenameFileRequest,
     onRenameFolderRequest,
     onMoveDrive,
+    onMove,
     onDeleteFile,
     onDeleteFolder,
   } = actions;
@@ -192,6 +194,11 @@ const ItemContextMenuContent: React.FC<ItemContextMenuContentProps> = ({ type, i
               onClick={() => onRenameFolderRequest(driveAccountId, driveFolder.googleFolderId, name)}
             >
               <Pencil className="mr-2 h-4 w-4" /> Rename
+            </ContextMenuItem>
+          )}
+          {onMove && showItemActions && (
+            <ContextMenuItem onClick={() => onMove([{ type, item } as SelectedItem])}>
+              <FolderInput className="mr-2 h-4 w-4" /> Move
             </ContextMenuItem>
           )}
           {type === 'file' && file && onMoveDrive && (

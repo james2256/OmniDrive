@@ -239,6 +239,7 @@ export function SharedWithMePage() {
                 onRenameFolderRequest: handleRenameFolderRequest,
                 onDeleteFile: handleDeleteFile,
                 onDeleteFolder: handleDeleteFolder,
+                onMove: (items) => setMoveTarget(items),
                 onViewInfo: handleViewInfo,
                 onToggleStar: handleToggleStar,
               }}

@@ -84,23 +84,24 @@ export function DriveAccountCard({ drive, index, onSync, onDisconnect }: DriveAc
             )}
           </div>
         </div>
-      </div>
-      <div className="flex gap-2 mb-3">
-        <button
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors disabled:opacity-50"
-          onClick={handleSync}
-          disabled={isSyncing}
-        >
-          <RefreshCw size={12} className={isSyncing ? 'animate-spin' : ''} />
-          {isSyncing ? 'Syncing...' : 'Sync'}
-        </button>
-        <button
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
-          onClick={handleDisconnect}
-        >
-          <Trash2 size={12} />
-          Disconnect
-        </button>
+        {/* Buttons inline on the right — desktop shows full labels, mobile shows icons only */}
+        <div className="flex gap-2 flex-shrink-0">
+          <button
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors disabled:opacity-50"
+            onClick={handleSync}
+            disabled={isSyncing}
+          >
+            <RefreshCw size={12} className={isSyncing ? 'animate-spin' : ''} />
+            <span className="hidden sm:inline">{isSyncing ? 'Syncing...' : 'Sync'}</span>
+          </button>
+          <button
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+            onClick={handleDisconnect}
+          >
+            <Trash2 size={12} />
+            <span className="hidden sm:inline">Disconnect</span>
+          </button>
+        </div>
       </div>
 
       <QuotaBar used={drive.usedQuota} total={drive.totalQuota} color={color} showLabel={false} />

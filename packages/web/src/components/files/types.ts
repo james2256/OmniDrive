@@ -1,5 +1,6 @@
 import type React from 'react';
 import type { FileEntry, DriveFolder, WorkspaceFolder, DriveAccount } from '../../types';
+import type { SelectedItem } from '../../stores/useSelectionStore';
 
 /** A folder item — either a Google Drive folder or a workspace virtual folder. */
 export type FolderItem = DriveFolder | WorkspaceFolder;
@@ -35,6 +36,8 @@ export interface ItemActions {
   onDeleteFile?: (id: string) => void;
   onDeleteFolder?: (driveId: string, folderId: string) => void;
   onMoveDrive?: (file: FileEntry) => void;
+  /** Move item(s) to another folder within the same drive. */
+  onMove?: (items: SelectedItem[]) => void;
   onRestore?: (fileId: string) => void;
   onPermanentDelete?: (fileId: string) => void;
   onRestoreFolder?: (driveId: string, folderId: string) => void;

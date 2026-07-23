@@ -270,6 +270,7 @@ export function FilesPage() {
                 onDeleteFile: handleDeleteFile,
                 onDeleteFolder: handleDeleteFolder,
                 onMoveDrive: (file) => setMoveDriveFiles([file]),
+                onMove: (items) => setMoveTarget(items),
                 onAddToWorkspace: setWorkspaceTarget,
                 onViewInfo: handleViewInfo,
                 onToggleStar: handleToggleStar,
