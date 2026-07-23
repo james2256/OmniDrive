@@ -160,9 +160,9 @@ export function SharedWithMePage() {
         }}
       />
 
-      <div className="p-4 sm:p-6 space-y-6">
+      <div className="p-2 sm:p-6 space-y-4 sm:space-y-6">
         {/* Toolbar */}
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-2 sm:gap-3 px-4 pt-4">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2 sm:gap-3 px-2 sm:px-4 pt-3 sm:pt-4">
           <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden order-2 md:order-1">
             <Breadcrumb items={breadcrumb} driveId={driveIdParam || undefined} />
           </div>

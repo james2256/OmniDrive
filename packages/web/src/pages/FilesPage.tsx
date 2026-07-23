@@ -168,7 +168,7 @@ export function FilesPage() {
           }}
         />
 
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-2 sm:gap-3 px-4 pt-4">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2 sm:gap-3 px-2 sm:px-4 pt-3 sm:pt-4">
             <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden order-2 md:order-1">
               <Breadcrumb items={breadcrumb} driveId={driveIdParam || undefined} />
             </div>
@@ -252,7 +252,7 @@ export function FilesPage() {
             </button>
           </div>
         ) : (
-          <div className="flex-1 overflow-auto bg-card rounded-lg border border-slate-200 m-4 shadow-sm">
+          <div className="flex-1 overflow-auto bg-card rounded-lg border border-slate-200 m-2 sm:m-4 shadow-sm">
             <FileGrid
               files={filteredFiles}
               subfolders={filteredSubfolders}

@@ -151,7 +151,7 @@ export function DashboardPage() {
   ] as const;
 
   return (
-    <div className="p-4 sm:p-6 space-y-4 max-w-[1400px] mx-auto">
+    <div className="p-2 sm:p-6 space-y-4 max-w-[1400px] mx-auto">
       {/* Greeting + refresh */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
