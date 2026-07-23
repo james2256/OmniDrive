@@ -181,11 +181,11 @@ export const AdminUsersPage: React.FC = () => {
 
   return (
     <div className="p-4 sm:p-6 h-full flex flex-col">
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-slate-800">Users</h1>
+      <div className="mb-4 sm:mb-6">
+        <h1 className="text-xl sm:text-2xl font-semibold text-slate-800">Users</h1>
       </div>
 
-      <div className="flex border-b border-slate-200 mb-6 gap-4 sm:gap-6">
+      <div className="flex border-b border-slate-200 mb-4 sm:mb-6 gap-4 sm:gap-6">
         <button
           className={`pb-3 font-medium text-sm transition-colors ${activeTab === 'users' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
           onClick={() => setActiveTab('users')}

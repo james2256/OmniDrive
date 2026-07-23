@@ -168,13 +168,13 @@ export function FilesPage() {
           }}
         />
 
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-2 sm:gap-3 px-4 pt-4">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2 sm:gap-3 px-2 sm:px-4 pt-3 sm:pt-4">
             <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden order-2 md:order-1">
               <Breadcrumb items={breadcrumb} driveId={driveIdParam || undefined} />
             </div>
 
             <div className="flex gap-1.5 sm:gap-2 items-center flex-wrap order-1 md:order-2">
-              <div className="relative w-24 sm:w-48">
+              <div className="relative w-28 sm:w-48">
                 <input
                   type="text"
                   placeholder="Filter..."
@@ -225,8 +225,8 @@ export function FilesPage() {
               <button className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-slate-700 bg-card border border-slate-400 rounded-md hover:bg-slate-50" onClick={handleCreateFolder}>
                 <FolderPlus size={16} /> <span className="hidden sm:inline">New Folder</span>
               </button>
-              <button className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700" onClick={() => setShowModal(true)}>
-                <Upload size={16} /> <span>Upload</span>
+              <button className="flex items-center gap-1 px-2.5 sm:px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700" onClick={() => setShowModal(true)}>
+                <Upload size={16} /> <span className="hidden sm:inline">Upload</span>
               </button>
             </div>
           </div>

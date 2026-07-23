@@ -44,12 +44,12 @@ export function SharedLinksPage() {
 
   return (
     <div className="p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full">
-      <div className="mb-6 sm:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-2 sm:gap-3">
-          <LinkIcon className="text-primary" size={24} />
+      <div className="mb-4 sm:mb-8">
+        <h1 className="text-xl sm:text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-2 sm:gap-3">
+          <LinkIcon className="text-primary" size={20} />
           <span>Shared Links</span>
         </h1>
-        <p className="text-slate-500 mt-1 sm:mt-2 text-sm sm:text-lg">
+        <p className="text-slate-500 mt-1 sm:mt-2 text-xs sm:text-lg">
           Manage files and folders you have shared with others.
         </p>
       </div>

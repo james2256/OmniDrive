@@ -62,7 +62,7 @@ export function TrashPage() {
       />
 
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-slate-800">Trash</h1>
+        <h1 className="text-xl sm:text-2xl font-semibold text-slate-800">Trash</h1>
       </div>
 
       {isLoading ? (

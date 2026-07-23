@@ -153,7 +153,7 @@ export function DashboardPage() {
   return (
     <div className="p-4 sm:p-6 space-y-4 max-w-[1400px] mx-auto">
       {/* Greeting + refresh */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="flex items-center justify-between gap-2 sm:gap-3">
         <div>
           <h1 className="text-xl sm:text-2xl font-semibold text-slate-800">
             {greeting()}{user ? `, ${firstName(user.name)}` : ''}
@@ -165,7 +165,7 @@ export function DashboardPage() {
           </p>
         </div>
         <button
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-600 bg-card border border-slate-400 rounded-lg hover:bg-slate-50 transition-colors"
+          className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm text-slate-600 bg-card border border-slate-400 rounded-lg hover:bg-slate-50 transition-colors flex-shrink-0"
           onClick={() => {
             queryClient.invalidateQueries({ queryKey: qk.recent });
             queryClient.invalidateQueries({ queryKey: qk.category });
@@ -173,7 +173,7 @@ export function DashboardPage() {
           }}
         >
           <RefreshCw size={14} />
-          Refresh
+          <span className="hidden sm:inline">Refresh</span>
         </button>
       </div>
 

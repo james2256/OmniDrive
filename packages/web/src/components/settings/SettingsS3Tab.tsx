@@ -128,14 +128,14 @@ export function SettingsS3Tab() {
     <>
       {/* Section: S3 API Keys */}
       <div className="border-t border-slate-200 pt-6">
-        <div className="flex justify-between items-center mb-4 gap-3 flex-wrap">
-          <div>
+        <div className="flex justify-between items-center mb-4 gap-2 sm:gap-3 flex-wrap">
+          <div className="min-w-0">
             <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">S3 API Keys</h2>
             <p className="text-xs text-slate-500 mt-1">Manage workspace-scoped and global S3-compatible credentials for accessing object storage.</p>
           </div>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors font-medium text-xs shadow-sm"
+            className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg sm:rounded-xl transition-colors font-medium text-xs shadow-sm flex-shrink-0"
           >
             <Plus size={16} /> Generate New Key
           </button>
