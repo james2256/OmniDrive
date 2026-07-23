@@ -212,27 +212,33 @@ export function SettingsS3Tab() {
             Create credentials to access OmniDrive storage with S3 compatible applications.
           </DialogDescription>
           <form onSubmit={handleCreateKey} className="space-y-2.5">
-            <input
-              type="text"
-              value={newKeyDescription}
-              onChange={(e) => setNewKeyDescription(e.target.value)}
-              placeholder="Description (e.g. Rclone desktop client)"
-              className="w-full border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-              maxLength={100}
-            />
-            <select
-              value={newKeyScope}
-              onChange={(e) => setNewKeyScope(e.target.value)}
-              className="w-full border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-card"
-            >
-              <option value="">Global (All Workspaces)</option>
-              {workspaces.map((w: { id: string; name: string; role: string }) => (
-                <option key={w.id} value={w.id}>
-                  Workspace: {w.name}
-                </option>
-              ))}
-            </select>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-600">Description</label>
+              <input
+                type="text"
+                value={newKeyDescription}
+                onChange={(e) => setNewKeyDescription(e.target.value)}
+                placeholder="e.g. Rclone desktop client"
+                className="w-full border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+                maxLength={100}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-600">Scope</label>
+              <select
+                value={newKeyScope}
+                onChange={(e) => setNewKeyScope(e.target.value)}
+                className="w-full border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-card"
+              >
+                <option value="">Global (All Workspaces)</option>
+                {workspaces.map((w: { id: string; name: string; role: string }) => (
+                  <option key={w.id} value={w.id}>
+                    Workspace: {w.name}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="flex gap-2 justify-end mt-1">
               <button
                 type="button"

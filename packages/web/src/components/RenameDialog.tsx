@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
-import { LoaderCircle } from 'lucide-react';
+import { Pen, LoaderCircle } from 'lucide-react';
 
 interface RenameDialogProps {
   open: boolean;
@@ -35,7 +35,10 @@ export function RenameDialog({ open, initialName, title, onConfirm, onClose, loa
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !loading && onClose()}>
       <DialogContent className="max-w-sm p-4 rounded-xl">
-        <DialogTitle className="text-sm font-semibold text-slate-800 mb-3">{title}</DialogTitle>
+        <DialogTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2 mb-3">
+          <Pen size={16} className="text-blue-500" />
+          {title}
+        </DialogTitle>
         <form onSubmit={handleSubmit}>
           <input
             ref={inputRef}

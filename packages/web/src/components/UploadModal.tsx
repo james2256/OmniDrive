@@ -114,7 +114,7 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
         )}
 
         {/* Drive selector */}
-        {!isUploading && !allDone && queue.length > 0 && (
+        {!isUploading && !allDone && (
           <div className="mb-2">
             <div className="flex flex-col gap-1.5">
               <label className={`flex items-center gap-2.5 p-2 rounded-lg cursor-pointer border transition-colors ${!selectedDriveId ? 'bg-blue-50 border-blue-200' : 'border-slate-200 hover:bg-slate-50'}`}>

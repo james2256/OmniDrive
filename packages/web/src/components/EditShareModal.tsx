@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Settings, ChevronDown, ChevronUp } from 'lucide-react';
+import { Settings, ChevronDown, ChevronUp, Lock, Calendar, Eye, EyeOff } from 'lucide-react';
 import { updateSharedLink } from '../lib/api';
 import type { SharedLink } from '../lib/api';
 import { useInvalidateSharedLinks } from '../hooks/useSharedLinks';
@@ -27,6 +27,7 @@ export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
   const [password, setPassword] = useState('');
   const [expiresAt, setExpiresAt] = useState(getInitialDate(link?.expiresAt ?? null));
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [allowDownloads, setAllowDownloads] = useState(link?.allowDownloads ?? true);
   const [allowUploads, setAllowUploads] = useState(link?.allowUploads ?? false);
   const [maxDownloads, setMaxDownloads] = useState(link?.maxDownloads ? String(link.maxDownloads) : '');
@@ -45,6 +46,7 @@ export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
       setPassword('');
       setExpiresAt(getInitialDate(link.expiresAt ?? null));
       setShowAdvanced(false);
+      setShowPassword(false);
       setAllowDownloads(link.allowDownloads ?? true);
       setAllowUploads(link.allowUploads ?? false);
       setMaxDownloads(link.maxDownloads ? String(link.maxDownloads) : '');
@@ -93,27 +95,51 @@ export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !loading && onClose()}>
       <DialogContent className="max-w-md p-4 rounded-xl max-h-[85vh] overflow-y-auto">
-        <DialogTitle className="text-sm font-semibold text-slate-800 mb-3">Edit Settings</DialogTitle>
+        <DialogTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2 mb-3">
+          <Settings size={16} className="text-blue-500" />
+          Edit Settings
+        </DialogTitle>
         {error && (
           <div className="text-red-500 mb-3 text-sm bg-red-50 p-2 rounded-lg border border-red-100">
             {error}
           </div>
         )}
-        <form onSubmit={handleUpdate} className="flex flex-col gap-2">
-          <input
-            type="password"
-            placeholder="New password (leave blank to keep)"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
-          />
-          <input
-            type="datetime-local"
-            value={expiresAt}
-            min={currentDateTime}
-            onChange={(e) => setExpiresAt(e.target.value)}
-            className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
-          />
+        <form onSubmit={handleUpdate} className="flex flex-col gap-2.5">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-600 flex items-center gap-1">
+              <Lock size={12} className="text-slate-400" /> New Password (optional)
+            </label>
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Leave blank to keep current password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="off"
+                className="w-full px-3 py-1.5 pr-9 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+              </button>
+            </div>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-600 flex items-center gap-1">
+              <Calendar size={12} className="text-slate-400" /> Expiration (optional)
+            </label>
+            <input
+              type="datetime-local"
+              value={expiresAt}
+              min={currentDateTime}
+              onChange={(e) => setExpiresAt(e.target.value)}
+              className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
+            />
+          </div>
           <button
             type="button"
             onClick={() => setShowAdvanced(!showAdvanced)}

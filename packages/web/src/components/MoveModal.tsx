@@ -135,7 +135,7 @@ export function MoveModal({ open, items, driveId, onClose, onSuccess }: MoveModa
         {/* Actions */}
         <div className="flex justify-between items-center pt-2 border-t border-slate-100 shrink-0">
           <span className="text-xs text-slate-500 truncate">
-            → {breadcrumb[breadcrumb.length - 1]?.name || 'My Drive'}
+            Destination: {breadcrumb[breadcrumb.length - 1]?.name || 'My Drive'}
           </span>
           <div className="flex gap-2 flex-shrink-0">
             <button

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Copy, Check, Settings, ChevronDown, ChevronUp } from 'lucide-react';
+import { Copy, Check, Share2, Calendar, Lock, Settings, ChevronDown, ChevronUp, Eye, EyeOff } from 'lucide-react';
 import { createSharedLink } from '../lib/api';
 import { useInvalidateSharedLinks } from '../hooks/useSharedLinks';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
@@ -16,6 +16,7 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
   const [password, setPassword] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [allowDownloads, setAllowDownloads] = useState(true);
   const [maxDownloads, setMaxDownloads] = useState('');
   const [requireEmail, setRequireEmail] = useState(false);
@@ -41,6 +42,7 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
       setPassword('');
       setExpiresAt('');
       setShowAdvanced(false);
+      setShowPassword(false);
       setAllowDownloads(true);
       setMaxDownloads('');
       setRequireEmail(false);
@@ -106,7 +108,8 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !loading && onClose()}>
       <DialogContent className="max-w-md p-4 rounded-xl max-h-[85vh] overflow-y-auto">
-        <DialogTitle className="text-sm font-semibold text-slate-800 mb-3">
+        <DialogTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2 mb-3">
+          <Share2 size={16} className="text-blue-500" />
           Share {targetType === 'file' ? 'File' : 'Folder'}
         </DialogTitle>
         {error && (
@@ -115,21 +118,42 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
           </div>
         )}
         {!sharedUrl ? (
-          <form onSubmit={handleShare} className="flex flex-col gap-2">
-            <input
-              type="password"
-              placeholder="Password (optional)"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
-            />
-            <input
-              type="datetime-local"
-              value={expiresAt}
-              min={currentDateTime}
-              onChange={(e) => setExpiresAt(e.target.value)}
-              className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
-            />
+          <form onSubmit={handleShare} className="flex flex-col gap-2.5">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-600 flex items-center gap-1">
+                <Lock size={12} className="text-slate-400" /> Password (optional)
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Leave blank for no password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="off"
+                  className="w-full px-3 py-1.5 pr-9 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                </button>
+              </div>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-600 flex items-center gap-1">
+                <Calendar size={12} className="text-slate-400" /> Expiration (optional)
+              </label>
+              <input
+                type="datetime-local"
+                value={expiresAt}
+                min={currentDateTime}
+                onChange={(e) => setExpiresAt(e.target.value)}
+                className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
+              />
+            </div>
             <button
               type="button"
               onClick={() => setShowAdvanced(!showAdvanced)}

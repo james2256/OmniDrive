@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { FolderPlus } from 'lucide-react';
 import { api } from '../lib/api';
 import { useToastStore } from '../stores/useToastStore';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
@@ -80,7 +81,10 @@ export function CreateFolderModal({ open, parentId, title, onClose, onSuccess, d
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !loading && onClose()}>
       <DialogContent className="max-w-md p-4 rounded-xl">
-        <DialogTitle className="text-sm font-semibold text-slate-800 mb-3">{title}</DialogTitle>
+        <DialogTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2 mb-3">
+          <FolderPlus size={16} className="text-blue-500" />
+          {title}
+        </DialogTitle>
         {error && (
           <div className="text-red-500 mb-3 text-sm bg-red-50 p-2 rounded-lg border border-red-100">
             {error}
@@ -88,27 +92,33 @@ export function CreateFolderModal({ open, parentId, title, onClose, onSuccess, d
         )}
         <form onSubmit={handleSubmit} className="flex flex-col gap-2.5">
           {showDrivePicker && (
-            <select
-              value={selectedDriveId}
-              onChange={(e) => setSelectedDriveId(e.target.value)}
-              className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
-            >
-              <option value="">Select a drive…</option>
-              {(drives ?? []).map((drive, i) => (
-                <option key={drive.id} value={drive.id}>
-                  {drive.email} ({i + 1})
-                </option>
-              ))}
-            </select>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-600">Target Drive</label>
+              <select
+                value={selectedDriveId}
+                onChange={(e) => setSelectedDriveId(e.target.value)}
+                className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
+              >
+                <option value="">Select a drive…</option>
+                {(drives ?? []).map((drive, i) => (
+                  <option key={drive.id} value={drive.id}>
+                    {drive.email} ({i + 1})
+                  </option>
+                ))}
+              </select>
+            </div>
           )}
-          <input
-            type="text"
-            autoFocus
-            placeholder={`Enter ${entityLabel.toLowerCase()} name`}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
-          />
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-600">{entityLabel} name</label>
+            <input
+              type="text"
+              autoFocus
+              placeholder={`Enter ${entityLabel.toLowerCase()} name`}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
+            />
+          </div>
           <div className="flex justify-end gap-2 mt-1">
             <button
               type="button"

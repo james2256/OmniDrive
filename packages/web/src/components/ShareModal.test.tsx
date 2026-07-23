@@ -23,6 +23,8 @@ vi.mock('lucide-react', () => ({
   Settings: () => <svg data-testid="settings-icon" />,
   ChevronDown: () => <svg data-testid="chevron-down-icon" />,
   ChevronUp: () => <svg data-testid="chevron-up-icon" />,
+  Eye: () => <svg data-testid="eye-icon" />,
+  EyeOff: () => <svg data-testid="eye-off-icon" />,
 }));
 
 vi.mock('./ui/dialog', () => ({
@@ -48,7 +50,7 @@ describe('ShareModal', () => {
     );
 
     // Fill password
-    fireEvent.change(screen.getByPlaceholderText('Password (optional)'), {
+    fireEvent.change(screen.getByPlaceholderText('Leave blank for no password'), {
       target: { value: 'secret123' },
     });
 

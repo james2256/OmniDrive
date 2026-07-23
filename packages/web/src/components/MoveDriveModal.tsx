@@ -65,7 +65,7 @@ export function MoveDriveModal({ files, onClose, onSuccess }: MoveDriveModalProp
       <DialogContent className="max-w-md p-4 rounded-xl">
         <DialogTitle className="text-sm font-semibold text-slate-800 mb-1">Move to Another Drive</DialogTitle>
         <DialogDescription className="text-xs text-slate-500 mb-3">
-          Select a destination drive to move {files.length} item(s).
+          Select a destination drive to move {files.length} item(s). This may take a moment depending on the file size.
         </DialogDescription>
         <div className="grid gap-2 max-h-[50vh] overflow-y-auto">
           {availableDrives.length === 0 ? (
