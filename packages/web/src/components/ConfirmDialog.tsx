@@ -31,34 +31,34 @@ export function ConfirmDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !loading && onClose()}>
-      <DialogContent className="max-w-sm p-0 gap-0 rounded-xl overflow-hidden flex flex-col">
-        <div className="flex items-center gap-3 p-3 sm:p-4 border-b border-slate-200 shrink-0">
-          <TriangleAlert size={18} className={variant === 'danger' ? 'text-red-500' : variant === 'warning' ? 'text-amber-500' : 'text-blue-500'} />
-          <DialogTitle className="text-base font-semibold text-slate-800">{title}</DialogTitle>
-        </div>
-        <div className="p-3 sm:p-4">
-          <DialogDescription className="text-sm text-slate-600 leading-relaxed">
-            {message}
-          </DialogDescription>
-          <div className="flex justify-end gap-2 mt-3">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={loading}
-              className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-card border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 transition-colors"
-            >
-              {cancelText}
-            </button>
-            <button
-              type="button"
-              onClick={onConfirm}
-              disabled={loading}
-              className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white rounded-lg disabled:opacity-50 transition-colors ${confirmColor}`}
-            >
-              {loading && <LoaderCircle size={14} className="animate-spin" />}
-              {confirmText}
-            </button>
+      <DialogContent className="max-w-sm p-4 rounded-xl">
+        <div className="flex items-start gap-3">
+          <TriangleAlert size={18} className={`flex-shrink-0 mt-0.5 ${variant === 'danger' ? 'text-red-500' : variant === 'warning' ? 'text-amber-500' : 'text-blue-500'}`} />
+          <div className="min-w-0 flex-1">
+            <DialogTitle className="text-sm font-semibold text-slate-800">{title}</DialogTitle>
+            <DialogDescription className="text-sm text-slate-600 mt-1 leading-relaxed">
+              {message}
+            </DialogDescription>
           </div>
+        </div>
+        <div className="flex justify-end gap-2 mt-3">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+            className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-card border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 transition-colors"
+          >
+            {cancelText}
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={loading}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white rounded-lg disabled:opacity-50 transition-colors ${confirmColor}`}
+          >
+            {loading && <LoaderCircle size={14} className="animate-spin" />}
+            {confirmText}
+          </button>
         </div>
       </DialogContent>
     </Dialog>

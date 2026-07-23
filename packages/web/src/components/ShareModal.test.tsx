@@ -48,7 +48,7 @@ describe('ShareModal', () => {
     );
 
     // Fill password
-    fireEvent.change(screen.getByPlaceholderText('Leave blank for no password'), {
+    fireEvent.change(screen.getByPlaceholderText('Password (optional)'), {
       target: { value: 'secret123' },
     });
 
@@ -123,18 +123,18 @@ describe('ShareModal', () => {
     );
 
     // Expand advanced
-    fireEvent.click(screen.getByText('Advanced Settings'));
+    fireEvent.click(screen.getByText('Advanced'));
 
     // Toggle "Require Email"
-    fireEvent.click(screen.getByText('Require Email to View'));
+    fireEvent.click(screen.getByText('Require email to view'));
 
     // Set max downloads
-    fireEvent.change(screen.getByPlaceholderText('e.g. 10 (Leave blank for unlimited)'), {
+    fireEvent.change(screen.getByPlaceholderText('Max downloads (blank = unlimited)'), {
       target: { value: '5' },
     });
 
     // Uncheck "Allow Downloads" (checked by default)
-    fireEvent.click(screen.getByText('Allow Downloads'));
+    fireEvent.click(screen.getByText('Allow downloads'));
 
     fireEvent.click(screen.getByRole('button', { name: 'Create Link' }));
 

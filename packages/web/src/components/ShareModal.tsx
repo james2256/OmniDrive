@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Copy, Check, Share2, Calendar, Lock, Settings, ChevronDown, ChevronUp } from 'lucide-react';
+import { Copy, Check, Settings, ChevronDown, ChevronUp } from 'lucide-react';
 import { createSharedLink } from '../lib/api';
 import { useInvalidateSharedLinks } from '../hooks/useSharedLinks';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
@@ -105,163 +105,131 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !loading && onClose()}>
-      <DialogContent className="max-w-md p-0 gap-0 rounded-xl overflow-hidden flex flex-col max-h-full">
-        <div className="flex items-center p-3 sm:p-4 border-b border-slate-200 shrink-0">
-          <DialogTitle className="text-base font-semibold text-slate-800 flex items-center gap-2">
-            <Share2 size={18} className="text-blue-500" />
-            Share {targetType === 'file' ? 'File' : 'Folder'}
-          </DialogTitle>
-        </div>
-
-        <div className="p-3 sm:p-4 overflow-y-auto">
-          {error && (
-            <div className="text-red-500 mb-4 text-sm bg-red-50 p-3 rounded-lg border border-red-100">
-              {error}
-            </div>
-          )}
-
-          {!sharedUrl ? (
-            <form onSubmit={handleShare} className="flex flex-col gap-2.5">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-slate-700 flex items-center gap-1.5">
-                  <Lock size={14} className="text-slate-500" /> Password (optional)
-                </label>
-                <input
-                  type="password"
-                  placeholder="Leave blank for no password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="px-3 py-2 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-slate-700 flex items-center gap-1.5">
-                  <Calendar size={14} className="text-slate-500" /> Expiration Date (optional)
-                </label>
-                <input
-                  type="datetime-local"
-                  value={expiresAt}
-                  min={currentDateTime}
-                  onChange={(e) => setExpiresAt(e.target.value)}
-                  className="px-3 py-2 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
-                />
-              </div>
-
-              <div className="pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAdvanced(!showAdvanced)}
-                  className="flex items-center text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors"
-                >
-                  <Settings size={14} className="mr-1.5" />
-                  Advanced Settings
-                  {showAdvanced ? <ChevronUp size={14} className="ml-1" /> : <ChevronDown size={14} className="ml-1" />}
-                </button>
-
-                <div className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${showAdvanced ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
-                  <div className="overflow-hidden">
-                    <div className="flex flex-col gap-2.5 mt-2.5 p-3 bg-slate-50 rounded-lg border border-slate-200">
-                      <label className="flex items-center gap-2.5 text-sm text-slate-700 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={allowDownloads}
-                          onChange={(e) => setAllowDownloads(e.target.checked)}
-                          className="w-4 h-4 rounded border-slate-400 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                        />
-                        <span className="select-none">Allow Downloads</span>
-                      </label>
-
-                      <label className="flex items-center gap-2.5 text-sm text-slate-700 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={requireEmail}
-                          onChange={(e) => setRequireEmail(e.target.checked)}
-                          className="w-4 h-4 rounded border-slate-400 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                        />
-                        <span className="select-none">Require Email to View</span>
-                      </label>
-
-                      <div className="flex flex-col gap-1.5 mt-2">
-                        <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Max Downloads</label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={maxDownloads}
-                          onChange={(e) => setMaxDownloads(e.target.value)}
-                          placeholder="e.g. 10 (Leave blank for unlimited)"
-                          className="px-3 py-2 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
-
-                      <div className="flex flex-col gap-1.5 mt-2">
-                        <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Webhook URL</label>
-                        <input
-                          type="url"
-                          value={webhookUrl}
-                          onChange={(e) => setWebhookUrl(e.target.value)}
-                          placeholder="e.g. https://your-api.com/webhook"
-                          className="px-3 py-2 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
-                    </div>
-                  </div>
+      <DialogContent className="max-w-md p-4 rounded-xl max-h-[85vh] overflow-y-auto">
+        <DialogTitle className="text-sm font-semibold text-slate-800 mb-3">
+          Share {targetType === 'file' ? 'File' : 'Folder'}
+        </DialogTitle>
+        {error && (
+          <div className="text-red-500 mb-3 text-sm bg-red-50 p-2 rounded-lg border border-red-100">
+            {error}
+          </div>
+        )}
+        {!sharedUrl ? (
+          <form onSubmit={handleShare} className="flex flex-col gap-2">
+            <input
+              type="password"
+              placeholder="Password (optional)"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
+            />
+            <input
+              type="datetime-local"
+              value={expiresAt}
+              min={currentDateTime}
+              onChange={(e) => setExpiresAt(e.target.value)}
+              className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
+            />
+            <button
+              type="button"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="flex items-center text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors py-1"
+            >
+              <Settings size={12} className="mr-1" />
+              Advanced
+              {showAdvanced ? <ChevronUp size={12} className="ml-1" /> : <ChevronDown size={12} className="ml-1" />}
+            </button>
+            <div className={`grid transition-[grid-template-rows] duration-200 ${showAdvanced ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+              <div className="overflow-hidden">
+                <div className="flex flex-col gap-2 pt-1">
+                  <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={allowDownloads}
+                      onChange={(e) => setAllowDownloads(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded border-slate-400 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <span className="select-none">Allow downloads</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={requireEmail}
+                      onChange={(e) => setRequireEmail(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded border-slate-400 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <span className="select-none">Require email to view</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={maxDownloads}
+                    onChange={(e) => setMaxDownloads(e.target.value)}
+                    placeholder="Max downloads (blank = unlimited)"
+                    className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <input
+                    type="url"
+                    value={webhookUrl}
+                    onChange={(e) => setWebhookUrl(e.target.value)}
+                    placeholder="Webhook URL (optional)"
+                    className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
                 </div>
               </div>
-
-              <div className="flex justify-end gap-2 mt-3 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  className="px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                  onClick={onClose}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex items-center justify-center  px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    'Create Link'
-                  )}
-                </button>
-              </div>
-            </form>
-          ) : (
-            <div className="flex flex-col gap-2.5">
-              <p className="text-sm text-slate-600 bg-blue-50 p-3 rounded-lg border border-blue-100">
-                Anyone with this link can access the {targetType}.
-              </p>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  readOnly
-                  value={sharedUrl}
-                  className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-600 focus:outline-none"
-                  onClick={(e) => e.currentTarget.select()}
-                />
-                <button
-                  className="flex items-center justify-center w-10 h-10 text-slate-700 bg-card border border-slate-400 rounded-lg hover:bg-slate-50 transition-colors shrink-0"
-                  onClick={copyToClipboard}
-                  title="Copy to clipboard"
-                >
-                  {copied ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
-                </button>
-              </div>
-              <div className="flex justify-end mt-3 pt-3 border-t border-slate-100">
-                <button
-                  className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-                  onClick={onClose}
-                >
-                  Done
-                </button>
-              </div>
             </div>
-          )}
-        </div>
+            <div className="flex justify-end gap-2 mt-2">
+              <button
+                type="button"
+                className="px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                onClick={onClose}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="flex items-center justify-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={loading}
+              >
+                {loading ? (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  'Create Link'
+                )}
+              </button>
+            </div>
+          </form>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <p className="text-xs text-slate-600 bg-blue-50 p-2 rounded-lg border border-blue-100">
+              Anyone with this link can access the {targetType}.
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                readOnly
+                value={sharedUrl}
+                className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600 focus:outline-none"
+                onClick={(e) => e.currentTarget.select()}
+              />
+              <button
+                className="flex items-center justify-center w-9 h-9 text-slate-700 bg-card border border-slate-400 rounded-lg hover:bg-slate-50 transition-colors shrink-0"
+                onClick={copyToClipboard}
+                title="Copy to clipboard"
+              >
+                {copied ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
+              </button>
+            </div>
+            <div className="flex justify-end mt-2">
+              <button
+                className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+                onClick={onClose}
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

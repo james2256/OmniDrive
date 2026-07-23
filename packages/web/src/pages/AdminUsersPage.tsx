@@ -49,32 +49,30 @@ const AddUserModal: React.FC<{ open: boolean, onClose: () => void, onSuccess: ()
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md p-0 gap-0 rounded-xl overflow-hidden">
-        <div className="flex items-center p-3 sm:p-4 border-b border-slate-200 shrink-0">
-          <DialogTitle className="text-base font-medium text-slate-900">Add User</DialogTitle>
-        </div>
-        <form onSubmit={handleSubmit} className="p-3 sm:p-4">
+      <DialogContent className="max-w-md p-4 rounded-xl">
+        <DialogTitle className="text-sm font-medium text-slate-900 mb-3">Add User</DialogTitle>
+        <form onSubmit={handleSubmit}>
           {error && <div className="mb-3 text-sm text-red-600 bg-red-50 p-2 rounded">{error}</div>}
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Username *</label>
-              <input required value={username} onChange={e => setUsername(e.target.value)} className="w-full px-3 py-2 border border-slate-400 rounded-md focus:ring-2 focus:ring-blue-500 outline-none" />
+              <input required value={username} onChange={e => setUsername(e.target.value)} className="w-full px-3 py-1.5 border border-slate-400 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Password *</label>
-              <input required type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-3 py-2 border border-slate-400 rounded-md focus:ring-2 focus:ring-blue-500 outline-none" />
+              <input required type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-3 py-1.5 border border-slate-400 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
-              <input value={name} onChange={e => setName(e.target.value)} className="w-full px-3 py-2 border border-slate-400 rounded-md focus:ring-2 focus:ring-blue-500 outline-none" />
+              <input value={name} onChange={e => setName(e.target.value)} className="w-full px-3 py-1.5 border border-slate-400 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full px-3 py-2 border border-slate-400 rounded-md focus:ring-2 focus:ring-blue-500 outline-none" />
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full px-3 py-1.5 border border-slate-400 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
-              <select value={role} onChange={e => setRole(e.target.value as 'super_admin' | 'member')} className="w-full px-3 py-2 border border-slate-400 rounded-md focus:ring-2 focus:ring-blue-500 outline-none">
+              <select value={role} onChange={e => setRole(e.target.value as 'super_admin' | 'member')} className="w-full px-3 py-1.5 border border-slate-400 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
                 <option value="member">Member</option>
                 <option value="super_admin">Super Admin</option>
               </select>

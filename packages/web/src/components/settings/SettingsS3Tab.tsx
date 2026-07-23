@@ -206,49 +206,37 @@ export function SettingsS3Tab() {
 
       {/* Create S3 Key Dialog */}
       <Dialog open={showCreateModal} onOpenChange={(open) => !open && !isCreatingKey && setShowCreateModal(false)}>
-        <DialogContent className="max-w-md p-0 gap-0 rounded-xl overflow-hidden flex flex-col">
-          <div className="flex flex-col p-3 sm:p-4 border-b border-slate-200 shrink-0">
-            <DialogTitle className="text-base font-semibold text-slate-800">Generate S3 API Key</DialogTitle>
-            <DialogDescription className="text-xs text-slate-500">
-              Create credentials to access OmniDrive storage with S3 compatible applications.
-            </DialogDescription>
-          </div>
-          <form onSubmit={handleCreateKey} className="space-y-3 p-3 sm:p-4 overflow-y-auto">
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                Description
-              </label>
-              <input
-                type="text"
-                value={newKeyDescription}
-                onChange={(e) => setNewKeyDescription(e.target.value)}
-                placeholder="e.g. Rclone desktop client, backup script"
-                className="w-full border border-slate-400 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-                maxLength={100}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                Scope
-              </label>
-              <select
-                value={newKeyScope}
-                onChange={(e) => setNewKeyScope(e.target.value)}
-                className="w-full border border-slate-400 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-card"
-              >
-                <option value="">Global (All Workspaces)</option>
-                {workspaces.map((w: { id: string; name: string; role: string }) => (
-                  <option key={w.id} value={w.id}>
-                    Workspace: {w.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex gap-2 justify-end pt-3">
+        <DialogContent className="max-w-md p-4 rounded-xl">
+          <DialogTitle className="text-sm font-semibold text-slate-800 mb-1">Generate S3 API Key</DialogTitle>
+          <DialogDescription className="text-xs text-slate-500 mb-3">
+            Create credentials to access OmniDrive storage with S3 compatible applications.
+          </DialogDescription>
+          <form onSubmit={handleCreateKey} className="space-y-2.5">
+            <input
+              type="text"
+              value={newKeyDescription}
+              onChange={(e) => setNewKeyDescription(e.target.value)}
+              placeholder="Description (e.g. Rclone desktop client)"
+              className="w-full border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+              maxLength={100}
+            />
+            <select
+              value={newKeyScope}
+              onChange={(e) => setNewKeyScope(e.target.value)}
+              className="w-full border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-card"
+            >
+              <option value="">Global (All Workspaces)</option>
+              {workspaces.map((w: { id: string; name: string; role: string }) => (
+                <option key={w.id} value={w.id}>
+                  Workspace: {w.name}
+                </option>
+              ))}
+            </select>
+            <div className="flex gap-2 justify-end mt-1">
               <button
                 type="button"
-                className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-card border border-slate-400 rounded-xl hover:bg-slate-50 transition-colors"
+                className="px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
                 onClick={() => setShowCreateModal(false)}
                 disabled={isCreatingKey}
               >
@@ -256,10 +244,10 @@ export function SettingsS3Tab() {
               </button>
               <button
                 type="submit"
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
                 disabled={isCreatingKey || !newKeyDescription.trim()}
               >
-                {isCreatingKey && <LoaderCircle className="animate-spin" size={16} />}
+                {isCreatingKey && <LoaderCircle className="animate-spin" size={14} />}
                 Generate Key
               </button>
             </div>
@@ -270,22 +258,20 @@ export function SettingsS3Tab() {
       {/* Success Modal - Credentials Display */}
       <Dialog open={createdCredential !== null} onOpenChange={(open) => !open && setCreatedCredential(null)}>
         <DialogContent
-          className="sm:max-w-[460px] p-0 gap-0 rounded-xl overflow-hidden flex flex-col"
+          className="sm:max-w-[460px] p-4 rounded-xl"
           onPointerDownOutside={(e) => e.preventDefault()}
           onEscapeKeyDown={(e) => e.preventDefault()}
         >
-          <div className="flex flex-col p-3 sm:p-4 border-b border-slate-200 shrink-0">
-            <DialogTitle className="text-base font-semibold text-slate-800 flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block animate-ping" />
-              S3 Key Created Successfully
-            </DialogTitle>
-            <DialogDescription className="text-xs text-slate-500">
-              Save these credentials. For security, the secret key will never be shown again.
-            </DialogDescription>
-          </div>
+          <DialogTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2 mb-1">
+            <span className="w-2 h-2 rounded-full bg-green-500 inline-block animate-ping" />
+            S3 Key Created
+          </DialogTitle>
+          <DialogDescription className="text-xs text-slate-500 mb-3">
+            Save these credentials. The secret key will never be shown again.
+          </DialogDescription>
 
           {createdCredential && (
-            <div className="space-y-3 p-3 sm:p-4 overflow-y-auto">
+            <div className="space-y-2.5">
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex gap-3">
                 <TriangleAlert className="text-amber-600 flex-shrink-0 mt-0.5" size={18} />
                 <div className="text-xs text-amber-800">

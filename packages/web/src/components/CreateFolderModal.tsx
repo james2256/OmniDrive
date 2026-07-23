@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { FolderPlus } from 'lucide-react';
 import { api } from '../lib/api';
 import { useToastStore } from '../stores/useToastStore';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
@@ -80,76 +79,57 @@ export function CreateFolderModal({ open, parentId, title, onClose, onSuccess, d
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !loading && onClose()}>
-      <DialogContent className="max-w-md p-0 gap-0 rounded-xl overflow-hidden flex flex-col">
-        <div className="flex items-center p-3 sm:p-4 border-b border-slate-200 shrink-0">
-          <DialogTitle className="text-base font-semibold text-slate-800 flex items-center gap-2">
-            <FolderPlus size={18} className="text-blue-500" />
-            {title}
-          </DialogTitle>
-        </div>
-
-        <div className="p-3 sm:p-4">
-          {error && (
-            <div className="text-red-500 mb-4 text-sm bg-red-50 p-3 rounded-lg border border-red-100">
-              {error}
-            </div>
+      <DialogContent className="max-w-md p-4 rounded-xl">
+        <DialogTitle className="text-sm font-semibold text-slate-800 mb-3">{title}</DialogTitle>
+        {error && (
+          <div className="text-red-500 mb-3 text-sm bg-red-50 p-2 rounded-lg border border-red-100">
+            {error}
+          </div>
+        )}
+        <form onSubmit={handleSubmit} className="flex flex-col gap-2.5">
+          {showDrivePicker && (
+            <select
+              value={selectedDriveId}
+              onChange={(e) => setSelectedDriveId(e.target.value)}
+              className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
+            >
+              <option value="">Select a drive…</option>
+              {(drives ?? []).map((drive, i) => (
+                <option key={drive.id} value={drive.id}>
+                  {drive.email} ({i + 1})
+                </option>
+              ))}
+            </select>
           )}
-
-          <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-            {showDrivePicker && (
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-slate-700">Target Drive</label>
-                <select
-                  value={selectedDriveId}
-                  onChange={(e) => setSelectedDriveId(e.target.value)}
-                  className="px-3 py-2 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
-                >
-                  <option value="">Select a drive…</option>
-                  {(drives ?? []).map((drive, i) => (
-                    <option key={drive.id} value={drive.id}>
-                      {drive.email} ({i + 1})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-slate-700">
-                {entityLabel} name
-              </label>
-              <input
-                type="text"
-                autoFocus
-                placeholder={`Enter ${entityLabel.toLowerCase()} name`}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="px-3 py-2 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 mt-2 pt-3 border-t border-slate-100">
-              <button
-                type="button"
-                className="px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                onClick={onClose}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="flex items-center justify-center  px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={loading || (showDrivePicker && !selectedDriveId)}
-              >
-                {loading ? (
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  'Create'
-                )}
-              </button>
-            </div>
-          </form>
-        </div>
+          <input
+            type="text"
+            autoFocus
+            placeholder={`Enter ${entityLabel.toLowerCase()} name`}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
+          />
+          <div className="flex justify-end gap-2 mt-1">
+            <button
+              type="button"
+              className="px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+              onClick={onClose}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex items-center justify-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={loading || (showDrivePicker && !selectedDriveId)}
+            >
+              {loading ? (
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                'Create'
+              )}
+            </button>
+          </div>
+        </form>
       </DialogContent>
     </Dialog>
   );
