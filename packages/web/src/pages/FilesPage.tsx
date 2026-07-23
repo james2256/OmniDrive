@@ -170,8 +170,8 @@ export function FilesPage() {
 
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3 px-4 pt-4 mb-4">
             {/* Mobile Row 1: filter + view toggle + info | Desktop: right side */}
-            <div className="flex gap-2 items-center order-1 sm:order-2 sm:ml-auto">
-              <div className="relative w-28 sm:w-48 flex-shrink-0">
+            <div className="flex gap-2 items-center order-1 sm:order-2 sm:ml-auto w-full sm:w-auto">
+              <div className="relative flex-1 sm:w-48 sm:flex-initial flex-shrink-0 sm:flex-shrink">
                 <input
                   type="text"
                   placeholder="Filter..."
