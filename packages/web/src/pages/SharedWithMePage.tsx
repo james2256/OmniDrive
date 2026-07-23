@@ -162,13 +162,13 @@ export function SharedWithMePage() {
 
       <div className="p-4 sm:p-6 space-y-6">
         {/* Toolbar */}
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-2 sm:gap-3 px-2 sm:px-4 pt-3 sm:pt-4">
-          <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden order-2 md:order-1">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 px-4 pt-4 mb-4">
+          <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden order-2 sm:order-1">
             <Breadcrumb items={breadcrumb} driveId={driveIdParam || undefined} />
           </div>
 
-          <div className="flex gap-1.5 sm:gap-2 items-center flex-wrap order-1 md:order-2">
-            <div className="relative w-28 sm:w-48">
+          <div className="flex gap-1.5 sm:gap-2 items-center overflow-x-auto flex-nowrap pb-1 sm:pb-0 order-1 sm:order-2">
+            <div className="relative w-28 sm:w-48 flex-shrink-0">
               <input
                 type="text"
                 placeholder="Filter..."
@@ -188,7 +188,7 @@ export function SharedWithMePage() {
               )}
             </div>
 
-            <div className="flex items-center border border-slate-400 rounded-md overflow-hidden bg-card mr-1">
+            <div className="flex items-center border border-slate-400 rounded-md overflow-hidden bg-card flex-shrink-0">
               <button
                 onClick={() => setViewMode('list')}
                 className={`p-2 ${viewMode === 'list' ? 'bg-blue-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50'}`}
@@ -209,7 +209,7 @@ export function SharedWithMePage() {
 
             <button
               onClick={toggleInfoPanel}
-              className={`p-2 rounded-full mr-1 ${isInfoPanelOpen ? 'bg-blue-100 text-slate-900' : 'text-slate-600 hover:bg-slate-100'}`}
+              className={`p-2 rounded-full flex-shrink-0 ${isInfoPanelOpen ? 'bg-blue-100 text-slate-900' : 'text-slate-600 hover:bg-slate-100'}`}
               title="View details"
               aria-label="View details"
             >
