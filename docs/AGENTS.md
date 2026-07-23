@@ -329,3 +329,4 @@ This project is planned to become a standalone application. When rebranding:
 3. Update `docker-compose.yml`, `wrangler.toml` worker name
 4. Add copyright in `LICENSE`, do not remove the old one
 5. Update all documents in the `docs/` folder
+
