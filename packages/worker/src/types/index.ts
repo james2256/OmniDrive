@@ -42,7 +42,8 @@ export interface FileEntry {
   userId: string;
   driveAccountId: string;
   googleFileId: string;
-  virtualFolderId: string | null;
+  workspaceId: string | null;
+  workspaceFolderId: string | null;
   googleParentId: string | null;
   name: string;
   mimeType: string | null;
@@ -192,7 +193,8 @@ export function mapFileRow(row: Record<string, unknown>): FileEntry {
     userId: row.user_id as string,
     driveAccountId: row.drive_account_id as string,
     googleFileId: row.google_file_id as string,
-    virtualFolderId: (row.workspace_folder_id as string) ?? (row.virtual_folder_id as string) ?? null,
+    workspaceId: (row.workspace_id as string) ?? null,
+    workspaceFolderId: (row.workspace_folder_id as string) ?? null,
     googleParentId: (row.google_parent_id as string) ?? null,
     name: row.name as string,
     mimeType: (row.mime_type as string) ?? null,

@@ -1,4 +1,4 @@
-import type { D1Database } from '@cloudflare/workers-types';
+import type { D1Database, D1Result } from '@cloudflare/workers-types';
 
 /**
  * Data access layer for `drive_accounts` and `drive_folders` tables.
@@ -262,5 +262,63 @@ export class DriveRepository {
   deleteDriveFolder(driveId: string, googleFolderId: string) {
     return this.db.prepare('DELETE FROM drive_folders WHERE drive_account_id = ? AND google_folder_id = ?')
       .bind(driveId, googleFolderId).run();
+  }
+
+  /** Find a drive by Google account ID + user (dedup check for OAuth connect). */
+  findDriveByGoogleAccountId(userId: string, googleAccountId: string) {
+    return this.db.prepare('SELECT id FROM drive_accounts WHERE user_id = ? AND google_account_id = ?')
+      .bind(userId, googleAccountId).first<{ id: string }>();
+  }
+
+  /** Count drives for a user (primary-drive promotion logic). */
+  countDrivesByUser(userId: string) {
+    return this.db.prepare('SELECT COUNT(*) as count FROM drive_accounts WHERE user_id = ?')
+      .bind(userId).first<{ count: number }>();
+  }
+
+  /** Find drive folders by parent (folder browsing). */
+  findDriveFoldersByParent(driveId: string, parentId: string | null): Promise<D1Result<Record<string, unknown>>> {
+    const base = 'SELECT * FROM drive_folders WHERE drive_account_id = ? AND is_trashed = 0';
+    if (parentId === null) {
+      return this.db.prepare(`${base} AND google_parent_id IS NULL ORDER BY name ASC LIMIT 1000`)
+        .bind(driveId).all();
+    }
+    return this.db.prepare(`${base} AND google_parent_id = ? ORDER BY name ASC LIMIT 1000`)
+      .bind(driveId, parentId).all();
+  }
+
+  /** Find files by Google parent ID (folder browsing). */
+  findFilesByParent(driveId: string, parentId: string): Promise<D1Result<Record<string, unknown>>> {
+    return this.db.prepare(
+      'SELECT * FROM files WHERE drive_account_id = ? AND google_parent_id = ? AND is_trashed = 0 ORDER BY name ASC LIMIT 1000'
+    ).bind(driveId, parentId).all();
+  }
+
+  /** Mark a drive folder as synced (lazy-load completion). */
+  markDriveFolderSynced(driveId: string, googleFolderId: string) {
+    return this.db.prepare(
+      `UPDATE drive_folders SET is_synced = 1, synced_at = datetime('now') WHERE drive_account_id = ? AND google_folder_id = ?`
+    ).bind(driveId, googleFolderId).run();
+  }
+
+  /** Find a drive folder by Google folder ID. */
+  findDriveFolderByGoogleId(driveId: string, googleFolderId: string) {
+    return this.db.prepare(
+      'SELECT * FROM drive_folders WHERE drive_account_id = ? AND google_folder_id = ?'
+    ).bind(driveId, googleFolderId).first();
+  }
+
+  /** Insert a new drive account (service account flow). */
+  insertDriveAccount(params: {
+    id: string; userId: string; googleAccountId: string; email: string;
+    name: string; isPrimary: number; rootFolderId: string;
+  }) {
+    return this.db.prepare(
+      `INSERT INTO drive_accounts (id, user_id, google_account_id, email, name, type, is_primary, root_folder_id)
+       VALUES (?, ?, ?, ?, ?, 'service_account', ?, ?)`
+    ).bind(
+      params.id, params.userId, params.googleAccountId, params.email,
+      params.name, params.isPrimary, params.rootFolderId
+    ).run();
   }
 }

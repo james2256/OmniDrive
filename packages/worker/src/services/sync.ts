@@ -24,7 +24,7 @@ const MIME_TYPE_FOLDER = 'application/vnd.google-apps.folder';
 const MIME_TYPE_SHORTCUT = 'application/vnd.google-apps.shortcut';
 
 // Workers Free plan: 50 external subrequests (fetch to Google API) per invocation.
-// D1 calls have a separate 1,000 limit — not the bottleneck. Sync is I/O-bound
+// D1 calls: 50/invocation on Free, 1,000 on Paid. On Free, D1 can be a co-bottleneck.
 // (waiting on Google API + D1), so CPU time (10ms) is not the constraint either.
 // Per sync page: 1 external call (Google API fetch). One-time: getRootFolderId (1).
 // Completion: getStartPageToken (1) + getQuota (1). Budget 45 leaves margin for

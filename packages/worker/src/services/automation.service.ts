@@ -107,13 +107,20 @@ export class AutomationEngine {
 
 
     for (const [userId, rules] of rulesByUser.entries()) {
-      let offset = 0;
-      let hasMoreFiles = true;
+      let cursor: { name: string; id: string } | null = null;
+      let hasMore = true;
 
-      while (hasMoreFiles) {
-        const { results: files } = await db.prepare(
-          `SELECT * FROM files WHERE user_id = ? AND is_trashed = ? LIMIT ? OFFSET ?`
-        ).bind(userId, IS_NOT_TRASHED, BATCH_SIZE, offset).all();
+      while (hasMore) {
+        let sql = `SELECT * FROM files WHERE user_id = ? AND is_trashed = ?`;
+        const binds: (string | number)[] = [userId, IS_NOT_TRASHED];
+        if (cursor) {
+          sql += ` AND (name, id) > (?, ?)`;
+          binds.push(cursor.name, cursor.id);
+        }
+        sql += ` ORDER BY name ASC, id ASC LIMIT ?`;
+        binds.push(BATCH_SIZE);
+
+        const { results: files } = await db.prepare(sql).bind(...binds).all();
 
         if (files.length === 0) {
           break;
@@ -126,11 +133,12 @@ export class AutomationEngine {
             }
           }
         }
-        
+
         if (files.length < BATCH_SIZE) {
-          hasMoreFiles = false;
+          hasMore = false;
         } else {
-          offset += BATCH_SIZE;
+          const last = files[files.length - 1] as { name: string; id: string };
+          cursor = { name: last.name, id: last.id };
         }
       }
     }

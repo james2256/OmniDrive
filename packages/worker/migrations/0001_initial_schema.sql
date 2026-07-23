@@ -138,6 +138,7 @@ CREATE INDEX IF NOT EXISTS idx_files_user_workspace ON files(user_id, workspace_
 CREATE INDEX IF NOT EXISTS idx_files_workspace_folder ON files(workspace_folder_id);
 CREATE INDEX IF NOT EXISTS idx_files_drive ON files(drive_account_id);
 CREATE INDEX IF NOT EXISTS idx_files_name ON files(user_id, name);
+CREATE INDEX IF NOT EXISTS idx_files_user_trashed_name_id ON files(user_id, is_trashed, name, id);
 CREATE INDEX IF NOT EXISTS idx_files_google_parent ON files(drive_account_id, google_parent_id);
 CREATE INDEX IF NOT EXISTS idx_workspace_folders_parent ON workspace_folders(workspace_id, parent_id);
 CREATE INDEX IF NOT EXISTS idx_workspace_members_user ON workspace_members(user_id);

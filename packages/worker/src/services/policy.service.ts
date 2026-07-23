@@ -1,7 +1,12 @@
 import type { D1Database } from '@cloudflare/workers-types';
+import type { GoogleDriveService } from './google-drive';
+import { logErrorNoCtx } from '../lib/logger';
 
 export class PolicyService {
-  constructor(private db: D1Database) {}
+  constructor(
+    private db: D1Database,
+    private driveService: GoogleDriveService,
+  ) {}
 
   async checkQuota(workspaceId: string, incomingBytes: number): Promise<boolean> {
     const workspace = await this.db.prepare('SELECT used_bytes FROM workspaces WHERE id = ?').bind(workspaceId).first<{ used_bytes: number }>();
@@ -37,7 +42,9 @@ export class PolicyService {
     await this.db.prepare('UPDATE workspaces SET used_bytes = COALESCE(used_bytes, 0) + ? WHERE id = ?').bind(sizeDelta, workspaceId).run();
   }
 
-  async processAutoDeleteRetentionPolicies(_googleClientId: string, _googleClientSecret: string) {
+  async processAutoDeleteRetentionPolicies() {
+    const MAX_DELETES_PER_CYCLE = 20; // Free-tier: 50 subrequests, leave margin for DB calls
+
     // 1. Get all auto_delete policies
     const { results: policies } = await this.db.prepare(
       `SELECT * FROM workspace_policies WHERE policy_type = 'data_retention' AND json_extract(config, '$.action') = 'auto_delete'`
@@ -66,16 +73,23 @@ export class PolicyService {
 
       const { results: expiredFiles } = await this.db.prepare(query).bind(...binds).all<{ id: string, user_id: string, google_file_id: string, size: number, workspace_id: string, driveId: string }>();
 
-      if (expiredFiles.length > 0) {
-        // dynamic import or require is hard in workers without proper structure. 
-        // We will just do a simple db delete for now and rely on sync to reflect drive state, 
-        // or just delete from DB and update quota. Ideally we would call GoogleDriveService.
-        for (const file of expiredFiles) {
-          // In a real app we would call driveService.deleteFile(file.driveId, file.google_file_id) here
-          // We will just remove from DB and update quota for this implementation
-          await this.db.prepare('DELETE FROM files WHERE id = ?').bind(file.id).run();
-          await this.updateWorkspaceStorage(file.workspace_id, -file.size);
+      let deleted = 0;
+      for (const file of expiredFiles) {
+        if (deleted >= MAX_DELETES_PER_CYCLE) break;
+
+        // Permanently delete via Google Drive API, then remove from DB.
+        // If the Google API call fails, skip the DB delete — the file still
+        // exists in Drive and would reappear on next sync.
+        try {
+          await this.driveService.deleteFile(file.driveId, file.google_file_id);
+        } catch (error) {
+          logErrorNoCtx('Retention auto-delete: Google Drive API call failed', error, { fileId: file.id });
+          continue;
         }
+
+        await this.db.prepare('DELETE FROM files WHERE id = ?').bind(file.id).run();
+        await this.updateWorkspaceStorage(file.workspace_id, -file.size);
+        deleted++;
       }
     }
   }

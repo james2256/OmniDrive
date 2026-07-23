@@ -98,10 +98,8 @@ drivesRouter.get('/:driveId/shared-folders/:googleFolderId', async (c) => {
   const { driveId, googleFolderId } = c.req.param();
   const db = c.env.DB;
 
-  const drive = await db
-    .prepare('SELECT id, email FROM drive_accounts WHERE id = ? AND user_id = ?')
-    .bind(driveId, userId)
-    .first<{ id: string; email: string }>();
+  const driveRepo = new DriveRepository(db);
+  const drive = await driveRepo.findByIdAndUser(driveId, userId);
   if (!drive) return c.json({ error: 'Drive not found' }, 404);
 
   const driveService = new GoogleDriveService(db, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
@@ -229,35 +227,20 @@ drivesRouter.post('/service-account', zValidator('json', serviceAccountSchema, z
 
   const db = c.env.DB;
 
-  const existing = await db
-    .prepare('SELECT id FROM drive_accounts WHERE user_id = ? AND google_account_id = ?')
-    .bind(userId, sa.client_email)
-    .first();
+  const driveRepo = new DriveRepository(db);
+  const existing = await driveRepo.findDriveByGoogleAccountId(userId, sa.client_email);
 
   if (existing) throw new AppError(409, 'This service account is already connected');
 
   const driveId = generateId();
-  const countRow = await db
-    .prepare('SELECT COUNT(*) as count FROM drive_accounts WHERE user_id = ?')
-    .bind(userId)
-    .first<{ count: number }>();
+  const countRow = await driveRepo.countDrivesByUser(userId);
   const isPrimary = (countRow?.count ?? 0) === 0 ? 1 : 0;
 
-  await db
-    .prepare(
-      `INSERT INTO drive_accounts (id, user_id, google_account_id, email, name, type, is_primary, root_folder_id)
-       VALUES (?, ?, ?, ?, ?, 'service_account', ?, ?)`
-    )
-    .bind(
-      driveId,
-      userId,
-      sa.client_email,
-      sa.client_email,
-      folderInfo.name || sa.project_id || sa.client_email,
-      isPrimary,
-      folderId
-    )
-    .run();
+  await driveRepo.insertDriveAccount({
+    id: driveId, userId, googleAccountId: sa.client_email,
+    email: sa.client_email, name: folderInfo.name || sa.project_id || sa.client_email,
+    isPrimary, rootFolderId: folderId,
+  });
 
   const tokens = {
     authType: 'service_account' as const,
@@ -288,34 +271,19 @@ drivesRouter.get('/:driveId/folders/:googleFolderId', async (c) => {
   const userId = c.get('userId');
   const { driveId, googleFolderId } = c.req.param();
 
-  const drive = await c.env.DB
-    .prepare('SELECT id FROM drive_accounts WHERE id = ? AND user_id = ?')
-    .bind(driveId, userId)
-    .first();
-
+  const driveRepo = new DriveRepository(c.env.DB);
+  const drive = await driveRepo.findByIdAndUser(driveId, userId);
   if (!drive) return c.json({ error: 'Drive not found' }, 404);
 
   const folder = googleFolderId === 'root'
     ? null
-    : await c.env.DB
-        .prepare('SELECT * FROM drive_folders WHERE drive_account_id = ? AND google_folder_id = ?')
-        .bind(driveId, googleFolderId)
-        .first();
+    : await driveRepo.findDriveFolderByGoogleId(driveId, googleFolderId);
 
   const subfolderResult = googleFolderId === 'root'
-    ? await c.env.DB
-        .prepare('SELECT * FROM drive_folders WHERE drive_account_id = ? AND google_parent_id IS NULL AND is_trashed = 0 ORDER BY name ASC LIMIT 1000')
-        .bind(driveId)
-        .all()
-    : await c.env.DB
-        .prepare('SELECT * FROM drive_folders WHERE drive_account_id = ? AND google_parent_id = ? AND is_trashed = 0 ORDER BY name ASC LIMIT 1000')
-        .bind(driveId, googleFolderId)
-        .all();
+    ? await driveRepo.findDriveFoldersByParent(driveId, null)
+    : await driveRepo.findDriveFoldersByParent(driveId, googleFolderId);
 
-  const filesResult = await c.env.DB
-    .prepare('SELECT * FROM files WHERE drive_account_id = ? AND google_parent_id = ? AND is_trashed = 0 ORDER BY name ASC LIMIT 1000')
-    .bind(driveId, googleFolderId)
-    .all();
+  const filesResult = await driveRepo.findFilesByParent(driveId, googleFolderId);
 
   const breadcrumb = await buildDriveBreadcrumb(c.env.DB, driveId, googleFolderId);
 
@@ -335,10 +303,8 @@ drivesRouter.post('/:id/sync', async (c) => {
   const userId = c.get('userId');
   const driveId = c.req.param('id');
 
-  const row = await c.env.DB
-    .prepare('SELECT * FROM drive_accounts WHERE id = ? AND user_id = ?')
-    .bind(driveId, userId)
-    .first();
+  const driveRepo = new DriveRepository(c.env.DB);
+  const row = await driveRepo.findFullByIdAndUser(driveId, userId);
 
   if (!row) return c.json({ error: 'Drive not found' }, 404);
 
@@ -357,28 +323,16 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/sync', async (c) => {
   const userId = c.get('userId');
   const { driveId, googleFolderId } = c.req.param();
 
-  const driveRow = await c.env.DB
-    .prepare('SELECT * FROM drive_accounts WHERE id = ? AND user_id = ?')
-    .bind(driveId, userId)
-    .first();
-
+  const driveRepo = new DriveRepository(c.env.DB);
+  const driveRow = await driveRepo.findFullByIdAndUser(driveId, userId);
   if (!driveRow) return c.json({ error: 'Drive not found' }, 404);
 
-  const folder = await c.env.DB
-    .prepare('SELECT * FROM drive_folders WHERE drive_account_id = ? AND google_folder_id = ?')
-    .bind(driveId, googleFolderId)
-    .first();
+  const folder = await driveRepo.findDriveFolderByGoogleId(driveId, googleFolderId);
 
   // Idempotency: already synced — return existing DB data
   if (folder && (folder as Record<string, unknown>).is_synced) {
-    const subfolders = await c.env.DB
-      .prepare('SELECT * FROM drive_folders WHERE drive_account_id = ? AND google_parent_id = ? AND is_trashed = 0 ORDER BY name ASC LIMIT 1000')
-      .bind(driveId, googleFolderId)
-      .all();
-    const files = await c.env.DB
-      .prepare('SELECT * FROM files WHERE drive_account_id = ? AND google_parent_id = ? AND is_trashed = 0 ORDER BY name ASC LIMIT 1000')
-      .bind(driveId, googleFolderId)
-      .all();
+    const subfolders = await driveRepo.findDriveFoldersByParent(driveId, googleFolderId);
+    const files = await driveRepo.findFilesByParent(driveId, googleFolderId);
     const breadcrumb = await buildDriveBreadcrumb(c.env.DB, driveId, googleFolderId);
 
     return c.json({
@@ -401,20 +355,11 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/sync', async (c) => {
 
   // Mark folder as synced
   if (folder) {
-    await c.env.DB
-      .prepare(`UPDATE drive_folders SET is_synced = 1, synced_at = datetime('now') WHERE drive_account_id = ? AND google_folder_id = ?`)
-      .bind(driveId, googleFolderId)
-      .run();
+    await driveRepo.markDriveFolderSynced(driveId, googleFolderId);
   }
 
-  const newSubfolders = await c.env.DB
-    .prepare('SELECT * FROM drive_folders WHERE drive_account_id = ? AND google_parent_id = ? AND is_trashed = 0 ORDER BY name ASC LIMIT 1000')
-    .bind(driveId, googleFolderId)
-    .all();
-  const newFiles = await c.env.DB
-    .prepare('SELECT * FROM files WHERE drive_account_id = ? AND google_parent_id = ? AND is_trashed = 0 ORDER BY name ASC LIMIT 1000')
-    .bind(driveId, googleFolderId)
-    .all();
+  const newSubfolders = await driveRepo.findDriveFoldersByParent(driveId, googleFolderId);
+  const newFiles = await driveRepo.findFilesByParent(driveId, googleFolderId);
 
   const breadcrumb = await buildDriveBreadcrumb(c.env.DB, driveId, googleFolderId);
 

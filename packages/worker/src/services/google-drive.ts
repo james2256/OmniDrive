@@ -2,6 +2,7 @@ import type { D1Database } from '@cloudflare/workers-types';
 import type { OAuthTokens, QuotaCache } from '../types/index';
 import { parseStorageQuota, QUOTA_CACHE_VERSION } from '../lib/storage-quota';
 import { NotFoundError, AuthError, UpstreamError } from '../middleware/error-handler';
+import { withBackoff } from '../lib/backoff';
 
 // ponytail: split into token/file/folder/sync modules when a 4th method group
 // is added or when extending becomes painful. Currently 27 methods across 4
@@ -41,13 +42,6 @@ export interface GDriveFolder {
   owners?: GDriveOwner[];
 }
 
-export class GoogleDriveError extends Error {
-  constructor(public status: number, message: string, public data?: unknown) {
-    super(message);
-    this.name = 'GoogleDriveError';
-  }
-}
-
 export class GoogleDriveService {
   private encryptionKey?: string;
   // In-memory token cache — avoids a D1 read (loadTokens) on every page of a sync.
@@ -62,6 +56,36 @@ export class GoogleDriveService {
     encryptionKey?: string
   ) {
     this.encryptionKey = encryptionKey;
+  }
+
+  // ─── HTTP helper (backoff + retry) ───
+
+  /**
+   * Fetch wrapper with exponential backoff for Google API calls.
+   *
+   * Retries transient errors (429, 5xx, 403 rateLimitExceeded) and throws
+   * UpstreamError on terminal failure — so callers never need to check
+   * `response.ok`. The success Response body is left intact for the caller.
+   *
+   * @param opts.isSuccess - Custom success check (default: response.ok).
+   *   Pass for endpoints where a non-ok status is expected (e.g. deleteFile
+   *   treats 404 "already deleted" as success).
+   * @param opts.context - Label prepended to the error message for debugging
+   *   (e.g. "Failed to fetch quota").
+   */
+  private async driveFetch(
+    url: string,
+    init: RequestInit,
+    opts: { isSuccess?: (r: Response) => boolean; context?: string } = {},
+  ): Promise<Response> {
+    try {
+      return await withBackoff(() => fetch(url, init), { isSuccess: opts.isSuccess });
+    } catch (error) {
+      if (error instanceof UpstreamError && opts.context) {
+        throw new UpstreamError(`${opts.context}: ${error.message}`);
+      }
+      throw error;
+    }
   }
 
   // ─── Token Management ───
@@ -144,7 +168,7 @@ export class GoogleDriveService {
       const tokens = await this.loadTokens(driveAccountId);
       const token = tokens.refreshToken || tokens.accessToken;
       if (!token) return;
-      await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(token)}`, { method: 'POST' });
+      await this.driveFetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(token)}`, { method: 'POST' });
     } catch {
       // disconnect still proceeds if revoke fails
     }
@@ -152,7 +176,7 @@ export class GoogleDriveService {
 
   // ponytail: last-write-wins refresh — sync is mostly serial (activeSyncs guard); add single-flight lock if races become a problem
   private async refreshToken(driveAccountId: string, refreshToken: string): Promise<string> {
-    const response = await fetch(TOKEN_URL, {
+    const response = await this.driveFetch(TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -161,12 +185,7 @@ export class GoogleDriveService {
         refresh_token: refreshToken,
         grant_type: 'refresh_token',
       }),
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      throw new UpstreamError(`Token refresh failed for ${driveAccountId}: ${error}`);
-    }
+    }, { context: `Token refresh failed for ${driveAccountId}` });
 
     const data: { access_token: string; expires_in: number } = await response.json();
 
@@ -208,13 +227,9 @@ export class GoogleDriveService {
 
     // Fetch from Google Drive API
     const token = await this.getValidToken(driveAccountId);
-    const response = await fetch(`${DRIVE_API}/about?fields=storageQuota`, {
+    const response = await this.driveFetch(`${DRIVE_API}/about?fields=storageQuota`, {
       headers: { Authorization: `Bearer ${token}` },
-    });
-
-    if (!response.ok) {
-      throw new UpstreamError(`Failed to fetch quota: ${await response.text()}`);
-    }
+    }, { context: 'Failed to fetch quota' });
 
     const data: {
       storageQuota: { limit?: string; usageInDrive?: string; usage?: string };
@@ -247,12 +262,9 @@ export class GoogleDriveService {
 
   async getRootFolderId(driveAccountId: string): Promise<string> {
     const token = await this.getValidToken(driveAccountId);
-    const response = await fetch(`${DRIVE_API}/files/root?fields=id`, {
+    const response = await this.driveFetch(`${DRIVE_API}/files/root?fields=id`, {
       headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) {
-      throw new UpstreamError(`Failed to get root folder ID: ${await response.text()}`);
-    }
+    }, { context: 'Failed to get root folder ID' });
     const data: { id: string } = await response.json();
     return data.id;
   }
@@ -272,18 +284,14 @@ export class GoogleDriveService {
       metadata.parents = [parentId];
     }
 
-    const response = await fetch(`${DRIVE_API}/files`, {
+    const response = await this.driveFetch(`${DRIVE_API}/files`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(metadata),
-    });
-
-    if (!response.ok) {
-      throw new UpstreamError(`Failed to create folder: ${await response.text()}`);
-    }
+    }, { context: 'Failed to create folder' });
 
     const folder: { id: string } = await response.json();
     return folder.id;
@@ -299,7 +307,7 @@ export class GoogleDriveService {
   ): Promise<string> {
     const token = await this.getValidToken(driveAccountId);
 
-    const response = await fetch(
+    const response = await this.driveFetch(
       `https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true`,
       {
         method: 'POST',
@@ -312,12 +320,9 @@ export class GoogleDriveService {
           name: fileName,
           parents: [parentFolderId],
         }),
-      }
+      },
+      { context: 'Failed to initiate upload' }
     );
-
-    if (!response.ok) {
-      throw new UpstreamError(`Failed to initiate upload: ${await response.text()}`);
-    }
 
     const uploadUrl = response.headers.get('Location');
     if (!uploadUrl) {
@@ -336,13 +341,9 @@ export class GoogleDriveService {
     const token = await this.getValidToken(driveAccountId);
     const fields = 'id,name,mimeType,size,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum';
 
-    const response = await fetch(`${DRIVE_API}/files/${googleFileId}?fields=${fields}&supportsAllDrives=true`, {
+    const response = await this.driveFetch(`${DRIVE_API}/files/${googleFileId}?fields=${fields}&supportsAllDrives=true`, {
       headers: { Authorization: `Bearer ${token}` },
-    });
-
-    if (!response.ok) {
-      throw new UpstreamError(`Failed to get file: ${await response.text()}`);
-    }
+    }, { context: 'Failed to get file' });
 
     return response.json();
   }
@@ -373,13 +374,9 @@ export class GoogleDriveService {
       url = `${DRIVE_API}/files/${googleFileId}/export?mimeType=${exportedMimeType}`;
     }
 
-    const response = await fetch(url, {
+    const response = await this.driveFetch(url, {
       headers: { Authorization: `Bearer ${token}` },
-    });
-
-    if (!response.ok) {
-      throw new UpstreamError(`Failed to download file: ${await response.text()}`);
-    }
+    }, { context: 'Failed to download file' });
 
     if (!response.body) {
       throw new UpstreamError('Response body is null');
@@ -394,31 +391,24 @@ export class GoogleDriveService {
   async deleteFile(driveAccountId: string, googleFileId: string): Promise<void> {
     const token = await this.getValidToken(driveAccountId);
 
-    const response = await fetch(`${DRIVE_API}/files/${googleFileId}`, {
+    // 404 = already deleted; treat as success (idempotent delete)
+    await this.driveFetch(`${DRIVE_API}/files/${googleFileId}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
-    });
-
-    if (!response.ok && response.status !== 404) {
-      throw new UpstreamError(`Failed to delete file: ${await response.text()}`);
-    }
+    }, { isSuccess: (r) => r.ok || r.status === 404, context: 'Failed to delete file' });
   }
 
   async renameFile(driveAccountId: string, googleFileId: string, newName: string): Promise<void> {
     const token = await this.getValidToken(driveAccountId);
 
-    const response = await fetch(`${DRIVE_API}/files/${googleFileId}`, {
+    await this.driveFetch(`${DRIVE_API}/files/${googleFileId}`, {
       method: 'PATCH',
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ name: newName }),
-    });
-
-    if (!response.ok) {
-      throw new UpstreamError(`Failed to rename file: ${await response.text()}`);
-    }
+    }, { context: 'Failed to rename file' });
   }
 
   // ─── Move To Another Drive Operations ───
@@ -426,21 +416,14 @@ export class GoogleDriveService {
   async shareFile(driveAccountId: string, fileId: string, emailAddress: string, role = 'writer', type = 'user'): Promise<string> {
     const token = await this.getValidToken(driveAccountId);
 
-    const response = await fetch(`${DRIVE_API}/files/${fileId}/permissions?sendNotificationEmail=false`, {
+    const response = await this.driveFetch(`${DRIVE_API}/files/${fileId}/permissions?sendNotificationEmail=false`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ role, type, emailAddress }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      let errorData;
-      try { errorData = JSON.parse(errorText); } catch {}
-      throw new GoogleDriveError(response.status, `Failed to share file: ${errorText}`, errorData);
-    }
+    }, { context: 'Failed to share file' });
 
     const data: { id: string } = await response.json();
     return data.id;
@@ -449,35 +432,21 @@ export class GoogleDriveService {
   async revokeShare(driveAccountId: string, fileId: string, permissionId: string): Promise<void> {
     const token = await this.getValidToken(driveAccountId);
 
-    const response = await fetch(`${DRIVE_API}/files/${fileId}/permissions/${permissionId}`, {
+    await this.driveFetch(`${DRIVE_API}/files/${fileId}/permissions/${permissionId}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      let errorData;
-      try { errorData = JSON.parse(errorText); } catch {}
-      throw new GoogleDriveError(response.status, `Failed to revoke share: ${errorText}`, errorData);
-    }
+    }, { context: 'Failed to revoke share' });
   }
 
   async copyFile(driveAccountId: string, fileId: string, name?: string): Promise<GDriveFile> {
     const token = await this.getValidToken(driveAccountId);
     const fields = 'id,name,mimeType,size,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum';
 
-    const response = await fetch(`${DRIVE_API}/files/${fileId}/copy?fields=${fields}&supportsAllDrives=true`, {
+    const response = await this.driveFetch(`${DRIVE_API}/files/${fileId}/copy?fields=${fields}&supportsAllDrives=true`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(name ? { name } : {}),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      let errorData;
-      try { errorData = JSON.parse(errorText); } catch {}
-      throw new GoogleDriveError(response.status, `Failed to copy file: ${errorText}`, errorData);
-    }
+    }, { context: 'Failed to copy file' });
 
     return response.json();
   }
@@ -497,94 +466,62 @@ export class GoogleDriveService {
       params.set('removeParents', oldParentId);
     }
 
-    const response = await fetch(`${DRIVE_API}/files/${fileId}?${params}`, {
+    await this.driveFetch(`${DRIVE_API}/files/${fileId}?${params}`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${token}` },
-    });
-
-    if (!response.ok) {
-      throw new UpstreamError(`Failed to move item: ${await response.text()}`);
-    }
+    }, { context: 'Failed to move item' });
   }
 
   async trashFile(driveAccountId: string, fileId: string): Promise<void> {
     const token = await this.getValidToken(driveAccountId);
 
-    const response = await fetch(`${DRIVE_API}/files/${fileId}`, {
+    await this.driveFetch(`${DRIVE_API}/files/${fileId}`, {
       method: 'PATCH',
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ trashed: true }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      let errorData;
-      try { errorData = JSON.parse(errorText); } catch {}
-      throw new GoogleDriveError(response.status, `Failed to trash file: ${errorText}`, errorData);
-    }
+    }, { context: 'Failed to trash file' });
   }
 
   async trashFolder(driveAccountId: string, folderId: string): Promise<void> {
     const token = await this.getValidToken(driveAccountId);
 
-    const response = await fetch(`${DRIVE_API}/files/${folderId}?supportsAllDrives=true`, {
+    await this.driveFetch(`${DRIVE_API}/files/${folderId}?supportsAllDrives=true`, {
       method: 'PATCH',
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ trashed: true }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      let errorData;
-      try { errorData = JSON.parse(errorText); } catch {}
-      throw new GoogleDriveError(response.status, `Failed to trash folder: ${errorText}`, errorData);
-    }
+    }, { context: 'Failed to trash folder' });
   }
 
   async untrashFolder(driveAccountId: string, folderId: string): Promise<void> {
     const token = await this.getValidToken(driveAccountId);
 
-    const response = await fetch(`${DRIVE_API}/files/${folderId}?supportsAllDrives=true`, {
+    await this.driveFetch(`${DRIVE_API}/files/${folderId}?supportsAllDrives=true`, {
       method: 'PATCH',
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ trashed: false }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      let errorData;
-      try { errorData = JSON.parse(errorText); } catch {}
-      throw new GoogleDriveError(response.status, `Failed to untrash folder: ${errorText}`, errorData);
-    }
+    }, { context: 'Failed to untrash folder' });
   }
 
   async untrashFile(driveAccountId: string, fileId: string): Promise<void> {
     const token = await this.getValidToken(driveAccountId);
 
-    const response = await fetch(`${DRIVE_API}/files/${fileId}`, {
+    await this.driveFetch(`${DRIVE_API}/files/${fileId}`, {
       method: 'PATCH',
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ trashed: false }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      let errorData;
-      try { errorData = JSON.parse(errorText); } catch {}
-      throw new GoogleDriveError(response.status, `Failed to untrash file: ${errorText}`, errorData);
-    }
+    }, { context: 'Failed to untrash file' });
   }
 
   // ─── Changes API (for sync) ───
@@ -592,13 +529,9 @@ export class GoogleDriveService {
   async getStartPageToken(driveAccountId: string): Promise<string> {
     const token = await this.getValidToken(driveAccountId);
 
-    const response = await fetch(`${DRIVE_API}/changes/startPageToken`, {
+    const response = await this.driveFetch(`${DRIVE_API}/changes/startPageToken`, {
       headers: { Authorization: `Bearer ${token}` },
-    });
-
-    if (!response.ok) {
-      throw new UpstreamError(`Failed to get start page token: ${await response.text()}`);
-    }
+    }, { context: 'Failed to get start page token' });
 
     const data: { startPageToken: string } = await response.json();
     return data.startPageToken;
@@ -633,14 +566,11 @@ export class GoogleDriveService {
     const fields =
       'nextPageToken,newStartPageToken,changes(fileId,removed,file(id,name,mimeType,size,parents,owners(me,displayName),trashed,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum))';
 
-    const response = await fetch(
+    const response = await this.driveFetch(
       `${DRIVE_API}/changes?pageToken=${encodeURIComponent(pageToken)}&fields=${fields}&spaces=drive&includeRemoved=true`,
-      { headers: { Authorization: `Bearer ${token}` } }
+      { headers: { Authorization: `Bearer ${token}` } },
+      { context: 'Failed to list changes' }
     );
-
-    if (!response.ok) {
-      throw new UpstreamError(`Failed to list changes: ${await response.text()}`);
-    }
 
     return response.json();
   }
@@ -670,13 +600,9 @@ export class GoogleDriveService {
     do {
       const token = await this.getValidToken(driveAccountId);
       const url = `${DRIVE_API}/files?q=${q}&fields=nextPageToken,${fields}${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
-      const response = await fetch(url, {
+      const response = await this.driveFetch(url, {
         headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) {
-        throw new UpstreamError(`Failed to list files: ${await response.text()}`);
-      }
+      }, { context: 'Failed to list files' });
 
       const data: { files: GDriveFile[]; nextPageToken?: string } = await response.json();
       allFiles.push(...data.files);
@@ -703,13 +629,9 @@ export class GoogleDriveService {
     do {
       const token = await this.getValidToken(driveAccountId);
       const url = `${DRIVE_API}/files?q=${q}&fields=${fields}&supportsAllDrives=true&includeItemsFromAllDrives=true${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
-      const response = await fetch(url, {
+      const response = await this.driveFetch(url, {
         headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) {
-        throw new UpstreamError(`Failed to list folder contents: ${await response.text()}`);
-      }
+      }, { context: 'Failed to list folder contents' });
 
       const data: { files: GDriveFile[]; nextPageToken?: string } = await response.json();
       
@@ -741,13 +663,9 @@ export class GoogleDriveService {
     do {
       const token = await this.getValidToken(driveAccountId);
       const url = `${DRIVE_API}/files?q=${q}&fields=${fields}${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
-      const response = await fetch(url, {
+      const response = await this.driveFetch(url, {
         headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) {
-        throw new UpstreamError(`Failed to list folder contents: ${await response.text()}`);
-      }
+      }, { context: 'Failed to list folder contents' });
 
       const data: { files: GDriveFile[]; nextPageToken?: string } = await response.json();
 

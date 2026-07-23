@@ -36,7 +36,7 @@ export class FileService {
     this.folderRepo = new FolderRepository(db);
     this.driveRepo = new DriveRepository(db);
     this.driveService = new GoogleDriveService(db, clientId, clientSecret, encryptionKey);
-    this.policyService = new PolicyService(db);
+    this.policyService = new PolicyService(db, this.driveService);
   }
 
   /**

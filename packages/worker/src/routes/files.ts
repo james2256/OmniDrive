@@ -226,7 +226,7 @@ filesRouter.post('/upload/init', zValidator('json', uploadInitSchema, zodErrorHo
   }
 
   if (workspaceId && size) {
-    const policyService = new PolicyService(db);
+    const policyService = new PolicyService(db, new GoogleDriveService(db, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY));
     const hasQuota = await policyService.checkQuota(workspaceId, size);
     if (!hasQuota) {
       return c.json({ error: 'Storage quota exceeded' }, 403);
@@ -338,7 +338,7 @@ filesRouter.post('/upload/finalize', zValidator('json', uploadFinalizeSchema, zo
   });
 
   if (workspaceId && fileSize > 0) {
-    const policyService = new PolicyService(db);
+    const policyService = new PolicyService(db, driveService);
     await policyService.updateWorkspaceStorage(workspaceId, fileSize);
   }
 
