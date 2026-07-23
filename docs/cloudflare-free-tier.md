@@ -6,21 +6,91 @@
 
 ## TL;DR — The limits that actually constrain OmniDrive (Free tier only)
 
-| Resource | Free limit | Bottleneck risk | Free-tier mitigation |
+| Resource | Free limit | Enforcement | Bottleneck risk | Free-tier mitigation |
+|---|---|---|---|---|
+| **Workers requests** | 100,000/day | **Fail-open** (Worker bypassed, origin serves) | Medium at scale | Keep sync lightweight; cache aggressively |
+| **Workers CPU time** | 10 ms/invocation | HARD + grace (Error 1102 on consistent overage) | Low | Sync is I/O-bound, not CPU |
+| **External subrequests** | **50/invocation** | **HARD** (51st throws) | **Medium** | Sync budget is 45 ✅ already correct |
+| **D1 queries per invocation** | **50/invocation** | **HARD** (51st throws) | **HIGH** | Keep D1 calls per sync <40; use `db.batch()` |
+| **D1 rows read** | 5 million/day | **HARD** (queries error) | Low | Add indexes; avoid `SELECT *` scans |
+| **D1 rows written** | 100,000/day | **HARD** (queries error) | Low-medium | Batch upserts; skip unchanged rows |
+| **D1 storage** | 500 MB/database | **HARD** (writes blocked, reads OK) | Low | Cron cleanup of old logs/sessions ✅ already done |
+| **KV reads** | 100,000/day | **HARD** (reads error) | Low | — |
+| **KV writes** | 1,000/day | **HARD** (writes error) | **Medium** | Move rate-limiter counters to D1 (see §KV) |
+| **KV same-key writes** | 1/sec | **HARD** (429 throws) | Low | Backoff on 429 |
+| **KV storage** | 1 GB | HARD (writes blocked) | Low | — |
+| **Cron triggers** | 5/account, min 1-min interval | HARD (deploy rejects) | Low | OmniDrive uses 1 (every 30 min) |
+| **Cron wall time** | 15 min/invocation | **HARD** (killed at 15 min) | Low | Sync budget is 45 pages; well under 15 min |
+| **Workers Logs** | 200K events/day, **3-day retention** | UNKNOWN at 200K cap | Medium | Log critical events to D1 for long-term retention |
+| **Workers Builds** | 3,000 min/month, 1 concurrent | HARD (build queues/rejects) | Low | — |
+
+---
+
+## 🚦 What ACTUALLY happens when you hit a limit (enforcement behavior)
+
+> **User observation: "when I hit limit in free tier on cloudflare, everything still works."** This is **partially true** — and understanding WHY is critical. Verified against official Cloudflare docs on 2026-07-23.
+
+### The 3 enforcement modes
+
+| Mode | What happens | User-visible result |
+|---|---|---|
+| **HARD (throws/errors)** | The operation is rejected; an error is thrown or returned | Request fails with an error code |
+| **Fail-open** (Workers requests/day only) | The Worker is **bypassed**; the request goes straight to the origin | Site appears to load, but **Worker logic is silently OFF** |
+| **HARD + grace** (CPU time only) | Occasional overages pass silently; consistent overage is terminated | Intermittent errors under sustained load |
+
+### Why "everything still works" — the likely explanation
+
+The user's observation is almost certainly because of the **Workers 100K requests/day limit in fail-open mode**:
+
+> "When a Worker exceeds this limit, Cloudflare returns Error 1027."
+> "| Fail open | Bypasses the Worker. Requests behave as if no Worker is configured. |"
+> — [Workers limits](https://developers.cloudflare.com/workers/platform/limits/#daily-requests)
+
+In fail-open mode, when the 100K/day limit is hit:
+- ✅ The site continues to load (the origin serves the request directly)
+- ❌ **The Worker is effectively disabled** — its logic (auth, sync, API routing) does NOT run
+- ❌ API calls to `/api/*` will likely fail (no origin to fall back to — they're Worker-only routes)
+
+**This is NOT "everything still works."** It's "static pages still load, but the dynamic Worker is off."
+
+### The limits that HARD-fail (these DO break things)
+
+These limits are **HARD** — when exceeded, operations fail with errors. The user likely has NOT hit these yet (they reset at midnight UTC):
+
+| Limit | What fails | Error | Source |
 |---|---|---|---|
-| **Workers requests** | 100,000/day | Medium at scale | Keep sync lightweight; cache aggressively |
-| **Workers CPU time** | 10 ms/invocation | Low | Sync is I/O-bound, not CPU |
-| **External subrequests** | **50/invocation** | **Medium** | Sync budget is 45 ✅ already correct |
-| **D1 queries per invocation** | **50/invocation** | **HIGH** | Keep D1 calls per sync <40; use `db.batch()` |
-| **D1 rows read** | 5 million/day | Low | Add indexes; avoid `SELECT *` scans |
-| **D1 rows written** | 100,000/day | Low-medium | Batch upserts; skip unchanged rows |
-| **D1 storage** | 5 GB/account, 500 MB/database | Low | Cron cleanup of old logs/sessions ✅ already done |
-| **KV reads** | 100,000/day | Low | — |
-| **KV writes** | 1,000/day | **Medium** | Move rate-limiter counters to D1 (see §KV) |
-| **KV storage** | 1 GB | Low | — |
-| **Cron triggers** | 5/account, min 1-min interval | Low | OmniDrive uses 1 (every 30 min) |
-| **Workers Logs** | 200K events/day, **3-day retention** | Medium | Log critical events to D1 for long-term retention |
-| **Workers Builds** | 3,000 min/month, 1 concurrent | Low | — |
+| **D1 5M rows read/day** | All D1 queries error | "D1 API will return errors indicating daily limits exceeded" | [D1 pricing FAQ](https://developers.cloudflare.com/d1/platform/pricing/#frequently-asked-questions) |
+| **D1 100K rows written/day** | All D1 queries error | Same as above | Same |
+| **D1 500MB database size** | INSERTs/CREATE/ALTER fail | "Exceeded maximum DB size" | [D1 error list](https://developers.cloudflare.com/d1/observability/debug-d1/#error-list) |
+| **KV 100K reads/day** | KV reads throw | "further operations of that type will fail with an error" | [Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/#workers-kv) |
+| **KV 1K writes/day** | KV writes throw | Same as above | Same |
+| **KV 1K deletes/day** | KV deletes throw | Same as above | Same |
+| **KV 1 write/sec same key** | Second write throws | `"KV PUT failed: 429 Too Many Requests"` | [KV write API](https://developers.cloudflare.com/kv/api/write-key-value-pairs/) |
+| **50 subrequests/invocation** | 51st fetch/KV/D1 call throws | Runtime JS exception (1101 if uncaught) | [Workers limits](https://developers.cloudflare.com/workers/platform/limits/#subrequests) |
+| **50 D1 queries/invocation** | 51st D1 query throws | D1_ERROR | [D1 limits](https://developers.cloudflare.com/d1/platform/limits/) |
+| **10ms CPU (consistent)** | Request terminated | Error 1102 "Worker exceeded resource limits" | [Workers limits](https://developers.cloudflare.com/workers/platform/limits/#cpu-time) |
+| **15-min Cron wall time** | Cron killed at 15 min | In-flight work lost (may retry) | [Workers limits](https://developers.cloudflare.com/workers/platform/limits/#wall-time-limits-by-invocation-type) |
+
+### Error code reference (for debugging)
+
+| Error code | Meaning | When |
+|---|---|---|
+| **1027** | Worker exceeded free tier daily request limit | Workers 100K/day exceeded |
+| **1101** | Worker threw a JavaScript exception | Uncaught exception (e.g., from 51st subrequest) |
+| **1102** | Worker exceeded resource limits | CPU time exceeded (consistent) |
+| **10021** | Script startup exceeded CPU time limit | Deploy-time validation (1s startup) |
+| **413** | Request entity too large | KV value > 25 MiB |
+| **429** | Too many requests | KV same-key write > 1/sec |
+
+> ⚠️ **Note on "Error 1015":** Many people confuse this with Workers Free overage. **1015 is Cloudflare's edge rate-limiting error** (a different product). Workers Free overage returns **1027**, not 1015.
+
+### What this means for OmniDrive
+
+- **If the user sees "everything still works"**: they're either (a) under the D1/KV daily quotas (which reset at 00:00 UTC), or (b) hitting Workers 100K/day in fail-open mode (static pages load, but `/api/*` routes are broken).
+- **OmniDrive's `/api/*` routes are Worker-only** (no origin to fail-open to) — so if Workers 100K/day is hit, **API calls will return Error 1027**, not "work fine."
+- **The truly silent failures are D1/KV daily quotas** — if those are hit, sync stops working but the user might not notice immediately (sync is a background cron).
+
+**Action:** Add monitoring that logs when D1/KV errors are encountered, so silent sync failures are caught. OmniDrive's `lib/logger.ts` already supports structured logging — extend it to flag D1/KV quota errors specifically.
 
 ---
 

@@ -455,9 +455,45 @@ This makes it easy to spot when a sync is approaching the 50-subrequest or 50-D1
 
 ---
 
-## Part 5 — Free-Tier Capacity Ceiling & Optimization Strategy
+## Part 5 — Free-Tier Capacity Ceiling & Enforcement Behavior
 
-> 🚫 **OmniDrive never pays.** This section replaces the former "Free vs Paid" cost projection. There is no "Paid tier" path. The question is: how many users can Free tier support, and how do we push that ceiling higher without paying?
+> 🚫 **OmniDrive never pays.** This section replaces the former "Free vs Paid" cost projection. There is no "Paid tier" path. The question is: how many users can Free tier support, what happens when limits are hit, and how do we push that ceiling higher without paying?
+
+### What ACTUALLY happens when a limit is hit
+
+> **User observation: "when I hit limit in free tier on cloudflare, everything still works."** Verified against official Cloudflare docs on 2026-07-23. This is **partially true** — and understanding WHY is critical.
+
+**The 3 enforcement modes:**
+
+| Mode | What happens | Applies to |
+|---|---|---|
+| **HARD (throws/errors)** | Operation is rejected; error thrown/returned | D1 daily quotas, KV daily quotas, 50 subrequests, 50 D1 queries/invocation, KV same-key 1/sec, 15-min cron, 3MB Worker size |
+| **Fail-open** (Worker bypassed) | Worker is skipped; request goes to origin | Workers 100K requests/day (only this one) |
+| **HARD + grace** (transient OK, consistent fails) | Occasional overage passes; consistent overage → Error 1102 | 10ms CPU time |
+
+**Why "everything still works" is a misconception for OmniDrive:**
+
+The user is likely observing the **Workers 100K/day fail-open behavior**:
+> "| Fail open | Bypasses the Worker. Requests behave as if no Worker is configured. |"
+> — [Workers limits](https://developers.cloudflare.com/workers/platform/limits/#daily-requests)
+
+In fail-open mode, when 100K/day is hit:
+- ✅ Static pages continue to load (origin serves directly)
+- ❌ **The Worker is effectively disabled** — its logic (auth, sync, API routing) does NOT run
+- ❌ OmniDrive's `/api/*` routes are **Worker-only** (no origin to fall back to) → they return **Error 1027**, not "work fine"
+
+**The truly silent failures are D1/KV daily quotas** — if those are hit, sync stops working but the user might not notice immediately (sync is a background cron). D1 and KV daily limits are **HARD** — operations fail with errors, not silently continue.
+
+**Error codes to watch for:**
+
+| Error | Meaning | When |
+|---|---|---|
+| **1027** | Worker exceeded free tier daily request limit | Workers 100K/day exceeded |
+| **1101** | Worker threw a JavaScript exception | Uncaught exception (e.g., 51st subrequest) |
+| **1102** | Worker exceeded resource limits | CPU time exceeded (consistent) |
+| **429** | Too many requests | KV same-key write > 1/sec |
+
+> ⚠️ **Note on "Error 1015":** 1015 is Cloudflare's edge rate-limiting error (a different product). Workers Free overage returns **1027**, not 1015.
 
 ### Free tier capacity estimate
 
@@ -467,16 +503,16 @@ Assumptions:
 - ~100 changes per account per cycle
 - ~5 downloads per user per day
 
-| Resource | Usage at 100 users | Free limit | Status |
-|---|---|---|---|
-| Workers requests/day | ~150K (sync + user requests) | 100K | ⚠️ **exceeds Free** — optimize or cap users |
-| External subrequests/invocation | ~5 per sync | 50 | ✅ safe |
-| D1 queries/invocation | ~10-20 per sync (estimated) | 50 | ✅ safe (but verify) |
-| D1 rows read/day | ~2M (sync + UI) | 5M | ✅ safe |
-| D1 rows written/day | ~50K (sync upserts) | 100K | ✅ safe |
-| D1 storage | ~50 MB (estimated) | 500 MB/database | ✅ safe |
-| KV reads/day | ~30K (sessions + rate limit) | 100K | ✅ safe |
-| KV writes/day | ~5K (rate limit counters) | 1,000 | ⚠️ **exceeds Free** — move counters to D1 |
+| Resource | Usage at 100 users | Free limit | Enforcement | Status |
+|---|---|---|---|---|
+| Workers requests/day | ~150K (sync + user requests) | 100K | **Fail-open** (Worker bypassed) | ⚠️ **exceeds Free** — API routes return 1027; static pages load but Worker is OFF |
+| External subrequests/invocation | ~5 per sync | 50 | HARD (51st throws) | ✅ safe |
+| D1 queries/invocation | ~10-20 per sync (estimated) | 50 | HARD (51st throws) | ✅ safe (but verify) |
+| D1 rows read/day | ~2M (sync + UI) | 5M | **HARD** (queries error) | ✅ safe |
+| D1 rows written/day | ~50K (sync upserts) | 100K | **HARD** (queries error) | ✅ safe |
+| D1 storage | ~50 MB (estimated) | 500 MB/database | HARD (writes blocked, reads OK) | ✅ safe |
+| KV reads/day | ~30K (sessions + rate limit) | 100K | **HARD** (reads error) | ✅ safe |
+| KV writes/day | ~5K (rate limit counters) | 1,000 | **HARD** (writes error) | ⚠️ **exceeds Free** — sync rate-limiter state fails silently |
 
 ### Free-tier user ceiling
 
@@ -495,9 +531,12 @@ That's the hard cap. **There is no Paid path.** If OmniDrive outgrows 50-70 user
 | 5 | **Cache API on immutable responses** (file thumbnails, static metadata) | Cuts Workers requests/day |
 | 6 | **Log critical events to D1** instead of relying on 3-day Workers Logs | No Logpush needed (Paid); D1 storage is 500 MB Free |
 | 7 | **Reduce `head_sampling_rate` to 0.1** for non-critical logs | Stretches 200K/day log budget 10× |
-| 8 | **Accept the ceiling** — 50-70 users is the Free-tier reality | No optimization; just don't exceed it |
+| 8 | **Add D1/KV quota-error monitoring** | Catches silent sync failures when daily quotas are hit (sync is background cron — failures are invisible without monitoring) |
+| 9 | **Accept the ceiling** — 50-70 users is the Free-tier reality | No optimization; just don't exceed it |
 
-**Bottom line:** OmniDrive stays on Free forever. The Free-tier ceiling is ~50-70 active users. Optimization steps 1-7 can push that to ~100-150 users without paying. Beyond that, accept the ceiling or reconsider the hosting model (but still don't pay Cloudflare).
+**Bottom line:** OmniDrive stays on Free forever. The Free-tier ceiling is ~50-70 active users. Optimization steps 1-8 can push that to ~100-150 users without paying. Beyond that, accept the ceiling or reconsider the hosting model (but still don't pay Cloudflare).
+
+**On the user's "everything still works" observation:** It's true that the *site* continues to load when Workers 100K/day is hit (fail-open mode), but **the Worker logic is silently disabled** — API calls return Error 1027, sync stops, auth breaks. For D1/KV daily quotas, operations hard-fail with errors. The only reason "everything still works" is that the user likely hasn't hit the D1/KV HARD limits yet (they reset at 00:00 UTC), and the Workers 100K fail-open makes the site *appear* functional even when the Worker is off. **Add monitoring to catch the silent failures.**
 
 ---
 
