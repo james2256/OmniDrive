@@ -180,7 +180,7 @@ export const AdminUsersPage: React.FC = () => {
   };
 
   return (
-    <div className="p-2 sm:p-6 h-full flex flex-col">
+    <div className="p-4 sm:p-6 h-full flex flex-col">
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-slate-800">Users</h1>
       </div>
