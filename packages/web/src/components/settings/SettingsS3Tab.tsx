@@ -128,7 +128,7 @@ export function SettingsS3Tab() {
     <>
       {/* Section: S3 API Keys */}
       <div className="border-t border-slate-200 pt-6">
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex justify-between items-center mb-4 gap-3 flex-wrap">
           <div>
             <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">S3 API Keys</h2>
             <p className="text-xs text-slate-500 mt-1">Manage workspace-scoped and global S3-compatible credentials for accessing object storage.</p>

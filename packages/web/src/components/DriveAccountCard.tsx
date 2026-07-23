@@ -45,17 +45,17 @@ export function DriveAccountCard({ drive, index, onSync, onDisconnect }: DriveAc
     ' Your files on Google Drive will not be deleted; only OmniDrive access and synced data will be removed.';
 
   return (
-    <div className="bg-card border border-slate-200 rounded-2xl p-5 hover:shadow-sm transition-shadow">
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center gap-3">
+    <div className="bg-card border border-slate-200 rounded-2xl p-4 sm:p-5 hover:shadow-sm transition-shadow">
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
           <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0"
             style={{ backgroundColor: color }}
           >
-            <HardDrive size={18} color="white" />
+            <HardDrive size={16} color="white" />
           </div>
-          <div>
-            <div className="text-sm font-semibold text-slate-800">{drive.email}</div>
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-slate-800 truncate">{drive.email}</div>
             <div className="text-xs text-slate-500">
               {drive.type === 'service_account' ? 'Service Account' : 'OAuth'}
               {drive.isPrimary && <span className="ml-1.5 text-blue-500 font-medium">· Primary</span>}
@@ -84,29 +84,29 @@ export function DriveAccountCard({ drive, index, onSync, onDisconnect }: DriveAc
             )}
           </div>
         </div>
-        <div className="flex gap-2">
-          <button
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors disabled:opacity-50"
-            onClick={handleSync}
-            disabled={isSyncing}
-          >
-            <RefreshCw size={12} className={isSyncing ? 'animate-spin' : ''} />
-            {isSyncing ? 'Syncing...' : 'Sync'}
-          </button>
-          <button
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
-            onClick={handleDisconnect}
-          >
-            <Trash2 size={12} />
-            Disconnect
-          </button>
-        </div>
+      </div>
+      <div className="flex gap-2 mb-3">
+        <button
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors disabled:opacity-50"
+          onClick={handleSync}
+          disabled={isSyncing}
+        >
+          <RefreshCw size={12} className={isSyncing ? 'animate-spin' : ''} />
+          {isSyncing ? 'Syncing...' : 'Sync'}
+        </button>
+        <button
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+          onClick={handleDisconnect}
+        >
+          <Trash2 size={12} />
+          Disconnect
+        </button>
       </div>
 
       <QuotaBar used={drive.usedQuota} total={drive.totalQuota} color={color} showLabel={false} />
       <div className="flex justify-between mt-2 text-xs text-slate-500">
-        <span>{formatFileSize(drive.freeSpace)} free of {formatFileSize(drive.totalQuota)}</span>
-        <span>{Math.min(drive.usagePercent, 100).toFixed(1)}%</span>
+        <span className="truncate">{formatFileSize(drive.freeSpace)} free of {formatFileSize(drive.totalQuota)}</span>
+        <span className="flex-shrink-0 ml-2">{Math.min(drive.usagePercent, 100).toFixed(1)}%</span>
       </div>
 
       <ConfirmDialog

@@ -117,16 +117,16 @@ export function SettingsDrivesTab() {
       {/* Section: Add Drive */}
       <div>
         <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Add Drive</h2>
-        <div className="flex gap-3 flex-wrap">
+        <div className="flex gap-2 sm:gap-3 flex-col sm:flex-row">
           <button
             onClick={handleConnectDrive}
             disabled={isConnecting}
-            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium text-sm disabled:opacity-60"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium text-sm disabled:opacity-60"
           >
             {isConnecting ? <LoaderCircle size={18} className="animate-spin" /> : <Plus size={18} />} Add Google Drive
           </button>
           <button
-            className="flex items-center gap-2 px-4 py-2.5 bg-card text-slate-700 rounded-xl border border-slate-400 hover:bg-slate-50 transition-colors font-medium text-sm"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-card text-slate-700 rounded-xl border border-slate-400 hover:bg-slate-50 transition-colors font-medium text-sm"
             onClick={() => setShowSaForm(!showSaForm)}
           >
             <Key size={18} /> Add Service Account
@@ -137,7 +137,7 @@ export function SettingsDrivesTab() {
       {/* Service Account Form */}
       <div className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${showSaForm ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
         <div className="overflow-hidden">
-          <div className="bg-card border border-slate-200 rounded-2xl p-5">
+          <div className="bg-card border border-slate-200 rounded-2xl p-4 sm:p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-base font-semibold text-slate-800">Add Service Account</h3>
             <button

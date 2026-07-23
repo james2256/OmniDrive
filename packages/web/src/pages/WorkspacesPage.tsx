@@ -22,7 +22,7 @@ export function WorkspacesPage() {
   const addToast = useToastStore(state => state.addToast);
   const { clearSelection, toggleSelection } = useSelectionStore();
   const setIsInfoPanelOpen = useUIStore(s => s.setIsInfoPanelOpen);
-  const [wsSidebarOpen, setWsSidebarOpen] = useState(false);
+  const [wsSidebarOpen, setWsSidebarOpen] = useState(true);
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -228,10 +228,6 @@ export function WorkspacesPage() {
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-card relative">
-      {/* Mobile drawer for workspace tree */}
-      {wsSidebarOpen && (
-        <div className="md:hidden fixed inset-0 z-40 bg-black/40" onClick={() => setWsSidebarOpen(false)} aria-hidden />
-      )}
       <div className={`${wsSidebarOpen ? 'fixed left-0 top-0 bottom-0 z-50 shadow-xl' : 'hidden'} md:relative md:block md:shadow-none md:z-auto`}>
         <WorkspaceSidebar
           folders={folders}

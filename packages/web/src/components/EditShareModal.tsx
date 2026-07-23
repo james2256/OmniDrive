@@ -115,7 +115,7 @@ export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
                 placeholder="Leave blank to keep current password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                autoComplete="off"
+                autoComplete="new-password"
                 className="w-full px-3 py-1.5 pr-9 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
               />
               <button
