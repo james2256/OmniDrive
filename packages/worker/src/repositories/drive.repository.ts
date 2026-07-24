@@ -153,26 +153,36 @@ export class DriveRepository {
       .bind(driveId).run();
   }
 
-  // ─── shared-with-me reads ───
+  // ─── external reads ───
 
-  /** Find shared folders (google_parent_id = '__shared__', owned_by_me = 1). */
-  findSharedFolders(userId: string) {
+  /**
+   * Find folders visible at the top level of the External page: only the
+   * entry-point folders whose immediate parent is the '__shared__' sentinel.
+   * This covers computer-backup roots ("My Laptop") and top-level folders
+   * shared with the user. Deeper items are reached by navigating into them
+   * (the drill-in route uses the live Google API at any depth).
+   */
+  findExternalFolders(userId: string) {
     return this.db.prepare(
       `SELECT df.*, d.email as driveEmail FROM drive_folders df
        JOIN drive_accounts d ON df.drive_account_id = d.id
-       WHERE d.user_id = ? AND df.google_parent_id = ? AND df.owned_by_me = 1 AND df.is_trashed = 0
+       WHERE d.user_id = ? AND df.google_parent_id = '__shared__' AND df.is_trashed = 0
        ORDER BY df.name ASC`
-    ).bind(userId, '__shared__').all();
+    ).bind(userId).all();
   }
 
-  /** Find shared files (google_parent_id = '__shared__', owned_by_me = 1). */
-  findSharedFiles(userId: string) {
+  /**
+   * Find files visible at the top level of the External page: only files whose
+   * immediate parent is the '__shared__' sentinel (loose files at the shared
+   * root). Files inside folders are reached by navigating into the folder.
+   */
+  findExternalFiles(userId: string) {
     return this.db.prepare(
       `SELECT f.*, d.email as driveEmail FROM files f
        JOIN drive_accounts d ON f.drive_account_id = d.id
-       WHERE f.user_id = ? AND f.google_parent_id = ? AND f.owned_by_me = 1 AND f.is_trashed = 0
+       WHERE f.user_id = ? AND f.google_parent_id = '__shared__' AND f.is_trashed = 0
        ORDER BY f.name ASC`
-    ).bind(userId, '__shared__').all();
+    ).bind(userId).all();
   }
 
   /** Search drive folders by name (for global search). */

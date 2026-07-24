@@ -245,8 +245,8 @@ session on **all** routes (`drivesRouter.use('*', authGuard)`)
 | `GET`    | `/`                                                 | List connected drives + live quota            |
 | `GET`    | `/connect`                                          | Get Google OAuth URL to add a Drive           |
 | `POST`   | `/service-account`                                  | Connect via Service Account JSON              |
-| `GET`    | `/shared-with-me`                                   | List Google "Shared with me" items            |
-| `GET`    | `/:driveId/shared-folders/:googleFolderId`         | Live list of a shared folder's children       |
+| `GET`    | `/external`                                        | List items you own not in My Drive            |
+| `GET`    | `/:driveId/external-folders/:googleFolderId`        | Live list of an external folder's children    |
 | `GET`    | `/:driveId/folders/:googleFolderId`                | Read a Drive folder (DB-backed)               |
 | `POST`   | `/:driveId/folders/:googleFolderId/sync`           | Lazy-sync a single Drive folder               |
 | `POST`   | `/:id/sync`                                         | Manual full-drive sync                        |
@@ -327,9 +327,9 @@ a `drive_accounts` row with `type='service_account'` and kicks off background sy
 **Errors:** `400` Invalid service account JSON · `400` Failed to connect Google Drive account ·
 `400` Cannot access the specified shared folder · `409` This service account is already connected
 
-### `GET /api/drives/shared-with-me`
+### `GET /api/drives/external`
 
-Live call to Google's `drive.files.list` with `q='sharedWithMe=true'`.
+Lists top-level external entry points — folders and files whose immediate parent is the `__shared__` sentinel (computer-backup roots like "My Laptop", and top-level folders shared with the user). Deeper items are reached by navigating into them via `/:driveId/external-folders/:googleFolderId`.
 
 **200:** `[ /* FileEntry-like array */ ]`
 

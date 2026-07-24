@@ -100,7 +100,7 @@ export class DriveService {
     await this.driveRepo.unstarDriveFolder(driveId, googleFolderId);
   }
 
-  // ─── New: listing, shared-with-me, move, disconnect ───
+  // ─── New: listing, external, move, disconnect ───
 
   /** Find a drive by ID + user (returns {id, email} or null). RBAC: ownership. */
   findByIdAndUser(driveId: string, userId: string) {
@@ -149,10 +149,10 @@ export class DriveService {
     return !!row;
   }
 
-  /** Get shared folders + files for the shared-with-me page. RBAC: user ownership. */
-  async listSharedWithMe(userId: string) {
-    const { results: folderRows } = await this.driveRepo.findSharedFolders(userId);
-    const { results: fileRows } = await this.driveRepo.findSharedFiles(userId);
+  /** Get folders + files for the external items page. RBAC: user ownership. */
+  async listExternal(userId: string) {
+    const { results: folderRows } = await this.driveRepo.findExternalFolders(userId);
+    const { results: fileRows } = await this.driveRepo.findExternalFiles(userId);
 
     return {
       folders: folderRows.map((r: Record<string, unknown>) => ({ ...mapDriveFolderRow(r), driveEmail: r.driveEmail, driveId: r.drive_account_id })),

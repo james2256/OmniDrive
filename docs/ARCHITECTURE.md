@@ -276,7 +276,7 @@ Google Drive API (stream read/write)
 | `AutomationsPage` | `/automations` | Auth | Automation rules |
 | `SettingsPage` | `/settings`, `/settings/drives` | Auth | Account, drives, S3 keys tabs |
 | `SharedLinksPage` | `/shared` | Auth | Shared links I've created |
-| `SharedWithMePage` | `/shared-with-me[/:folderId]` | Auth | Files others have shared with me |
+| `ExternalPage` | `/external[/:folderId]` | Auth | Items I own not in My Drive (computer backups + shared territory) |
 | `TrashPage` | `/trash` | Auth | Trashed files (restore / permanent delete) |
 | `StarredPage` | `/starred` | Auth | Starred files |
 | `AdminUsersPage` | `/admin/users` | Super admin | User admin, invitations, audit |

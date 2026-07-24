@@ -47,9 +47,9 @@ export const Sidebar: React.FC = () => {
           <HardDrive size={20} />
           {isSidebarOpen && <span>My Drive</span>}
         </NavLink>
-        <NavLink to="/shared-with-me" className={navLinkClass}>
+        <NavLink to="/external" className={navLinkClass}>
           <FolderInput size={20} />
-          {isSidebarOpen && <span>Shared with me</span>}
+          {isSidebarOpen && <span>My External Items</span>}
         </NavLink>
         <NavLink to="/starred" className={navLinkClass}>
           <Star size={20} />

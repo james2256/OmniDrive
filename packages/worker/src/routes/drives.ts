@@ -86,14 +86,14 @@ drivesRouter.get('/connect', async (c) => {
   return c.json({ url: authUrl.toString() });
 });
 
-// GET /api/drives/shared-with-me — list shared items not added to My Drive (owned_by_me = 1, google_parent_id = '__shared__')
-drivesRouter.get('/shared-with-me', async (c) => {
-  const data = await c.get('driveService').listSharedWithMe(c.get('userId'));
+// GET /api/drives/external — list items you own that are not in My Drive
+drivesRouter.get('/external', async (c) => {
+  const data = await c.get('driveService').listExternal(c.get('userId'));
   return c.json(data);
 });
 
-// GET /api/drives/:driveId/shared-folders/:googleFolderId — live API list children of a shared folder
-drivesRouter.get('/:driveId/shared-folders/:googleFolderId', async (c) => {
+// GET /api/drives/:driveId/external-folders/:googleFolderId — live API list children of an external folder
+drivesRouter.get('/:driveId/external-folders/:googleFolderId', async (c) => {
   const userId = c.get('userId');
   const { driveId, googleFolderId } = c.req.param();
   const db = c.env.DB;
