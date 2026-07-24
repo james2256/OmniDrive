@@ -148,7 +148,8 @@ export class FolderRepository {
     ON CONFLICT(drive_account_id, google_folder_id) DO UPDATE SET
       name = excluded.name,
       google_parent_id = excluded.google_parent_id,
-      owned_by_me = excluded.owned_by_me`;
+      owned_by_me = excluded.owned_by_me,
+      is_trashed = 0`;
 
   buildDriveFolderUpsertStmt(
     drive: DriveAccount,

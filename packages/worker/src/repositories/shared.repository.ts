@@ -29,12 +29,13 @@ export class SharedRepository {
   /** List all shared links for a user, with target name + mime type via JOIN. */
   findAllByUserWithTargetName(userId: string) {
     return this.db.prepare(`
-      SELECT s.*, COALESCE(f.name, v.name, df.name) as targetName, f.mime_type as targetMimeType
+      SELECT s.*, COALESCE(f.name, v.name, MIN(df.name)) as targetName, f.mime_type as targetMimeType
       FROM shared_links s
       LEFT JOIN files f ON s.target_type = 'file' AND s.target_id = f.id
       LEFT JOIN workspace_folders v ON s.target_type = 'folder' AND s.target_id = v.id
       LEFT JOIN drive_folders df ON s.target_type = 'folder' AND s.target_id = df.google_folder_id
       WHERE s.user_id = ?
+      GROUP BY s.id
     `).bind(userId).all();
   }
 

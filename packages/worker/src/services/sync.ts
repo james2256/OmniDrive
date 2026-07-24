@@ -232,7 +232,8 @@ async function performIncrementalSync(
       if (getIsShuttingDown()) return currentToken;
       const isFolder = change.file?.mimeType === MIME_TYPE_FOLDER;
 
-      if (change.removed || change.file?.trashed) {
+      if (change.removed) {
+        // Permanently deleted from Google Drive — remove from D1
         if (isFolder) {
           stmts.push(
             db.prepare('DELETE FROM drive_folders WHERE drive_account_id = ? AND google_folder_id = ?')
@@ -241,6 +242,22 @@ async function performIncrementalSync(
         } else {
           stmts.push(
             db.prepare('DELETE FROM files WHERE drive_account_id = ? AND google_file_id = ?')
+              .bind(drive.id, change.fileId),
+          );
+        }
+        continue;
+      }
+
+      if (change.file?.trashed) {
+        // Moved to Google Drive trash — mark as trashed (recoverable via /trash → restore)
+        if (isFolder) {
+          stmts.push(
+            db.prepare('UPDATE drive_folders SET is_trashed = 1 WHERE drive_account_id = ? AND google_folder_id = ?')
+              .bind(drive.id, change.fileId),
+          );
+        } else {
+          stmts.push(
+            db.prepare('UPDATE files SET is_trashed = 1 WHERE drive_account_id = ? AND google_file_id = ?')
               .bind(drive.id, change.fileId),
           );
         }

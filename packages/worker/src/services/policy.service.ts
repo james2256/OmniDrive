@@ -62,12 +62,12 @@ export class PolicyService {
       if (policy.target_type === 'workspace') {
         query = `SELECT f.id, f.user_id, f.google_file_id, f.size, f.workspace_id, d.id as driveId 
                  FROM files f JOIN drive_accounts d ON f.drive_account_id = d.id 
-                 WHERE f.workspace_id = ? AND f.created_at < ?`;
+                 WHERE f.workspace_id = ? AND f.created_at < ? AND f.is_trashed = 0`;
         binds = [policy.workspace_id, cutoffStr];
       } else {
         query = `SELECT f.id, f.user_id, f.google_file_id, f.size, f.workspace_id, d.id as driveId 
                  FROM files f JOIN drive_accounts d ON f.drive_account_id = d.id 
-                 WHERE f.workspace_id = ? AND f.workspace_folder_id = ? AND f.created_at < ?`;
+                 WHERE f.workspace_id = ? AND f.workspace_folder_id = ? AND f.created_at < ? AND f.is_trashed = 0`;
         binds = [policy.workspace_id, policy.target_id, cutoffStr];
       }
 

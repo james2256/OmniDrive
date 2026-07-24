@@ -4,7 +4,7 @@ import { formatFileSize, formatRelativeTime } from '../../lib/utils';
 import { FileIcon } from './FileIcon';
 import { ItemContextMenu } from './ItemContextMenu';
 import { useItemInteractions } from './useItemInteractions';
-import { isGoogleNative } from './utils';
+import { isGoogleNative, getFolderIdentifier } from './utils';
 import type { FileViewSharedProps } from './types';
 
 export function FileGridView(props: FileViewSharedProps) {
@@ -23,7 +23,10 @@ export function FileGridView(props: FileViewSharedProps) {
   const selectedItems = useSelectionStore((s) => s.selectedItems);
   const hasSelection = selectedItems.length > 0;
   const selectedKeys = new Set(
-    selectedItems.map((i) => i.item.id || ('googleFolderId' in i.item ? i.item.googleFolderId : undefined)),
+    selectedItems.map((i) => {
+      if (i.type === 'file') return i.item.id;
+      return getFolderIdentifier(i.item as { googleFolderId?: string; id?: string });
+    }),
   );
 
   const interactions = useItemInteractions({ sortedSubfolders, sortedFiles, actions, isTrashView });
@@ -32,16 +35,16 @@ export function FileGridView(props: FileViewSharedProps) {
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 p-4">
       {/* Folders */}
       {sortedSubfolders.map((folder) => {
-        const key = 'googleFolderId' in folder ? folder.googleFolderId : folder.id;
+        const folderId = getFolderIdentifier(folder);
         const driveAccountId = 'driveAccountId' in folder ? folder.driveAccountId : undefined;
         const { drive } = getDriveInfo(driveAccountId);
         const hasError = drive ? errorDrives?.has(drive.id) : false;
-        const shared = folder.id ? isTargetShared?.(folder.id, 'folder') : false;
+        const shared = folderId ? isTargetShared?.(folderId, 'folder') ?? false : false;
         const isStarred = 'isStarred' in folder ? folder.isStarred : false;
-        const isSelected = selectedKeys.has(folder.id || ('googleFolderId' in folder ? folder.googleFolderId : undefined));
+        const isSelected = folderId ? selectedKeys.has(folderId) : false;
 
         return (
-          <ItemContextMenu key={key} type="folder" item={folder} actions={actions} isTrashView={isTrashView} isStarred={isStarred}>
+          <ItemContextMenu key={folderId} type="folder" item={folder} actions={actions} isTrashView={isTrashView} isStarred={isStarred}>
             <div
               onClick={(e) => interactions.handleClick(e, { type: 'folder', item: folder })}
               onDoubleClick={() => interactions.handleFolderDoubleClick(folder)}

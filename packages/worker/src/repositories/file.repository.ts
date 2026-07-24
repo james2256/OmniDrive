@@ -312,7 +312,8 @@ export class FileRepository {
       google_modified_at = excluded.google_modified_at,
       google_parent_id = excluded.google_parent_id,
       synced_at = excluded.synced_at,
-      owned_by_me = excluded.owned_by_me`;
+      owned_by_me = excluded.owned_by_me,
+      is_trashed = 0`;
 
   buildUpsertStmt(
     drive: DriveAccount,
