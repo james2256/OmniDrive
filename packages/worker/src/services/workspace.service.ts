@@ -1,7 +1,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import { WorkspaceRepository } from '../repositories/workspace.repository';
 import { AuditService } from './audit.service';
-import { getWorkspaceRole, hasPermission } from '../lib/rbac';
+import { getWorkspaceRole, hasPermission, roleLevel } from '../lib/rbac';
 import { AppError, ConflictError } from '../lib/errors';
 import type { WorkspaceRole } from '../lib/schemas';
 import { mapAuditLogRow, type AuditLog } from '../types';
@@ -67,9 +67,8 @@ export class WorkspaceService {
     }
 
     // Prevent role escalation: can't assign role >= own role
-    const levels: Record<string, number> = { 'viewer': 1, 'auditor': 1, 'commenter': 2, 'editor': 3, 'manager': 4, 'owner': 5 };
-    const assignerLevel = levels[currentUserRole] || 0;
-    const targetLevel = levels[role] || 0;
+    const assignerLevel = roleLevel(currentUserRole);
+    const targetLevel = roleLevel(role);
     if (targetLevel >= assignerLevel) {
       throw new AppError(403, 'Cannot assign a role equal to or higher than your own');
     }
