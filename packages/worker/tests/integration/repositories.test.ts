@@ -271,42 +271,71 @@ describe('Repositories (integration)', () => {
       expect(status?.ok).toBe(1);
     });
 
-    // ─── 8.8 shared-with-me: returns shared folders + files ───
-    it('findSharedFolders + findSharedFiles return only __shared__ parent items', async () => {
+    // ─── 8.8 external: returns items you own not in My Drive (any depth) ───
+    it('findExternalFolders + findExternalFiles return owned items in shared territory at any depth', async () => {
       await insertUser('u1', 'alice', 1);
       await insertDrive('d1', 'u1', 'alice@gmail.com', 1);
 
-      // Shared folder (google_parent_id = '__shared__')
+      // Computer backup root (owned_by_me=1, parent='__shared__')
       await env.DB.prepare(
         'INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?)'
       ).bind('df1', 'd1', 'gfolder1', '__shared__', 'Shared Folder', 1, 0).run();
 
-      // Non-shared folder (different parent)
+      // My Drive folder (should be excluded)
       await env.DB.prepare(
         'INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?)'
       ).bind('df2', 'd1', 'gfolder2', 'root', 'My Folder', 1, 0).run();
 
-      // Shared file
+      // Folder shared WITH me by someone else (owned_by_me=0) — external root
+      await env.DB.prepare(
+        'INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      ).bind('df3', 'd1', 'gfolder3', '__shared__', 'A Shared Folder', 0, 0).run();
+
+      // Folder I created inside A's shared folder (1 level deep)
+      await env.DB.prepare(
+        'INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      ).bind('df4', 'd1', 'gfolder4', 'gfolder3', 'My Subfolder', 1, 0).run();
+
+      // Folder I created inside my subfolder (2 levels deep — tests recursion)
+      await env.DB.prepare(
+        'INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      ).bind('df5', 'd1', 'gfolder5', 'gfolder4', 'Deep Folder', 1, 0).run();
+
+      // File at shared root (owned_by_me=1)
       await env.DB.prepare(
         'INSERT INTO files (id, user_id, drive_account_id, google_file_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
       ).bind('f1', 'u1', 'd1', 'gfile1', '__shared__', 'shared.pdf', 1, 0).run();
 
-      // Non-shared file
+      // My Drive file (should be excluded)
       await env.DB.prepare(
         'INSERT INTO files (id, user_id, drive_account_id, google_file_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
       ).bind('f2', 'u1', 'd1', 'gfile2', 'root', 'mine.docx', 1, 0).run();
 
+      // File I created inside A's shared folder (1 level deep)
+      await env.DB.prepare(
+        'INSERT INTO files (id, user_id, drive_account_id, google_file_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+      ).bind('f3', 'u1', 'd1', 'gfile3', 'gfolder3', 'my-file-in-shared.pdf', 1, 0).run();
+
+      // File I created inside my subfolder (2 levels deep — tests recursion)
+      await env.DB.prepare(
+        'INSERT INTO files (id, user_id, drive_account_id, google_file_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+      ).bind('f4', 'u1', 'd1', 'gfile4', 'gfolder4', 'deep-file.txt', 1, 0).run();
+
       const repo = new DriveRepository(env.DB);
-      const { results: folders } = await repo.findSharedFolders('u1');
-      const { results: files } = await repo.findSharedFiles('u1');
+      const { results: folders } = await repo.findExternalFolders('u1');
+      const { results: files } = await repo.findExternalFiles('u1');
 
-      expect(folders.length).toBe(1);
-      expect((folders[0] as any).name).toBe('Shared Folder');
-      expect((folders[0] as any).driveEmail).toBe('alice@gmail.com');
+      // df1 (backup root), df4 (1 level), df5 (2 levels) — NOT df2 (My Drive), df3 (owned_by_me=0)
+      expect(folders.length).toBe(3);
+      expect((folders[0] as any).name).toBe('Deep Folder');
+      expect((folders[1] as any).name).toBe('My Subfolder');
+      expect((folders[2] as any).name).toBe('Shared Folder');
 
-      expect(files.length).toBe(1);
-      expect((files[0] as any).name).toBe('shared.pdf');
-      expect((files[0] as any).driveEmail).toBe('alice@gmail.com');
+      // f1 (backup root), f3 (1 level), f4 (2 levels) — NOT f2 (My Drive)
+      expect(files.length).toBe(3);
+      expect((files[0] as any).name).toBe('deep-file.txt');
+      expect((files[1] as any).name).toBe('my-file-in-shared.pdf');
+      expect((files[2] as any).name).toBe('shared.pdf');
     });
   });
 });

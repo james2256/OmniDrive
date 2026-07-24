@@ -252,7 +252,7 @@ Each requirement has an ID (`FR-<area>-<n>`), a description, and acceptance crit
 | FR-DRIVE-6 | Folder CRUD on drive | `POST /api/drives/:driveId/folders` creates a Google Drive folder. `PATCH /api/drives/:driveId/folders/:googleFolderId/rename` renames. `PATCH /api/drives/:driveId/move/:googleFileId` moves within a drive. |
 | FR-DRIVE-7 | Folder star/trash | `POST /api/drives/:driveId/folders/:googleFolderId/star` and `/unstar` toggle star. `DELETE /api/drives/:driveId/folders/:googleFolderId` trashes; `/restore` restores; `DELETE .../permanent` hard-deletes. |
 | FR-DRIVE-8 | Browse drive folder | `GET /api/drives/:driveId/folders/:googleFolderId` returns the folder's children with breadcrumb. |
-| FR-DRIVE-9 | Shared-with-me | `GET /api/drives/shared-with-me` returns files shared with the user (not owned). `GET /api/drives/:driveId/shared-folders/:googleFolderId` drills in. |
+| FR-DRIVE-9 | External items | `GET /api/drives/external` returns items you own not in My Drive (computer backups + shared territory). `GET /api/drives/:driveId/external-folders/:googleFolderId` drills in. |
 | FR-DRIVE-10 | Disconnect drive | `DELETE /api/drives/:id` (auth required) removes the drive and cascades to `drive_tokens` (ON DELETE CASCADE). |
 | FR-DRIVE-11 | Quota cache | Quota is cached in `quota_cache` (5-minute TTL, `QUOTA_CACHE_VERSION`-tagged for schema invalidation). |
 | FR-DRIVE-12 | Background sync | `*/30 * * * *` cron triggers `runScheduledSync()` which runs incremental sync via the Google Drive Changes API using `change_token` from `sync_state`. |
@@ -520,8 +520,8 @@ All routes are mounted under `/api/*` (REST, cookie session) or `/s3/*` (AWS Sig
 | Method | Path | Auth | Purpose |
 |--------|------|------|---------|
 | GET | `/api/drives/connect` | Required | Initiate OAuth connect |
-| GET | `/api/drives/shared-with-me` | Required | Files shared with me |
-| GET | `/api/drives/:driveId/shared-folders/:googleFolderId` | Required | Drill into shared folder |
+| GET | `/api/drives/external` | Required | Items I own not in My Drive |
+| GET | `/api/drives/:driveId/external-folders/:googleFolderId` | Required | Drill into external folder |
 | GET | `/api/drives` | Required | List drives + quota aggregate |
 | POST | `/api/drives/service-account` | Required | Connect service-account drive |
 | GET | `/api/drives/:driveId/folders/:googleFolderId` | Required | Browse drive folder |
@@ -743,7 +743,7 @@ These items are **not committed** — they are candidates the maintainers have c
 ### 10.2 Sharing
 
 - **`allowUploads` on shared links** — the column exists (`shared_links.allow_uploads`) but the route currently refuses it with a 400 (`// ponytail:` marker). Implementing it would let recipients drop files into a shared folder (e.g. for assignment submission, photo collection).
-- **Shared-folder recipient view** — a `/shared-with-me` page for files others have explicitly shared with the authenticated user (vs public links).
+- **External items view** — a `/external` page for items you own that live outside My Drive (computer backups + files/folders you created inside someone else's shared folder).
 
 ### 10.3 S3 API
 

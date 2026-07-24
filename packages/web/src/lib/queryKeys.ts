@@ -9,6 +9,6 @@ export const qk = {
   category: ['category'] as const,
   sharedLinks: ['sharedLinks'] as const,
   search: (q: string) => ['search', q] as const,
-  sharedWithMe: ['shared-with-me'] as const,
-  sharedWithMeFolder: (driveId: string, folderId: string) => ['shared-with-me', driveId, folderId] as const,
+  external: ['external'] as const,
+  externalFolder: (driveId: string, folderId: string) => ['external', driveId, folderId] as const,
 };

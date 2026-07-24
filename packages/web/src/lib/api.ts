@@ -227,10 +227,10 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ targetFolderId, oldParentId, isFolder }),
     }),
-  getSharedWithMe: () =>
-    request<{ files: FileEntry[]; folders: DriveFolder[] }>('/api/drives/shared-with-me'),
-  getSharedFolderContents: (driveId: string, folderId: string) =>
-    request<{ folder: DriveFolder | null; subfolders: DriveFolder[]; files: FileEntry[]; breadcrumb: BreadcrumbItem[] }>(`/api/drives/${driveId}/shared-folders/${folderId}`),
+  getExternal: () =>
+    request<{ files: FileEntry[]; folders: DriveFolder[] }>('/api/drives/external'),
+  getExternalFolderContents: (driveId: string, folderId: string) =>
+    request<{ folder: DriveFolder | null; subfolders: DriveFolder[]; files: FileEntry[]; breadcrumb: BreadcrumbItem[] }>(`/api/drives/${driveId}/external-folders/${folderId}`),
 
   // Starred Files
   getStarred: () => request<{ files: FileEntry[], folders: WorkspaceFolder[], driveFolders: DriveFolder[] }>('/api/files/starred'),

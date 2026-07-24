@@ -21,7 +21,7 @@ import { FilePreviewModal } from '../components/FilePreviewModal';
 import { useDeleteFile, useRenameFile, useStarFile, useUnstarFile } from '../hooks/useFileMutations';
 import { useDeleteDriveFolder, useRenameDriveFolder, useStarFolder, useUnstarFolder } from '../hooks/useFolderMutations';
 
-export function SharedWithMePage() {
+export function ExternalPage() {
   const { folderId } = useParams<{ folderId: string }>();
   const [searchParams] = useSearchParams();
   const driveIdParam = searchParams.get('driveId') ?? null;
@@ -47,26 +47,26 @@ export function SharedWithMePage() {
   >(null);
 
   const queryKey = folderId && driveIdParam
-    ? qk.sharedWithMeFolder(driveIdParam, folderId)
-    : qk.sharedWithMe;
+    ? qk.externalFolder(driveIdParam, folderId)
+    : qk.external;
 
   const { data, isLoading } = useQuery({
     queryKey,
     queryFn: async () => {
       if (!folderId) {
-        const data = await api.getSharedWithMe();
+        const data = await api.getExternal();
         return {
           subfolders: data.folders ?? [],
           files: data.files ?? [],
-          breadcrumb: [{ id: 'root', name: 'Shared with me' }] as BreadcrumbItem[],
+          breadcrumb: [{ id: 'root', name: 'My External Items' }] as BreadcrumbItem[],
         };
       }
       if (driveIdParam) {
-        const data = await api.getSharedFolderContents(driveIdParam, folderId);
+        const data = await api.getExternalFolderContents(driveIdParam, folderId);
         return {
           subfolders: data.subfolders ?? [],
           files: data.files ?? [],
-          breadcrumb: [{ id: 'root', name: 'Shared with me' }, { id: folderId, name: 'Folder' }] as BreadcrumbItem[],
+          breadcrumb: [{ id: 'root', name: 'My External Items' }, { id: folderId, name: 'Folder' }] as BreadcrumbItem[],
         };
       }
       throw new Error('Missing drive information for folder');
@@ -76,13 +76,13 @@ export function SharedWithMePage() {
 
   const subfolders: DriveFolder[] = data?.subfolders ?? [];
   const files: FileEntry[] = data?.files ?? [];
-  const breadcrumb: BreadcrumbItem[] = data?.breadcrumb ?? [{ id: 'root', name: 'Shared with me' }];
+  const breadcrumb: BreadcrumbItem[] = data?.breadcrumb ?? [{ id: 'root', name: 'My External Items' }];
 
   const filteredSubfolders = subfolders.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()));
   const filteredFiles = files.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
   const refresh = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: qk.sharedWithMe });
+    queryClient.invalidateQueries({ queryKey: qk.external });
   }, [queryClient]);
 
   const deleteFileMut = useDeleteFile();
@@ -230,7 +230,7 @@ export function SharedWithMePage() {
               getDriveInfo={getDriveInfo}
               isTargetShared={() => false}
               actions={{
-                onNavigateFolder: (id, driveId) => navigate(`/shared-with-me/${id}?driveId=${driveId}`),
+                onNavigateFolder: (id, driveId) => navigate(`/external/${id}?driveId=${driveId}`),
                 onPreviewFile: setPreviewFile,
                 onShare: (id, type) => setShareTarget({ id, type }),
                 onRenameFile: handleRenameFile,
@@ -247,7 +247,7 @@ export function SharedWithMePage() {
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-20 text-slate-500">
-            <p className="text-lg">No shared items found.</p>
+            <p className="text-lg">No external items found.</p>
           </div>
         )}
       </div>

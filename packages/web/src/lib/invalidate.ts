@@ -14,5 +14,5 @@ export function invalidateAfterFileMutation(qc: QueryClient) {
   qc.invalidateQueries({ queryKey: qk.trash });
   qc.invalidateQueries({ queryKey: qk.recent });
   qc.invalidateQueries({ queryKey: qk.sharedLinks });
-  qc.invalidateQueries({ queryKey: qk.sharedWithMe });
+  qc.invalidateQueries({ queryKey: qk.external });
 }

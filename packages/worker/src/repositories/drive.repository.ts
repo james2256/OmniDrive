@@ -153,26 +153,65 @@ export class DriveRepository {
       .bind(driveId).run();
   }
 
-  // ─── shared-with-me reads ───
+  // ─── external reads ───
 
-  /** Find shared folders (google_parent_id = '__shared__', owned_by_me = 1). */
-  findSharedFolders(userId: string) {
+  /**
+   * Shared recursive CTE: walks the full parent chain to collect every folder
+   * whose ancestry leads to shared territory — either a folder shared WITH the
+   * user (owned_by_me = 0) or a computer-backup root (google_parent_id =
+   * '__shared__'). Handles any nesting depth.
+   */
+  private static readonly EXTERNAL_PARENTS_CTE = `
+    WITH RECURSIVE external_parents(google_folder_id, drive_account_id) AS (
+      SELECT google_folder_id, drive_account_id FROM drive_folders
+      WHERE is_trashed = 0
+        AND (owned_by_me = 0 OR google_parent_id = '__shared__')
+      UNION ALL
+      SELECT df.google_folder_id, df.drive_account_id
+      FROM drive_folders df
+      JOIN external_parents ep
+        ON df.google_parent_id = ep.google_folder_id
+       AND df.drive_account_id = ep.drive_account_id
+      WHERE df.is_trashed = 0
+    )
+  `;
+
+  /**
+   * Find folders you own that are NOT in My Drive:
+   * - Computer backup roots ("My Laptop"): google_parent_id = '__shared__'
+   * - Folders you created inside someone else's shared folder (any depth)
+   */
+  findExternalFolders(userId: string) {
     return this.db.prepare(
-      `SELECT df.*, d.email as driveEmail FROM drive_folders df
+      `${DriveRepository.EXTERNAL_PARENTS_CTE}
+       SELECT df.*, d.email as driveEmail FROM drive_folders df
        JOIN drive_accounts d ON df.drive_account_id = d.id
-       WHERE d.user_id = ? AND df.google_parent_id = ? AND df.owned_by_me = 1 AND df.is_trashed = 0
+       WHERE d.user_id = ? AND df.owned_by_me = 1 AND df.is_trashed = 0
+         AND (
+           df.google_parent_id = '__shared__'
+           OR df.google_parent_id IN (SELECT google_folder_id FROM external_parents)
+         )
        ORDER BY df.name ASC`
-    ).bind(userId, '__shared__').all();
+    ).bind(userId).all();
   }
 
-  /** Find shared files (google_parent_id = '__shared__', owned_by_me = 1). */
-  findSharedFiles(userId: string) {
+  /**
+   * Find files you own that are NOT in My Drive:
+   * - Files inside computer backup folders
+   * - Files you created inside someone else's shared folder (any depth)
+   */
+  findExternalFiles(userId: string) {
     return this.db.prepare(
-      `SELECT f.*, d.email as driveEmail FROM files f
+      `${DriveRepository.EXTERNAL_PARENTS_CTE}
+       SELECT f.*, d.email as driveEmail FROM files f
        JOIN drive_accounts d ON f.drive_account_id = d.id
-       WHERE f.user_id = ? AND f.google_parent_id = ? AND f.owned_by_me = 1 AND f.is_trashed = 0
+       WHERE f.user_id = ? AND f.owned_by_me = 1 AND f.is_trashed = 0
+         AND (
+           f.google_parent_id = '__shared__'
+           OR f.google_parent_id IN (SELECT google_folder_id FROM external_parents)
+         )
        ORDER BY f.name ASC`
-    ).bind(userId, '__shared__').all();
+    ).bind(userId).all();
   }
 
   /** Search drive folders by name (for global search). */

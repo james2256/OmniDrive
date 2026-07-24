@@ -101,7 +101,7 @@ function makeDb() {
 - Folder browsing: tree, workspace contents, folder contents, cursor pagination
 - OAuth callback: PKCE state lookup, invalid/expired state
 - S3 protocol: ListBuckets, PutObject, DeleteObject, multipart
-- Repositories: admin, S3 credentials, automations, drive listing, shared-with-me
+- Repositories: admin, S3 credentials, automations, drive listing, external
 
 **Test isolation:** Each test file gets a fresh Miniflare D1 instance. Within a file, `beforeEach` calls `clearAllTables` to reset between tests.
 
