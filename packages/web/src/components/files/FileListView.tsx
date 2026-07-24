@@ -65,8 +65,8 @@ export function FileListView(props: FileListViewProps) {
   // Single grid layout — all columns visible on all screens.
   // Mobile: minimal checkbox column, more room for name. Desktop: full widths.
   const listGridClass = showDriveColumn
-    ? 'grid-cols-[34px_1fr_80px_70px_80px_10px] sm:grid-cols-[auto_1fr_140px_120px_140px_44px]'
-    : 'grid-cols-[34px_1fr_70px_80px_10px] sm:grid-cols-[auto_1fr_120px_140px_44px]';
+    ? 'grid-cols-[auto_1fr_80px_70px_80px_10px] sm:grid-cols-[auto_1fr_140px_120px_140px_44px]'
+    : 'grid-cols-[auto_1fr_70px_80px_10px] sm:grid-cols-[auto_1fr_120px_140px_44px]';
 
   const allItems: SelectedItem[] = [
     ...sortedSubfolders.map((f) => ({ type: 'folder' as const, item: f })),
