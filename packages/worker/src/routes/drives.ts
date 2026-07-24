@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { setCookie } from 'hono/cookie';
-import { AppError } from '../middleware/error-handler';
+import { AppError, ConflictError, ValidationError } from '../lib/errors';
 import type { AppContext } from '../types/env';
 import { authGuard } from '../middleware/auth-guard';
 import { GoogleDriveService } from '../services/google-drive';
@@ -203,7 +203,7 @@ drivesRouter.post('/service-account', zValidator('json', serviceAccountSchema, z
     sa = parseServiceAccountJson(credentials);
   } catch (err) {
     logError(c, 'Service account JSON parse error', err);
-    throw new AppError(400, 'Invalid service account JSON');
+    throw new ValidationError('Invalid service account JSON');
   }
 
   const serviceAccount = { clientEmail: sa.client_email, privateKey: sa.private_key };
@@ -230,7 +230,7 @@ drivesRouter.post('/service-account', zValidator('json', serviceAccountSchema, z
   const driveRepo = new DriveRepository(db);
   const existing = await driveRepo.findDriveByGoogleAccountId(userId, sa.client_email);
 
-  if (existing) throw new AppError(409, 'This service account is already connected');
+  if (existing) throw new ConflictError('This service account is already connected');
 
   const driveId = generateId();
   const countRow = await driveRepo.countDrivesByUser(userId);

@@ -4,7 +4,7 @@ import { Hono } from 'hono';
 import type { AppContext } from '../types/env';
 import { generateId } from '../lib/id';
 import { authGuard } from '../middleware/auth-guard';
-import { AppError } from '../middleware/error-handler';
+import { AppError, ConflictError } from '../lib/errors';
 import { GoogleDriveService } from '../services/google-drive';
 import { resolveDrivesWithQuota } from '../services/drive-quota';
 import { UploadRouter } from '../services/upload-router';
@@ -91,7 +91,7 @@ filesRouter.post('/:id/move-drive', zValidator('json', moveDriveFileSchema, zodE
   const file = await fileService.getForMoveDrive(userId, fileId) as { driveEmail: string; sourceDriveId: string; google_file_id: string; name: string };
 
   if (file.sourceDriveId === targetDriveId) {
-    throw new AppError(400, 'File is already in the target drive');
+    throw new ConflictError('File is already in the target drive');
   }
 
   const targetDrive = await c.get('driveService').findByIdAndUser(targetDriveId, userId) as { id: string; email: string } | null;
@@ -218,7 +218,7 @@ filesRouter.post('/upload/init', zValidator('json', uploadInitSchema, zodErrorHo
   if (workspaceId) {
     // IDOR/quota guard: workspaceId comes from the request body, so verify the
     // caller is an editor of that workspace before touching its quota.
-    const { getWorkspaceRole, hasPermission } = await import('../middleware/rbac');
+    const { getWorkspaceRole, hasPermission } = await import('../lib/rbac');
     const role = await getWorkspaceRole(db, workspaceId, userId);
     if (!role || !hasPermission(role, 'editor')) {
       throw new AppError(403, 'Forbidden');
@@ -290,7 +290,7 @@ filesRouter.post('/upload/finalize', zValidator('json', uploadFinalizeSchema, zo
     // IDOR/quota guard: workspaceId comes from the request body. Verify the
     // caller is an editor before attaching the file to the workspace or
     // mutating its stored byte count.
-    const { getWorkspaceRole, hasPermission } = await import('../middleware/rbac');
+    const { getWorkspaceRole, hasPermission } = await import('../lib/rbac');
     const role = await getWorkspaceRole(db, workspaceId, userId);
     if (!role || !hasPermission(role, 'editor')) {
       throw new AppError(403, 'Forbidden');

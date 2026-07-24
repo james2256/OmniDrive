@@ -1,5 +1,5 @@
 import type { Env, OAuthTokens } from '../types/env';
-import { AppError } from '../middleware/error-handler';
+import { AppError } from '../lib/errors';
 import { logErrorNoCtx } from '../lib/logger';
 
 export class AuthService {

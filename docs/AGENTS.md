@@ -202,7 +202,7 @@ node scripts/onboard-deploy.mjs   # initial setup/deploy wizard
 - Global middleware in `src/index.ts` (order matters): security headers → CORS → CSRF → rate limiter
 - Auth: `omnidrive_sid` cookie + D1 session (`sessions` table, `middleware/auth-guard.ts`)
 - S3: separate route at `/s3/*` with SigV4 (`middleware/s3-auth.ts`)
-- Errors: use `AppError` from `middleware/error-handler.ts`
+- Errors: use `AppError` from `lib/errors.ts`
 - Database: D1 (SQLite) — schema in `src/db/schema.sql`, incremental migrations `0001`–`0007`
 - Types: `src/types/env.ts` for `Env`, `SessionData`, `AppContext`
 
@@ -242,7 +242,7 @@ git merge upstream/main
 | Area | Key files | Note |
 |------|-----------|------|
 | Auth & session | `routes/auth.ts`, `services/auth.service.ts` | PKCE, JWT, AES-256-GCM token encryption |
-| RBAC | `middleware/rbac.ts` | Workspace roles: viewer → owner |
+| RBAC | `lib/rbac.ts` | Workspace roles: viewer → owner |
 | S3 SigV4 | `middleware/s3-auth.ts`, `lib/crypto-s3.ts` | Signature mismatch is very sensitive |
 | Sync | `services/sync.ts`, `services/google-drive.ts` | OOM-safe generator, `next_page_token` checkpoint |
 | CSRF | `middleware/csrf-guard.ts` | All `/api/*` mutations |

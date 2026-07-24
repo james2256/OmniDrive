@@ -15,7 +15,7 @@ import { UploadRouter } from '../services/upload-router';
 import { mapDriveRow, type WorkspaceRow, type FileRow, type DriveAccountRow, type S3MultipartUploadRow, type S3MultipartPartRow, type WorkspaceFolderRow, type WorkspaceWithRoleRow } from '../types';
 import type { DriveAccount } from '../types';
 import { createHash } from 'node:crypto';
-import { hasPermission } from '../middleware/rbac';
+import { hasPermission } from '../lib/rbac';
 import type { WorkspaceRole } from '../lib/schemas';
 import { parseLifecycleXml, serializeLifecycleXml } from '../services/s3-lifecycle';
 import { escapeXml, xmlError } from '../lib/s3-xml';

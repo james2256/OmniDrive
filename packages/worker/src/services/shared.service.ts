@@ -5,8 +5,8 @@ import { DriveRepository } from '../repositories/drive.repository';
 import { FolderRepository } from '../repositories/folder.repository';
 import { hashSharedPassword } from '../lib/password';
 import { validateWebhookUrlAsync } from '../lib/validation';
-import { AppError, NotFoundError, ForbiddenError } from '../middleware/error-handler';
-import { getWorkspaceRole, hasPermission } from '../middleware/rbac';
+import { AppError, NotFoundError, ForbiddenError } from '../lib/errors';
+import { getWorkspaceRole, hasPermission } from '../lib/rbac';
 import { mapSharedLinkRow, mapFileRow } from '../types';
 import type { SharedLink, FileRow, FileEntry } from '../types';
 

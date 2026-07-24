@@ -1,8 +1,8 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import { WorkspaceRepository } from '../repositories/workspace.repository';
 import { AuditService } from './audit.service';
-import { getWorkspaceRole, hasPermission } from '../middleware/rbac';
-import { AppError } from '../middleware/error-handler';
+import { getWorkspaceRole, hasPermission } from '../lib/rbac';
+import { AppError, ConflictError } from '../lib/errors';
 import type { WorkspaceRole } from '../lib/schemas';
 import { mapAuditLogRow, type AuditLog } from '../types';
 
@@ -92,7 +92,7 @@ export class WorkspaceService {
       });
     } catch (e: unknown) {
       if ((e instanceof Error ? e.message : String(e)).includes('UNIQUE constraint failed')) {
-        throw new AppError(409, 'User is already a member');
+        throw new ConflictError('User is already a member');
       }
       throw e;
     }

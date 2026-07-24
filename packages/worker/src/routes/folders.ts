@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { AppContext, Env } from '../types/env';
 import { authGuard } from '../middleware/auth-guard';
-import { AppError } from '../middleware/error-handler';
+import { AppError } from '../lib/errors';
 import { mapDriveRow } from '../types';
 import { syncDriveAccount, syncDriveFolder } from '../services/sync';
 import { GoogleDriveService } from '../services/google-drive';

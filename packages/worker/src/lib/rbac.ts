@@ -1,4 +1,4 @@
-import type { WorkspaceRole } from '../lib/schemas';
+import type { WorkspaceRole } from './schemas';
 
 export async function getWorkspaceRole(db: D1Database, workspaceId: string, userId: string): Promise<WorkspaceRole | null> {
   const member = await db.prepare(

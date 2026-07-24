@@ -1,4 +1,4 @@
-import { NotFoundError } from '../middleware/error-handler';
+import { NotFoundError } from '../lib/errors';
 import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types';
 import type { DriveAccount } from '../types/index';
 import { mapDriveRow } from '../types/index';

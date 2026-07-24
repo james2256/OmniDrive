@@ -5,7 +5,7 @@ import { corsMiddleware } from './middleware/cors';
 import { securityHeaders } from './middleware/security-headers';
 import { csrfGuard } from './middleware/csrf-guard';
 import { rateLimiter } from './middleware/rate-limiter';
-import { AppError } from './middleware/error-handler';
+import { AppError } from './lib/errors';
 import { requestId } from './middleware/request-id';
 import { sharedServices } from './middleware/shared-services';
 import { validateEnv } from './lib/env';

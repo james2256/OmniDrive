@@ -1,7 +1,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import type { OAuthTokens, QuotaCache } from '../types/index';
 import { parseStorageQuota, QUOTA_CACHE_VERSION } from '../lib/storage-quota';
-import { NotFoundError, AuthError, UpstreamError } from '../middleware/error-handler';
+import { NotFoundError, AuthError, UpstreamError } from '../lib/errors';
 import { withBackoff } from '../lib/backoff';
 
 // ponytail: split into token/file/folder/sync modules when a 4th method group

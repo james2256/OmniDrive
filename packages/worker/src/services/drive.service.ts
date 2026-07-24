@@ -1,7 +1,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import { DriveRepository } from '../repositories/drive.repository';
 import { GoogleDriveService } from './google-drive';
-import { AppError } from '../middleware/error-handler';
+import { AppError } from '../lib/errors';
 import { generateId } from '../lib/id';
 import { mapDriveRow, mapFileRow, mapDriveFolderRow } from '../types';
 

@@ -1,5 +1,5 @@
 import type { DriveWithQuota } from '../types/index';
-import { AppError } from '../middleware/error-handler';
+import { AppError } from '../lib/errors';
 
 export class UploadRouter {
   constructor(private drives: DriveWithQuota[]) {}

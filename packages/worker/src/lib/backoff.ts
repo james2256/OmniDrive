@@ -1,4 +1,4 @@
-import { UpstreamError } from '../middleware/error-handler';
+import { UpstreamError } from './errors';
 
 interface DriveApiError {
   error?: {

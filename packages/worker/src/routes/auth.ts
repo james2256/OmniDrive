@@ -4,7 +4,7 @@ import { hashPassword, verifyPassword } from '../lib/password';
 import type { AppContext, SessionData } from '../types/env';
 import type { UserRow } from '../types';
 import { AuthService } from '../services/auth.service';
-import { AppError } from '../middleware/error-handler';
+import { AppError, ConflictError } from '../lib/errors';
 import { generateId } from '../lib/id';
 import { authGuard } from '../middleware/auth-guard';
 import { zValidator } from '@hono/zod-validator';
@@ -34,11 +34,11 @@ authRouter.post('/register', zValidator('json', registerSchema, zodErrorHook), a
   const isSetup = (setupRes?.count || 0) > 0;
 
   const existing = await authRepo.findByUsername(username);
-  if (existing) throw new AppError(400, 'Username already exists');
+  if (existing) throw new ConflictError('Username already exists');
 
   if (email) {
     const existingEmail = await authRepo.findByEmail(email);
-    if (existingEmail) throw new AppError(400, 'Email already exists');
+    if (existingEmail) throw new ConflictError('Email already exists');
   }
 
   if (isSetup) {

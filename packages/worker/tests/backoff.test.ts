@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { isRetryable, parseDriveError, withBackoff } from '../src/lib/backoff';
-import { UpstreamError } from '../src/middleware/error-handler';
+import { UpstreamError } from '../src/lib/errors';
 
 describe('isRetryable', () => {
   it('429 → true', () => expect(isRetryable(429, null)).toBe(true));

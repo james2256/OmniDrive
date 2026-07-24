@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock the rbac module so we can control getWorkspaceRole + hasPermission
-vi.mock('../src/middleware/rbac', () => ({
+vi.mock('../src/lib/rbac', () => ({
   getWorkspaceRole: vi.fn(),
   hasPermission: vi.fn(),
 }));
 
 import { FileService } from '../src/services/file.service';
 import { SharedService } from '../src/services/shared.service';
-import { getWorkspaceRole, hasPermission } from '../src/middleware/rbac';
+import { getWorkspaceRole, hasPermission } from '../src/lib/rbac';
 import type { FileRow } from '../src/types';
 
 const mockDb = {} as D1Database;

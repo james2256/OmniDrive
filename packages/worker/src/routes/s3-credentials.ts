@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { authGuard } from '../middleware/auth-guard';
 import { generateId } from '../lib/id';
 import { encrypt } from '../lib/crypto';
-import { getWorkspaceRole, hasPermission } from '../middleware/rbac';
+import { getWorkspaceRole, hasPermission } from '../lib/rbac';
 import { zValidator } from '@hono/zod-validator';
 import { createS3CredentialsSchema, zodErrorHook } from '../lib/schemas';
 import type { AppContext } from '../types/env';

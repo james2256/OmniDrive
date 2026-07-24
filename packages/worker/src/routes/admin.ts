@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { AppContext } from '../types/env';
 import { authGuard } from '../middleware/auth-guard';
-import { AppError } from '../middleware/error-handler';
+import { AppError, ConflictError } from '../lib/errors';
 import { generateId } from '../lib/id';
 import { hashPassword } from '../lib/password';
 import { zValidator } from '@hono/zod-validator';
@@ -76,8 +76,8 @@ adminRouter.post('/users', zValidator('json', adminCreateUserSchema, zodErrorHoo
   const adminRepo = c.get('adminRepo');
 
   // Duplicate checks (preserved — same behavior as before)
-  if (await adminRepo.findByUsername(username)) throw new AppError(400, 'Username already exists');
-  if (email && await adminRepo.findByEmail(email)) throw new AppError(400, 'Email already exists');
+  if (await adminRepo.findByUsername(username)) throw new ConflictError('Username already exists');
+  if (email && await adminRepo.findByEmail(email)) throw new ConflictError('Email already exists');
 
   const id = generateId();
   const passwordHash = await hashPassword(password);

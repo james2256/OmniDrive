@@ -1,7 +1,7 @@
 import { createMiddleware } from 'hono/factory';
 import { getCookie } from 'hono/cookie';
 import type { AppContext, SessionData } from '../types/env';
-import { AppError } from './error-handler';
+import { AppError } from '../lib/errors';
 import { SESSION_TTL_MS } from '../lib/session-cookie';
 import { FileService } from '../services/file.service';
 import { FolderService } from '../services/folder.service';
