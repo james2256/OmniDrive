@@ -60,9 +60,13 @@ export async function batchUpsertFolderContents(
 ): Promise<void> {
   const fileRepo = new FileRepository(db);
   const folderRepo = new FolderRepository(db);
+  // Only store items the user owns. Non-owned items (shared WITH you by others)
+  // are never shown in the app and would leak into search/recent/starred/trashed
+  // queries (which filter by user_id, not owned_by_me). The live Google API is
+  // used for folder drill-in, so non-owned children are still visible transiently.
   const stmts: D1PreparedStatement[] = [
-    ...folders.map((f) => folderRepo.buildDriveFolderUpsertStmt(drive, f, googleParentId, isOwnedByMe(f.owners))),
-    ...files.map((f) => fileRepo.buildUpsertStmt(drive, f, googleParentId, isOwnedByMe(f.owners))),
+    ...folders.filter((f) => isOwnedByMe(f.owners)).map((f) => folderRepo.buildDriveFolderUpsertStmt(drive, f, googleParentId, true)),
+    ...files.filter((f) => isOwnedByMe(f.owners)).map((f) => fileRepo.buildUpsertStmt(drive, f, googleParentId, true)),
   ];
   await batchInChunks(db, stmts);
 }
@@ -178,13 +182,16 @@ async function performInitialSync(
     const fileRepo = new FileRepository(db);
     const folderRepo = new FolderRepository(db);
     const stmts: D1PreparedStatement[] = [];
+    // Only store items the user owns — see batchUpsertFolderContents for rationale.
     for (const folder of chunk.folders) {
+      if (!isOwnedByMe(folder.owners)) continue;
       const parentId = resolveParentId(folder.parents, rootFolderId, true);
-      stmts.push(folderRepo.buildDriveFolderUpsertStmt(drive, folder, parentId, isOwnedByMe(folder.owners)));
+      stmts.push(folderRepo.buildDriveFolderUpsertStmt(drive, folder, parentId, true));
     }
     for (const file of chunk.files) {
+      if (!isOwnedByMe(file.owners)) continue;
       const parentId = resolveParentId(file.parents, rootFolderId, false);
-      stmts.push(fileRepo.buildUpsertStmt(drive, file, parentId, isOwnedByMe(file.owners)));
+      stmts.push(fileRepo.buildUpsertStmt(drive, file, parentId, true));
     }
     await batchInChunks(db, stmts);
 
@@ -248,8 +255,30 @@ async function performIncrementalSync(
         continue;
       }
 
-      if (change.file?.trashed) {
-        // Moved to Google Drive trash — mark as trashed (recoverable via /trash → restore)
+      const file = change.file;
+      if (!file) continue;
+      if (file.mimeType === MIME_TYPE_SHORTCUT) continue;
+
+      // Don't store items you don't own — they're never shown in the app and
+      // leak into search/recent/starred/trashed queries. Delete any existing
+      // row so previously-written dead data is cleaned up on the next encounter.
+      if (!isOwnedByMe(file.owners)) {
+        if (isFolder) {
+          stmts.push(
+            db.prepare('DELETE FROM drive_folders WHERE drive_account_id = ? AND google_folder_id = ?')
+              .bind(drive.id, change.fileId),
+          );
+        } else {
+          stmts.push(
+            db.prepare('DELETE FROM files WHERE drive_account_id = ? AND google_file_id = ?')
+              .bind(drive.id, change.fileId),
+          );
+        }
+        continue;
+      }
+
+      if (file.trashed) {
+        // Owned + trashed → mark as trashed (recoverable via /trash → restore)
         if (isFolder) {
           stmts.push(
             db.prepare('UPDATE drive_folders SET is_trashed = 1 WHERE drive_account_id = ? AND google_folder_id = ?')
@@ -264,16 +293,13 @@ async function performIncrementalSync(
         continue;
       }
 
-      const file = change.file;
-      if (!file) continue;
-      if (file.mimeType === MIME_TYPE_SHORTCUT) continue;
-
+      // Owned + not trashed → upsert
       if (isFolder) {
         const parentId = resolveParentId(file.parents, rootFolderId, true);
-        stmts.push(folderRepo.buildDriveFolderUpsertStmt(drive, { id: file.id, name: file.name, parents: file.parents, owners: file.owners }, parentId, isOwnedByMe(file.owners)));
+        stmts.push(folderRepo.buildDriveFolderUpsertStmt(drive, { id: file.id, name: file.name, parents: file.parents, owners: file.owners }, parentId, true));
       } else {
         const parentId = resolveParentId(file.parents, rootFolderId, false);
-        stmts.push(fileRepo.buildUpsertStmt(drive, file as unknown as GDriveFile, parentId, isOwnedByMe(file.owners)));
+        stmts.push(fileRepo.buildUpsertStmt(drive, file as unknown as GDriveFile, parentId, true));
       }
     }
     await batchInChunks(db, stmts);

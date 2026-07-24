@@ -276,12 +276,12 @@ describe('Repositories (integration)', () => {
       await insertUser('u1', 'alice', 1);
       await insertDrive('d1', 'u1', 'alice@gmail.com', 1);
 
-      // Computer backup root (parent='__shared__') — TOP LEVEL, should show
+      // Computer backup root (parent='__shared__', owned_by_me=1) — TOP LEVEL, should show
       await env.DB.prepare(
         'INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?)'
       ).bind('df1', 'd1', 'gfolder1', '__shared__', 'My Laptop', 1, 0).run();
 
-      // Folder shared WITH me by someone else (parent='__shared__') — TOP LEVEL, should show
+      // Folder shared WITH me by someone else (parent='__shared__', owned_by_me=0) — should NOT show (not mine)
       await env.DB.prepare(
         'INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?)'
       ).bind('df3', 'd1', 'gfolder3', '__shared__', 'A Shared Folder', 0, 0).run();
@@ -301,10 +301,15 @@ describe('Repositories (integration)', () => {
         'INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?)'
       ).bind('df2', 'd1', 'gfolder2', 'root', 'My Folder', 1, 0).run();
 
-      // File at shared root (parent='__shared__') — should show
+      // File at shared root (parent='__shared__', owned_by_me=1) — should show
       await env.DB.prepare(
         'INSERT INTO files (id, user_id, drive_account_id, google_file_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
       ).bind('f1', 'u1', 'd1', 'gfile1', '__shared__', 'loose-shared.pdf', 1, 0).run();
+
+      // File shared WITH me at shared root (parent='__shared__', owned_by_me=0) — should NOT show (not mine)
+      await env.DB.prepare(
+        'INSERT INTO files (id, user_id, drive_account_id, google_file_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+      ).bind('f4', 'u1', 'd1', 'gfile4', '__shared__', 'someone-elses.pdf', 0, 0).run();
 
       // File inside My Laptop (parent=gfolder1) — should NOT show at top level
       await env.DB.prepare(
@@ -320,14 +325,13 @@ describe('Repositories (integration)', () => {
       const { results: folders } = await repo.findExternalFolders('u1');
       const { results: files } = await repo.findExternalFiles('u1');
 
-      // Only df1 (My Laptop) + df3 (A Shared Folder) — both have parent='__shared__'
-      // NOT df2 (My Drive), df4 (inside My Laptop), df5 (deeper inside)
-      expect(folders.length).toBe(2);
-      expect((folders[0] as any).name).toBe('A Shared Folder');
-      expect((folders[1] as any).name).toBe('My Laptop');
+      // Only df1 (My Laptop) — owned_by_me=1, parent='__shared__'
+      // NOT df2 (My Drive), df3 (owned_by_me=0), df4 (inside My Laptop), df5 (deeper inside)
+      expect(folders.length).toBe(1);
+      expect((folders[0] as any).name).toBe('My Laptop');
 
-      // Only f1 (loose file at shared root)
-      // NOT f2 (My Drive), f3 (inside My Laptop)
+      // Only f1 (loose file you own at shared root)
+      // NOT f2 (My Drive), f3 (inside My Laptop), f4 (owned_by_me=0)
       expect(files.length).toBe(1);
       expect((files[0] as any).name).toBe('loose-shared.pdf');
     });
