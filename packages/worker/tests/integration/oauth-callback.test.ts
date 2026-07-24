@@ -141,7 +141,8 @@ describe('OAuth callback (integration)', () => {
       headers: { Cookie: `${cookie}; oauth_state=${state}`, Origin: ORIGIN },
     }, env, executionCtx);
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(302);
+    expect(res.headers.get('Location')).toBe(env.FRONTEND_URL);
 
     // Drive account created
     const drive = await env.DB.prepare(
@@ -209,7 +210,8 @@ describe('OAuth callback (integration)', () => {
       headers: { Cookie: `${cookie}; oauth_state=${state}`, Origin: ORIGIN },
     }, env, executionCtx);
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(302);
+    expect(res.headers.get('Location')).toBe(env.FRONTEND_URL);
 
     // No duplicate drive account created
     const drives = await env.DB.prepare(

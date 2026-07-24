@@ -4,6 +4,7 @@ import { updateSharedLink } from '../lib/api';
 import type { SharedLink } from '../lib/api';
 import { useInvalidateSharedLinks } from '../hooks/useSharedLinks';
 import { useToastStore } from '../stores/useToastStore';
+import { toLocalDatetimeInput } from '../lib/utils';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 
 interface EditShareModalProps {
@@ -13,19 +14,14 @@ interface EditShareModalProps {
 }
 
 export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
-  // Extract datetime-local suitable string from ISO date string
-  const getInitialDate = (isoString: string | null) => {
-    if (!isoString) return '';
-    const date = new Date(isoString);
-    // Adjust to local timezone for datetime-local input
-    const offset = date.getTimezoneOffset() * 60000;
-    const localISOTime = (new Date(date.getTime() - offset)).toISOString().slice(0, 16);
-    return localISOTime;
-  };
+  // Format a stored ISO expiry into the local "YYYY-MM-DDThh:mm" string expected
+  // by <input datetime-local>. Returns '' when no expiry is set (input stays empty).
+  const formatExpiryForInput = (iso: string | null | undefined) =>
+    iso ? toLocalDatetimeInput(new Date(iso)) : '';
 
   // We don't load the password_hash, we just allow setting a new password.
   const [password, setPassword] = useState('');
-  const [expiresAt, setExpiresAt] = useState(getInitialDate(link?.expiresAt ?? null));
+  const [expiresAt, setExpiresAt] = useState(formatExpiryForInput(link?.expiresAt));
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [allowDownloads, setAllowDownloads] = useState(link?.allowDownloads ?? true);
@@ -44,7 +40,7 @@ export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
   useEffect(() => {
     if (open && link) {
       setPassword('');
-      setExpiresAt(getInitialDate(link.expiresAt ?? null));
+      setExpiresAt(formatExpiryForInput(link.expiresAt));
       setShowAdvanced(false);
       setShowPassword(false);
       setAllowDownloads(link.allowDownloads ?? true);
@@ -90,7 +86,7 @@ export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
     }
   };
 
-  const currentDateTime = new Date().toISOString().slice(0, 16);
+  const currentDateTime = toLocalDatetimeInput(new Date());
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !loading && onClose()}>

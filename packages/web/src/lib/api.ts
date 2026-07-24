@@ -172,8 +172,11 @@ export const api = {
       xhr.withCredentials = true;
       xhr.setRequestHeader('X-Upload-Url', uploadUrl);
       xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-      // Google resumable single-chunk upload requires Content-Range header
-      xhr.setRequestHeader('Content-Range', `bytes 0-${file.size - 1}/${file.size}`);
+      // Google resumable single-chunk upload requires Content-Range for non-empty
+      // bodies. Zero-byte files finalize with an empty PUT (no Content-Range).
+      if (file.size > 0) {
+        xhr.setRequestHeader('Content-Range', `bytes 0-${file.size - 1}/${file.size}`);
+      }
       xhr.send(file);
     });
   },

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Copy, Check, Share2, Calendar, Lock, Settings, ChevronDown, ChevronUp, Eye, EyeOff } from 'lucide-react';
 import { createSharedLink } from '../lib/api';
 import { useInvalidateSharedLinks } from '../hooks/useSharedLinks';
+import { toLocalDatetimeInput } from '../lib/utils';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 
 interface ShareModalProps {
@@ -103,7 +104,7 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
     }
   };
 
-  const currentDateTime = new Date().toISOString().slice(0, 16);
+  const currentDateTime = toLocalDatetimeInput(new Date());
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !loading && onClose()}>

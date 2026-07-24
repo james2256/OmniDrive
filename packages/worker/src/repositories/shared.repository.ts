@@ -156,9 +156,9 @@ export class SharedRepository {
   // ─── Audit logs ───
 
   /** Log a shared-link action (view, download, email_access). */
-  logAction(sharedLinkId: string, action: string, metadata?: string) {
+  logAction(sharedLinkId: string, action: string, visitorEmail?: string) {
     return this.db.prepare(
-      'INSERT INTO shared_link_logs (shared_link_id, action, metadata) VALUES (?, ?, ?)'
-    ).bind(sharedLinkId, action, metadata ?? null).run();
+      'INSERT INTO shared_link_logs (shared_link_id, action, visitor_email) VALUES (?, ?, ?)'
+    ).bind(sharedLinkId, action, visitorEmail ?? null).run();
   }
 }

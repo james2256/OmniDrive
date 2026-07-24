@@ -42,6 +42,12 @@ export interface GDriveFolder {
   owners?: GDriveOwner[];
 }
 
+/** Result of a token refresh: the new access token plus its real expiry. */
+interface RefreshedTokens {
+  accessToken: string;
+  expiresAt: number;
+}
+
 export class GoogleDriveService {
   private encryptionKey?: string;
   // In-memory token cache — avoids a D1 read (loadTokens) on every page of a sync.
@@ -118,8 +124,8 @@ export class GoogleDriveService {
         return tokens.accessToken;
       }
       const refreshed = await this.refreshServiceAccountToken(driveAccountId, tokens);
-      this.tokenCache.set(driveAccountId, { token: refreshed, expiresAt: tokens.expiresAt });
-      return refreshed;
+      this.tokenCache.set(driveAccountId, { token: refreshed.accessToken, expiresAt: refreshed.expiresAt });
+      return refreshed.accessToken;
     }
     if (tokens.expiresAt > Date.now() + 60_000) {
       this.tokenCache.set(driveAccountId, { token: tokens.accessToken, expiresAt: tokens.expiresAt });
@@ -129,8 +135,8 @@ export class GoogleDriveService {
       throw new AuthError(`No refresh token for drive ${driveAccountId}`);
     }
     const refreshed = await this.refreshToken(driveAccountId, tokens.refreshToken);
-    this.tokenCache.set(driveAccountId, { token: refreshed, expiresAt: tokens.expiresAt });
-    return refreshed;
+    this.tokenCache.set(driveAccountId, { token: refreshed.accessToken, expiresAt: refreshed.expiresAt });
+    return refreshed.accessToken;
   }
 
   private async persistTokens(driveAccountId: string, tokens: OAuthTokens): Promise<void> {
@@ -147,7 +153,7 @@ export class GoogleDriveService {
   private async refreshServiceAccountToken(
     driveAccountId: string,
     tokens: OAuthTokens
-  ): Promise<string> {
+  ): Promise<RefreshedTokens> {
     if (!tokens.serviceAccount) {
       throw new AuthError(`No service account credentials for drive ${driveAccountId}`);
     }
@@ -159,7 +165,7 @@ export class GoogleDriveService {
       expiresAt: refreshed.expiresAt,
     };
     await this.persistTokens(driveAccountId, nextTokens);
-    return refreshed.accessToken;
+    return { accessToken: refreshed.accessToken, expiresAt: refreshed.expiresAt };
   }
 
   // ponytail: best-effort revoke on disconnect; Google ignores already-revoked tokens
@@ -175,7 +181,7 @@ export class GoogleDriveService {
   }
 
   // ponytail: last-write-wins refresh — sync is mostly serial (activeSyncs guard); add single-flight lock if races become a problem
-  private async refreshToken(driveAccountId: string, refreshToken: string): Promise<string> {
+  private async refreshToken(driveAccountId: string, refreshToken: string): Promise<RefreshedTokens> {
     const response = await this.driveFetch(TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -189,17 +195,18 @@ export class GoogleDriveService {
 
     const data: { access_token: string; expires_in: number } = await response.json();
 
-    // Update KV with new access token (keep existing refresh token)
+    // Persist new access token (keep existing refresh token) with the real expiry.
     const existing = await this.loadTokens(driveAccountId);
+    const expiresAt = Date.now() + data.expires_in * 1000;
     const nextTokens = {
       ...existing,
       accessToken: data.access_token,
       refreshToken,
-      expiresAt: Date.now() + data.expires_in * 1000,
+      expiresAt,
     } satisfies OAuthTokens;
     await this.persistTokens(driveAccountId, nextTokens);
 
-    return data.access_token;
+    return { accessToken: data.access_token, expiresAt };
   }
 
   // ─── Quota ───

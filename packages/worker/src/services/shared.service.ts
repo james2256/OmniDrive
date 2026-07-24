@@ -207,8 +207,8 @@ export class SharedService {
     return this.sharedRepo.incrementDownloadCountWithLimit(id);
   }
 
-  logAction(linkId: string, action: string, metadata?: string) {
-    return this.sharedRepo.logAction(linkId, action, metadata);
+  logAction(linkId: string, action: string, visitorEmail?: string) {
+    return this.sharedRepo.logAction(linkId, action, visitorEmail);
   }
 
   // ─── RBAC ───

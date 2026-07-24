@@ -194,7 +194,7 @@ sharedRouter.post('/:id/email', zValidator('json', sharedLinkEmailSchema, zodErr
   setCookie(c, `shared_email_${link.id}`, emailToken, { path: '/', httpOnly: true, secure: true, sameSite: 'None', maxAge: 60 * 60 * 24 });
 
   c.executionCtx.waitUntil(
-    sharedService.logAction(link.id, 'email_access', JSON.stringify({ email }))
+    sharedService.logAction(link.id, 'email_access', email)
   );
   return c.json({ success: true });
 });

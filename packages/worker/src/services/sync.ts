@@ -302,7 +302,9 @@ export async function runScheduledSync(env: {
 
   const driveService = new GoogleDriveService(env.DB, env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, env.TOKEN_ENCRYPTION_KEY);
 
-  const rows = await env.DB.prepare("SELECT * FROM drive_accounts WHERE type = 'oauth'").all();
+  const rows = await env.DB.prepare(
+    "SELECT * FROM drive_accounts WHERE type IN ('oauth', 'service_account')"
+  ).all();
   const driveAccounts = (rows.results ?? []).map(mapDriveRow);
 
   await Promise.allSettled(

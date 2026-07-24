@@ -55,3 +55,17 @@ export function getQuotaLevel(percent: number): 'normal' | 'warning' | 'danger' 
   if (percent >= 75) return 'warning';
   return 'normal';
 }
+
+/**
+ * Format a Date as "YYYY-MM-DDThh:mm" in LOCAL time for `<input datetime-local>`.
+ *
+ * `<input type="datetime-local">` interprets its `value`/`min`/`max` attributes
+ * as local wall-clock, but `Date.toISOString()` emits UTC. Applying the negated
+ * timezone offset before slicing yields the correct local string. This is the
+ * inverse of the local-time parse used by ShareModal/EditShareModal on submit
+ * (`new Date(year, monthIndex, …)`), so round-tripping is exact.
+ */
+export function toLocalDatetimeInput(date: Date): string {
+  const offsetMs = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
