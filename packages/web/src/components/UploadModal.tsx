@@ -1,4 +1,4 @@
-import { X, Upload, Check, CircleAlert, Loader } from 'lucide-react';
+import { X, Upload, Check, CircleAlert, LoaderCircle } from 'lucide-react';
 import { useUploadStore } from '../stores/useUploadStore';
 import { useDrives } from '../hooks/useDrives';
 import { useToastStore } from '../stores/useToastStore';
@@ -51,7 +51,7 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
       case 'done': return <Check size={16} className="text-green-500" />;
       case 'error': return <CircleAlert size={16} className="text-red-500" />;
       case 'uploading':
-      case 'confirming': return <Loader size={16} className="text-blue-500 animate-spin" />;
+      case 'confirming': return <LoaderCircle size={16} className="text-blue-500 animate-spin" />;
       default: return null;
     }
   };
@@ -171,7 +171,7 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
                 disabled={isUploading || queue.length === 0}
               >
                 {isUploading ? (
-                  <><Loader size={14} className="animate-spin" /> Uploading...</>
+                  <><LoaderCircle size={14} className="animate-spin" /> Uploading...</>
                 ) : (
                   <><Upload size={14} /> Upload</>
                 )}

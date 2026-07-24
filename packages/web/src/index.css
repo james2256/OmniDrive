@@ -1,10 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-/* Class-based dark mode — dark: utilities only apply under an explicit .dark ancestor.
-   This project never adds .dark, so dark: classes are effectively no-ops. */
-@custom-variant dark (&:is(.dark *));
-
 @theme {
   --color-background: #F3F4F6;
   --color-foreground: #0F172A;

@@ -108,7 +108,7 @@ All SQL lives in `repositories/`. The pattern is:
 - **Services** (`services/*.ts`): Business logic + RBAC + Google API calls. **No SQL strings.**
 - **Repositories** (`repositories/*.ts`): All SQL. Named by intent (`findById`, `findAllByUser`, `insertWithUniqueSlug`).
 
-8 of 10 routes have zero inline SQL. The remaining 2 (`s3.ts` with 37, `auth.ts /callback` with 8) are deferred with `ponytail:` comments — grep for `ponytail:` to find intentional deferrals.
+6 of 10 routes have zero inline SQL. The remaining 4 (`s3.ts` with 37, `auth.ts` with 9, `drives.ts` with 3, `files.ts` with 1) are deferred with `ponytail:` comments — grep for `ponytail:` to find intentional deferrals.
 
 ### Error handling
 

@@ -1,5 +1,6 @@
 import type { RuleCondition, AutomationRule, RuleAction } from '../types/automation';
 import type { Env } from '../types/env';
+import { generateId } from '../lib/id';
 
 export const TRIGGER_EVENT: AutomationRule['triggerType'] = 'event';
 export const TRIGGER_CRON: AutomationRule['triggerType'] = 'cron';
@@ -167,7 +168,7 @@ export class AutomationEngine {
       if (actions.length > 0) {
         stmts.push(
           this.env.DB.prepare('INSERT INTO automation_logs (id, rule_id, status, details) VALUES (?, ?, ?, ?)')
-            .bind(crypto.randomUUID(), ruleId, 'success', JSON.stringify({ fileId: file.id }))
+            .bind(generateId(), ruleId, 'success', JSON.stringify({ fileId: file.id }))
         );
       }
 
@@ -177,7 +178,7 @@ export class AutomationEngine {
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       await this.env.DB.prepare('INSERT INTO automation_logs (id, rule_id, status, details) VALUES (?, ?, ?, ?)')
-        .bind(crypto.randomUUID(), ruleId, 'error', errorMessage).run();
+        .bind(generateId(), ruleId, 'error', errorMessage).run();
     }
   }
 }

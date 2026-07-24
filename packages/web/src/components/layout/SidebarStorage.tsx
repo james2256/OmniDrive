@@ -51,9 +51,9 @@ export const SidebarStorage: React.FC = () => {
   const totalPct = Math.min((aggregate.totalUsed / aggregate.totalQuota) * 100, 100);
 
   return (
-    <div className="px-4 py-3 mt-1 border-t border-slate-200 dark:border-slate-800">
+    <div className="px-4 py-3 mt-1 border-t border-slate-200">
       {/* Stacked Category Bar */}
-      <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden mb-3 flex">
+      <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden mb-3 flex">
         {data.map((item, idx) => {
           const pct = aggregate.totalUsed > 0 ? (item.value / aggregate.totalUsed) * 100 : 0;
           return pct > 0 ? (
@@ -75,7 +75,7 @@ export const SidebarStorage: React.FC = () => {
             <div key={idx} className="flex justify-between text-xs">
               <div className="flex items-center gap-1.5">
                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
-                <span className="text-slate-600 dark:text-slate-500">{item.name}</span>
+                <span className="text-slate-600">{item.name}</span>
               </div>
               <span className="text-slate-500 text-[10px]">
                 {formatFileSize(item.value)} ({pct.toFixed(1)}%)
@@ -87,12 +87,12 @@ export const SidebarStorage: React.FC = () => {
 
       <div className="mb-3">
         <div className="flex justify-between text-xs mb-1">
-          <span className="font-medium text-slate-700 dark:text-slate-300">Storage</span>
+          <span className="font-medium text-slate-700">Storage</span>
           <span className="text-slate-500">
             {totalPct.toFixed(1)}%
           </span>
         </div>
-        <div className="h-2 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden mb-1">
+        <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden mb-1">
           <div
             className="h-full bg-blue-500 rounded-full transition-all"
             style={{ width: `${totalPct}%` }}
