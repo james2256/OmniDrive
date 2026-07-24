@@ -200,7 +200,7 @@ authRouter.get('/callback', async (c) => {
     c.executionCtx.waitUntil(syncDriveAccount(driveObj, db, driveService));
   }
 
-  return c.json({ success: true });
+  return c.redirect(c.env.FRONTEND_URL);
 });
 
 authRouter.get('/me', authGuard, (c) => {
