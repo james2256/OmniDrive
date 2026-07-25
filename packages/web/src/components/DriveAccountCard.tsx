@@ -11,15 +11,17 @@ interface DriveAccountCardProps {
   onSync: (id: string) => Promise<void>;
   onDisconnect: (id: string) => Promise<void>;
   onReconnect?: () => void;
+  isSyncingOverride?: boolean;
 }
 
-export function DriveAccountCard({ drive, index, onSync, onDisconnect, onReconnect }: DriveAccountCardProps) {
-  const [syncing, setSyncing] = useState(false);
+export function DriveAccountCard({ drive, index, onSync, onDisconnect, onReconnect, isSyncingOverride }: DriveAccountCardProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const color = getDriveColor(index);
 
-  const isSyncing = syncing || drive.syncStatus === 'syncing';
+  // Parent owns the syncing state (persists for the full sync duration).
+  // drive.syncStatus covers syncs started by the cron or reconnect flow.
+  const isSyncing = isSyncingOverride || drive.syncStatus === 'syncing';
   // Token-refresh failure is permanent — Google revoked the refresh token.
   // Sync will always fail until the user reconnects (new OAuth flow).
   const needsReconnect =
@@ -28,8 +30,7 @@ export function DriveAccountCard({ drive, index, onSync, onDisconnect, onReconne
     !!onReconnect;
 
   const handleSync = async () => {
-    setSyncing(true);
-    try { await onSync(drive.id); } finally { setSyncing(false); }
+    await onSync(drive.id);
   };
 
   const handleDisconnect = () => {
