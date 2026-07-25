@@ -8,6 +8,7 @@ import { BulkActionBar } from '../components/layout/BulkActionBar';
 import { MoveModal } from '../components/MoveModal';
 import { ShareModal } from '../components/ShareModal';
 import { MoveDriveModal } from '../components/MoveDriveModal';
+import { FolderDownloadModal } from '../components/FolderDownloadModal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { RenameDialog } from '../components/RenameDialog';
 import { api } from '../lib/api';
@@ -45,6 +46,7 @@ export function ExternalPage() {
   const [shareTarget, setShareTarget] = useState<{ id: string; type: 'file' | 'folder' } | null>(null);
   const [moveTarget, setMoveTarget] = useState<SelectedItem[]>([]);
   const [moveDriveFiles, setMoveDriveFiles] = useState<FileEntry[]>([]);
+  const [folderDownloadTarget, setFolderDownloadTarget] = useState<{ driveId: string; folderId: string; name: string } | null>(null);
   const [confirmFileDelete, setConfirmFileDelete] = useState<string | null>(null);
   const [confirmFolderDelete, setConfirmFolderDelete] = useState<{ driveId: string; folderId: string } | null>(null);
   const [renameTarget, setRenameTarget] = useState<
@@ -247,6 +249,7 @@ export function ExternalPage() {
                 onRenameFolderRequest: handleRenameFolderRequest,
                 onDeleteFile: handleDeleteFile,
                 onDeleteFolder: handleDeleteFolder,
+                onDownloadFolder: (driveId, folderId, name) => setFolderDownloadTarget({ driveId, folderId, name }),
                 onMove: (items) => setMoveTarget(items),
                 onViewInfo: handleViewInfo,
                 onToggleStar: handleToggleStar,
@@ -290,6 +293,13 @@ export function ExternalPage() {
           clearSelection();
           refresh();
         }}
+      />
+      <FolderDownloadModal
+        open={folderDownloadTarget !== null}
+        onClose={() => setFolderDownloadTarget(null)}
+        driveId={folderDownloadTarget?.driveId}
+        folderId={folderDownloadTarget?.folderId}
+        folderName={folderDownloadTarget?.name ?? ''}
       />
 
       <ConfirmDialog

@@ -36,6 +36,8 @@ export interface ItemActions {
   onDeleteFile?: (id: string) => void;
   onDeleteFolder?: (driveId: string, folderId: string) => void;
   onMoveDrive?: (file: FileEntry) => void;
+  /** Download a folder as a ZIP (client-side streaming). */
+  onDownloadFolder?: (driveId: string, folderId: string, folderName: string) => void;
   /** Move item(s) to another folder within the same drive. */
   onMove?: (items: SelectedItem[]) => void;
   onRestore?: (fileId: string) => void;

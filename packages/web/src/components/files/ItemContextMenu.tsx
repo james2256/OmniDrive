@@ -87,6 +87,7 @@ const ItemContextMenuContent: React.FC<ItemContextMenuContentProps> = ({ type, i
     onRenameFileRequest,
     onRenameFolderRequest,
     onMoveDrive,
+    onDownloadFolder,
     onMove,
     onDeleteFile,
     onDeleteFolder,
@@ -159,6 +160,11 @@ const ItemContextMenuContent: React.FC<ItemContextMenuContentProps> = ({ type, i
           )}
           {type === 'file' && file && (
             <ContextMenuItem onClick={() => { window.location.href = `${import.meta.env.VITE_API_URL || ''}/api/files/${file.id}/download`; }}>
+              <Download className="mr-2 h-4 w-4" /> Download
+            </ContextMenuItem>
+          )}
+          {type === 'folder' && driveFolder && onDownloadFolder && driveAccountId && name && (
+            <ContextMenuItem onClick={() => onDownloadFolder(driveAccountId, driveFolder.googleFolderId, name)}>
               <Download className="mr-2 h-4 w-4" /> Download
             </ContextMenuItem>
           )}

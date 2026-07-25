@@ -355,6 +355,21 @@ export class GoogleDriveService {
     return response.json();
   }
 
+  /**
+   * Get a file's parent IDs (for IDOR checks in shared-link downloads).
+   * Requests only the `parents` field — lighter than `getFile()`.
+   */
+  async getFileParents(driveAccountId: string, googleFileId: string): Promise<string[]> {
+    const token = await this.getValidToken(driveAccountId);
+    const response = await this.driveFetch(
+      `${DRIVE_API}/files/${googleFileId}?fields=parents&supportsAllDrives=true`,
+      { headers: { Authorization: `Bearer ${token}` } },
+      { context: 'Failed to get file parents' },
+    );
+    const data = await response.json() as { parents?: string[] };
+    return data.parents ?? [];
+  }
+
   async downloadFile(driveAccountId: string, googleFileId: string, mimeType?: string): Promise<{stream: ReadableStream<Uint8Array>, exportedMimeType?: string, exportedExtension?: string}> {
     const token = await this.getValidToken(driveAccountId);
 

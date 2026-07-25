@@ -9,6 +9,7 @@ import { UploadModal } from '../components/UploadModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
 import { ShareModal } from '../components/ShareModal';
 import { MoveDriveModal } from '../components/MoveDriveModal';
+import { FolderDownloadModal } from '../components/FolderDownloadModal';
 import { MoveModal } from '../components/MoveModal';
 import { AddToWorkspaceModal } from '../components/workspaces/AddToWorkspaceModal';
 import { CreateFolderModal } from '../components/CreateFolderModal';
@@ -48,6 +49,7 @@ export function FilesPage() {
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
   const [shareTarget, setShareTarget] = useState<{ id: string, type: 'file' | 'folder' } | null>(null);
   const [moveDriveFiles, setMoveDriveFiles] = useState<FileEntry[]>([]);
+  const [folderDownloadTarget, setFolderDownloadTarget] = useState<{ driveId: string; folderId: string; name: string } | null>(null);
   const [workspaceTarget, setWorkspaceTarget] = useState<FileEntry | null>(null);
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -285,6 +287,7 @@ export function FilesPage() {
                 onDeleteFile: handleDeleteFile,
                 onDeleteFolder: handleDeleteFolder,
                 onMoveDrive: (file) => setMoveDriveFiles([file]),
+                onDownloadFolder: (driveId, folderId, name) => setFolderDownloadTarget({ driveId, folderId, name }),
                 onMove: (items) => setMoveTarget(items),
                 onAddToWorkspace: setWorkspaceTarget,
                 onViewInfo: handleViewInfo,
@@ -330,6 +333,13 @@ export function FilesPage() {
             clearSelection();
             refresh();
           }}
+        />
+        <FolderDownloadModal
+          open={folderDownloadTarget !== null}
+          onClose={() => setFolderDownloadTarget(null)}
+          driveId={folderDownloadTarget?.driveId}
+          folderId={folderDownloadTarget?.folderId}
+          folderName={folderDownloadTarget?.name ?? ''}
         />
         <AddToWorkspaceModal
           open={!!workspaceTarget}

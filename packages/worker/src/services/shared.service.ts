@@ -148,6 +148,19 @@ export class SharedService {
 
   // ─── Public endpoints (no auth) ───
 
+  /**
+   * Resolve a shared folder link to { driveId, googleFolderId, rootName }.
+   * Queries drive_folders by google_folder_id (the link's targetId).
+   * Returns null for workspace folders (not yet supported for shared-folder download).
+   */
+  async resolveFolderTarget(link: SharedLink): Promise<{ driveId: string; googleFolderId: string; rootName: string } | null> {
+    const driveFolder = await this.db.prepare(
+      'SELECT drive_account_id, name FROM drive_folders WHERE google_folder_id = ?'
+    ).bind(link.targetId).first<{ drive_account_id: string; name: string }>();
+    if (!driveFolder) return null;
+    return { driveId: driveFolder.drive_account_id, googleFolderId: link.targetId, rootName: driveFolder.name };
+  }
+
   /** Get shared link metadata + target file/folder name (for public preview). */
   async getPublicMeta(id: string): Promise<{ link: SharedLink; target?: FileEntry; targetName?: string }> {
     const row = await this.sharedRepo.findById(id);

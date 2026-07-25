@@ -428,3 +428,61 @@ drivesRouter.delete('/:id', async (c) => {
   await c.get('driveService').disconnectDrive(c.get('userId'), c.req.param('id'));
   return c.json({ success: true });
 });
+
+// GET /api/drives/:driveId/folders/:googleFolderId/download-tree
+// Recursively lists all files in a folder (including subfolders), persists them
+// to D1 so the existing GET /api/files/:id/download endpoint works, and returns
+// a flat array with relative paths for client-side ZIP assembly.
+// Caps at 500 files + 40 API calls to stay within Free tier subrequest budget.
+drivesRouter.get('/:driveId/folders/:googleFolderId/download-tree', async (c) => {
+  const userId = c.get('userId');
+  const { driveId, googleFolderId } = c.req.param();
+  const db = c.env.DB;
+
+  const driveRepo = new DriveRepository(db);
+  const driveRow = await driveRepo.findFullByIdAndUser(driveId, userId);
+  if (!driveRow) return c.json({ error: 'Drive not found' }, 404);
+
+  const drive = mapDriveRow(driveRow as Record<string, unknown>);
+  const driveService = new GoogleDriveService(db, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+
+  const MAX_FILES = 500;
+  const MAX_API_CALLS = 40;
+  let apiCallCount = 0;
+  let truncated = false;
+
+  const tree: Array<{ id: string; name: string; path: string; size: number; mimeType: string | null }> = [];
+
+  async function walk(folderId: string, pathPrefix: string): Promise<void> {
+    if (tree.length >= MAX_FILES || apiCallCount >= MAX_API_CALLS) {
+      truncated = true;
+      return;
+    }
+    apiCallCount++;
+
+    const { files: gFiles, folders: gFolders } = await driveService.listFolderContents(driveId, folderId);
+    await batchUpsertFolderContents(db, drive, gFolders, gFiles, folderId);
+
+    const fileRows = await driveRepo.findFilesByParent(driveId, folderId);
+    for (const row of fileRows.results) {
+      if (tree.length >= MAX_FILES) { truncated = true; break; }
+      const file = mapFileRow(row as Record<string, unknown>);
+      if (file.userId !== userId) continue;
+      tree.push({ id: file.id, name: file.name, path: pathPrefix + file.name, size: file.size, mimeType: file.mimeType });
+    }
+
+    for (const folder of gFolders) {
+      if (tree.length >= MAX_FILES || apiCallCount >= MAX_API_CALLS) { truncated = true; break; }
+      await walk(folder.id, `${pathPrefix}${folder.name}/`);
+    }
+  }
+
+  await walk(googleFolderId, '');
+
+  const rootFolder = await driveRepo.findDriveFolderByGoogleId(driveId, googleFolderId);
+  return c.json({
+    files: tree,
+    rootName: (rootFolder as Record<string, unknown>)?.name ?? 'folder',
+    truncated,
+  });
+});

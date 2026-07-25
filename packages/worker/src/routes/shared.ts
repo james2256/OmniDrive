@@ -10,6 +10,7 @@ import type { SharedLink } from '../types';
 import { GoogleDriveService } from '../services/google-drive';
 import { verifySharedPassword } from '../lib/password';
 import { logError } from '../lib/logger';
+import { isFileInSharedFolder } from '../lib/shared-folder';
 import {
   createSharedLinkSchema,
   updateSharedLinkSchema,
@@ -199,6 +200,8 @@ sharedRouter.post('/:id/email', zValidator('json', sharedLinkEmailSchema, zodErr
   return c.json({ success: true });
 });
 
+// GET /:id/download — stream the file (for file links) or a specific file
+// inside the shared folder (for folder links, via ?fileId= query param).
 sharedRouter.get('/:id/download', async (c) => {
   const sharedService = c.get('sharedService');
   const link = await sharedService.getLinkForValidation(c.req.param('id'));
@@ -213,75 +216,177 @@ sharedRouter.get('/:id/download', async (c) => {
     return c.text('Downloads are disabled for this link', 403);
   }
 
-  if (link.targetType !== 'file') {
-    return c.text('Folder download not supported yet', 400);
-  }
+  const fileId = c.req.query('fileId');
 
-  const ctx = await sharedService.getDownloadContext(link);
-  if (!ctx) return c.text('File not found', 404);
-  const { file, driveAccountId } = ctx;
+  // Existing flow: single-file link (no fileId param)
+  if (link.targetType === 'file' && !fileId) {
+    const ctx = await sharedService.getDownloadContext(link);
+    if (!ctx) return c.text('File not found', 404);
+    const { file, driveAccountId } = ctx;
 
-  const driveService = new GoogleDriveService(
-    c.env.DB,
-    c.env.GOOGLE_CLIENT_ID,
-    c.env.GOOGLE_CLIENT_SECRET,
-    c.env.TOKEN_ENCRYPTION_KEY
-  );
+    const driveService = new GoogleDriveService(c.env.DB, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
 
-  let stream: ReadableStream<Uint8Array>;
-  let finalMimeType = (file.mime_type as string) || 'application/octet-stream';
-  let finalFileName = file.name as string;
+    let stream: ReadableStream<Uint8Array>;
+    let finalMimeType = (file.mime_type as string) || 'application/octet-stream';
+    let finalFileName = file.name as string;
 
-  try {
-    const downloadResult = await driveService.downloadFile(
-      driveAccountId,
-      file.google_file_id,
-      file.mime_type ?? undefined
-    );
-    stream = downloadResult.stream;
-
-    if (downloadResult.exportedMimeType && downloadResult.exportedExtension) {
-      finalMimeType = downloadResult.exportedMimeType;
-      finalFileName = `${finalFileName}${downloadResult.exportedExtension}`;
+    try {
+      const downloadResult = await driveService.downloadFile(driveAccountId, file.google_file_id, file.mime_type ?? undefined);
+      stream = downloadResult.stream;
+      if (downloadResult.exportedMimeType && downloadResult.exportedExtension) {
+        finalMimeType = downloadResult.exportedMimeType;
+        finalFileName = `${finalFileName}${downloadResult.exportedExtension}`;
+      }
+    } catch (e: unknown) {
+      logError(c, 'Download error', e);
+      return c.text('Failed to download file', 502);
     }
-  } catch (e: unknown) {
-    logError(c, 'Download error', e);
-    return c.text('Failed to download file', 502);
+
+    // Enforce download limit
+    if (link.maxDownloads !== null && link.maxDownloads !== undefined) {
+      const newCount = await sharedService.incrementDownloadCountWithLimit(link.id);
+      if (newCount === null) return c.text('Maximum download limit reached', 403);
+    } else {
+      c.executionCtx.waitUntil(sharedService.incrementDownloadCount(link.id));
+    }
+    c.executionCtx.waitUntil(sharedService.logAction(link.id, 'download'));
+
+    if (link.webhookUrl) {
+      c.executionCtx.waitUntil(
+        fetch(link.webhookUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'download', linkId: link.id }) }).catch(() => {})
+      );
+    }
+
+    c.header('Content-Type', finalMimeType);
+    c.header('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(finalFileName)}`);
+    if (file.size && !finalFileName.endsWith('.pdf') && !finalFileName.endsWith('.xlsx')) {
+      c.header('Content-Length', String(file.size));
+    }
+    return c.body(stream);
   }
 
-  // ponytail: increment only after Google fetch succeeds — failed downloads don't burn quota.
-  // When maxDownloads is set, use the atomic RETURNING query (enforces limit + blocks before streaming).
-  // When maxDownloads is null, fire-and-forget is safe (no limit to enforce).
+  // New flow: folder link with ?fileId= (download a specific file inside the folder)
+  if (link.targetType === 'folder' && fileId) {
+    const target = await sharedService.resolveFolderTarget(link);
+    if (!target) return c.text('Folder not found', 404);
+    const { driveId, googleFolderId } = target;
+
+    const driveService = new GoogleDriveService(c.env.DB, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+
+    // IDOR prevention: verify the file is inside the shared folder tree
+    const isInside = await isFileInSharedFolder(driveService, driveId, fileId, googleFolderId);
+    if (!isInside) return c.text('File not found in this shared folder', 404);
+
+    const fileMeta = await driveService.getFile(driveId, fileId);
+    if (!fileMeta) return c.text('File not found', 404);
+
+    let stream: ReadableStream<Uint8Array>;
+    let finalMimeType = fileMeta.mimeType || 'application/octet-stream';
+    let finalFileName = fileMeta.name;
+
+    try {
+      const downloadResult = await driveService.downloadFile(driveId, fileId, fileMeta.mimeType ?? undefined);
+      stream = downloadResult.stream;
+      if (downloadResult.exportedMimeType && downloadResult.exportedExtension) {
+        finalMimeType = downloadResult.exportedMimeType;
+        finalFileName = `${finalFileName}${downloadResult.exportedExtension}`;
+      }
+    } catch (e: unknown) {
+      logError(c, 'Download error', e);
+      return c.text('Failed to download file', 502);
+    }
+
+    // Enforce download limit (same as file links)
+    if (link.maxDownloads !== null && link.maxDownloads !== undefined) {
+      const newCount = await sharedService.incrementDownloadCountWithLimit(link.id);
+      if (newCount === null) return c.text('Maximum download limit reached', 403);
+    } else {
+      c.executionCtx.waitUntil(sharedService.incrementDownloadCount(link.id));
+    }
+    c.executionCtx.waitUntil(sharedService.logAction(link.id, 'download'));
+
+    c.header('Content-Type', finalMimeType);
+    c.header('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(finalFileName)}`);
+    return c.body(stream);
+  }
+
+  return c.text('Use GET /:id/download-tree for folder downloads', 400);
+});
+
+// GET /:id/folder-contents — list a shared folder's contents (for browsing)
+sharedRouter.get('/:id/folder-contents', async (c) => {
+  const sharedService = c.get('sharedService');
+  const link = await sharedService.getLinkForValidation(c.req.param('id'));
+  if (!link) return c.text('Not found', 404);
+
+  const validation = await validateSharedLink(c, link);
+  if (!validation.ok) return c.json({ error: validation.error }, validation.status as 400);
+
+  if (link.targetType !== 'folder') return c.text('Not a folder link', 400);
+
+  const target = await sharedService.resolveFolderTarget(link);
+  if (!target) return c.text('Folder not found', 404);
+  const { driveId, googleFolderId } = target;
+
+  const driveService = new GoogleDriveService(c.env.DB, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+  const { files, folders } = await driveService.listFolderContents(driveId, googleFolderId);
+
+  return c.json({
+    files: files.map(f => ({ id: f.id, name: f.name, mimeType: f.mimeType, size: parseInt(f.size ?? '0', 10), thumbnailUrl: f.thumbnailLink ?? null })),
+    folders: folders.map(f => ({ id: f.id, name: f.name })),
+  });
+});
+
+// GET /:id/download-tree — recursive tree for client-side ZIP (folder links)
+sharedRouter.get('/:id/download-tree', async (c) => {
+  const sharedService = c.get('sharedService');
+  const link = await sharedService.getLinkForValidation(c.req.param('id'));
+  if (!link) return c.text('Not found', 404);
+
+  const validation = await validateSharedLink(c, link);
+  if (!validation.ok) return c.json({ error: validation.error }, validation.status as 400);
+
+  if (!link.allowDownloads) return c.text('Downloads are disabled', 403);
+  if (link.targetType !== 'folder') return c.text('Not a folder link', 400);
+
+  const target = await sharedService.resolveFolderTarget(link);
+  if (!target) return c.text('Folder not found', 404);
+  const { driveId, googleFolderId, rootName } = target;
+
+  const driveService = new GoogleDriveService(c.env.DB, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+
+  const MAX_FILES = 500;
+  const MAX_API_CALLS = 40;
+  let apiCallCount = 0;
+  let truncated = false;
+
+  const tree: Array<{ googleFileId: string; name: string; path: string; size: number; mimeType: string | null }> = [];
+
+  async function walk(folderId: string, pathPrefix: string): Promise<void> {
+    if (tree.length >= MAX_FILES || apiCallCount >= MAX_API_CALLS) { truncated = true; return; }
+    apiCallCount++;
+
+    const { files: gFiles, folders: gFolders } = await driveService.listFolderContents(driveId, folderId);
+    for (const file of gFiles) {
+      if (tree.length >= MAX_FILES) { truncated = true; break; }
+      tree.push({ googleFileId: file.id, name: file.name, path: pathPrefix + file.name, size: parseInt(file.size ?? '0', 10), mimeType: file.mimeType ?? null });
+    }
+    for (const folder of gFolders) {
+      if (tree.length >= MAX_FILES || apiCallCount >= MAX_API_CALLS) { truncated = true; break; }
+      await walk(folder.id, `${pathPrefix}${folder.name}/`);
+    }
+  }
+
+  await walk(googleFolderId, '');
+
+  // Enforce download limit
   if (link.maxDownloads !== null && link.maxDownloads !== undefined) {
     const newCount = await sharedService.incrementDownloadCountWithLimit(link.id);
-    if (newCount === null) {
-      return c.text('Maximum download limit reached', 403);
-    }
+    if (newCount === null) return c.text('Maximum download limit reached', 403);
   } else {
-    c.executionCtx.waitUntil(
-      sharedService.incrementDownloadCount(link.id)
-    );
+    c.executionCtx.waitUntil(sharedService.incrementDownloadCount(link.id));
   }
+  c.executionCtx.waitUntil(sharedService.logAction(link.id, 'download'));
 
-  c.executionCtx.waitUntil(
-    sharedService.logAction(link.id, 'download')
-  );
-
-  if (link.webhookUrl) {
-    c.executionCtx.waitUntil(
-      fetch(link.webhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'download', linkId: link.id })
-      }).catch(() => {})
-    );
-  }
-
-  c.header('Content-Type', finalMimeType);
-  c.header('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(finalFileName)}`);
-  if (file.size && !finalFileName.endsWith('.pdf') && !finalFileName.endsWith('.xlsx')) {
-    c.header('Content-Length', String(file.size));
-  }
-
-  return c.body(stream);
+  return c.json({ files: tree, rootName, truncated });
 });

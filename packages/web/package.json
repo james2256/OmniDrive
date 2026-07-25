@@ -17,6 +17,7 @@
     "@radix-ui/react-slot": "^1.3.0",
     "@tanstack/react-query": "^5.101.3",
     "class-variance-authority": "^0.7.1",
+    "client-zip": "^2.5.0",
     "clsx": "^2.1.1",
     "lucide-react": "^1.25.0",
     "react": "^19.2.7",

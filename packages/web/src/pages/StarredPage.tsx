@@ -4,6 +4,7 @@ import { FileGrid } from '../components/files/FileGrid';
 import { BulkActionBar } from '../components/layout/BulkActionBar';
 import { ShareModal } from '../components/ShareModal';
 import { MoveDriveModal } from '../components/MoveDriveModal';
+import { FolderDownloadModal } from '../components/FolderDownloadModal';
 import { api } from '../lib/api';
 import { useDrives } from '../hooks/useDrives';
 import { useSharedLinks } from '../hooks/useSharedLinks';
@@ -30,6 +31,7 @@ export function StarredPage() {
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
   const [shareTarget, setShareTarget] = useState<{ id: string; type: 'file' | 'folder' } | null>(null);
   const [moveDriveFiles, setMoveDriveFiles] = useState<FileEntry[]>([]);
+  const [folderDownloadTarget, setFolderDownloadTarget] = useState<{ driveId: string; folderId: string; name: string } | null>(null);
   const selectedItems = useSelectionStore((s) => s.selectedItems);
 
   const { data, isLoading } = useQuery({
@@ -114,6 +116,7 @@ export function StarredPage() {
               onDeleteFile: handleDeleteFile,
               onDeleteFolder: handleDeleteFolder,
               onMoveDrive: (file) => setMoveDriveFiles([file]),
+              onDownloadFolder: (driveId, folderId, name) => setFolderDownloadTarget({ driveId, folderId, name }),
             }}
           />
         </div>
@@ -142,6 +145,13 @@ export function StarredPage() {
           onSuccess={() => setMoveDriveFiles([])}
         />
       )}
+      <FolderDownloadModal
+        open={folderDownloadTarget !== null}
+        onClose={() => setFolderDownloadTarget(null)}
+        driveId={folderDownloadTarget?.driveId}
+        folderId={folderDownloadTarget?.folderId}
+        folderName={folderDownloadTarget?.name ?? ''}
+      />
     </div>
   );
 }
