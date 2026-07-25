@@ -11,6 +11,7 @@ import { useToastStore } from '../stores/useToastStore';
 import { useSelectionStore, type SelectedItem } from '../stores/useSelectionStore';
 import { useUIStore } from '../stores/useUIStore';
 import { FilePreviewModal } from '../components/FilePreviewModal';
+import { SetRetentionPolicyDialog } from '../components/workspaces/SetRetentionPolicyDialog';
 
 export function WorkspacesPage() {
   const [folders, setFolders] = useState<WorkspaceFolder[]>([]);
@@ -158,13 +159,13 @@ export function WorkspacesPage() {
   );
   const errorDrives = useMemo(() => new Set<string>(), []);
 
-  const onDeleteFile = useCallback(async (id: string) => {
+  const onRemoveFromWorkspace = useCallback(async (id: string) => {
     try {
       await api.moveFile(id, null);
-      addToast('success', 'Removed');
+      addToast('success', 'Removed from workspace');
       setFiles(prev => prev.filter(f => f.id !== id));
     } catch {
-      addToast('error', 'Failed');
+      addToast('error', 'Failed to remove from workspace');
     }
   }, [addToast]);
 
@@ -210,7 +211,7 @@ export function WorkspacesPage() {
       onPreviewFile,
       onShare,
       onRenameFile,
-      onDeleteFile,
+      onDeleteFile: onRemoveFromWorkspace,
       onMoveDrive,
       onToggleStar,
       onViewInfo: handleViewInfo,
@@ -223,7 +224,7 @@ export function WorkspacesPage() {
     onPreviewFile,
     onShare,
     onRenameFile,
-    onDeleteFile,
+    onRemoveFromWorkspace,
     onMoveDrive,
     onToggleStar,
     isTargetShared,
@@ -290,47 +291,25 @@ export function WorkspacesPage() {
         onConfirm={confirmRename}
         onClose={() => !isRenaming && setRenameTarget(null)}
       />
-      {retentionTargetId && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-card rounded-lg shadow-lg p-4 sm:p-6 max-w-md w-full">
-            <h3 className="text-base sm:text-lg font-bold mb-4">Set Retention Policy</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Action</label>
-                <select id="retentionAction" className="w-full border-slate-400 rounded p-2 text-sm border">
-                  <option value="auto_delete">Auto-Delete (Retention limit)</option>
-                  <option value="prevent_deletion">Prevent Deletion (Legal Hold)</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Days</label>
-                <input id="retentionDays" type="number" defaultValue={30} className="w-full border border-slate-400 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-            </div>
-            <div className="mt-4 sm:mt-6 flex justify-end gap-2 sm:gap-3">
-              <button className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded" onClick={() => setRetentionTargetId(null)}>Cancel</button>
-              <button className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700" onClick={async () => {
-                const action = (document.getElementById('retentionAction') as HTMLSelectElement).value;
-                const days = parseInt((document.getElementById('retentionDays') as HTMLInputElement).value, 10);
-                if (activeFolderId) {
-                  try {
-                    await api.createWorkspacePolicy(activeFolderId, {
-                      targetType: 'folder',
-                      targetId: retentionTargetId,
-                      policyType: 'data_retention',
-                      config: { action, days }
-                    });
-                    addToast('success', 'Policy applied successfully');
-                    setRetentionTargetId(null);
-                  } catch {
-                    addToast('error', 'Failed to apply policy');
-                  }
-                }
-              }}>Save Policy</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <SetRetentionPolicyDialog
+        open={!!retentionTargetId}
+        onClose={() => setRetentionTargetId(null)}
+        onSubmit={async (action, days) => {
+          if (activeFolderId && retentionTargetId) {
+            try {
+              await api.createWorkspacePolicy(activeFolderId, {
+                targetType: 'folder',
+                targetId: retentionTargetId,
+                policyType: 'data_retention',
+                config: { action, days },
+              });
+              addToast('success', 'Policy applied successfully');
+            } catch {
+              addToast('error', 'Failed to apply policy');
+            }
+          }
+        }}
+      />
     </div>
   );
 }

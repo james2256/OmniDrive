@@ -131,7 +131,7 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete="new-password"
-                  className="w-full px-3 py-1.5 pr-9 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
+                  className="w-full px-3 py-1.5 pr-9 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-shadow"
                 />
                 <button
                   type="button"
@@ -152,7 +152,7 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
                 value={expiresAt}
                 min={currentDateTime}
                 onChange={(e) => setExpiresAt(e.target.value)}
-                className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
+                className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-shadow"
               />
             </div>
             <button
@@ -172,7 +172,7 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
                       type="checkbox"
                       checked={allowDownloads}
                       onChange={(e) => setAllowDownloads(e.target.checked)}
-                      className="w-3.5 h-3.5 rounded border-slate-400 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      className="w-3.5 h-3.5 rounded border-slate-400 text-primary focus:ring-primary cursor-pointer"
                     />
                     <span className="select-none">Allow downloads</span>
                   </label>
@@ -181,7 +181,7 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
                       type="checkbox"
                       checked={requireEmail}
                       onChange={(e) => setRequireEmail(e.target.checked)}
-                      className="w-3.5 h-3.5 rounded border-slate-400 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      className="w-3.5 h-3.5 rounded border-slate-400 text-primary focus:ring-primary cursor-pointer"
                     />
                     <span className="select-none">Require email to view</span>
                   </label>
@@ -191,14 +191,14 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
                     value={maxDownloads}
                     onChange={(e) => setMaxDownloads(e.target.value)}
                     placeholder="Max downloads (blank = unlimited)"
-                    className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                   <input
                     type="url"
                     value={webhookUrl}
                     onChange={(e) => setWebhookUrl(e.target.value)}
                     placeholder="Webhook URL (optional)"
-                    className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
               </div>
@@ -213,7 +213,7 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
               </button>
               <button
                 type="submit"
-                className="flex items-center justify-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center justify-center px-3 py-1.5 text-sm font-medium text-white bg-primary rounded-lg hover:opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={loading}
               >
                 {loading ? (
@@ -226,7 +226,7 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
           </form>
         ) : (
           <div className="flex flex-col gap-2">
-            <p className="text-xs text-slate-600 bg-blue-50 p-2 rounded-lg border border-blue-100">
+            <p className="text-xs text-slate-600 bg-primary/10 p-2 rounded-lg border border-blue-100">
               Anyone with this link can access the {targetType}.
             </p>
             <div className="flex gap-2">
@@ -247,7 +247,7 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
             </div>
             <div className="flex justify-end mt-2">
               <button
-                className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+                className="px-3 py-1.5 text-sm font-medium text-white bg-primary rounded-lg hover:opacity-90 transition-colors"
                 onClick={onClose}
               >
                 Done

@@ -115,7 +115,7 @@ export function PublicSharedPage() {
                 id="shared-password"
                 type="password"
                 autoComplete="current-password"
-                className="w-full px-4 py-2.5 bg-card border border-slate-400 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                className="w-full px-4 py-2.5 bg-card border border-slate-400 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
                 placeholder="Enter password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -131,7 +131,7 @@ export function PublicSharedPage() {
 
             <button
               type="submit"
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-white bg-blue-600 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-white bg-primary rounded-lg font-medium hover:opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={verifying || !password}
             >
               {verifying && <LoaderCircle className="animate-spin" size={18} />}
@@ -147,7 +147,7 @@ export function PublicSharedPage() {
         {meta?.type === 'folder' ? (
           <div>
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0">
+              <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
                 <Folder size={28} className="text-blue-500" fill="currentColor" />
               </div>
               <h2 className="text-lg font-bold text-slate-800 break-words">{meta?.targetName || 'Shared Folder'}</h2>
@@ -156,7 +156,7 @@ export function PublicSharedPage() {
             {/* Download All as ZIP */}
             <button
               onClick={() => setFolderDownloadOpen(true)}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-white bg-blue-600 rounded-lg font-medium hover:bg-blue-700 transition-colors mb-4"
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-white bg-primary rounded-lg font-medium hover:opacity-90 transition-colors mb-4"
             >
               <Download size={18} />
               Download All as ZIP
@@ -211,7 +211,7 @@ export function PublicSharedPage() {
             )}
             <button
               onClick={handleDownload}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-white bg-blue-600 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-white bg-primary rounded-lg font-medium hover:opacity-90 transition-colors"
             >
               <Download size={18} />
               Download

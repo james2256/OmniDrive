@@ -28,7 +28,7 @@ export function WorkspaceTreeNode({
     <div className="group flex flex-col">
       <div 
         className={`flex items-center justify-between px-2 py-1.5 mx-2 rounded-md cursor-pointer transition-colors ${
-          isActive ? 'bg-blue-50 text-blue-900 font-medium' : 'text-slate-700 hover:bg-slate-100'
+          isActive ? 'bg-primary/10 text-blue-900 font-medium' : 'text-slate-700 hover:bg-slate-100'
         }`}
         style={{ paddingLeft: `${level * 0.75 + 0.5}rem` }}
       >

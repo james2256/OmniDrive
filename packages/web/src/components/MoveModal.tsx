@@ -148,7 +148,7 @@ export function MoveModal({ open, items, driveId, onClose, onSuccess }: MoveModa
             <button
               onClick={handleMove}
               disabled={isMoving}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary rounded-lg hover:opacity-90 transition-colors disabled:opacity-50"
             >
               {isMoving ? <LoaderCircle size={14} className="animate-spin" /> : null}
               {isMoving ? 'Moving...' : 'Move here'}

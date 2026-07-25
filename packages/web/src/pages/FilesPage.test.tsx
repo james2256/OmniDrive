@@ -35,7 +35,7 @@ vi.mock('../hooks/useFolderMutations', () => ({
 
 vi.mock('../stores/useUploadStore', () => ({ useUploadStore: vi.fn() }));
 vi.mock('../stores/useUIStore', () => ({ useUIStore: vi.fn() }));
-vi.mock('../stores/useSelectionStore', () => ({ useSelectionStore: vi.fn() }));
+vi.mock('../stores/useSelectionStore', () => ({ useSelectionStore: vi.fn(), useClearSelectionOnRouteChange: () => {} }));
 vi.mock('../lib/api', () => ({ api: { createFolder: vi.fn() } }));
 
 vi.mock('../components/Breadcrumb', () => ({

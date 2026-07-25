@@ -45,7 +45,7 @@ export function AccountPasswordForm() {
           required
           value={currentPassword}
           onChange={(e) => setCurrentPassword(e.target.value)}
-          className="w-full border border-slate-400 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-card"
+          className="w-full border border-slate-400 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-card"
         />
       </div>
       <div>
@@ -60,7 +60,7 @@ export function AccountPasswordForm() {
           minLength={8}
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
-          className="w-full border border-slate-400 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-card"
+          className="w-full border border-slate-400 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-card"
         />
         <p className="mt-1 text-xs text-slate-500">Min 8 chars, with upper, lower, and a number.</p>
       </div>
@@ -76,14 +76,14 @@ export function AccountPasswordForm() {
           minLength={8}
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
-          className="w-full border border-slate-400 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-card"
+          className="w-full border border-slate-400 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-card"
         />
       </div>
       <div className="flex justify-end pt-1">
         <button
           type="submit"
           disabled={isChangingPassword}
-          className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-60"
+          className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-primary rounded-xl hover:opacity-90 transition-colors disabled:opacity-60"
         >
           {isChangingPassword ? <LoaderCircle size={16} className="animate-spin" /> : <Key size={16} />}
           Change password

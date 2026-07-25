@@ -45,27 +45,10 @@ export function SettingsDrivesTab() {
 
   const handleSync = async (id: string) => {
     try {
-      addToast('info', 'Syncing... large drives may take multiple cycles');
-      let cycles = 0;
-      const maxCycles = 50;
-
-      const runSyncCycle = async (): Promise<void> => {
-        await triggerSyncMutation.mutateAsync(id);
-        cycles++;
-        await new Promise((r) => setTimeout(r, 3000));
-        await queryClient.invalidateQueries({ queryKey: qk.drives });
-        const drivesData = queryClient.getQueryData<{ drives: typeof drives }>(qk.drives);
-        const drive = drivesData?.drives.find((d) => d.id === id);
-
-        if (drive?.syncPaused && cycles < maxCycles) {
-          return runSyncCycle();
-        }
-      };
-
-      await runSyncCycle();
-      addToast('success', `Sync completed (${cycles} cycle${cycles > 1 ? 's' : ''})`);
+      await triggerSyncMutation.mutateAsync(id);
+      addToast('info', 'Sync started — updates will appear shortly');
     } catch {
-      addToast('error', 'Sync failed');
+      addToast('error', 'Failed to start sync');
     }
   };
 
@@ -121,7 +104,7 @@ export function SettingsDrivesTab() {
           <button
             onClick={handleConnectDrive}
             disabled={isConnecting}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium text-sm disabled:opacity-60"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl hover:opacity-90 transition-colors font-medium text-sm disabled:opacity-60"
           >
             {isConnecting ? <LoaderCircle size={18} className="animate-spin" /> : <Plus size={18} />} Add Google Drive
           </button>
@@ -157,7 +140,7 @@ export function SettingsDrivesTab() {
                 onChange={(e) => setSaCredentials(e.target.value)}
                 placeholder="Paste service account JSON key..."
                 rows={6}
-                className="w-full font-mono text-xs border border-slate-400 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                className="w-full font-mono text-xs border border-slate-400 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-primary resize-none"
                 required
               />
             </div>
@@ -170,7 +153,7 @@ export function SettingsDrivesTab() {
                 value={saFolderId}
                 onChange={(e) => setSaFolderId(e.target.value)}
                 placeholder="Google Drive folder ID shared with SA"
-                className="w-full border border-slate-400 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-slate-400 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 required
               />
             </div>
@@ -184,7 +167,7 @@ export function SettingsDrivesTab() {
               </button>
               <button
                 type="submit"
-                className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors"
+                className="px-3 py-1.5 text-sm font-medium text-white bg-primary rounded-xl hover:opacity-90 transition-colors"
               >
                 Add Account
               </button>

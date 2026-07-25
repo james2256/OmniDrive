@@ -5,17 +5,7 @@ import { Plus, Trash2, Copy, Check, TriangleAlert, LoaderCircle } from 'lucide-r
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '../ui/dialog';
 import { ConfirmDialog } from '../ConfirmDialog';
 import { api } from '../../lib/api';
-
-const parseSqliteDate = (dateVal: string | number) => {
-  if (!dateVal) return new Date();
-  if (typeof dateVal === 'string') {
-    const normalized = dateVal.includes(' ') && !dateVal.includes('T')
-      ? dateVal.replace(' ', 'T') + 'Z'
-      : dateVal;
-    return new Date(normalized);
-  }
-  return new Date(dateVal);
-};
+import { formatAbsoluteDate } from '../../lib/utils';
 
 export function SettingsS3Tab() {
   const { addToast } = useToastStore();
@@ -135,7 +125,7 @@ export function SettingsS3Tab() {
           </div>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg sm:rounded-xl transition-colors font-medium text-xs shadow-sm flex-shrink-0"
+            className="flex items-center gap-2 px-3 py-2 bg-primary hover:opacity-90 text-white rounded-lg sm:rounded-xl transition-colors font-medium text-xs shadow-sm flex-shrink-0"
           >
             <Plus size={16} /> Generate New Key
           </button>
@@ -174,7 +164,7 @@ export function SettingsS3Tab() {
                       </td>
                       <td className="px-4 py-3.5 text-sm">
                         {key.workspaceId ? (
-                          <span className="px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-50 text-blue-700 border border-blue-150">
+                          <span className="px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full bg-primary/10 text-blue-700 border border-blue-150">
                             Workspace: {key.workspaceName || 'Unknown'}
                           </span>
                         ) : (
@@ -184,7 +174,7 @@ export function SettingsS3Tab() {
                         )}
                       </td>
                       <td className="px-4 py-3.5 text-xs text-slate-500">
-                        {parseSqliteDate(key.createdAt).toLocaleString()}
+                        {formatAbsoluteDate(key.createdAt)}
                       </td>
                       <td className="px-4 py-3.5 text-right">
                         <button
@@ -219,7 +209,7 @@ export function SettingsS3Tab() {
                 value={newKeyDescription}
                 onChange={(e) => setNewKeyDescription(e.target.value)}
                 placeholder="e.g. Rclone desktop client"
-                className="w-full border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 required
                 maxLength={100}
               />
@@ -229,7 +219,7 @@ export function SettingsS3Tab() {
               <select
                 value={newKeyScope}
                 onChange={(e) => setNewKeyScope(e.target.value)}
-                className="w-full border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-card"
+                className="w-full border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-card"
               >
                 <option value="">Global (All Workspaces)</option>
                 {workspaces.map((w: { id: string; name: string; role: string }) => (
@@ -250,7 +240,7 @@ export function SettingsS3Tab() {
               </button>
               <button
                 type="submit"
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary rounded-lg hover:opacity-90 transition-colors disabled:opacity-50"
                 disabled={isCreatingKey || !newKeyDescription.trim()}
               >
                 {isCreatingKey && <LoaderCircle className="animate-spin" size={14} />}
@@ -302,7 +292,7 @@ export function SettingsS3Tab() {
                   </label>
                   <button
                     onClick={() => handleCopy(createdCredential.accessKeyId, 'access')}
-                    className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium"
+                    className="flex items-center gap-1 text-xs text-primary hover:text-blue-700 font-medium"
                   >
                     {copiedAccessKey ? (
                       <>
@@ -329,7 +319,7 @@ export function SettingsS3Tab() {
                   </label>
                   <button
                     onClick={() => handleCopy(createdCredential.secretAccessKey, 'secret')}
-                    className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium"
+                    className="flex items-center gap-1 text-xs text-primary hover:text-blue-700 font-medium"
                   >
                     {copiedSecretKey ? (
                       <>
@@ -352,7 +342,7 @@ export function SettingsS3Tab() {
               <div className="flex justify-end pt-4 border-t border-slate-100">
                 <button
                   type="button"
-                  className="px-5 py-2 text-sm font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
+                  className="px-5 py-2 text-sm font-semibold text-white bg-primary rounded-xl hover:opacity-90 transition-colors shadow-sm"
                   onClick={() => setCreatedCredential(null)}
                 >
                   I've Copied the Secret Key

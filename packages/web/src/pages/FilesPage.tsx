@@ -21,7 +21,7 @@ import { useSharedLinks } from '../hooks/useSharedLinks';
 import { useMergedDrive } from '../hooks/useMergedDrive';
 import { api } from '../lib/api';
 import { useUIStore } from '../stores/useUIStore';
-import { useSelectionStore, type SelectedItem } from '../stores/useSelectionStore';
+import { useSelectionStore, useClearSelectionOnRouteChange, type SelectedItem } from '../stores/useSelectionStore';
 import { BulkActionBar } from '../components/layout/BulkActionBar';
 import type { FileEntry, DriveFolder, WorkspaceFolder } from '../types';
 import {
@@ -41,6 +41,10 @@ export function FilesPage() {
   const [searchParams] = useSearchParams();
   const driveIdParam = searchParams.get('driveId');
   const navigate = useNavigate();
+
+  // Bug 2 fix: clear global selection whenever the folder/drive route changes,
+  // so the BulkActionBar from folder A doesn't act on invisible items in folder B.
+  useClearSelectionOnRouteChange([folderId, driveIdParam]);
   
   const { data: drivesData, isLoading: isDrivesLoading } = useDrives();
   const drives = useMemo(() => drivesData?.drives ?? [], [drivesData]);
@@ -122,12 +126,16 @@ export function FilesPage() {
     setRenameTarget({ kind: 'folder', driveId, folderId, currentName });
   };
 
-  const handleRenameConfirm = (newName: string) => {
+  const handleRenameConfirm = async (newName: string) => {
     if (!renameTarget) return;
     if (renameTarget.kind === 'file') {
-      handleRenameFile(renameTarget.id, newName);
+      await renameFileMut.mutateAsync({ fileId: renameTarget.id, name: newName });
     } else {
-      handleRenameFolder(renameTarget.driveId, renameTarget.folderId, newName);
+      await renameDriveFolderMut.mutateAsync({
+        driveId: renameTarget.driveId,
+        folderId: renameTarget.folderId,
+        name: newName,
+      });
     }
     setRenameTarget(null);
   };
@@ -179,7 +187,7 @@ export function FilesPage() {
                   placeholder="Filter..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-3 pr-8 py-2 text-sm border border-slate-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-3 pr-8 py-2 text-sm border border-slate-400 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                 />
                 {searchQuery && (
                   <button
@@ -196,7 +204,7 @@ export function FilesPage() {
               <div className="flex items-center border border-slate-400 rounded-md overflow-hidden bg-card flex-shrink-0">
                 <button
                   onClick={() => setViewMode('list')}
-                  className={`p-2 ${viewMode === 'list' ? 'bg-blue-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50'}`}
+                  className={`p-2 ${viewMode === 'list' ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'}`}
                   title="List layout"
                   aria-label="List layout"
                 >
@@ -204,7 +212,7 @@ export function FilesPage() {
                 </button>
                 <button
                   onClick={() => setViewMode('grid')}
-                  className={`p-2 ${viewMode === 'grid' ? 'bg-blue-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50'}`}
+                  className={`p-2 ${viewMode === 'grid' ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'}`}
                   title="Grid layout"
                   aria-label="Grid layout"
                 >
@@ -214,7 +222,7 @@ export function FilesPage() {
 
               <button
                 onClick={toggleInfoPanel}
-                className={`p-2 rounded-full flex-shrink-0 ${isInfoPanelOpen ? 'bg-blue-100 text-slate-900' : 'text-slate-600 hover:bg-slate-100'}`}
+                className={`p-2 rounded-full flex-shrink-0 ${isInfoPanelOpen ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-100'}`}
                 title="View details"
                 aria-label="View details"
               >
@@ -226,7 +234,7 @@ export function FilesPage() {
                 <button className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-slate-700 bg-card border border-slate-400 rounded-md hover:bg-slate-50 flex-shrink-0" onClick={handleCreateFolder}>
                   <FolderPlus size={16} /> <span>New Folder</span>
                 </button>
-                <button className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 flex-shrink-0" onClick={() => setShowModal(true)}>
+                <button className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-white bg-primary rounded-md hover:opacity-90 flex-shrink-0" onClick={() => setShowModal(true)}>
                   <Upload size={16} /> <span>Upload</span>
                 </button>
               </div>
@@ -237,7 +245,7 @@ export function FilesPage() {
               <button className="flex items-center justify-center gap-1 p-2 text-sm font-medium text-slate-700 bg-card border border-slate-400 rounded-md hover:bg-slate-50 flex-shrink-0 flex-1" onClick={handleCreateFolder} title="New Folder">
                 <FolderPlus size={18} /> <span>New Folder</span>
               </button>
-              <button className="flex items-center justify-center gap-1 p-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 flex-shrink-0 flex-1" onClick={() => setShowModal(true)} title="Upload">
+              <button className="flex items-center justify-center gap-1 p-2 text-sm font-medium text-white bg-primary rounded-md hover:opacity-90 flex-shrink-0 flex-1" onClick={() => setShowModal(true)} title="Upload">
                 <Upload size={18} /> <span>Upload</span>
               </button>
             </div>
@@ -250,7 +258,7 @@ export function FilesPage() {
 
         {isLoading || isDrivesLoading ? (
           <div className="flex flex-col items-center justify-center p-16">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4" />
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4" />
             <p className="text-slate-500">Loading folder contents...</p>
           </div>
         ) : drives.length === 0 ? (
@@ -263,7 +271,7 @@ export function FilesPage() {
             <button
               onClick={handleConnectGoogle}
               disabled={isConnecting}
-              className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow-sm transition-colors disabled:opacity-60"
+              className="px-6 py-2.5 bg-primary text-white rounded-lg hover:opacity-90 font-medium shadow-sm transition-colors disabled:opacity-60"
             >
               {isConnecting ? 'Connecting…' : 'Connect Google Drive Now'}
             </button>
@@ -360,9 +368,11 @@ export function FilesPage() {
           cancelText="Cancel"
           variant="danger"
           loading={deleteFileMut.isPending}
-          onConfirm={() => {
-            if (confirmFileDelete) deleteFileMut.mutate(confirmFileDelete);
-            setConfirmFileDelete(null);
+          onConfirm={async () => {
+            if (confirmFileDelete) {
+              await deleteFileMut.mutateAsync(confirmFileDelete);
+              setConfirmFileDelete(null);
+            }
           }}
           onClose={() => setConfirmFileDelete(null)}
         />
@@ -374,9 +384,11 @@ export function FilesPage() {
           cancelText="Cancel"
           variant="danger"
           loading={deleteDriveFolderMut.isPending}
-          onConfirm={() => {
-            if (confirmFolderDelete) deleteDriveFolderMut.mutate(confirmFolderDelete);
-            setConfirmFolderDelete(null);
+          onConfirm={async () => {
+            if (confirmFolderDelete) {
+              await deleteDriveFolderMut.mutateAsync(confirmFolderDelete);
+              setConfirmFolderDelete(null);
+            }
           }}
           onClose={() => setConfirmFolderDelete(null)}
         />

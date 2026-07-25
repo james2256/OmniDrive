@@ -69,3 +69,22 @@ export function toLocalDatetimeInput(date: Date): string {
   const offsetMs = date.getTimezoneOffset() * 60_000;
   return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
 }
+
+/**
+ * Absolute date formatter for timestamps (audit logs, created dates, S3 keys).
+ * Handles SQLite ('YYYY-MM-DD HH:MM:SS'), ISO, and epoch-ms inputs.
+ * Use formatRelativeTime for file lists (natural-language "2h ago").
+ */
+export function formatAbsoluteDate(dateString: string | number): string {
+  const d =
+    typeof dateString === 'number'
+      ? new Date(dateString)
+      : new Date(dateString.replace(' ', 'T'));
+  return d.toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}

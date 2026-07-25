@@ -11,14 +11,16 @@ import { MoveDriveModal } from '../components/MoveDriveModal';
 import { FolderDownloadModal } from '../components/FolderDownloadModal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { RenameDialog } from '../components/RenameDialog';
+import { AddToWorkspaceModal } from '../components/workspaces/AddToWorkspaceModal';
 import { api } from '../lib/api';
 import { useDrives } from '../hooks/useDrives';
 import { useSharedLinks } from '../hooks/useSharedLinks';
 import type { FileEntry, DriveFolder, BreadcrumbItem, WorkspaceFolder } from '../types';
 import { qk } from '../lib/queryKeys';
 import type { SelectedItem } from '../stores/useSelectionStore';
-import { useSelectionStore } from '../stores/useSelectionStore';
+import { useSelectionStore, useClearSelectionOnRouteChange } from '../stores/useSelectionStore';
 import { useUIStore } from '../stores/useUIStore';
+import { useToastStore } from '../stores/useToastStore';
 import { FilePreviewModal } from '../components/FilePreviewModal';
 import { useDeleteFile, useRenameFile, useStarFile, useUnstarFile } from '../hooks/useFileMutations';
 import { useDeleteDriveFolder, useRenameDriveFolder, useStarFolder, useUnstarFolder } from '../hooks/useFolderMutations';
@@ -28,6 +30,9 @@ export function ExternalPage() {
   const [searchParams] = useSearchParams();
   const driveIdParam = searchParams.get('driveId') ?? null;
   const navigate = useNavigate();
+
+  // Bug 2: clear selection when navigating between external folders/drives.
+  useClearSelectionOnRouteChange([folderId, driveIdParam]);
 
   const { data: drivesData } = useDrives();
   const drives = useMemo(() => drivesData?.drives ?? [], [drivesData]);
@@ -40,6 +45,7 @@ export function ExternalPage() {
   const { selectedItems, clearSelection, toggleSelection } = useSelectionStore();
   const queryClient = useQueryClient();
   const { viewMode, setViewMode, isInfoPanelOpen, toggleInfoPanel, setIsInfoPanelOpen } = useUIStore();
+  const { addToast } = useToastStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
@@ -54,6 +60,7 @@ export function ExternalPage() {
     | { kind: 'folder'; driveId: string; folderId: string; currentName: string }
     | null
   >(null);
+  const [workspaceTarget, setWorkspaceTarget] = useState<FileEntry | null>(null);
 
   const queryKey = folderId && driveIdParam
     ? qk.externalFolder(driveIdParam, folderId)
@@ -127,12 +134,16 @@ export function ExternalPage() {
     setRenameTarget({ kind: 'folder', driveId, folderId, currentName });
   };
 
-  const handleRenameConfirm = (newName: string) => {
+  const handleRenameConfirm = async (newName: string) => {
     if (!renameTarget) return;
     if (renameTarget.kind === 'file') {
-      handleRenameFile(renameTarget.id, newName);
+      await renameFileMut.mutateAsync({ fileId: renameTarget.id, name: newName });
     } else {
-      handleRenameFolder(renameTarget.driveId, renameTarget.folderId, newName);
+      await renameDriveFolderMut.mutateAsync({
+        driveId: renameTarget.driveId,
+        folderId: renameTarget.folderId,
+        name: newName,
+      });
     }
     setRenameTarget(null);
   };
@@ -152,9 +163,9 @@ export function ExternalPage() {
   };
 
   const getDriveInfo = useCallback((driveAccountId?: string) => {
-    if (!driveAccountId) return { drive: drives[0] || null, index: 0 };
+    if (!driveAccountId) return { drive: null, index: -1 };
     const index = drives.findIndex((d) => d.id === driveAccountId);
-    if (index === -1) return { drive: drives[0] || null, index: 0 };
+    if (index === -1) return { drive: null, index: -1 };
     return { drive: drives[index], index };
   }, [drives]);
 
@@ -163,6 +174,7 @@ export function ExternalPage() {
       <BulkActionBar
         onActionComplete={() => refresh()}
         onMoveRequested={() => setMoveTarget(selectedItems)}
+        onWorkspaceRequested={() => setWorkspaceTarget(selectedItems[0].item as FileEntry)}
         onMoveDriveRequested={() => {
           const fileItems = selectedItems.filter(i => i.type === 'file').map(i => i.item as FileEntry);
           setMoveDriveFiles(fileItems);
@@ -179,7 +191,7 @@ export function ExternalPage() {
                 placeholder="Filter..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-3 pr-8 py-2 text-sm border border-slate-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full pl-3 pr-8 py-2 text-sm border border-slate-400 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
               />
               {searchQuery && (
                 <button
@@ -196,7 +208,7 @@ export function ExternalPage() {
             <div className="flex items-center border border-slate-400 rounded-md overflow-hidden bg-card flex-shrink-0">
               <button
                 onClick={() => setViewMode('list')}
-                className={`p-2 ${viewMode === 'list' ? 'bg-blue-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50'}`}
+                className={`p-2 ${viewMode === 'list' ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'}`}
                 title="List layout"
                 aria-label="List layout"
               >
@@ -204,7 +216,7 @@ export function ExternalPage() {
               </button>
               <button
                 onClick={() => setViewMode('grid')}
-                className={`p-2 ${viewMode === 'grid' ? 'bg-blue-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50'}`}
+                className={`p-2 ${viewMode === 'grid' ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'}`}
                 title="Grid layout"
                 aria-label="Grid layout"
               >
@@ -214,7 +226,7 @@ export function ExternalPage() {
 
             <button
               onClick={toggleInfoPanel}
-              className={`p-2 rounded-full flex-shrink-0 ${isInfoPanelOpen ? 'bg-blue-100 text-slate-900' : 'text-slate-600 hover:bg-slate-100'}`}
+              className={`p-2 rounded-full flex-shrink-0 ${isInfoPanelOpen ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-100'}`}
               title="View details"
               aria-label="View details"
             >
@@ -229,7 +241,7 @@ export function ExternalPage() {
 
         {isLoading ? (
           <div className="flex justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
           </div>
         ) : filteredSubfolders.length > 0 || filteredFiles.length > 0 ? (
           <div className="bg-card rounded-xl border border-slate-200 overflow-hidden">
@@ -301,6 +313,16 @@ export function ExternalPage() {
         folderId={folderDownloadTarget?.folderId}
         folderName={folderDownloadTarget?.name ?? ''}
       />
+      <AddToWorkspaceModal
+        open={!!workspaceTarget}
+        file={workspaceTarget ?? undefined}
+        onClose={() => setWorkspaceTarget(null)}
+        onSuccess={() => {
+          setWorkspaceTarget(null);
+          addToast('success', 'Added to workspace');
+          refresh();
+        }}
+      />
 
       <ConfirmDialog
         open={confirmFileDelete !== null}
@@ -310,8 +332,10 @@ export function ExternalPage() {
         cancelText="Cancel"
         variant="danger"
         loading={deleteFileMut.isPending}
-        onConfirm={() => {
-          if (confirmFileDelete) deleteFileMut.mutate(confirmFileDelete);
+        onConfirm={async () => {
+          if (confirmFileDelete) {
+            await deleteFileMut.mutateAsync(confirmFileDelete);
+          }
           setConfirmFileDelete(null);
         }}
         onClose={() => setConfirmFileDelete(null)}
@@ -324,8 +348,10 @@ export function ExternalPage() {
         cancelText="Cancel"
         variant="danger"
         loading={deleteDriveFolderMut.isPending}
-        onConfirm={() => {
-          if (confirmFolderDelete) deleteDriveFolderMut.mutate(confirmFolderDelete);
+        onConfirm={async () => {
+          if (confirmFolderDelete) {
+            await deleteDriveFolderMut.mutateAsync(confirmFolderDelete);
+          }
           setConfirmFolderDelete(null);
         }}
         onClose={() => setConfirmFolderDelete(null)}

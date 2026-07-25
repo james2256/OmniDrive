@@ -1,22 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useToastStore } from '../stores/useToastStore';
-import { ShieldAlert, Plus, EllipsisVertical } from 'lucide-react';
+import { ShieldAlert, Plus } from 'lucide-react';
 import type { AdminUser } from '../types';
 import { api } from '../lib/api';
 import type { Invitation } from '../lib/api';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '../components/ui/dropdown-menu';
 import {
   Dialog,
   DialogContent,
   DialogTitle,
 } from '../components/ui/dialog';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { Spinner } from '../components/ui/Spinner';
 
 const AddUserModal: React.FC<{ open: boolean, onClose: () => void, onSuccess: () => void }> = ({ open, onClose, onSuccess }) => {
   const [username, setUsername] = useState('');
@@ -56,23 +51,23 @@ const AddUserModal: React.FC<{ open: boolean, onClose: () => void, onSuccess: ()
           <div className="space-y-2.5">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Username *</label>
-              <input required value={username} onChange={e => setUsername(e.target.value)} className="w-full px-3 py-1.5 border border-slate-400 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+              <input required value={username} onChange={e => setUsername(e.target.value)} className="w-full px-3 py-1.5 border border-slate-400 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Password *</label>
-              <input required type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-3 py-1.5 border border-slate-400 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+              <input required type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-3 py-1.5 border border-slate-400 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
-              <input value={name} onChange={e => setName(e.target.value)} className="w-full px-3 py-1.5 border border-slate-400 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+              <input value={name} onChange={e => setName(e.target.value)} className="w-full px-3 py-1.5 border border-slate-400 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full px-3 py-1.5 border border-slate-400 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full px-3 py-1.5 border border-slate-400 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
-              <select value={role} onChange={e => setRole(e.target.value as 'super_admin' | 'member')} className="w-full px-3 py-1.5 border border-slate-400 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+              <select value={role} onChange={e => setRole(e.target.value as 'super_admin' | 'member')} className="w-full px-3 py-1.5 border border-slate-400 rounded-lg focus:ring-2 focus:ring-primary outline-none">
                 <option value="member">Member</option>
                 <option value="super_admin">Super Admin</option>
               </select>
@@ -80,7 +75,7 @@ const AddUserModal: React.FC<{ open: boolean, onClose: () => void, onSuccess: ()
           </div>
           <div className="mt-6 flex justify-end gap-3">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 border rounded-md transition-colors">Cancel</button>
-            <button type="submit" disabled={loading} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50 transition-colors">Create</button>
+            <button type="submit" disabled={loading} className="px-4 py-2 text-sm font-medium text-white bg-primary hover:opacity-90 rounded-md disabled:opacity-50 transition-colors">Create</button>
           </div>
         </form>
       </DialogContent>
@@ -96,8 +91,8 @@ export const AdminUsersPage: React.FC = () => {
   // Users Tab State
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
-  const [userToDelete, setUserToDelete] = useState<string | null>(null);
   const [invitationToDelete, setInvitationToDelete] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
 
   // Invitations Tab State
   const [invitations, setInvitations] = useState<Invitation[]>([]);
@@ -144,21 +139,10 @@ export const AdminUsersPage: React.FC = () => {
     );
   }
 
-  // Users Actions
-  const handleToggleStatus = (_id: string, _currentStatus: 'active' | 'blocked' | undefined) => {
-    addToast('info', 'Feature coming soon');
-  };
-
-  const confirmDeleteUser = () => {
-    if (userToDelete) {
-      addToast('info', 'Feature coming soon');
-      setUserToDelete(null);
-    }
-  };
-
   // Invitations Actions
   const handleCreateInvitation = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsCreating(true);
     try {
       await api.createInvitation(inviteCode, inviteMaxUses);
       setInviteCode('');
@@ -167,6 +151,8 @@ export const AdminUsersPage: React.FC = () => {
     } catch (e: unknown) {
       addToast('error', e instanceof Error ? e.message : 'An error occurred while creating invitation');
       console.error(e);
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -188,13 +174,13 @@ export const AdminUsersPage: React.FC = () => {
 
       <div className="flex border-b border-slate-200 mb-4 sm:mb-6 gap-4 sm:gap-6">
         <button
-          className={`pb-3 font-medium text-sm transition-colors ${activeTab === 'users' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+          className={`pb-3 font-medium text-sm transition-colors ${activeTab === 'users' ? 'border-b-2 border-primary text-primary' : 'text-slate-500 hover:text-slate-700'}`}
           onClick={() => setActiveTab('users')}
         >
           Active Users
         </button>
         <button
-          className={`pb-3 font-medium text-sm transition-colors ${activeTab === 'invitations' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+          className={`pb-3 font-medium text-sm transition-colors ${activeTab === 'invitations' ? 'border-b-2 border-primary text-primary' : 'text-slate-500 hover:text-slate-700'}`}
           onClick={() => setActiveTab('invitations')}
         >
           Invitation Codes
@@ -207,7 +193,7 @@ export const AdminUsersPage: React.FC = () => {
             <div className="flex justify-end mb-4">
               <button
                 onClick={() => setIsAddUserModalOpen(true)}
-                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+                className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-md hover:opacity-90 transition-colors"
               >
                 <Plus size={20} />
                 <span>Add User</span>
@@ -230,8 +216,12 @@ export const AdminUsersPage: React.FC = () => {
                     <tr key={userItem.id} className="hover:bg-slate-50">
                       <td className="px-2 sm:px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-medium overflow-hidden">
-                            {userItem.avatarUrl ? <img src={userItem.avatarUrl} alt="" className="w-full h-full object-cover" /> : (userItem.name || userItem.email || '?').charAt(0).toUpperCase()}
+                          <div
+                            className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-medium overflow-hidden"
+                            role="img"
+                            aria-label={userItem.name || userItem.username || 'User avatar'}
+                          >
+                            {userItem.avatarUrl ? <img src={userItem.avatarUrl} alt={userItem.name || userItem.username || 'User avatar'} className="w-full h-full object-cover" /> : (userItem.name || userItem.email || '?').charAt(0).toUpperCase()}
                           </div>
                           <span className="text-sm font-medium text-slate-900">{userItem.name || userItem.username || 'Unknown'}</span>
                         </div>
@@ -247,25 +237,7 @@ export const AdminUsersPage: React.FC = () => {
                           {userItem.status || 'active'}
                         </span>
                       </td>
-                      <td className="px-2 sm:px-6 py-4 text-sm text-slate-500">
-                        {(userItem.username !== user?.username && userItem.id !== user?.userId) && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <button className="p-1 hover:bg-slate-200 rounded text-slate-500">
-                                <EllipsisVertical size={16} />
-                              </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="bg-card shadow-xl rounded-xl border border-slate-200 w-40">
-                              <DropdownMenuItem className="cursor-pointer" onSelect={() => handleToggleStatus(userItem.id, userItem.status)}>
-                                {userItem.status === 'blocked' ? 'Unblock User' : 'Block User'}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50" onSelect={() => setUserToDelete(userItem.id)}>
-                                Delete User
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
-                      </td>
+                      <td className="px-2 sm:px-6 py-4 text-sm text-slate-500"></td>
                     </tr>
                   ))}
                 </tbody>
@@ -282,7 +254,7 @@ export const AdminUsersPage: React.FC = () => {
                 value={inviteCode}
                 onChange={e => setInviteCode(e.target.value)}
                 placeholder="Code (e.g. TEAM-2026)"
-                className="border border-slate-400 px-3 py-2 rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                className="border border-slate-400 px-3 py-2 rounded focus:ring-2 focus:ring-primary outline-none"
                 required
               />
               <input
@@ -290,12 +262,13 @@ export const AdminUsersPage: React.FC = () => {
                 value={inviteMaxUses}
                 onChange={e => setInviteMaxUses(Number(e.target.value))}
                 placeholder="Max Uses"
-                className="border border-slate-400 w-24 px-3 py-2 rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                className="border border-slate-400 w-24 px-3 py-2 rounded focus:ring-2 focus:ring-primary outline-none"
                 required
                 min="0"
               />
-              <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors">
-                Create Code
+              <button type="submit" disabled={isCreating} className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                {isCreating && <Spinner size={14} />}
+                <span>Create Code</span>
               </button>
             </form>
             
@@ -336,15 +309,6 @@ export const AdminUsersPage: React.FC = () => {
         }}
       />
 
-      <ConfirmDialog
-        open={!!userToDelete}
-        title="Delete User"
-        message="Are you sure you want to delete this user? This action cannot be undone."
-        confirmText="Delete User"
-        variant="danger"
-        onConfirm={confirmDeleteUser}
-        onClose={() => setUserToDelete(null)}
-      />
       <ConfirmDialog
         open={invitationToDelete !== null}
         title="Delete Invitation Code"

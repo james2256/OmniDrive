@@ -93,7 +93,7 @@ export const InfoPanel: React.FC = () => {
 
         <div className="mb-6 flex justify-center">
           {type === 'folder' ? (
-            <div className="w-24 h-24 bg-blue-50 rounded-2xl flex items-center justify-center">
+            <div className="w-24 h-24 bg-primary/10 rounded-2xl flex items-center justify-center">
               <Folder size={48} className="text-blue-500" fill="currentColor" />
             </div>
           ) : (
@@ -158,7 +158,7 @@ export const InfoPanel: React.FC = () => {
                 <button
                   onClick={handleForceSync}
                   disabled={isSyncing}
-                  className="flex items-center justify-center w-full gap-2 px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  className="flex items-center justify-center w-full gap-2 px-3 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:opacity-90 disabled:opacity-50 transition-colors"
                 >
                   {isSyncing ? <LoaderCircle size={16} className="animate-spin" /> : <RefreshCw size={16} />}
                   {isSyncing ? 'Syncing...' : 'Force Sync'}
@@ -205,8 +205,8 @@ export const InfoPanel: React.FC = () => {
               }}
               className="flex gap-2"
             >
-              <input name="metaKey" placeholder="Key" className="w-1/3 border border-slate-400 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              <input name="metaValue" placeholder="Value" className="flex-1 border border-slate-400 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <input name="metaKey" placeholder="Key" className="w-1/3 border border-slate-400 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary" />
+              <input name="metaValue" placeholder="Value" className="flex-1 border border-slate-400 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary" />
               <button type="submit" className="bg-slate-800 text-white px-2 py-1 rounded text-xs">Add</button>
             </form>
           </div>

@@ -1,7 +1,7 @@
 import { HardDrive, RefreshCw, Trash2 } from 'lucide-react';
 import type { DriveAccount } from '../types';
 import { QuotaBar } from './QuotaBar';
-import { formatFileSize, getDriveColor } from '../lib/utils';
+import { formatAbsoluteDate, formatFileSize, getDriveColor } from '../lib/utils';
 import { useState } from 'react';
 import { ConfirmDialog } from './ConfirmDialog';
 
@@ -79,7 +79,7 @@ export function DriveAccountCard({ drive, index, onSync, onDisconnect }: DriveAc
             </div>
             {drive.lastSyncedAt && (
               <div className="text-[10px] text-slate-500 mt-0.5">
-                Last synced: {new Date(drive.lastSyncedAt).toLocaleString()}
+                Last synced: {formatAbsoluteDate(drive.lastSyncedAt)}
               </div>
             )}
           </div>

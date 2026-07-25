@@ -32,7 +32,7 @@ export const Sidebar: React.FC = () => {
   // the aside just clips/reveals the fixed-width content like a curtain.
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-3 px-4 py-2.5 rounded-full cursor-pointer transition-colors text-sm ${
-      isActive ? 'bg-blue-100 text-slate-900 font-medium' : 'hover:bg-slate-100 text-slate-700'
+      isActive ? 'bg-primary/10 text-primary font-medium' : 'hover:bg-slate-100 text-slate-700'
     }`;
 
   const navContent = (

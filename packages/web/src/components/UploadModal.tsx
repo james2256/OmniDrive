@@ -82,7 +82,7 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
               htmlFor="modal-file-upload"
               className="cursor-pointer flex flex-col items-center gap-2 text-slate-500 hover:text-blue-500 transition-colors"
             >
-              <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center text-blue-500">
+              <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-blue-500">
                 <Upload size={20} />
               </div>
               <span className="text-sm font-medium">Click to select files</span>
@@ -95,7 +95,7 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
                 <span className="flex-1 text-sm text-slate-700 truncate">{item.file.name}</span>
                 <span className="text-xs text-slate-500 whitespace-nowrap">{formatFileSize(item.file.size)}</span>
                 {item.status === 'uploading' && (
-                  <span className="text-xs text-blue-600 min-w-[36px] text-right font-medium">{item.progress}%</span>
+                  <span className="text-xs text-primary min-w-[36px] text-right font-medium">{item.progress}%</span>
                 )}
                 <div className="w-4 h-4 flex items-center justify-center shrink-0">
                   {statusIcon(item.status)}
@@ -117,26 +117,26 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
         {!isUploading && !allDone && (
           <div className="mb-2">
             <div className="flex flex-col gap-1.5">
-              <label className={`flex items-center gap-2.5 p-2 rounded-lg cursor-pointer border transition-colors ${!selectedDriveId ? 'bg-blue-50 border-blue-200' : 'border-slate-200 hover:bg-slate-50'}`}>
+              <label className={`flex items-center gap-2.5 p-2 rounded-lg cursor-pointer border transition-colors ${!selectedDriveId ? 'bg-primary/10 border-blue-200' : 'border-slate-200 hover:bg-slate-50'}`}>
                 <input
                   type="radio"
                   name="drive"
                   value=""
                   checked={!selectedDriveId}
                   onChange={() => setSelectedDriveId('')}
-                  className="w-4 h-4 text-blue-600 border-slate-400 focus:ring-blue-500"
+                  className="w-4 h-4 text-primary border-slate-400 focus:ring-primary"
                 />
                 <span className="text-sm text-slate-800">Auto (most free space)</span>
               </label>
               {drives.map((drive, i) => (
-                <label key={drive.id} className={`flex items-center gap-2.5 p-2 rounded-lg cursor-pointer border transition-colors ${selectedDriveId === drive.id ? 'bg-blue-50 border-blue-200' : 'border-slate-200 hover:bg-slate-50'}`}>
+                <label key={drive.id} className={`flex items-center gap-2.5 p-2 rounded-lg cursor-pointer border transition-colors ${selectedDriveId === drive.id ? 'bg-primary/10 border-blue-200' : 'border-slate-200 hover:bg-slate-50'}`}>
                   <input
                     type="radio"
                     name="drive"
                     value={drive.id}
                     checked={selectedDriveId === drive.id}
                     onChange={() => setSelectedDriveId(drive.id)}
-                    className="w-4 h-4 text-blue-600 border-slate-400 focus:ring-blue-500"
+                    className="w-4 h-4 text-primary border-slate-400 focus:ring-primary"
                   />
                   <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: getDriveColor(i) }} />
                   <span className="text-sm text-slate-800 flex-1 truncate">{drive.email}</span>
@@ -151,7 +151,7 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
         <div className="flex justify-end gap-2 mt-2">
           {allDone ? (
             <button
-              className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+              className="px-3 py-1.5 text-sm font-medium text-white bg-primary rounded-lg hover:opacity-90 transition-colors"
               onClick={handleClose}
             >
               Done
@@ -166,7 +166,7 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
                 Cancel
               </button>
               <button
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary rounded-lg hover:opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={handleUpload}
                 disabled={isUploading || queue.length === 0}
               >

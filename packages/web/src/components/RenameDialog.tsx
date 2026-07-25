@@ -45,7 +45,7 @@ export function RenameDialog({ open, initialName, title, onConfirm, onClose, loa
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
+            className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-shadow"
             placeholder="Enter new name"
           />
           <div className="flex justify-end gap-2 mt-3">
@@ -60,7 +60,7 @@ export function RenameDialog({ open, initialName, title, onConfirm, onClose, loa
             <button
               type="submit"
               disabled={loading || !name.trim() || name === initialName}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {loading && <LoaderCircle size={14} className="animate-spin" />}
               Rename

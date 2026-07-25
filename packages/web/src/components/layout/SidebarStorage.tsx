@@ -94,7 +94,7 @@ export const SidebarStorage: React.FC = () => {
         </div>
         <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden mb-1">
           <div
-            className="h-full bg-blue-500 rounded-full transition-all"
+            className="h-full bg-primary rounded-full transition-all"
             style={{ width: `${totalPct}%` }}
           />
         </div>

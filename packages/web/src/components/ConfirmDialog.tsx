@@ -27,7 +27,7 @@ export function ConfirmDialog({
   const confirmColor =
     variant === 'danger' ? 'bg-red-600 hover:bg-red-700' :
     variant === 'warning' ? 'bg-amber-600 hover:bg-amber-700' :
-    'bg-blue-600 hover:bg-blue-700';
+    'bg-primary hover:opacity-90';
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !loading && onClose()}>

@@ -82,7 +82,7 @@ export function MoveDriveModal({ files, onClose, onSuccess }: MoveDriveModalProp
                   isMoving && movingToDriveId !== drive.id
                     ? 'opacity-50 cursor-not-allowed'
                     : 'hover:bg-slate-50'
-                } ${isMoving && movingToDriveId === drive.id ? 'ring-2 ring-blue-500 border-blue-500 bg-blue-50' : ''}`}
+                } ${isMoving && movingToDriveId === drive.id ? 'ring-2 ring-blue-500 border-primary bg-primary/10' : ''}`}
               >
                 <div className="flex-shrink-0 mr-2.5">
                   {isMoving && movingToDriveId === drive.id ? (

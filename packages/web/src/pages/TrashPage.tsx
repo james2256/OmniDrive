@@ -6,6 +6,7 @@ import { api } from '../lib/api';
 import { useDrives } from '../hooks/useDrives';
 import { useSharedLinks } from '../hooks/useSharedLinks';
 import { qk } from '../lib/queryKeys';
+import { invalidateAfterFileMutation } from '../lib/invalidate';
 import type { FileEntry } from '../types';
 import { FilePreviewModal } from '../components/FilePreviewModal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -65,7 +66,7 @@ export function TrashPage() {
     <div className="p-4 sm:p-6 space-y-6">
       <BulkActionBar
         isTrashView={true}
-        onActionComplete={() => queryClient.invalidateQueries({ queryKey: qk.trash })}
+        onActionComplete={() => invalidateAfterFileMutation(queryClient)}
       />
 
       <div className="flex items-center justify-between">
@@ -112,8 +113,9 @@ export function TrashPage() {
         cancelText="Cancel"
         variant="danger"
         loading={permanentDeleteFileMut.isPending}
-        onConfirm={() => {
-          if (confirmFileDelete) permanentDeleteFileMut.mutate(confirmFileDelete);
+        onConfirm={async () => {
+          if (!confirmFileDelete) return;
+          await permanentDeleteFileMut.mutateAsync(confirmFileDelete);
           setConfirmFileDelete(null);
         }}
         onClose={() => setConfirmFileDelete(null)}
@@ -126,8 +128,9 @@ export function TrashPage() {
         cancelText="Cancel"
         variant="danger"
         loading={permanentDeleteDriveFolderMut.isPending}
-        onConfirm={() => {
-          if (confirmFolderDelete) permanentDeleteDriveFolderMut.mutate(confirmFolderDelete);
+        onConfirm={async () => {
+          if (!confirmFolderDelete) return;
+          await permanentDeleteDriveFolderMut.mutateAsync(confirmFolderDelete);
           setConfirmFolderDelete(null);
         }}
         onClose={() => setConfirmFolderDelete(null)}

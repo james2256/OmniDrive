@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useEffect } from 'react';
 import type { FileEntry, DriveFolder, WorkspaceFolder } from '../types';
 
 export type SelectedItem = 
@@ -49,3 +50,16 @@ export const useSelectionStore = create<SelectionState>((set) => ({
   selectAll: (items) => set({ selectedItems: items }),
   clearSelection: () => set({ selectedItems: [] }),
 }));
+
+/**
+ * Clear the global selection whenever the route-dependent deps change.
+ * Fixes Bug 2: navigating /files/A → /files/B left folder A's selection
+ * active, so the BulkActionBar's Delete button acted on invisible items.
+ */
+export function useClearSelectionOnRouteChange(deps: React.DependencyList) {
+  const clearSelection = useSelectionStore((s) => s.clearSelection);
+  useEffect(() => {
+    clearSelection();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+}

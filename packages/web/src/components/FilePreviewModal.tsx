@@ -146,7 +146,7 @@ export function FilePreviewModal({ open, file, onClose }: FilePreviewModalProps)
                 href={`${import.meta.env.VITE_API_URL || ''}/api/files/${file.id}/download`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
+                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-primary rounded-xl hover:opacity-90 transition-colors shadow-sm"
                 style={{ textDecoration: 'none' }}
               >
                 <Download size={18} /> Download

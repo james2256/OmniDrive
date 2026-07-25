@@ -54,7 +54,7 @@ export const Header: React.FC = () => {
             <button
               type="button"
               aria-label="Account menu"
-              className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center font-medium cursor-pointer hover:bg-blue-700 select-none overflow-hidden flex-shrink-0"
+              className="w-9 h-9 rounded-full bg-primary text-white flex items-center justify-center font-medium cursor-pointer hover:opacity-90 select-none overflow-hidden flex-shrink-0"
             >
               {user?.avatarUrl ? (
                 <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />

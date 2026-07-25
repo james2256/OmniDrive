@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { useCallback } from 'react';
 import { getSharedLinks, deleteSharedLink } from '../lib/api';
 import type { SharedLink } from '../lib/api';
 import { qk } from '../lib/queryKeys';
@@ -53,4 +54,17 @@ export function useRevokeSharedLink() {
     },
     onError: () => addToast('error', 'Failed to revoke link'),
   });
+}
+
+/**
+ * Memoized "is this item shared?" lookup callback. Single source of truth —
+ * replaces the 6 identical inline copies across Dashboard/Files/External/
+ * Starred/Trash/Search. Derives from cached shared-links data.
+ */
+export function useIsTargetSharedCallback(sharedLinks: SharedLink[]) {
+  return useCallback(
+    (id: string, type: 'file' | 'folder') =>
+      sharedLinks.some((link) => link.targetId === id && link.targetType === type),
+    [sharedLinks],
+  );
 }

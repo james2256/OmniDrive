@@ -98,7 +98,7 @@ export const Omnibar: React.FC = () => {
         />
         <button
           onClick={() => setShowAdvanced(!showAdvanced)}
-          className={`p-1.5 rounded-full hover:bg-slate-100 ${showAdvanced ? 'text-blue-600' : 'text-slate-600'}`}
+          className={`p-1.5 rounded-full hover:bg-slate-100 ${showAdvanced ? 'text-primary' : 'text-slate-600'}`}
         >
           <SlidersHorizontal size={20} />
         </button>

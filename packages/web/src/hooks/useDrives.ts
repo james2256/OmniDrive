@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useCallback } from 'react';
 import { api } from '../lib/api';
 import { useToastStore } from '../stores/useToastStore';
 import { qk } from '../lib/queryKeys';
@@ -52,4 +53,22 @@ export function useTriggerSync() {
   return useMutation({
     mutationFn: (driveId: string) => api.triggerSync(driveId),
   });
+}
+
+/**
+ * Resolve a drive account by ID, with its index for color-badging.
+ * Standardized fallback: returns { drive: null, index: -1 } when the ID
+ * is absent OR not found — fixes the ExternalPage divergence (M-11) that
+ * returned drives[0] for unknown IDs (showing the wrong drive's badge).
+ */
+export function useGetDriveInfo(drives: DriveAccount[]) {
+  return useCallback(
+    (driveAccountId?: string): { drive: DriveAccount | null; index: number } => {
+      if (!driveAccountId) return { drive: null, index: -1 };
+      const index = drives.findIndex((d) => d.id === driveAccountId);
+      if (index === -1) return { drive: null, index: -1 };
+      return { drive: drives[index], index };
+    },
+    [drives],
+  );
 }

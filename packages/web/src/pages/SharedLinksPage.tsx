@@ -5,12 +5,14 @@ import { EditShareModal } from '../components/EditShareModal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { FileIcon } from '../components/files/FileIcon';
 import { useSharedLinks, useRevokeSharedLink } from '../hooks/useSharedLinks';
+import { useClipboard } from '../hooks/useClipboard';
 import { EmptyState, ListSkeleton } from '../components/EmptyState';
 import type { SharedLink } from '../lib/api';
+import { formatAbsoluteDate } from '../lib/utils';
 
 export function SharedLinksPage() {
   const { data: links = [], isLoading } = useSharedLinks();
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const { copied: copiedId, copy } = useClipboard();
   const [editingLink, setEditingLink] = useState<SharedLink | null>(null);
   const { addToast } = useToastStore();
   const revokeMut = useRevokeSharedLink();
@@ -27,19 +29,8 @@ export function SharedLinksPage() {
   };
 
   const copyToClipboard = (id: string) => {
-    const url = `${window.location.origin}/shared/${id}`;
-    navigator.clipboard.writeText(url);
-    setCopiedId(id);
+    copy(`${window.location.origin}/shared/${id}`);
     addToast('success', 'Link copied to clipboard');
-    setTimeout(() => setCopiedId(null), 2000);
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Intl.DateTimeFormat('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    }).format(new Date(dateString));
   };
 
   return (
@@ -81,7 +72,7 @@ export function SharedLinksPage() {
                       </h3>
                       <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1">
                         <Clock size={12} />
-                        <span>Created {formatDate(link.createdAt)}</span>
+                        <span>Created {formatAbsoluteDate(link.createdAt)}</span>
                       </div>
                     </div>
                   </div>
@@ -105,9 +96,9 @@ export function SharedLinksPage() {
               <div className="px-5 py-4 bg-slate-50 flex items-center justify-between gap-3">
                 <button
                   onClick={() => copyToClipboard(link.id)}
-                  className="flex items-center justify-center gap-2 flex-1 py-2 px-4 rounded-lg bg-card border border-slate-200 text-slate-700 font-medium text-sm hover:bg-slate-50 hover:text-blue-600 hover:border-blue-200 transition-colors"
+                  className="flex items-center justify-center gap-2 flex-1 py-2 px-4 rounded-lg bg-card border border-slate-200 text-slate-700 font-medium text-sm hover:bg-slate-50 hover:text-primary hover:border-blue-200 transition-colors"
                 >
-                  {copiedId === link.id ? (
+                  {copiedId ? (
                     <>
                       <Check size={16} className="text-green-500" />
                       <span className="text-green-600">Copied!</span>
@@ -121,7 +112,7 @@ export function SharedLinksPage() {
                 </button>
                 <button
                   onClick={() => setEditingLink(link)}
-                  className="p-2 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                  className="p-2 rounded-lg text-slate-500 hover:text-primary hover:bg-primary/10 transition-colors"
                   title="Edit Settings"
                 >
                   <Settings size={18} />

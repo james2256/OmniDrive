@@ -10,13 +10,13 @@ import { FileGrid } from '../components/files/FileGrid';
 import { ShareModal } from '../components/ShareModal';
 import { MoveDriveModal } from '../components/MoveDriveModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
+import { EmptyState } from '../components/EmptyState';
 import { formatFileSize, getDriveColor } from '../lib/utils';
 import { api } from '../lib/api';
 import { useToastStore } from '../stores/useToastStore';
 import { qk } from '../lib/queryKeys';
 import type { FileEntry } from '../types';
-import { useStarFile, useUnstarFile } from '../hooks/useFileMutations';
-import { useStarFolder, useUnstarFolder } from '../hooks/useFolderMutations';
+import { useToggleStar } from '../hooks/useFileMutations';
 import {
   HardDrive,
   RefreshCw,
@@ -105,18 +105,7 @@ export function DashboardPage() {
     },
   });
 
-  const starFileMut = useStarFile();
-  const unstarFileMut = useUnstarFile();
-  const starFolderMut = useStarFolder();
-  const unstarFolderMut = useUnstarFolder();
-
-  const handleToggleStar = (id: string, type: 'file' | 'folder', currentStarStatus: boolean) => {
-    if (type === 'file') {
-      if (currentStarStatus) { unstarFileMut.mutate(id); } else { starFileMut.mutate(id); }
-    } else {
-      if (currentStarStatus) { unstarFolderMut.mutate({ id }); } else { starFolderMut.mutate({ id }); }
-    }
-  };
+  const toggleStar = useToggleStar();
 
   const hasDrives = drives.length > 0;
   const hasRecent = recentFiles.length > 0 || recentFolders.length > 0;
@@ -165,6 +154,7 @@ export function DashboardPage() {
           </p>
         </div>
         <button
+          aria-label="Refresh dashboard"
           className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm text-slate-600 bg-card border border-slate-400 rounded-lg hover:bg-slate-50 transition-colors flex-shrink-0"
           onClick={() => {
             queryClient.invalidateQueries({ queryKey: qk.recent });
@@ -180,7 +170,7 @@ export function DashboardPage() {
       {/* Empty state — no drives yet. */}
       {!hasDrives && !isLoading && (
         <div className="bg-card border border-slate-200 rounded-2xl p-8 sm:p-12 text-center bento-reveal">
-          <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-4">
+          <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
             <Cloud size={26} className="text-primary" />
           </div>
           <h2 className="text-lg font-semibold text-slate-800">No drives connected</h2>
@@ -402,19 +392,23 @@ export function DashboardPage() {
                   onShare: (id, type) => setShareTarget({ id, type }),
                   onMoveDrive: (file) => setMoveDriveFiles([file]),
                   onPreviewFile: setPreviewFile,
-                  onToggleStar: handleToggleStar,
+                  onToggleStar: toggleStar,
                 }}
               />
             ) : (
-              <div className="p-6 sm:p-8 text-center">
-                <p className="text-sm text-slate-500">No recent files yet.</p>
-                <button
-                  className="mt-3 text-xs text-primary hover:underline"
-                  onClick={() => navigate('/files/root')}
-                >
-                  Browse My Drive
-                </button>
-              </div>
+              <EmptyState
+                icon={Clock}
+                title="No recent files"
+                description="Files you've viewed will appear here."
+                action={
+                  <button
+                    className="mt-4 px-4 py-2 text-sm bg-primary text-white rounded-lg hover:opacity-90"
+                    onClick={() => navigate('/files/root')}
+                  >
+                    Browse My Drive
+                  </button>
+                }
+              />
             )}
           </article>
 

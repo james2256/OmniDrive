@@ -1,8 +1,9 @@
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useCallback } from 'react';
 import { api } from '../lib/api';
 import { useToastStore } from '../stores/useToastStore';
 import { invalidateAfterFileMutation } from '../lib/invalidate';
-import { useQueryClient } from '@tanstack/react-query';
+import { useStarFolder, useUnstarFolder } from './useFolderMutations';
 
 export function useStarFile() {
   const qc = useQueryClient();
@@ -84,4 +85,29 @@ export function useMoveFileToDrive() {
     onSuccess: () => { addToast('success', 'File moved to another drive'); invalidateAfterFileMutation(qc); },
     onError: () => addToast('error', 'Failed to move file'),
   });
+}
+
+/**
+ * Unified star-toggle for files AND folders (workspace + Google Drive).
+ * 4-arg signature: driveId selects the Google-Drive-folder endpoint when
+ * present; absent driveId falls back to the workspace-folder endpoint.
+ * Fixes Bug 1 (Dashboard dropped driveId) and M-10 (ExternalPage missing
+ * the workspace-folder else-branch) by giving every page the same logic.
+ */
+export function useToggleStar() {
+  const starFile = useStarFile();
+  const unstarFile = useUnstarFile();
+  const starFolder = useStarFolder();
+  const unstarFolder = useUnstarFolder();
+
+  return useCallback(
+    (id: string, type: 'file' | 'folder', currentStarStatus: boolean, driveId?: string) => {
+      if (type === 'file') {
+        if (currentStarStatus) { unstarFile.mutate(id); } else { starFile.mutate(id); }
+      } else {
+        if (currentStarStatus) { unstarFolder.mutate({ id, driveId }); } else { starFolder.mutate({ id, driveId }); }
+      }
+    },
+    [starFile, unstarFile, starFolder, unstarFolder],
+  );
 }

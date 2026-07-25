@@ -32,7 +32,7 @@ export function WorkspaceMainView({
           </button>
         )}
         <p>Select or create a Workspace to get started.</p>
-        <button onClick={onCreateRootFolder} className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors">
+        <button onClick={onCreateRootFolder} className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-primary rounded-md hover:opacity-90 transition-colors">
           <FolderPlus size={16} /> New Workspace
         </button>
       </div>

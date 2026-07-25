@@ -97,7 +97,7 @@ export function CreateFolderModal({ open, parentId, title, onClose, onSuccess, d
               <select
                 value={selectedDriveId}
                 onChange={(e) => setSelectedDriveId(e.target.value)}
-                className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
+                className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-shadow"
               >
                 <option value="">Select a drive…</option>
                 {(drives ?? []).map((drive, i) => (
@@ -116,7 +116,7 @@ export function CreateFolderModal({ open, parentId, title, onClose, onSuccess, d
               placeholder={`Enter ${entityLabel.toLowerCase()} name`}
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
+              className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-shadow"
             />
           </div>
           <div className="flex justify-end gap-2 mt-1">
@@ -129,7 +129,7 @@ export function CreateFolderModal({ open, parentId, title, onClose, onSuccess, d
             </button>
             <button
               type="submit"
-              className="flex items-center justify-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center justify-center px-3 py-1.5 text-sm font-medium text-white bg-primary rounded-lg hover:opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={loading || (showDrivePicker && !selectedDriveId)}
             >
               {loading ? (

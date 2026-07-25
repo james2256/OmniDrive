@@ -12,6 +12,7 @@ vi.mock('../hooks/useSharedLinks', () => ({ useSharedLinks: vi.fn() }));
 vi.mock('../hooks/useFileMutations', () => ({
   useStarFile: () => ({ mutate: vi.fn() }),
   useUnstarFile: () => ({ mutate: vi.fn() }),
+  useToggleStar: () => vi.fn(),
 }));
 vi.mock('../hooks/useFolderMutations', () => ({
   useStarFolder: () => ({ mutate: vi.fn() }),

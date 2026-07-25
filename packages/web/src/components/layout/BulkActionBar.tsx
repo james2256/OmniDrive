@@ -116,7 +116,7 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({ onActionComplete, 
         <button onClick={clearSelection} disabled={isProcessing} className="p-1.5 sm:p-2 hover:bg-slate-100 text-slate-500 rounded-full transition-colors" aria-label="Clear selection">
           <X size={18} />
         </button>
-        <span className="font-medium text-sm text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full">{selectedItems.length} selected</span>
+        <span className="font-medium text-sm text-primary bg-primary/10 px-2.5 py-0.5 rounded-full">{selectedItems.length} selected</span>
       </div>
       <div className="flex flex-wrap items-center gap-0.5 sm:gap-2 sm:pl-2">
         {isTrashView ? (
@@ -144,14 +144,16 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({ onActionComplete, 
             >
               <HardDrive size={16} /> <span className="hidden sm:inline">Move Drive</span>
             </button>
-            <button
-              onClick={onWorkspaceRequested}
-              disabled={isProcessing || !allFiles}
-              className={`flex items-center gap-2 px-2.5 sm:px-3 py-2 rounded-full transition-colors text-sm font-medium ${!allFiles ? 'opacity-50 cursor-not-allowed text-slate-500' : 'hover:bg-slate-100 text-slate-600'}`}
-              title={!allFiles ? 'Can only add files to Workspace' : 'Add to Workspace'}
-            >
-              <Star size={16} /> <span className="hidden sm:inline">Workspace</span>
-            </button>
+            {onWorkspaceRequested && (
+              <button
+                onClick={onWorkspaceRequested}
+                disabled={isProcessing || !allFiles}
+                className={`flex items-center gap-2 px-2.5 sm:px-3 py-2 rounded-full transition-colors text-sm font-medium ${!allFiles ? 'opacity-50 cursor-not-allowed text-slate-500' : 'hover:bg-slate-100 text-slate-600'}`}
+                title={!allFiles ? 'Can only add files to Workspace' : 'Add to Workspace'}
+              >
+                <Star size={16} /> <span className="hidden sm:inline">Workspace</span>
+              </button>
+            )}
           </>
         )}
       </div>
