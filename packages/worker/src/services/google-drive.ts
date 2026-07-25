@@ -669,7 +669,7 @@ export class GoogleDriveService {
 
     do {
       const token = await this.getValidToken(driveAccountId);
-      const url = `${DRIVE_API}/files?q=${q}&fields=${fields}${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
+      const url = `${DRIVE_API}/files?q=${q}&fields=${fields}&supportsAllDrives=true&includeItemsFromAllDrives=true&pageSize=1000${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
       const response = await this.driveFetch(url, {
         headers: { Authorization: `Bearer ${token}` },
       }, { context: 'Failed to list folder contents' });

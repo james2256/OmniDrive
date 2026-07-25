@@ -30,6 +30,9 @@ export const Omnibar: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    // One controller per effect run — cleanup aborts the in-flight request so
+    // a slow earlier query can't overwrite results from a newer one.
+    const controller = new AbortController();
     const delayDebounceFn = setTimeout(async () => {
       if (!query.trim() && !metadataKey.trim()) {
         setFileResults([]);
@@ -40,19 +43,23 @@ export const Omnibar: React.FC = () => {
       setIsSearching(true);
       try {
         const metadata = metadataKey && metadataValue ? { [metadataKey]: metadataValue } : undefined;
-        const res = await api.globalSearch(query, undefined, metadata);
+        const res = await api.globalSearch(query, undefined, metadata, controller.signal);
         setFileResults(res.files);
         setFolderResults(res.folders ?? []);
         setDriveFolderResults(res.driveFolders ?? []);
         setIsOpen(true);
       } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
         console.error('Search failed', err);
       } finally {
         setIsSearching(false);
       }
     }, 300);
 
-    return () => clearTimeout(delayDebounceFn);
+    return () => {
+      controller.abort();
+      clearTimeout(delayDebounceFn);
+    };
   }, [query, metadataKey, metadataValue]);
 
   const handleFileClick = (file: FileEntry) => {

@@ -35,7 +35,14 @@ export const authGuard = createMiddleware<AppContext>(async (c, next) => {
     throw new AppError(401, 'Session expired');
   }
 
-  const session: SessionData = JSON.parse(row.data);
+  let session: SessionData;
+  try {
+    session = JSON.parse(row.data);
+  } catch {
+    // Corrupted session data — delete so the user can log in fresh (self-heal)
+    await c.env.DB.prepare('DELETE FROM sessions WHERE id = ?').bind(cookie).run();
+    throw new AppError(401, 'Session expired');
+  }
   c.set('userId', session.userId);
   c.set('session', session);
 

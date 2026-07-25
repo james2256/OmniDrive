@@ -281,12 +281,12 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ metadata }),
     }),
-  globalSearch: (query: string, workspaceId?: string, metadata?: Record<string, string>) => {
+  globalSearch: (query: string, workspaceId?: string, metadata?: Record<string, string>, signal?: AbortSignal) => {
     const params = new URLSearchParams();
     if (query) params.set('q', query);
     if (workspaceId) params.set('workspaceId', workspaceId);
     if (metadata && Object.keys(metadata).length > 0) params.set('metadata', JSON.stringify(metadata));
-    return request<SearchResults>(`/api/files/search?${params.toString()}`);
+    return request<SearchResults>(`/api/files/search?${params.toString()}`, { signal });
   },
 
   // Workspaces & S3 Credentials
