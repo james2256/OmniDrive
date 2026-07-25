@@ -1,6 +1,7 @@
 import { Suspense, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthGuard } from './components/AuthGuard';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppLayout } from './components/layout/AppLayout';
 import { ToastContainer } from './components/Toast';
 import { api } from './lib/api';
@@ -82,8 +83,9 @@ export const App = () => {
 
   return (
     <BrowserRouter>
-      <Suspense fallback={<PageFallback />}>
-        <Routes>
+      <ErrorBoundary>
+        <Suspense fallback={<PageFallback />}>
+          <Routes>
           <Route path="/home" element={<LandingPage />} />
           <Route path="/privacy" element={<PrivacyPolicyPage />} />
           <Route path="/terms" element={<TermsOfServicePage />} />
@@ -116,7 +118,8 @@ export const App = () => {
             <Route path="/admin/users" element={<AdminUsersPage />} />
           </Route>
         </Routes>
-      </Suspense>
+        </Suspense>
+      </ErrorBoundary>
     </BrowserRouter>
   );
 };

@@ -97,6 +97,7 @@ export const AdminUsersPage: React.FC = () => {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
+  const [invitationToDelete, setInvitationToDelete] = useState<string | null>(null);
 
   // Invitations Tab State
   const [invitations, setInvitations] = useState<Invitation[]>([]);
@@ -312,7 +313,7 @@ export const AdminUsersPage: React.FC = () => {
                         </span>
                       </div>
                       <button
-                        onClick={() => handleDeleteInvitation(inv.id)}
+                        onClick={() => setInvitationToDelete(inv.id)}
                         className="text-red-600 hover:text-red-800 text-sm font-medium"
                       >
                         Delete
@@ -343,6 +344,18 @@ export const AdminUsersPage: React.FC = () => {
         variant="danger"
         onConfirm={confirmDeleteUser}
         onClose={() => setUserToDelete(null)}
+      />
+      <ConfirmDialog
+        open={invitationToDelete !== null}
+        title="Delete Invitation Code"
+        message="Are you sure you want to delete this invitation code? Users who already received it will no longer be able to register."
+        confirmText="Delete"
+        variant="danger"
+        onConfirm={() => {
+          if (invitationToDelete) handleDeleteInvitation(invitationToDelete);
+          setInvitationToDelete(null);
+        }}
+        onClose={() => setInvitationToDelete(null)}
       />
     </div>
   );

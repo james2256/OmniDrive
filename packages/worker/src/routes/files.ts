@@ -6,6 +6,7 @@ import { generateId } from '../lib/id';
 import { authGuard } from '../middleware/auth-guard';
 import { AppError, ConflictError } from '../lib/errors';
 import { GoogleDriveService } from '../services/google-drive';
+import { DriveRepository } from '../repositories/drive.repository';
 import { resolveDrivesWithQuota } from '../services/drive-quota';
 import { UploadRouter } from '../services/upload-router';
 import { AutomationEngine } from '../services/automation.service';
@@ -234,11 +235,8 @@ filesRouter.post('/upload/init', zValidator('json', uploadInitSchema, zodErrorHo
   }
 
   const drives = await resolveDrivesWithQuota(c.env, db, userId, (driveId, total, used) => {
-    c.executionCtx.waitUntil(
-      db.prepare('UPDATE drive_accounts SET total_quota = ?, used_quota = ?, quota_updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-        .bind(total, used, driveId)
-        .run()
-    );
+    const driveRepo = new DriveRepository(db);
+    c.executionCtx.waitUntil(driveRepo.updateQuota(driveId, total, used));
   });
   if (drives.length === 0) throw new AppError(400, 'No connected drives');
 

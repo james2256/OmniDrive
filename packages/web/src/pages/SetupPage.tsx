@@ -6,14 +6,18 @@ export function SetupPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
     try {
       await api.register({ username, password });
       window.location.href = '/';
     } catch (err: unknown) {
       setErrorMsg((err instanceof Error ? err.message : 'Setup failed'));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -61,9 +65,10 @@ export function SetupPage() {
             </div>
             <button
               type="submit"
-              className="w-full py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors mt-4"
+              disabled={loading}
+              className="w-full py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Complete Setup
+              {loading ? 'Creating…' : 'Complete Setup'}
             </button>
           </form>
         </div>

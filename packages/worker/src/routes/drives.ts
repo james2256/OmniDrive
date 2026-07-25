@@ -155,16 +155,11 @@ drivesRouter.get('/', async (c) => {
         : (drive.usedQuota !== quota.used);
 
       if (quotaChanged) {
+        const driveRepo = new DriveRepository(db);
         if (quota.hasLimit) {
-          c.executionCtx.waitUntil(
-            db.prepare('UPDATE drive_accounts SET total_quota = ?, used_quota = ?, quota_updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-              .bind(quota.total, quota.used, drive.id).run()
-          );
+          c.executionCtx.waitUntil(driveRepo.updateQuota(drive.id, quota.total, quota.used));
         } else {
-          c.executionCtx.waitUntil(
-            db.prepare('UPDATE drive_accounts SET used_quota = ?, quota_updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-              .bind(quota.used, drive.id).run()
-          );
+          c.executionCtx.waitUntil(driveRepo.updateUsedQuota(drive.id, quota.used));
         }
       }
 

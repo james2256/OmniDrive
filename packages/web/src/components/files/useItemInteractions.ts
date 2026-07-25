@@ -94,12 +94,10 @@ export function useItemInteractions(opts: {
     }, 300);
   }, []);
 
-  const handleFileHover = React.useCallback((file: FileEntry) => {
-    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
-    hoverTimeoutRef.current = setTimeout(() => {
-      api.getFile(file.id).catch(() => {});
-    }, 300);
-  }, []);
+  // Hover-prefetch for files removed — the api.getFile endpoint never existed
+  // (404s silently). Kept as a no-op to preserve the ItemInteractions interface
+  // used by FileGridView + FileListView (onMouseEnter handlers).
+  const handleFileHover = React.useCallback((_file: FileEntry) => {}, []);
 
   const handleHoverEnd = React.useCallback(() => {
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);

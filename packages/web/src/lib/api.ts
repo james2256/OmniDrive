@@ -55,6 +55,63 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return response.json();
 }
 
+/**
+ * Upload one chunk of a resumable upload via the Worker proxy.
+ *
+ * On success (2xx) returns `{ done: true, value }` with the file ID.
+ * On 308 Resume Incomplete, parses the `Range` header to find the next
+ * start byte and returns `{ done: false, nextStart }` so the caller can
+ * slice the file and retry from that offset.
+ */
+function uploadChunk(
+  url: string,
+  file: File,
+  start: number,
+  onProgress?: (percent: number) => void,
+): Promise<{ done: true; value: { id: string } } | { done: false; nextStart: number }> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const end = file.size - 1;
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable) onProgress?.(Math.round(((start + e.loaded) / file.size) * 100));
+    });
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const result = JSON.parse(xhr.responseText);
+          if (result.id) {
+            resolve({ done: true, value: result });
+          } else {
+            reject(new Error('Upload response missing file ID'));
+          }
+        } catch {
+          reject(new Error(`Upload response not valid JSON: ${xhr.responseText.substring(0, 100)}`));
+        }
+      } else if (xhr.status === 308) {
+        // Parse Range header: "bytes=0-4999" → next start = 5000
+        const range = xhr.getResponseHeader('Range') ?? '';
+        const match = range.match(/bytes=0-(\d+)/);
+        const nextStart = match ? parseInt(match[1], 10) + 1 : 0;
+        resolve({ done: false, nextStart });
+      } else {
+        reject(new Error(`Upload proxy failed: ${xhr.status} - ${xhr.responseText.substring(0, 100)}`));
+      }
+    });
+    xhr.addEventListener('error', () => reject(new Error('Upload network error')));
+    xhr.open('PUT', `${API_BASE}/api/files/upload/proxy`);
+    xhr.withCredentials = true;
+    xhr.setRequestHeader('X-Upload-Url', url);
+    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+    // Google resumable single-chunk upload requires Content-Range for non-empty
+    // bodies. Zero-byte files finalize with an empty PUT (no Content-Range).
+    if (file.size > 0) {
+      xhr.setRequestHeader('Content-Range', `bytes ${start}-${end}/${file.size}`);
+    }
+    // Slice the file to send only remaining bytes (resume from `start`).
+    xhr.send(start > 0 ? file.slice(start) : file);
+  });
+}
+
 export const api = {
   // Auth
   getSetupStatus: () => request<{ isSetup: boolean }>('/api/auth/setup-status'),
@@ -127,7 +184,6 @@ export const api = {
     request<{ success: boolean }>(`/api/folders/${id}/force-sync?driveId=${driveId}`, { method: 'POST' }),
 
   // Files
-  getFile: (id: string) => request<FileEntry>(`/api/files/${id}`),
   searchFiles: (query: string) =>
     request<SearchResults>(`/api/files/search?q=${encodeURIComponent(query)}`),
   initiateUpload: (data: { name: string; mimeType: string; size: number; driveAccountId?: string; parentFolderId?: string }) =>
@@ -141,44 +197,17 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  // Upload file bytes via Worker proxy (bypasses Google CORS restriction)
-  uploadViaProxy: (uploadUrl: string, file: File, onProgress?: (percent: number) => void) => {
-    return new Promise<{ id: string }>((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable) onProgress?.(Math.round((e.loaded / e.total) * 100));
-      });
-      xhr.addEventListener('load', () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            const result = JSON.parse(xhr.responseText);
-            if (!result.id) {
-              reject(new Error(`Upload response missing file ID`));
-            } else {
-              resolve(result);
-            }
-          } catch {
-            reject(new Error(`Upload response not valid JSON: ${xhr.responseText.substring(0, 100)}`));
-          }
-        } else if (xhr.status === 308) {
-          // Google resumable upload incomplete - need to resume
-          reject(new Error(`Upload incomplete, Google returned 308 Resume Incomplete`));
-        } else {
-          reject(new Error(`Upload proxy failed: ${xhr.status} - ${xhr.responseText.substring(0, 100)}`));
-        }
-      });
-      xhr.addEventListener('error', () => reject(new Error('Upload network error')));
-      xhr.open('PUT', `${API_BASE}/api/files/upload/proxy`);
-      xhr.withCredentials = true;
-      xhr.setRequestHeader('X-Upload-Url', uploadUrl);
-      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-      // Google resumable single-chunk upload requires Content-Range for non-empty
-      // bodies. Zero-byte files finalize with an empty PUT (no Content-Range).
-      if (file.size > 0) {
-        xhr.setRequestHeader('Content-Range', `bytes 0-${file.size - 1}/${file.size}`);
-      }
-      xhr.send(file);
-    });
+  // Upload file bytes via Worker proxy (bypasses Google CORS restriction).
+  // Handles Google's 308 Resume Incomplete by parsing the Range header and
+  // re-sending the remaining bytes — large files on flaky networks resume
+  // instead of failing and restarting from 0.
+  uploadViaProxy: async (uploadUrl: string, file: File, onProgress?: (percent: number) => void): Promise<{ id: string }> => {
+    let startByte = 0;
+    while (true) {
+      const result = await uploadChunk(uploadUrl, file, startByte, onProgress);
+      if (result.done) return result.value;
+      startByte = result.nextStart;
+    }
   },
   moveFile: (id: string, workspaceFolderId?: string | null) =>
     request<{ success: boolean }>(`/api/files/${id}/move`, {

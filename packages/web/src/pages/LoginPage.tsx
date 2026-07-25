@@ -14,10 +14,12 @@ export function LoginPage() {
   const [email, setEmail] = useState('');
   const [invitationCode, setInvitationCode] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
+    setLoading(true);
     try {
       if (isRegister) {
         await api.register({ name, username, password, email, invitation_code: invitationCode });
@@ -27,6 +29,8 @@ export function LoginPage() {
       window.location.href = '/';
     } catch (err: unknown) {
       setErrorMsg((err instanceof Error ? err.message : 'Authentication failed'));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -146,9 +150,10 @@ export function LoginPage() {
 
             <button
               type="submit"
-              className="w-full py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors mt-2"
+              disabled={loading}
+              className="w-full py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isRegister ? 'Create Account' : 'Sign In'}
+              {loading ? 'Signing in…' : (isRegister ? 'Create Account' : 'Sign In')}
             </button>
           </form>
 

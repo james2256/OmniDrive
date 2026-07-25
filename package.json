@@ -13,6 +13,9 @@
     "packages/worker",
     "packages/web"
   ],
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "concurrently -n worker,web -c blue,green \"npm:dev:worker\" \"npm:dev:web\"",
     "dev:worker": "npm run dev --prefix packages/worker",
