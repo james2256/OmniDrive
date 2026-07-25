@@ -177,14 +177,22 @@ export class DriveRepository {
    * OWN whose immediate parent is the '__shared__' sentinel (loose files at
    * the shared root). Files shared WITH you by others (owned_by_me = 0) are
    * excluded. Files inside folders are reached by navigating into the folder.
+   * Cursor pagination mirrors findFilesInFolder — (name, id) > (?, ?).
    */
-  findExternalFiles(userId: string) {
-    return this.db.prepare(
-      `SELECT f.*, d.email as driveEmail FROM files f
-       JOIN drive_accounts d ON f.drive_account_id = d.id
-       WHERE f.user_id = ? AND f.google_parent_id = '__shared__' AND f.owned_by_me = 1 AND f.is_trashed = 0
-       ORDER BY f.name ASC`
-    ).bind(userId).all();
+  findExternalFiles(userId: string, cursor: { name: string; id: string } | null, limit: number) {
+    let sql = `
+      SELECT f.*, d.email as driveEmail FROM files f
+      JOIN drive_accounts d ON f.drive_account_id = d.id
+      WHERE f.user_id = ? AND f.google_parent_id = '__shared__' AND f.owned_by_me = 1 AND f.is_trashed = 0
+    `;
+    const binds: (string | number)[] = [userId];
+    if (cursor && cursor.name !== undefined && cursor.id !== undefined) {
+      sql += ` AND (f.name, f.id) > (?, ?)`;
+      binds.push(cursor.name, cursor.id);
+    }
+    sql += ` ORDER BY f.name ASC, f.id ASC LIMIT ?`;
+    binds.push(limit + 1);
+    return this.db.prepare(sql).bind(...binds).all();
   }
 
   /** Search drive folders by name (for global search). */

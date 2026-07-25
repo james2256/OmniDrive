@@ -22,25 +22,34 @@ export function parseStorageQuota(
 
 export function computeDriveQuota(
   stored: { totalQuota: number; usedQuota: number; quotaOverride?: number | null },
-  live?: { total: number; used: number } | null
-): { totalQuota: number; usedQuota: number; freeSpace: number; usagePercent: number } {
+  live?: { total: number; used: number; hasLimit?: boolean } | null
+): { totalQuota: number; usedQuota: number; freeSpace: number; usagePercent: number; hasLimit: boolean } {
   // User-set override wins for the total capacity, because Google's API
   // omits storageQuota.limit for Google Workspace pooled storage and service
   // accounts (it returns limit only "if applicable"). Without an override
   // those drives would always show the 1 TiB unlimited ceiling.
   const liveTotal = live?.total ?? 0;
-  const hasLiveLimit = liveTotal > 0;
-  const total =
-    stored.quotaOverride && stored.quotaOverride > 0
-      ? stored.quotaOverride
-      : hasLiveLimit
-        ? liveTotal
-        : stored.totalQuota > 0
-          ? stored.totalQuota
-          : UNLIMITED_DRIVE_QUOTA_BYTES;
+  const hasLiveLimit = live?.hasLimit ?? (liveTotal > 0);
+  const hasOverride = stored.quotaOverride != null && stored.quotaOverride > 0;
+
+  // hasLimit signals the UI whether to show a progress bar (real limit known)
+  // or "Pooled storage" (Google omitted the limit). It must NOT be true when
+  // the total is just a stale stored.totalQuota fallback — only override or
+  // a live Google-reported limit qualify.
+  const hasLimit = hasOverride || hasLiveLimit;
+
+  const overrideValue = stored.quotaOverride ?? 0;
+  const total = hasOverride
+    ? overrideValue
+    : hasLiveLimit
+      ? liveTotal
+      : stored.totalQuota > 0
+        ? stored.totalQuota
+        : 0; // 0 = no limit known — UI shows "Pooled storage"
+
   const used = live?.used ?? stored.usedQuota;
-  const effectiveTotal = total > 0 ? total : UNLIMITED_DRIVE_QUOTA_BYTES;
-  const freeSpace = Math.max(0, effectiveTotal - used);
+  const effectiveTotal = total > 0 ? total : 0;
+  const freeSpace = effectiveTotal > 0 ? Math.max(0, effectiveTotal - used) : 0;
   const usagePercent = effectiveTotal > 0 ? (used / effectiveTotal) * 100 : 0;
-  return { totalQuota: effectiveTotal, usedQuota: used, freeSpace, usagePercent };
+  return { totalQuota: effectiveTotal, usedQuota: used, freeSpace, usagePercent, hasLimit };
 }

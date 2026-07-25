@@ -60,6 +60,18 @@ export function SettingsDrivesTab() {
     }
   };
 
+  // Reconnect triggers the existing OAuth flow. The callback re-links the
+  // existing drive (by google_account_id) via drive_tokens UPSERT — no data
+  // loss, no full re-sync. Only the dead refresh token is replaced.
+  const handleReconnect = async () => {
+    try {
+      const { url } = await api.getDriveConnectUrl();
+      window.location.href = url;
+    } catch {
+      addToast('error', 'Failed to start reconnection');
+    }
+  };
+
   const handleAddServiceAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -87,6 +99,7 @@ export function SettingsDrivesTab() {
               index={i}
               onSync={handleSync}
               onDisconnect={handleDisconnect}
+              onReconnect={handleReconnect}
             />
           ))}
           {drives.length === 0 && (

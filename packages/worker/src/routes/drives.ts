@@ -10,6 +10,7 @@ import { mapDriveRow, mapDriveFolderRow, mapFileRow } from '../types';
 import { generateId } from '../lib/id';
 import type { BreadcrumbItem } from '../types';
 import { generatePKCE } from '../lib/pkce';
+import { decodeCursor } from '../lib/cursor';
 import { computeDriveQuota } from '../lib/storage-quota';
 import { encrypt } from '../lib/crypto';
 import { resolveGoogleFolderId } from '../lib/drive-folder';
@@ -88,7 +89,9 @@ drivesRouter.get('/connect', async (c) => {
 
 // GET /api/drives/external — list items you own that are not in My Drive
 drivesRouter.get('/external', async (c) => {
-  const data = await c.get('driveService').listExternal(c.get('userId'));
+  const cursorRaw = c.req.query('cursor');
+  const cursor = cursorRaw ? decodeCursor<{ name: string; id: string }>(cursorRaw) : null;
+  const data = await c.get('driveService').listExternal(c.get('userId'), cursor);
   return c.json(data);
 });
 
@@ -137,8 +140,17 @@ drivesRouter.get('/', async (c) => {
   const drivesWithQuota = await Promise.all(drives.map(async (drive) => {
     const hasTokens = await driveService.hasValidTokens(drive.id);
     if (!hasTokens) {
-      const { freeSpace, usagePercent } = computeDriveQuota(drive);
-      return { ...drive, freeSpace, usagePercent, health: 'auth_expired' as const };
+      const computed = computeDriveQuota(drive);
+      return { ...drive, ...computed, health: 'auth_expired' as const };
+    }
+
+    // Skip live quota fetch for drives already in sync error — the token refresh
+    // will fail and hang the entire Promise.all for 10-30s (withBackoff retries).
+    // Return cached quota with 'error' health so the UI shows the broken state
+    // without freezing. The user must reconnect to fix the token.
+    if (drive.syncStatus === 'error') {
+      const computed = computeDriveQuota(drive);
+      return { ...drive, ...computed, health: 'error' as const };
     }
 
     try {
@@ -163,7 +175,7 @@ drivesRouter.get('/', async (c) => {
         }
       }
 
-      const computed = computeDriveQuota(drive, { total: quota.hasLimit ? quota.total : 0, used: quota.used });
+      const computed = computeDriveQuota(drive, { total: quota.hasLimit ? quota.total : 0, used: quota.used, hasLimit: quota.hasLimit });
       return { ...drive, ...computed, health: 'connected' as const };
 
     } catch (e) {

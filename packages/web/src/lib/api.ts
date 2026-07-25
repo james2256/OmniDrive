@@ -256,8 +256,10 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ targetFolderId, oldParentId, isFolder }),
     }),
-  getExternal: () =>
-    request<{ files: FileEntry[]; folders: DriveFolder[] }>('/api/drives/external'),
+  getExternal: (cursor?: string) =>
+    request<{ files: FileEntry[]; folders: DriveFolder[]; hasMore: boolean; nextCursor: string | null }>(
+      `/api/drives/external${cursor ? `?cursor=${cursor}` : ''}`,
+    ),
   getExternalFolderContents: (driveId: string, folderId: string) =>
     request<{ folder: DriveFolder | null; subfolders: DriveFolder[]; files: FileEntry[]; breadcrumb: BreadcrumbItem[] }>(`/api/drives/${driveId}/external-folders/${folderId}`),
 

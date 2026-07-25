@@ -151,7 +151,11 @@ export class FolderRepository {
       name = excluded.name,
       google_parent_id = excluded.google_parent_id,
       owned_by_me = excluded.owned_by_me,
-      is_trashed = 0`;
+      is_trashed = 0
+    WHERE excluded.name IS NOT drive_folders.name
+       OR excluded.google_parent_id IS NOT drive_folders.google_parent_id
+       OR excluded.owned_by_me IS NOT drive_folders.owned_by_me
+       OR drive_folders.is_trashed = 1`;
 
   buildDriveFolderUpsertStmt(
     drive: DriveAccount,

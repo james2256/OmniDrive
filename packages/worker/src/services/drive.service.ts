@@ -3,6 +3,7 @@ import { DriveRepository } from '../repositories/drive.repository';
 import { GoogleDriveService } from './google-drive';
 import { AppError } from '../lib/errors';
 import { generateId } from '../lib/id';
+import { encodeCursor } from '../lib/cursor';
 import { mapDriveRow, mapFileRow, mapDriveFolderRow } from '../types';
 
 /**
@@ -150,13 +151,27 @@ export class DriveService {
   }
 
   /** Get folders + files for the external items page. RBAC: user ownership. */
-  async listExternal(userId: string) {
+  async listExternal(userId: string, cursor: { name: string; id: string } | null, limit = 50) {
     const { results: folderRows } = await this.driveRepo.findExternalFolders(userId);
-    const { results: fileRows } = await this.driveRepo.findExternalFiles(userId);
+    const { results: fileRows } = await this.driveRepo.findExternalFiles(userId, cursor, limit);
+
+    let hasMore = false;
+    if (fileRows.length > limit) {
+      hasMore = true;
+      fileRows.pop();
+    }
+    const files = fileRows.map((r: Record<string, unknown>) => ({ ...mapFileRow(r), driveEmail: r.driveEmail, driveId: r.drive_account_id }));
+    let nextCursor: string | null = null;
+    if (files.length > 0 && hasMore) {
+      const last = files[files.length - 1];
+      nextCursor = encodeCursor({ name: last.name, id: last.id });
+    }
 
     return {
       folders: folderRows.map((r: Record<string, unknown>) => ({ ...mapDriveFolderRow(r), driveEmail: r.driveEmail, driveId: r.drive_account_id })),
-      files: fileRows.map((r: Record<string, unknown>) => ({ ...mapFileRow(r), driveEmail: r.driveEmail, driveId: r.drive_account_id })),
+      files,
+      hasMore,
+      nextCursor,
     };
   }
 

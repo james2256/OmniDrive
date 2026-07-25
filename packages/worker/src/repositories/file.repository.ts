@@ -24,30 +24,37 @@ export class FileRepository {
 
   /**
    * Find recent files across user's own files + workspace files.
-   * Written as a UNION (not `OR EXISTS`) so each branch can use a different
-   * index: branch 1 seeks idx_files_user_trashed_name_id, branch 2 seeks
-   * idx_files_workspace_trashed via a workspace_members drive. UNION (not
-   * UNION ALL) dedupes files the user both owns and accesses via a workspace.
-   * Verified equivalent to the prior OR-EXISTS form via EXPLAIN + row-set
-   * comparison (identical file IDs).
+   * CTE form with per-branch LIMIT so each branch reads at most `limit` rows
+   * instead of ALL user files. Branch 1 (user_id filter) seeks
+   * idx_files_user_trashed_sort (expression index — no temp B-tree sort).
+   * Branch 2 (workspace_id via JOIN) seeks idx_files_workspace_trashed and
+   * sorts ~limit rows (acceptable). UNION (not UNION ALL) dedupes files the
+   * user both owns and accesses via a workspace.
+   *
+   * SQLite does not support parenthesized subqueries in a UNION — CTEs are
+   * the correct syntax for per-branch LIMIT.
    */
   findRecent(userId: string, limit = 20) {
     return this.db.prepare(`
-      SELECT * FROM (
+      WITH branch1 AS (
         SELECT f.*, d.email as driveEmail
-        FROM files f
-        JOIN drive_accounts d ON f.drive_account_id = d.id
+        FROM files f JOIN drive_accounts d ON f.drive_account_id = d.id
         WHERE f.is_trashed = 0 AND f.user_id = ?
-        UNION
+        ORDER BY COALESCE(f.google_modified_at, f.synced_at, f.updated_at) DESC
+        LIMIT ?
+      ),
+      branch2 AS (
         SELECT f.*, d.email as driveEmail
-        FROM files f
-        JOIN drive_accounts d ON f.drive_account_id = d.id
+        FROM files f JOIN drive_accounts d ON f.drive_account_id = d.id
         JOIN workspace_members wm ON wm.workspace_id = f.workspace_id AND wm.user_id = ?
         WHERE f.is_trashed = 0
+        ORDER BY COALESCE(f.google_modified_at, f.synced_at, f.updated_at) DESC
+        LIMIT ?
       )
+      SELECT * FROM (SELECT * FROM branch1 UNION SELECT * FROM branch2)
       ORDER BY COALESCE(google_modified_at, synced_at, updated_at) DESC
       LIMIT ?
-    `).bind(userId, userId, limit).all();
+    `).bind(userId, limit, userId, limit, limit).all();
   }
 
   /** Find files grouped by mime_type for category overview. */
@@ -369,7 +376,17 @@ export class FileRepository {
       google_parent_id = excluded.google_parent_id,
       synced_at = excluded.synced_at,
       owned_by_me = excluded.owned_by_me,
-      is_trashed = 0`;
+      is_trashed = 0
+    WHERE excluded.name IS NOT files.name
+       OR excluded.mime_type IS NOT files.mime_type
+       OR excluded.size IS NOT files.size
+       OR excluded.thumbnail_url IS NOT files.thumbnail_url
+       OR excluded.web_view_link IS NOT files.web_view_link
+       OR excluded.web_content_link IS NOT files.web_content_link
+       OR excluded.google_modified_at IS NOT files.google_modified_at
+       OR excluded.google_parent_id IS NOT files.google_parent_id
+       OR excluded.owned_by_me IS NOT files.owned_by_me
+       OR files.is_trashed = 1`;
 
   buildUpsertStmt(
     drive: DriveAccount,

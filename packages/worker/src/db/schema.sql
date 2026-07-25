@@ -158,6 +158,14 @@ CREATE INDEX IF NOT EXISTS idx_files_ws_wsfol_trash_name_id ON files(workspace_i
 -- UNIQUE(drive_account_id, google_folder_id) cannot serve this — leftmost prefix
 -- is drive_account_id, so SQLite full-scans drive_folders per shared link row.
 CREATE INDEX IF NOT EXISTS idx_drive_folders_google_id ON drive_folders(google_folder_id);
+-- Expression index for findRecent ORDER BY (migration 0008). Combined with
+-- per-branch LIMIT, branch 1 (user_id filter) reads 20 rows via index seek
+-- with no temp B-tree sort. Branch 2 filters on workspace_id and still sorts
+-- ~20 rows (acceptable). idx_drive_folders_starred_trashed covers the
+-- drive_folders starred query (was skipped in 0007).
+CREATE INDEX IF NOT EXISTS idx_files_user_trashed_sort
+  ON files(user_id, is_trashed, COALESCE(google_modified_at, synced_at, updated_at) DESC);
+CREATE INDEX IF NOT EXISTS idx_drive_folders_starred_trashed ON drive_folders(is_starred, is_trashed);
 CREATE INDEX IF NOT EXISTS idx_workspace_folders_parent ON workspace_folders(workspace_id, parent_id);
 CREATE INDEX IF NOT EXISTS idx_workspace_members_user ON workspace_members(user_id);
 CREATE INDEX IF NOT EXISTS idx_drives_user ON drive_accounts(user_id);

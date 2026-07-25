@@ -10,15 +10,22 @@ interface DriveAccountCardProps {
   index: number;
   onSync: (id: string) => Promise<void>;
   onDisconnect: (id: string) => Promise<void>;
+  onReconnect?: () => void;
 }
 
-export function DriveAccountCard({ drive, index, onSync, onDisconnect }: DriveAccountCardProps) {
+export function DriveAccountCard({ drive, index, onSync, onDisconnect, onReconnect }: DriveAccountCardProps) {
   const [syncing, setSyncing] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const color = getDriveColor(index);
 
   const isSyncing = syncing || drive.syncStatus === 'syncing';
+  // Token-refresh failure is permanent — Google revoked the refresh token.
+  // Sync will always fail until the user reconnects (new OAuth flow).
+  const needsReconnect =
+    drive.syncStatus === 'error' &&
+    !!drive.syncErrorMessage?.includes('Token refresh') &&
+    !!onReconnect;
 
   const handleSync = async () => {
     setSyncing(true);
@@ -73,6 +80,9 @@ export function DriveAccountCard({ drive, index, onSync, onDisconnect }: DriveAc
                   · sync failed
                 </span>
               )}
+              {needsReconnect && (
+                <span className="ml-1.5 text-amber-600 font-medium">· reconnect needed</span>
+              )}
               {drive.syncStatus === 'syncing' && (
                 <span className="ml-1.5 text-blue-500 font-medium">· syncing</span>
               )}
@@ -86,14 +96,25 @@ export function DriveAccountCard({ drive, index, onSync, onDisconnect }: DriveAc
         </div>
         {/* Buttons inline on the right — desktop shows full labels, mobile shows icons only */}
         <div className="flex gap-2 flex-shrink-0">
-          <button
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors disabled:opacity-50"
-            onClick={handleSync}
-            disabled={isSyncing}
-          >
-            <RefreshCw size={12} className={isSyncing ? 'animate-spin' : ''} />
-            <span className="hidden sm:inline">{isSyncing ? 'Syncing...' : 'Sync'}</span>
-          </button>
+          {needsReconnect ? (
+            <button
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-white bg-primary rounded-lg hover:opacity-90 transition-colors"
+              onClick={onReconnect}
+              title="Get a new Google connection without losing your synced files"
+            >
+              <RefreshCw size={12} />
+              <span className="hidden sm:inline">Reconnect</span>
+            </button>
+          ) : (
+            <button
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors disabled:opacity-50"
+              onClick={handleSync}
+              disabled={isSyncing}
+            >
+              <RefreshCw size={12} className={isSyncing ? 'animate-spin' : ''} />
+              <span className="hidden sm:inline">{isSyncing ? 'Syncing...' : 'Sync'}</span>
+            </button>
+          )}
           <button
             className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
             onClick={handleDisconnect}
@@ -104,11 +125,27 @@ export function DriveAccountCard({ drive, index, onSync, onDisconnect }: DriveAc
         </div>
       </div>
 
-      <QuotaBar used={drive.usedQuota} total={drive.totalQuota} color={color} showLabel={false} />
-      <div className="flex justify-between mt-2 text-xs text-slate-500">
-        <span className="truncate">{formatFileSize(drive.freeSpace)} free of {formatFileSize(drive.totalQuota)}</span>
-        <span className="flex-shrink-0 ml-2">{Math.min(drive.usagePercent, 100).toFixed(1)}%</span>
-      </div>
+      {drive.hasLimit !== false ? (
+        <>
+          <QuotaBar used={drive.usedQuota} total={drive.totalQuota} color={color} showLabel={false} />
+          <div className="flex justify-between mt-2 text-xs text-slate-500">
+            <span className="truncate">{formatFileSize(drive.freeSpace)} free of {formatFileSize(drive.totalQuota)}</span>
+            <span className="flex-shrink-0 ml-2">{Math.min(drive.usagePercent, 100).toFixed(1)}%</span>
+          </div>
+        </>
+      ) : (
+        /* Google Workspace pooled storage — limit not reported by the API.
+           Show used only; a subtle indicator bar replaces the fake 1 TiB total. */
+        <div className="mt-2">
+          <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+            <div className="h-full rounded-full" style={{ width: '100%', backgroundColor: color, opacity: 0.3 }} />
+          </div>
+          <div className="flex justify-between mt-2 text-xs text-slate-500">
+            <span className="truncate">{formatFileSize(drive.usedQuota)} used</span>
+            <span className="flex-shrink-0 ml-2 text-slate-400">Pooled storage</span>
+          </div>
+        </div>
+      )}
 
       <ConfirmDialog
         open={confirmOpen}

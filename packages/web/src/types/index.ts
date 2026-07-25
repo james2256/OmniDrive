@@ -35,6 +35,7 @@ export interface DriveAccount {
   quotaOverride: number | null;
   freeSpace: number;
   usagePercent: number;
+  hasLimit?: boolean;
   syncStatus?: 'idle' | 'syncing' | 'error';
   syncErrorMessage?: string | null;
   syncPaused?: boolean;

@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { List, LayoutGrid, Info, X } from 'lucide-react';
 import { FileGrid } from '../components/files/FileGrid';
 import { Breadcrumb } from '../components/Breadcrumb';
@@ -62,22 +62,28 @@ export function ExternalPage() {
   >(null);
   const [workspaceTarget, setWorkspaceTarget] = useState<FileEntry | null>(null);
 
-  const queryKey = folderId && driveIdParam
-    ? qk.externalFolder(driveIdParam, folderId)
-    : qk.external;
+  // Top-level External page (no folderId) uses useInfiniteQuery for cursor
+  // pagination. Folder drill-in uses useQuery (live Google API, no pagination).
+  const isTopLevel = !folderId;
 
-  const { data, isLoading } = useQuery({
-    queryKey,
+  const externalInfinite = useInfiniteQuery<
+    { files: FileEntry[]; folders: DriveFolder[]; hasMore: boolean; nextCursor: string | null },
+    Error,
+    { pages: { files: FileEntry[]; folders: DriveFolder[]; hasMore: boolean; nextCursor: string | null }[]; pageParams: (string | undefined)[] },
+    readonly ['external'],
+    string | undefined
+  >({
+    queryKey: qk.external,
+    queryFn: ({ pageParam }) => api.getExternal(pageParam),
+    initialPageParam: undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    enabled: isTopLevel,
+  });
+
+  const folderQuery = useQuery({
+    queryKey: qk.externalFolder(driveIdParam ?? '', folderId ?? ''),
     queryFn: async () => {
-      if (!folderId) {
-        const data = await api.getExternal();
-        return {
-          subfolders: data.folders ?? [],
-          files: data.files ?? [],
-          breadcrumb: [{ id: 'root', name: 'My External Items' }] as BreadcrumbItem[],
-        };
-      }
-      if (driveIdParam) {
+      if (driveIdParam && folderId) {
         const data = await api.getExternalFolderContents(driveIdParam, folderId);
         return {
           subfolders: data.subfolders ?? [],
@@ -87,12 +93,21 @@ export function ExternalPage() {
       }
       throw new Error('Missing drive information for folder');
     },
-    enabled: !folderId || !!driveIdParam,
+    enabled: !isTopLevel && !!driveIdParam && !!folderId,
   });
 
-  const subfolders: DriveFolder[] = data?.subfolders ?? [];
-  const files: FileEntry[] = data?.files ?? [];
-  const breadcrumb: BreadcrumbItem[] = data?.breadcrumb ?? [{ id: 'root', name: 'My External Items' }];
+  // Derive subfolders/files/breadcrumb from whichever query is active.
+  const subfolders: DriveFolder[] = isTopLevel
+    ? (externalInfinite.data?.pages[0]?.folders ?? [])
+    : (folderQuery.data?.subfolders ?? []);
+  const files: FileEntry[] = isTopLevel
+    ? (externalInfinite.data?.pages.flatMap(p => p.files) ?? [])
+    : (folderQuery.data?.files ?? []);
+  const breadcrumb: BreadcrumbItem[] = isTopLevel
+    ? [{ id: 'root', name: 'My External Items' }]
+    : (folderQuery.data?.breadcrumb ?? [{ id: 'root', name: 'My External Items' }]);
+  const isLoading = isTopLevel ? externalInfinite.isLoading : folderQuery.isLoading;
+  const hasMore = isTopLevel ? externalInfinite.hasNextPage : false;
 
   const filteredSubfolders = subfolders.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()));
   const filteredFiles = files.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -244,30 +259,43 @@ export function ExternalPage() {
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
           </div>
         ) : filteredSubfolders.length > 0 || filteredFiles.length > 0 ? (
-          <div className="bg-card rounded-xl border border-slate-200 overflow-hidden">
-            <FileGrid
-              files={filteredFiles}
-              subfolders={filteredSubfolders}
-              getDriveInfo={getDriveInfo}
-              isTargetShared={isTargetShared}
-              errorDrives={new Set<string>()}
-              actions={{
-                onNavigateFolder: (id, driveId) => navigate(`/external/${id}?driveId=${driveId}`),
-                onPreviewFile: setPreviewFile,
-                onShare: (id, type) => setShareTarget({ id, type }),
-                onRenameFile: handleRenameFile,
-                onRenameFolder: handleRenameFolder,
-                onRenameFileRequest: handleRenameFileRequest,
-                onRenameFolderRequest: handleRenameFolderRequest,
-                onDeleteFile: handleDeleteFile,
-                onDeleteFolder: handleDeleteFolder,
-                onDownloadFolder: (driveId, folderId, name) => setFolderDownloadTarget({ driveId, folderId, name }),
-                onMove: (items) => setMoveTarget(items),
-                onViewInfo: handleViewInfo,
-                onToggleStar: handleToggleStar,
-              }}
-            />
-          </div>
+          <>
+            <div className="bg-card rounded-xl border border-slate-200 overflow-hidden">
+              <FileGrid
+                files={filteredFiles}
+                subfolders={filteredSubfolders}
+                getDriveInfo={getDriveInfo}
+                isTargetShared={isTargetShared}
+                errorDrives={new Set<string>()}
+                actions={{
+                  onNavigateFolder: (id, driveId) => navigate(`/external/${id}?driveId=${driveId}`),
+                  onPreviewFile: setPreviewFile,
+                  onShare: (id, type) => setShareTarget({ id, type }),
+                  onRenameFile: handleRenameFile,
+                  onRenameFolder: handleRenameFolder,
+                  onRenameFileRequest: handleRenameFileRequest,
+                  onRenameFolderRequest: handleRenameFolderRequest,
+                  onDeleteFile: handleDeleteFile,
+                  onDeleteFolder: handleDeleteFolder,
+                  onDownloadFolder: (driveId, folderId, name) => setFolderDownloadTarget({ driveId, folderId, name }),
+                  onMove: (items) => setMoveTarget(items),
+                  onViewInfo: handleViewInfo,
+                  onToggleStar: handleToggleStar,
+                }}
+              />
+            </div>
+            {hasMore && (
+              <div className="flex justify-center mt-4">
+                <button
+                  onClick={() => externalInfinite.fetchNextPage()}
+                  disabled={externalInfinite.isFetchingNextPage}
+                  className="px-4 py-2 text-sm font-medium text-primary bg-primary/10 border border-primary/20 rounded-lg hover:bg-primary/20 transition-colors disabled:opacity-50"
+                >
+                  {externalInfinite.isFetchingNextPage ? 'Loading...' : 'Load More'}
+                </button>
+              </div>
+            )}
+          </>
         ) : (
           <div className="flex flex-col items-center justify-center py-20 text-slate-500">
             <p className="text-lg">No external items found.</p>

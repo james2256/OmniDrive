@@ -323,7 +323,7 @@ describe('Repositories (integration)', () => {
 
       const repo = new DriveRepository(env.DB);
       const { results: folders } = await repo.findExternalFolders('u1');
-      const { results: files } = await repo.findExternalFiles('u1');
+      const { results: files } = await repo.findExternalFiles('u1', null, 50);
 
       // Only df1 (My Laptop) — owned_by_me=1, parent='__shared__'
       // NOT df2 (My Drive), df3 (owned_by_me=0), df4 (inside My Laptop), df5 (deeper inside)
