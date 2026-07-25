@@ -88,12 +88,12 @@ omnidrive/
 │   │   │   ├── lib/             # 16 utility files (crypto, validation, env, logger, schemas, password, PKCE, cursor, etc.)
 │   │   │   ├── db/              # D1 schema
 │   │   │   └── types/           # TypeScript types
-│   │   ├── migrations/          # 4 D1 migrations
-│   │   └── tests/               # 48 unit test files + 9 integration test files
+│   │   ├── migrations/          # 5 D1 migrations
+│   │   └── tests/               # 42 unit test files + 9 integration test files
 │   └── web/                 # React SPA (frontend)
 │       └── src/
 │           ├── components/      # 6 dirs: files, layout, legal, settings, ui, workspaces
-│           ├── pages/           # 19 pages (Dashboard, Files, Settings, Admin, Search, etc.)
+│           ├── pages/           # 20 pages (Dashboard, Files, Settings, Admin, Search, etc.)
 │           ├── stores/          # 6 Zustand stores (auth, UI, upload, toast, selection, automation)
 │           ├── hooks/           # 5 TanStack Query hooks (drives, file mutations, folder mutations, shared links, merged drive)
 │           ├── lib/             # API client, query keys, invalidation helpers, utilities
@@ -115,7 +115,7 @@ omnidrive/
 
 **Repository Pattern:** All SQL lives in `repositories/`. Services own business logic + RBAC. Routes are thin orchestrators (parse → validate → call service → return JSON). 8 of 10 routes have zero inline SQL; the remaining 2 (`s3.ts` with 37, `auth.ts /callback` with 8) are deferred with `ponytail:` comments.
 
-**Testing:** 63 test files (48 worker unit + 9 worker integration + 16 web component) run against real D1 via Miniflare. Run with `npm test`.
+**Testing:** 67 test files (42 worker unit + 9 worker integration + 16 web component) run against real D1 via Miniflare. Run with `npm test`.
 
 **Structured Logging:** Every request gets a UUID (`x-request-id` header). All error logs are JSON with `requestId`, `path`, `errorClass`, and `stack` — filterable in `wrangler tail`.
 

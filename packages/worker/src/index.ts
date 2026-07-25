@@ -115,27 +115,30 @@ export default {
     return app.fetch(req, env, ctx);
   },
   async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext) {
-    ctx.waitUntil(runScheduledSync(env));
-    ctx.waitUntil(runLifecycleExpiration(env));
-    ctx.waitUntil(cleanupOrphanMultipartUploads(env));
+    // Heavy tasks run first (Google API + D1), sequentially to avoid D1 subrequest
+    // budget contention on Free tier (50/invocation). Cron has no HTTP response to
+    // return quickly, so blocking is fine — the Worker stays alive until all finish.
+    await runScheduledSync(env);
+    await runLifecycleExpiration(env);
+    await cleanupOrphanMultipartUploads(env);
     const engine = new AutomationEngine(env);
-    ctx.waitUntil(engine.processCronTrigger(ctx));
+    await engine.processCronTrigger(ctx);
 
     // Audit log cleanup
     const auditService = new AuditService(env.DB);
-    ctx.waitUntil(auditService.cleanupOldLogs(30));
+    await auditService.cleanupOldLogs(30);
 
     // Data retention policies
     const driveService = new GoogleDriveService(env.DB, env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, env.TOKEN_ENCRYPTION_KEY);
     const policyService = new PolicyService(env.DB, driveService);
-    ctx.waitUntil(policyService.processAutoDeleteRetentionPolicies());
+    await policyService.processAutoDeleteRetentionPolicies();
 
-    // Expired session cleanup (D1 has no auto-expiry unlike KV TTL)
-    ctx.waitUntil(env.DB.prepare('DELETE FROM sessions WHERE expires_at < ?').bind(Date.now()).run());
+    // Light cleanup — cheap D1 DELETEs, safe to run after heavy tasks
+    await env.DB.prepare('DELETE FROM sessions WHERE expires_at < ?').bind(Date.now()).run();
 
     // Cleanup expired OAuth states (10-min TTL) + stale quota cache (>1h old)
-    ctx.waitUntil(env.DB.prepare('DELETE FROM oauth_states WHERE created_at < ?').bind(Date.now() - 10 * 60 * 1000).run());
-    ctx.waitUntil(env.DB.prepare('DELETE FROM quota_cache WHERE updated_at < ?').bind(Date.now() - 60 * 60 * 1000).run());
+    await env.DB.prepare('DELETE FROM oauth_states WHERE created_at < ?').bind(Date.now() - 10 * 60 * 1000).run();
+    await env.DB.prepare('DELETE FROM quota_cache WHERE updated_at < ?').bind(Date.now() - 60 * 60 * 1000).run();
   },
 } satisfies ExportedHandler<Env>;
 

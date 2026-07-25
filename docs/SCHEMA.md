@@ -129,7 +129,7 @@ Workspace membership and RBAC.
 
 **Unique**: `(workspace_id, user_id)`
 
-**Role hierarchy** (high → low): `owner` > `manager` > `auditor` > `editor` > `commenter` > `viewer`
+**Role hierarchy** (high → low): `owner` > `manager` > `editor` > `commenter` > `auditor` = `viewer`
 
 ---
 
