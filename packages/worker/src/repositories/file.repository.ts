@@ -22,21 +22,30 @@ export class FileRepository {
       .bind(fileId).first<FileRow>();
   }
 
-  /** Find recent files across user's own files + workspace files (via EXISTS). */
+  /**
+   * Find recent files across user's own files + workspace files.
+   * Written as a UNION (not `OR EXISTS`) so each branch can use a different
+   * index: branch 1 seeks idx_files_user_trashed_name_id, branch 2 seeks
+   * idx_files_workspace_trashed via a workspace_members drive. UNION (not
+   * UNION ALL) dedupes files the user both owns and accesses via a workspace.
+   * Verified equivalent to the prior OR-EXISTS form via EXPLAIN + row-set
+   * comparison (identical file IDs).
+   */
   findRecent(userId: string, limit = 20) {
     return this.db.prepare(`
-      SELECT f.*, d.email as driveEmail
-      FROM files f
-      JOIN drive_accounts d ON f.drive_account_id = d.id
-      WHERE f.is_trashed = 0
-        AND (
-          f.user_id = ?
-          OR EXISTS (
-            SELECT 1 FROM workspace_members wm
-            WHERE wm.workspace_id = f.workspace_id AND wm.user_id = ?
-          )
-        )
-      ORDER BY COALESCE(f.google_modified_at, f.synced_at, f.updated_at) DESC
+      SELECT * FROM (
+        SELECT f.*, d.email as driveEmail
+        FROM files f
+        JOIN drive_accounts d ON f.drive_account_id = d.id
+        WHERE f.is_trashed = 0 AND f.user_id = ?
+        UNION
+        SELECT f.*, d.email as driveEmail
+        FROM files f
+        JOIN drive_accounts d ON f.drive_account_id = d.id
+        JOIN workspace_members wm ON wm.workspace_id = f.workspace_id AND wm.user_id = ?
+        WHERE f.is_trashed = 0
+      )
+      ORDER BY COALESCE(google_modified_at, synced_at, updated_at) DESC
       LIMIT ?
     `).bind(userId, userId, limit).all();
   }
@@ -51,7 +60,52 @@ export class FileRepository {
     `).bind(userId).all<{ mime_type: string; total_size: number }>();
   }
 
-  /** Search files with optional query, workspace filter, and metadata filter. */
+  /**
+   * Cached version of findCategoryOverview. The GROUP BY reads every
+   * non-trashed file row for the user on every dashboard load; caching the
+   * raw mime_type aggregation (5-min TTL) eliminates the repeated scan.
+   * The bucket-mapping (images/videos/documents/…) stays in FileService —
+   * only the SQL aggregation is cached here, matching quota_cache's pattern.
+   * Sync upserts bypass FileService, so the TTL covers that path.
+   */
+  static readonly CATEGORY_CACHE_TTL_MS = 5 * 60 * 1000;
+
+  async getCategoryOverviewCached(userId: string): Promise<{ results: { mime_type: string; total_size: number }[] }> {
+    const cacheRow = await this.db
+      .prepare('SELECT payload, updated_at FROM category_cache WHERE user_id = ?')
+      .bind(userId)
+      .first<{ payload: string; updated_at: number }>();
+    if (cacheRow && Date.now() - cacheRow.updated_at < FileRepository.CATEGORY_CACHE_TTL_MS) {
+      return { results: JSON.parse(cacheRow.payload) as { mime_type: string; total_size: number }[] };
+    }
+
+    const { results } = await this.findCategoryOverview(userId);
+
+    await this.db
+      .prepare(
+        'INSERT INTO category_cache (user_id, payload, updated_at) VALUES (?, ?, ?) ' +
+          'ON CONFLICT(user_id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at'
+      )
+      .bind(userId, JSON.stringify(results), Date.now())
+      .run();
+
+    return { results };
+  }
+
+  /** Invalidate the category overview cache after a trash/restore/delete/upload. */
+  invalidateCategoryCache(userId: string) {
+    return this.db.prepare('DELETE FROM category_cache WHERE user_id = ?').bind(userId).run();
+  }
+
+  /**
+   * Search files with optional query, workspace filter, and metadata filter.
+   * UNION form (not `OR EXISTS`) so each branch uses a different index:
+   * branch 1 seeks idx_files_user_trashed_name_id (user_id), branch 2 seeks
+   * idx_files_workspace_trashed via a workspace_members drive. UNION dedupes
+   * files the user both owns and accesses via a workspace. The shared filter
+   * fragment (name LIKE, workspace_id, metadata) is built once and injected
+   * into both branches so semantics match the prior OR-EXISTS form exactly.
+   */
   async searchFiles(
     userId: string,
     query: string | null,
@@ -59,41 +113,43 @@ export class FileRepository {
     metadata: Record<string, string> | null,
     limit = 50,
   ) {
-    let sql = `
-      SELECT f.*, d.email as driveEmail
-      FROM files f
-      JOIN drive_accounts d ON f.drive_account_id = d.id
-      WHERE f.is_trashed = 0
-        AND (
-          f.user_id = ?
-          OR EXISTS (
-            SELECT 1 FROM workspace_members wm
-            WHERE wm.workspace_id = f.workspace_id AND wm.user_id = ?
-          )
-        )
-    `;
-    const binds: (string | number)[] = [userId, userId];
+    let filterSql = ``;
+    const filterBinds: (string | number)[] = [];
 
     if (query?.trim()) {
-      sql += ` AND f.name LIKE ?`;
-      binds.push(`%${query.trim()}%`);
+      filterSql += ` AND f.name LIKE ?`;
+      filterBinds.push(`%${query.trim()}%`);
     }
 
     if (workspaceId) {
-      sql += ` AND f.workspace_id = ?`;
-      binds.push(workspaceId);
+      filterSql += ` AND f.workspace_id = ?`;
+      filterBinds.push(workspaceId);
     }
 
     if (metadata) {
       for (const [key, value] of Object.entries(metadata)) {
         if (!/^[a-zA-Z0-9_.]+$/.test(key)) continue; // ponytail: L11 — reject JSON-path injection
-        sql += ` AND json_extract(f.metadata, '$.' || ?) = ?`;
-        binds.push(key, String(value));
+        filterSql += ` AND json_extract(f.metadata, '$.' || ?) = ?`;
+        filterBinds.push(key, String(value));
       }
     }
 
-    sql += ` ORDER BY f.created_at DESC LIMIT ?`;
-    binds.push(limit);
+    const sql = `
+      SELECT * FROM (
+        SELECT f.*, d.email as driveEmail
+        FROM files f
+        JOIN drive_accounts d ON f.drive_account_id = d.id
+        WHERE f.is_trashed = 0 AND f.user_id = ?${filterSql}
+        UNION
+        SELECT f.*, d.email as driveEmail
+        FROM files f
+        JOIN drive_accounts d ON f.drive_account_id = d.id
+        JOIN workspace_members wm ON wm.workspace_id = f.workspace_id AND wm.user_id = ?
+        WHERE f.is_trashed = 0${filterSql}
+      )
+      ORDER BY created_at DESC LIMIT ?
+    `;
+    const binds: (string | number)[] = [userId, ...filterBinds, userId, ...filterBinds, limit];
 
     const { results } = await this.db.prepare(sql).bind(...binds).all();
     return { results };

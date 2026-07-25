@@ -144,6 +144,20 @@ CREATE INDEX IF NOT EXISTS idx_files_drive ON files(drive_account_id);
 CREATE INDEX IF NOT EXISTS idx_files_name ON files(user_id, name);
 CREATE INDEX IF NOT EXISTS idx_files_user_trashed_name_id ON files(user_id, is_trashed, name, id);
 CREATE INDEX IF NOT EXISTS idx_files_google_parent ON files(drive_account_id, google_parent_id);
+-- D1 rows-read hot-path indexes (see migrations 0007). Each targets a verified
+-- full/index-range scan in EXPLAIN QUERY PLAN:
+--   idx_files_workspace_trashed          → findRecent UNION branch 2 + retention/lifecycle cron
+--   idx_files_user_parent_trashed_owned  → findExternalFiles (External page top-level)
+--   idx_files_user_starred_trashed       → findStarred page
+--   idx_files_ws_wsfol_trash_name_id     → findFilesInWorkspaceRoot (covering: sort eliminated)
+CREATE INDEX IF NOT EXISTS idx_files_workspace_trashed ON files(workspace_id, is_trashed);
+CREATE INDEX IF NOT EXISTS idx_files_user_parent_trashed_owned ON files(user_id, google_parent_id, is_trashed, owned_by_me);
+CREATE INDEX IF NOT EXISTS idx_files_user_starred_trashed ON files(user_id, is_starred, is_trashed);
+CREATE INDEX IF NOT EXISTS idx_files_ws_wsfol_trash_name_id ON files(workspace_id, workspace_folder_id, is_trashed, name, id);
+-- drive_folders LEFT JOIN by google_folder_id in shared-links listing. The
+-- UNIQUE(drive_account_id, google_folder_id) cannot serve this — leftmost prefix
+-- is drive_account_id, so SQLite full-scans drive_folders per shared link row.
+CREATE INDEX IF NOT EXISTS idx_drive_folders_google_id ON drive_folders(google_folder_id);
 CREATE INDEX IF NOT EXISTS idx_workspace_folders_parent ON workspace_folders(workspace_id, parent_id);
 CREATE INDEX IF NOT EXISTS idx_workspace_members_user ON workspace_members(user_id);
 CREATE INDEX IF NOT EXISTS idx_drives_user ON drive_accounts(user_id);
@@ -314,4 +328,16 @@ CREATE TABLE IF NOT EXISTS quota_cache (
     drive_account_id TEXT PRIMARY KEY REFERENCES drive_accounts(id) ON DELETE CASCADE,
     payload          TEXT NOT NULL,
     updated_at       INTEGER NOT NULL
+);
+
+-- Category overview cache (5-min TTL via updated_at). Mirrors quota_cache.
+-- Caches the per-user mime_type aggregation behind the Dashboard category
+-- breakdown so the GROUP BY no longer reads every non-trashed file row on
+-- every dashboard load. Invalidated on trash/restore/delete/upload; sync
+-- upserts bypass the service layer and rely on the TTL (5-min staleness
+-- is acceptable for a dashboard widget).
+CREATE TABLE IF NOT EXISTS category_cache (
+    user_id    TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    payload    TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
 );

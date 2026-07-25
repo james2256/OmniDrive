@@ -51,6 +51,7 @@ export class FileService {
 
     await this.driveService.trashFile(file.drive_account_id, file.google_file_id);
     await this.fileRepo.markTrashed(fileId, file.user_id);
+    await this.fileRepo.invalidateCategoryCache(file.user_id);
   }
 
   /** Restore a trashed file. RBAC: editor. */
@@ -63,6 +64,7 @@ export class FileService {
 
     await this.driveService.untrashFile(file.drive_account_id, file.google_file_id);
     await this.fileRepo.markUntrashed(fileId, file.user_id);
+    await this.fileRepo.invalidateCategoryCache(file.user_id);
   }
 
   /** Permanently delete a trashed file. RBAC: editor + retention-policy check. */
@@ -88,6 +90,7 @@ export class FileService {
     }
 
     await this.fileRepo.delete(fileId, file.user_id);
+    await this.fileRepo.invalidateCategoryCache(file.user_id);
 
     if (file.workspace_id && file.size) {
       await this.policyService.updateWorkspaceStorage(file.workspace_id, -file.size);
@@ -245,7 +248,7 @@ export class FileService {
 
   /** Get file size grouped by category (images, videos, documents, etc.). */
   async getCategoryOverview(userId: string) {
-    const { results } = await this.fileRepo.findCategoryOverview(userId);
+    const { results } = await this.fileRepo.getCategoryOverviewCached(userId);
 
     const overview = {
       images: 0,
@@ -417,10 +420,12 @@ export class FileService {
     googleCreatedAt: string | null;
     googleModifiedAt: string | null;
   }): Promise<unknown> {
-    return this.fileRepo.insertUploaded({
+    const created = await this.fileRepo.insertUploaded({
       ...params,
       userId,
     });
+    await this.fileRepo.invalidateCategoryCache(userId);
+    return created;
   }
 
   /**

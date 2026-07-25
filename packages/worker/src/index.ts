@@ -136,9 +136,10 @@ export default {
     // Light cleanup — cheap D1 DELETEs, safe to run after heavy tasks
     await env.DB.prepare('DELETE FROM sessions WHERE expires_at < ?').bind(Date.now()).run();
 
-    // Cleanup expired OAuth states (10-min TTL) + stale quota cache (>1h old)
+    // Cleanup expired OAuth states (10-min TTL) + stale quota/category cache (>1h old)
     await env.DB.prepare('DELETE FROM oauth_states WHERE created_at < ?').bind(Date.now() - 10 * 60 * 1000).run();
     await env.DB.prepare('DELETE FROM quota_cache WHERE updated_at < ?').bind(Date.now() - 60 * 60 * 1000).run();
+    await env.DB.prepare('DELETE FROM category_cache WHERE updated_at < ?').bind(Date.now() - 60 * 60 * 1000).run();
   },
 } satisfies ExportedHandler<Env>;
 
