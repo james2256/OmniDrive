@@ -41,3 +41,21 @@ export function sessionCookieOptions(env: { FRONTEND_URL: string; WORKER_URL: st
 export function sessionDeleteCookieOptions(env: { FRONTEND_URL: string; WORKER_URL: string }): CookieOptions {
   return { ...sessionCookieOptions(env), maxAge: 0 };
 }
+
+/**
+ * Cookie options for shared-link session/email cookies.
+ *
+ * Shared links are accessed cross-site (e.g. from an email link to a different
+ * domain), so SameSite=None is required in production (HTTPS). On HTTP dev,
+ * SameSite=None is rejected without Secure, so fall back to Lax (same-site only).
+ */
+export function sharedLinkCookieOptions(env: { FRONTEND_URL: string }): CookieOptions {
+  const isHttps = new URL(env.FRONTEND_URL).protocol === 'https:';
+  return {
+    path: '/',
+    httpOnly: true,
+    secure: isHttps,
+    sameSite: isHttps ? 'None' : 'Lax',
+    maxAge: 60 * 60 * 24,
+  };
+}

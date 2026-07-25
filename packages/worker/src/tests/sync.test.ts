@@ -1,6 +1,6 @@
 import { test, expect, vi } from 'vitest';
 import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types';
-import { activeSyncs } from '../services/sync';
+import { activeSyncs, runScheduledSync } from '../services/sync';
 import { batchInChunks } from '../lib/d1-batch';
 
 test('activeSyncs lock exists', () => {
@@ -18,4 +18,27 @@ test('batchInChunks chunks statements per D1 batch() guidance', async () => {
   expect(batch.mock.calls[0][0]).toHaveLength(100);
   expect(batch.mock.calls[1][0]).toHaveLength(100);
   expect(batch.mock.calls[2][0]).toHaveLength(50);
+});
+
+test('runScheduledSync does not throw on empty drive list', async () => {
+  // Verify that runScheduledSync is a function that returns a Promise
+  // (it was changed from Promise.allSettled to for...of — this test confirms
+  // the function signature is stable and doesn't throw on empty results).
+  const allMock = vi.fn().mockResolvedValue({ results: [] });
+  const mockDb = {
+    prepare: vi.fn().mockReturnValue({
+      all: allMock,
+      bind: vi.fn().mockReturnValue({ all: allMock }),
+    }),
+  } as unknown as D1Database;
+
+  await runScheduledSync({
+    DB: mockDb,
+    GOOGLE_CLIENT_ID: '',
+    GOOGLE_CLIENT_SECRET: '',
+    TOKEN_ENCRYPTION_KEY: '',
+  });
+
+  // With 0 drives, activeSyncs should be empty
+  expect(activeSyncs.size).toBe(0);
 });

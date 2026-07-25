@@ -14,6 +14,9 @@ interface SchemaObject {
 
 // Pull every DDL object from a SQLite DB, whitespace-normalized so we compare
 // structure (tables/indexes and their definitions), not incidental formatting.
+// Also normalizes quoted identifiers — ALTER TABLE ... RENAME TO wraps the
+// table name in double quotes in sqlite_master, which would cause a false
+// mismatch vs schema.sql's unquoted CREATE TABLE.
 function dumpSchema(db: Database.Database): SchemaObject[] {
   const rows = db
     .prepare(
@@ -23,7 +26,7 @@ function dumpSchema(db: Database.Database): SchemaObject[] {
   return rows.map((r) => ({
     type: r.type,
     name: r.name,
-    sql: r.sql.replace(/\s+/g, ' ').trim(),
+    sql: r.sql.replace(/\s+/g, ' ').trim().replace(/"/g, ''),
   }));
 }
 

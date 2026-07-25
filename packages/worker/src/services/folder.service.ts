@@ -3,6 +3,7 @@ import { FolderRepository } from '../repositories/folder.repository';
 import { WorkspaceRepository } from '../repositories/workspace.repository';
 import { FileRepository } from '../repositories/file.repository';
 import { getWorkspaceRole, hasPermission } from '../lib/rbac';
+import { encodeCursor } from '../lib/cursor';
 import { AppError } from '../lib/errors';
 import { generateId } from '../lib/id';
 import { mapFileRow } from '../types';
@@ -145,7 +146,7 @@ export class FolderService {
     let nextCursor: string | null = null;
     if (files.length > 0 && hasMore) {
       const lastFile = files[files.length - 1];
-      nextCursor = btoa(JSON.stringify({ name: lastFile.name, id: lastFile.id }));
+      nextCursor = encodeCursor({ name: lastFile.name, id: lastFile.id });
     }
 
     const breadcrumb = [
@@ -209,7 +210,7 @@ export class FolderService {
     let nextCursor: string | null = null;
     if (files.length > 0 && hasMore) {
       const lastFile = files[files.length - 1];
-      nextCursor = btoa(JSON.stringify({ name: lastFile.name, id: lastFile.id }));
+      nextCursor = encodeCursor({ name: lastFile.name, id: lastFile.id });
     }
 
     const breadcrumb = [
@@ -289,12 +290,19 @@ export class FolderService {
 
     // Resolve parentId: null means clear (set to null), string means move to that parent
     let resolvedParentId: string | null | undefined = undefined;
+    let resolvedWorkspaceId: string | undefined = undefined;
     if (params.parentId !== undefined) {
       if (params.parentId === null) {
         resolvedParentId = null;
       } else {
         const parentWs = await this.workspaceRepo.exists(params.parentId);
-        resolvedParentId = parentWs ? null : params.parentId;
+        if (parentWs) {
+          // Moving to a workspace root — clear parent and update workspace_id
+          resolvedParentId = null;
+          resolvedWorkspaceId = params.parentId;
+        } else {
+          resolvedParentId = params.parentId;
+        }
       }
     }
 
@@ -303,6 +311,7 @@ export class FolderService {
       icon: params.icon,
       color: params.color,
       parentId: resolvedParentId,
+      workspaceId: resolvedWorkspaceId,
     });
   }
 

@@ -343,7 +343,7 @@ filesRouter.post('/upload/finalize', zValidator('json', uploadFinalizeSchema, zo
   // Invalidate quota cache
   await c.get('driveService').deleteQuotaCache(driveAccountId);
 
-  const engine = new AutomationEngine(c.env);
+  const engine = new AutomationEngine(c.env, new GoogleDriveService(c.env.DB, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY));
   c.executionCtx.waitUntil(engine.processEventTrigger({ ...(created as Record<string, unknown>), user_id: userId } as DbFile, c.executionCtx as unknown as ExecutionContext));
 
   return c.json({ file: mapFileRow((created as Record<string, unknown>)), success: true }, 201);

@@ -121,7 +121,7 @@ export default {
     await runScheduledSync(env);
     await runLifecycleExpiration(env);
     await cleanupOrphanMultipartUploads(env);
-    const engine = new AutomationEngine(env);
+    const engine = new AutomationEngine(env, new GoogleDriveService(env.DB, env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, env.TOKEN_ENCRYPTION_KEY));
     await engine.processCronTrigger(ctx);
 
     // Audit log cleanup

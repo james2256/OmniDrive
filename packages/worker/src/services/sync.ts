@@ -224,13 +224,22 @@ async function performIncrementalSync(
   driveService: GoogleDriveService
 ): Promise<string> {
   const rootFolderId = await resolveSyncRootFolderId(drive, () => driveService.getRootFolderId(drive.id));
+  // One external call so far: getRootFolderId. Track to stay within Free tier.
+  let externalCount = 1;
 
   let currentToken = pageToken;
   let hasMore = true;
 
   while (hasMore) {
     if (getIsShuttingDown()) return currentToken;
+    // Pause before hitting the 50-subrequest wall. currentToken is saved by
+    // the caller so the next cron cycle resumes from here.
+    if (externalCount >= EXTERNAL_SUBREQUEST_BUDGET) {
+      return currentToken;
+    }
+
     const response = await driveService.listChanges(drive.id, currentToken);
+    externalCount++;
 
     const stmts: D1PreparedStatement[] = [];
     const fileRepo = new FileRepository(db);
@@ -333,20 +342,17 @@ export async function runScheduledSync(env: {
   ).all();
   const driveAccounts = (rows.results ?? []).map(mapDriveRow);
 
-  await Promise.allSettled(
-    driveAccounts.map(async (drive) => {
-      if (activeSyncs.has(drive.id)) {
-        return;
-      }
+  for (const drive of driveAccounts) {
+    if (getIsShuttingDown()) break;
+    if (activeSyncs.has(drive.id)) continue;
 
-      activeSyncs.add(drive.id);
-      try {
-        await syncDriveAccount(drive, env.DB, driveService);
-      } catch (err) {
-        logErrorNoCtx('Sync error for drive', err, { driveId: drive.id, driveEmail: drive.email });
-      } finally {
-        activeSyncs.delete(drive.id);
-      }
-    })
-  );
+    activeSyncs.add(drive.id);
+    try {
+      await syncDriveAccount(drive, env.DB, driveService);
+    } catch (err) {
+      logErrorNoCtx('Sync error for drive', err, { driveId: drive.id, driveEmail: drive.email });
+    } finally {
+      activeSyncs.delete(drive.id);
+    }
+  }
 }

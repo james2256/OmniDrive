@@ -11,6 +11,7 @@ import { GoogleDriveService } from '../services/google-drive';
 import { verifySharedPassword } from '../lib/password';
 import { logError } from '../lib/logger';
 import { isFileInSharedFolder } from '../lib/shared-folder';
+import { sharedLinkCookieOptions } from '../lib/session-cookie';
 import {
   createSharedLinkSchema,
   updateSharedLinkSchema,
@@ -169,7 +170,7 @@ sharedRouter.post('/:id/verify', zValidator('json', sharedLinkVerifySchema, zodE
 
   await c.env.KV.delete(failKey);
   const token = await sign({ id: link.id, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 }, c.env.JWT_SECRET, 'HS256');
-  setCookie(c, `shared_session_${link.id}`, token, { path: '/', httpOnly: true, secure: true, sameSite: 'None', maxAge: 60 * 60 * 24 });
+  setCookie(c, `shared_session_${link.id}`, token, sharedLinkCookieOptions(c.env));
   return c.json({ success: true });
 });
 
@@ -192,7 +193,7 @@ sharedRouter.post('/:id/email', zValidator('json', sharedLinkEmailSchema, zodErr
     c.env.JWT_SECRET,
     'HS256',
   );
-  setCookie(c, `shared_email_${link.id}`, emailToken, { path: '/', httpOnly: true, secure: true, sameSite: 'None', maxAge: 60 * 60 * 24 });
+  setCookie(c, `shared_email_${link.id}`, emailToken, sharedLinkCookieOptions(c.env));
 
   c.executionCtx.waitUntil(
     sharedService.logAction(link.id, 'email_access', email)

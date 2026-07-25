@@ -1,6 +1,8 @@
 import type { RuleCondition, AutomationRule, RuleAction } from '../types/automation';
 import type { Env } from '../types/env';
 import { generateId } from '../lib/id';
+import type { GoogleDriveService } from './google-drive';
+import { logErrorNoCtx } from '../lib/logger';
 
 export const TRIGGER_EVENT: AutomationRule['triggerType'] = 'event';
 export const TRIGGER_CRON: AutomationRule['triggerType'] = 'cron';
@@ -73,7 +75,7 @@ function parseRule(row: Record<string, unknown>): ParsedRule | null {
 }
 
 export class AutomationEngine {
-  constructor(private env: Env) {}
+  constructor(private env: Env, private driveService: GoogleDriveService) {}
 
   async processEventTrigger(file: DbFile, ctx: ExecutionContext) {
     const db = this.env.DB;
@@ -158,6 +160,15 @@ export class AutomationEngine {
               .bind(targetFolderId as string, file.id)
           );
         } else if (action.type === ACTION_DELETE) {
+          // Call Google Drive API to trash the file so sync doesn't revert it.
+          // If the API call fails, skip the D1 update — the file would reappear
+          // on next sync anyway (Google says not trashed → UPSERT resets is_trashed=0).
+          try {
+            await this.driveService.trashFile(file.drive_account_id as string, file.google_file_id as string);
+          } catch (err) {
+            logErrorNoCtx('Automation DELETE: Google API call failed', err, { fileId: file.id });
+            continue;
+          }
           stmts.push(
             this.env.DB.prepare('UPDATE files SET is_trashed = ? WHERE id = ?')
               .bind(IS_TRASHED, file.id)

@@ -221,7 +221,7 @@ CREATE INDEX IF NOT EXISTS idx_automation_logs_rule ON automation_logs(rule_id);
 -- Audit Logs
 CREATE TABLE IF NOT EXISTS audit_logs (
     id              TEXT PRIMARY KEY,
-    workspace_id    TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
+    workspace_id    TEXT REFERENCES workspaces(id) ON DELETE SET NULL,
     actor_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     action_type     TEXT NOT NULL,
     resource_id     TEXT,

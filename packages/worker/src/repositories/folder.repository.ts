@@ -121,12 +121,13 @@ export class FolderRepository {
     ).bind(params.id, params.workspaceId, params.name, params.parentId, params.icon, params.color).run();
   }
 
-  /** Update folder fields (name, icon, color, parent_id). */
+  /** Update folder fields (name, icon, color, parent_id, workspace_id). */
   updateFields(folderId: string, fields: {
     name?: string;
     icon?: string;
     color?: string;
     parentId?: string | null;
+    workspaceId?: string;
   }) {
     const updateFields: string[] = [];
     const params: (string | null)[] = [];
@@ -134,6 +135,7 @@ export class FolderRepository {
     if (fields.icon !== undefined) { updateFields.push('icon = ?'); params.push(fields.icon); }
     if (fields.color !== undefined) { updateFields.push('color = ?'); params.push(fields.color); }
     if (fields.parentId !== undefined) { updateFields.push('parent_id = ?'); params.push(fields.parentId ?? null); }
+    if (fields.workspaceId !== undefined) { updateFields.push('workspace_id = ?'); params.push(fields.workspaceId); }
     if (updateFields.length === 0) return Promise.resolve();
     updateFields.push('updated_at = CURRENT_TIMESTAMP');
     params.push(folderId);

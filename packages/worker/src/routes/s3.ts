@@ -565,8 +565,9 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
   const response = await fetch(uploadUrl, {
     method: 'PUT',
     headers: { 'Content-Length': String(contentLength) },
-    body: pipedStream
-  });
+    body: pipedStream,
+    duplex: 'half',
+  } as RequestInit & { duplex: 'half' });
 
   if (!response.ok) return c.text('Upload to Google Drive failed', 502);
 
@@ -642,8 +643,9 @@ async function handleUploadPart(c: Context, uploadId: string, partNumber: number
   const response = await fetch(uploadUrl, {
     method: 'PUT',
     headers: { 'Content-Length': String(contentLength) },
-    body: pipedStream
-  });
+    body: pipedStream,
+    duplex: 'half',
+  } as RequestInit & { duplex: 'half' });
 
   if (!response.ok) return c.text('Failed uploading part to Google Drive', 502);
 
@@ -788,8 +790,9 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
     const response = await fetch(finalUploadUrl, {
       method: 'PUT',
       headers: { 'Content-Length': String(totalSize) },
-      body: finalStream
-    });
+      body: finalStream,
+      duplex: 'half',
+    } as RequestInit & { duplex: 'half' });
 
     if (!response.ok) return c.text('Final concatenation failed', 502);
 
