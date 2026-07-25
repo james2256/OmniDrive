@@ -6,6 +6,7 @@ import { ShareModal } from '../components/ShareModal';
 import { MoveDriveModal } from '../components/MoveDriveModal';
 import { api } from '../lib/api';
 import { useDrives } from '../hooks/useDrives';
+import { useSharedLinks } from '../hooks/useSharedLinks';
 import { qk } from '../lib/queryKeys';
 import { useSelectionStore } from '../stores/useSelectionStore';
 import type { FileEntry } from '../types';
@@ -18,6 +19,12 @@ import { Star } from 'lucide-react';
 export function StarredPage() {
   const { data: drivesData } = useDrives();
   const drives = useMemo(() => drivesData?.drives ?? [], [drivesData]);
+  const { data: sharedLinks = [] } = useSharedLinks();
+  const isTargetShared = useCallback(
+    (id: string, type: 'file' | 'folder') =>
+      sharedLinks.some((link) => link.targetId === id && link.targetType === type),
+    [sharedLinks],
+  );
   const queryClient = useQueryClient();
 
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
@@ -98,7 +105,7 @@ export function StarredPage() {
             files={files}
             subfolders={allFolders}
             getDriveInfo={getDriveInfo}
-            isTargetShared={() => false}
+            isTargetShared={isTargetShared}
             viewMode="list"
             actions={{
               onToggleStar: handleToggleStar,

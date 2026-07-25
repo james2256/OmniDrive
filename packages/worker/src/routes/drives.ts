@@ -99,34 +99,30 @@ drivesRouter.get('/:driveId/external-folders/:googleFolderId', async (c) => {
   const db = c.env.DB;
 
   const driveRepo = new DriveRepository(db);
-  const drive = await driveRepo.findByIdAndUser(driveId, userId);
-  if (!drive) return c.json({ error: 'Drive not found' }, 404);
+  // findFullByIdAndUser (not findByIdAndUser) — batchUpsertFolderContents → buildUpsertStmt
+  // binds drive.userId to files.user_id (NOT NULL). Only the full row includes user_id.
+  // Mirrors the FilesPage drill-in at drives.ts:327.
+  const driveRow = await driveRepo.findFullByIdAndUser(driveId, userId);
+  if (!driveRow) return c.json({ error: 'Drive not found' }, 404);
 
+  const drive = mapDriveRow(driveRow as Record<string, unknown>);
   const driveService = new GoogleDriveService(db, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
-  const { files, folders } = await driveService.listFolderContents(driveId, googleFolderId);
+  const { files: gFiles, folders: gFolders } = await driveService.listFolderContents(driveId, googleFolderId);
 
-  // Map to frontend-expected format: GDriveFolder → DriveFolder, GDriveFile → FileEntry-like
+  // Persist live Google data to D1 so file actions (star/rename/share/delete/move)
+  // work — they query D1 primary key (files.id), not Google IDs. Same pattern as
+  // drives.ts:354 (FilesPage drill-in).
+  await batchUpsertFolderContents(db, drive, gFolders, gFiles, googleFolderId);
+
+  // Re-read from D1 — returns full FileEntry/DriveFolder objects with D1 row ids
+  // and all fields (isStarred, isTrashed, googleFileId, etc.).
+  const newFolders = await driveRepo.findDriveFoldersByParent(driveId, googleFolderId);
+  const newFiles = await driveRepo.findFilesByParent(driveId, googleFolderId);
+
   return c.json({
     folder: null,
-    subfolders: folders.map((f) => ({
-      googleFolderId: f.id,
-      name: f.name,
-      driveAccountId: driveId,
-      isSynced: false,
-    })),
-    files: files.map((f) => ({
-      id: f.id,
-      name: f.name,
-      mimeType: f.mimeType,
-      size: parseInt(f.size ?? '0', 10),
-      thumbnailUrl: f.thumbnailLink ?? null,
-      webViewLink: f.webViewLink ?? null,
-      webContentLink: f.webContentLink ?? null,
-      googleCreatedAt: f.createdTime,
-      googleModifiedAt: f.modifiedTime,
-      driveAccountId: driveId,
-      driveEmail: drive.email,
-    })),
+    subfolders: newFolders.results.map((r) => mapDriveFolderRow(r as Record<string, unknown>)),
+    files: newFiles.results.map((r) => mapFileRow(r as Record<string, unknown>)),
     breadcrumb: [],
   });
 });

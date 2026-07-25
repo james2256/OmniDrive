@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { api } from '../lib/api';
+import { useSharedLinks } from '../hooks/useSharedLinks';
 import type { WorkspaceFolder, FileEntry, DriveFolder, BreadcrumbItem, DriveAccount } from '../types';
 import { WorkspaceSidebar } from '../components/workspaces/WorkspaceSidebar';
 import { WorkspaceMainView } from '../components/workspaces/WorkspaceMainView';
@@ -149,7 +150,12 @@ export function WorkspacesPage() {
   const onShare = useCallback(() => {}, []);
   const onRenameFile = useCallback(() => {}, []);
   const onMoveDrive = useCallback(() => {}, []);
-  const isTargetShared = useCallback(() => false, []);
+  const { data: sharedLinks = [] } = useSharedLinks();
+  const isTargetShared = useCallback(
+    (id: string, type: 'file' | 'folder') =>
+      sharedLinks.some((link) => link.targetId === id && link.targetType === type),
+    [sharedLinks],
+  );
   const errorDrives = useMemo(() => new Set<string>(), []);
 
   const onDeleteFile = useCallback(async (id: string) => {

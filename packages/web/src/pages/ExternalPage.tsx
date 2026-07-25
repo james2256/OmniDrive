@@ -12,6 +12,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { RenameDialog } from '../components/RenameDialog';
 import { api } from '../lib/api';
 import { useDrives } from '../hooks/useDrives';
+import { useSharedLinks } from '../hooks/useSharedLinks';
 import type { FileEntry, DriveFolder, BreadcrumbItem, WorkspaceFolder } from '../types';
 import { qk } from '../lib/queryKeys';
 import type { SelectedItem } from '../stores/useSelectionStore';
@@ -29,6 +30,12 @@ export function ExternalPage() {
 
   const { data: drivesData } = useDrives();
   const drives = useMemo(() => drivesData?.drives ?? [], [drivesData]);
+  const { data: sharedLinks = [] } = useSharedLinks();
+  const isTargetShared = useCallback(
+    (id: string, type: 'file' | 'folder') =>
+      sharedLinks.some((link) => link.targetId === id && link.targetType === type),
+    [sharedLinks],
+  );
   const { selectedItems, clearSelection, toggleSelection } = useSelectionStore();
   const queryClient = useQueryClient();
   const { viewMode, setViewMode, isInfoPanelOpen, toggleInfoPanel, setIsInfoPanelOpen } = useUIStore();
@@ -228,7 +235,8 @@ export function ExternalPage() {
               files={filteredFiles}
               subfolders={filteredSubfolders}
               getDriveInfo={getDriveInfo}
-              isTargetShared={() => false}
+              isTargetShared={isTargetShared}
+              errorDrives={new Set<string>()}
               actions={{
                 onNavigateFolder: (id, driveId) => navigate(`/external/${id}?driveId=${driveId}`),
                 onPreviewFile: setPreviewFile,
