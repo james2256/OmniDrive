@@ -3,8 +3,9 @@ import { useToastStore } from '../stores/useToastStore';
 import { api } from '../lib/api';
 import type { DriveFolder, BreadcrumbItem } from '../types';
 import type { SelectedItem } from '../stores/useSelectionStore';
-import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
-import { Folder, ChevronRight, LoaderCircle, FolderInput } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogTitle } from './ui/dialog';
+import { Button } from './ui/Button';
+import { Folder, ChevronRight, FolderInput } from 'lucide-react';
 
 interface MoveModalProps {
   open: boolean;
@@ -90,71 +91,63 @@ export function MoveModal({ open, items, driveId, onClose, onSuccess }: MoveModa
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !isMoving && onClose()}>
-      <DialogContent className="max-w-lg p-4 rounded-xl max-h-[80vh] flex flex-col">
-        <DialogTitle className="text-sm font-semibold text-slate-800 mb-2">
-          Move {items.length} item{items.length > 1 ? 's' : ''}
-        </DialogTitle>
+      <DialogContent className="max-w-lg p-0 gap-0 flex flex-col overflow-hidden max-h-[85vh]">
+        <DialogHeader>
+          <DialogTitle className="text-sm font-semibold text-slate-800">
+            Move {items.length} item{items.length > 1 ? 's' : ''}
+          </DialogTitle>
+        </DialogHeader>
 
-        {/* Breadcrumb */}
-        <div className="flex items-center gap-1 py-1.5 text-xs text-slate-600 border-b border-slate-100 shrink-0 overflow-x-auto">
-          {breadcrumb.map((item, i) => (
-            <span key={item.id ?? `bc-${i}`} className="flex items-center gap-1 whitespace-nowrap">
-              {i > 0 && <ChevronRight size={12} className="text-slate-500" />}
-              {i < breadcrumb.length - 1 ? (
-                <button onClick={() => handleBreadcrumbClick(i)} className="hover:text-slate-900 hover:underline">
-                  {item.name}
+        <DialogBody className="p-0">
+          {/* Breadcrumb */}
+          <div className="flex items-center gap-1 px-4 py-1.5 text-xs text-slate-600 border-b border-slate-100 shrink-0 overflow-x-auto">
+            {breadcrumb.map((item, i) => (
+              <span key={item.id ?? `bc-${i}`} className="flex items-center gap-1 whitespace-nowrap">
+                {i > 0 && <ChevronRight size={12} className="text-slate-500" />}
+                {i < breadcrumb.length - 1 ? (
+                  // eslint-disable-next-line no-restricted-syntax -- breadcrumb navigation link
+                  <button onClick={() => handleBreadcrumbClick(i)} className="hover:text-slate-900 hover:underline">
+                    {item.name}
+                  </button>
+                ) : (
+                  <span className="font-medium text-slate-800">{item.name}</span>
+                )}
+              </span>
+            ))}
+          </div>
+
+          {/* Folder list */}
+          <div className="overflow-y-auto p-2 min-h-[160px]">
+            {subfolders.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-slate-500">
+                <Folder size={28} className="mb-1.5" />
+                <p className="text-xs">No subfolders here</p>
+              </div>
+            ) : (
+              subfolders.map((folder) => (
+                // eslint-disable-next-line no-restricted-syntax -- folder picker row (custom list item, not an action button)
+                <button
+                  key={folder.googleFolderId}
+                  onClick={() => handleFolderClick(folder.googleFolderId, folder.name)}
+                  className="flex items-center gap-2 w-full px-2 py-1.5 rounded-lg hover:bg-slate-100 transition-colors text-left"
+                >
+                  <FolderInput size={16} className="text-slate-500 shrink-0" />
+                  <span className="text-sm text-slate-700 truncate">{folder.name}</span>
                 </button>
-              ) : (
-                <span className="font-medium text-slate-800">{item.name}</span>
-              )}
-            </span>
-          ))}
-        </div>
+              ))
+            )}
+          </div>
+        </DialogBody>
 
-        {/* Folder list */}
-        <div className="flex-1 overflow-y-auto py-1 min-h-[160px]">
-          {subfolders.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-slate-500">
-              <Folder size={28} className="mb-1.5" />
-              <p className="text-xs">No subfolders here</p>
-            </div>
-          ) : (
-            subfolders.map((folder) => (
-              <button
-                key={folder.googleFolderId}
-                onClick={() => handleFolderClick(folder.googleFolderId, folder.name)}
-                className="flex items-center gap-2 w-full px-2 py-1.5 rounded-lg hover:bg-slate-100 transition-colors text-left"
-              >
-                <FolderInput size={16} className="text-slate-500 shrink-0" />
-                <span className="text-sm text-slate-700 truncate">{folder.name}</span>
-              </button>
-            ))
-          )}
-        </div>
-
-        {/* Actions */}
-        <div className="flex justify-between items-center pt-2 border-t border-slate-100 shrink-0">
+        <DialogFooter className="justify-between">
           <span className="text-xs text-slate-500 truncate">
             Destination: {breadcrumb[breadcrumb.length - 1]?.name || 'My Drive'}
           </span>
-          <div className="flex gap-2 flex-shrink-0">
-            <button
-              onClick={onClose}
-              disabled={isMoving}
-              className="px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleMove}
-              disabled={isMoving}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary rounded-lg hover:opacity-90 transition-colors disabled:opacity-50"
-            >
-              {isMoving ? <LoaderCircle size={14} className="animate-spin" /> : null}
-              {isMoving ? 'Moving...' : 'Move here'}
-            </button>
+          <div className="flex gap-3 flex-shrink-0">
+            <Button variant="secondary" onClick={onClose} disabled={isMoving}>Cancel</Button>
+            <Button onClick={handleMove} loading={isMoving}>{isMoving ? 'Moving...' : 'Move here'}</Button>
           </div>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

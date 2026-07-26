@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { FolderPlus } from 'lucide-react';
 import { api } from '../lib/api';
 import { useToastStore } from '../stores/useToastStore';
-import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle } from './ui/dialog';
+import { Button } from './ui/Button';
+import { Input } from './ui/Input';
 import type { DriveAccount } from '../types';
 
 interface CreateFolderModalProps {
@@ -38,16 +40,12 @@ export function CreateFolderModal({ open, parentId, title, onClose, onSuccess, d
     if (open) {
       setName('');
       setError('');
-      // If a driveId prop is provided, always use it. Otherwise, auto-select
-      // when there's exactly one drive (common case — single Google account).
       setSelectedDriveId(driveId ?? (drives && drives.length === 1 ? drives[0].id : ''));
     }
   }, [open, driveId, drives]);
 
   const entityLabel = title.replace(/^New\s+/, '');
 
-  // Show the drive picker only when we're in Drive mode but no specific drive
-  // is pre-selected and there's more than one drive to choose from.
   const showDrivePicker = !driveId && (drives?.length ?? 0) > 1;
   const effectiveDriveId = driveId || selectedDriveId || (drives && drives.length === 1 ? drives[0].id : '');
 
@@ -62,10 +60,8 @@ export function CreateFolderModal({ open, parentId, title, onClose, onSuccess, d
     setError('');
     try {
       if (effectiveDriveId) {
-        // Google Drive folder creation
         await api.createDriveFolder(effectiveDriveId, trimmed, parentId ?? undefined);
       } else {
-        // Workspace folder / workspace creation (existing behavior)
         await api.createFolder(trimmed, parentId ?? undefined);
       }
       addToast('success', `${entityLabel} created successfully`);
@@ -80,66 +76,50 @@ export function CreateFolderModal({ open, parentId, title, onClose, onSuccess, d
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !loading && onClose()}>
-      <DialogContent className="max-w-md p-4 rounded-xl">
-        <DialogTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2 mb-3">
-          <FolderPlus size={16} className="text-blue-500" />
-          {title}
-        </DialogTitle>
-        {error && (
-          <div className="text-red-500 mb-3 text-sm bg-red-50 p-2 rounded-lg border border-red-100">
-            {error}
-          </div>
-        )}
-        <form onSubmit={handleSubmit} className="flex flex-col gap-2.5">
-          {showDrivePicker && (
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-600">Target Drive</label>
-              <select
-                value={selectedDriveId}
-                onChange={(e) => setSelectedDriveId(e.target.value)}
-                className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-shadow"
-              >
-                <option value="">Select a drive…</option>
-                {(drives ?? []).map((drive, i) => (
-                  <option key={drive.id} value={drive.id}>
-                    {drive.email} ({i + 1})
-                  </option>
-                ))}
-              </select>
+      <DialogContent className="max-w-md p-0 gap-0 flex flex-col overflow-hidden">
+        <DialogHeader icon={<FolderPlus size={20} className="text-primary" />}>
+          <DialogTitle className="text-sm font-semibold text-slate-800">{title}</DialogTitle>
+        </DialogHeader>
+        <DialogBody>
+          {error && (
+            <div className="text-red-500 mb-3 text-sm bg-red-50 p-2 rounded-lg border border-red-100">
+              {error}
             </div>
           )}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-600">{entityLabel} name</label>
-            <input
-              type="text"
-              autoFocus
-              placeholder={`Enter ${entityLabel.toLowerCase()} name`}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-shadow"
-            />
-          </div>
-          <div className="flex justify-end gap-2 mt-1">
-            <button
-              type="button"
-              className="px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-              onClick={onClose}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="flex items-center justify-center px-3 py-1.5 text-sm font-medium text-white bg-primary rounded-lg hover:opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={loading || (showDrivePicker && !selectedDriveId)}
-            >
-              {loading ? (
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                'Create'
-              )}
-            </button>
-          </div>
-        </form>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-2.5">
+            {showDrivePicker && (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-slate-600">Target Drive</label>
+                <select
+                  value={selectedDriveId}
+                  onChange={(e) => setSelectedDriveId(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-shadow"
+                >
+                  <option value="">Select a drive…</option>
+                  {(drives ?? []).map((drive, i) => (
+                    <option key={drive.id} value={drive.id}>
+                      {drive.email} ({i + 1})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-600">{entityLabel} name</label>
+              <Input
+                type="text"
+                autoFocus
+                placeholder={`Enter ${entityLabel.toLowerCase()} name`}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </div>
+            <div className="flex justify-end gap-3 mt-1">
+              <Button variant="secondary" type="button" onClick={onClose} disabled={loading}>Cancel</Button>
+              <Button type="submit" loading={loading} disabled={loading || (showDrivePicker && !selectedDriveId)}>Create</Button>
+            </div>
+          </form>
+        </DialogBody>
       </DialogContent>
     </Dialog>
   );

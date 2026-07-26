@@ -1,6 +1,8 @@
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from '../ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogTitle, DialogDescription } from '../ui/dialog';
+import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
+import { FolderLock } from 'lucide-react';
 import { useState } from 'react';
-import { Spinner } from '../ui/Spinner';
 
 interface Props {
   open: boolean;
@@ -30,52 +32,44 @@ export function SetRetentionPolicyDialog({ open, onClose, onSubmit }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !loading && onClose()}>
-      <DialogContent className="max-w-md p-5 rounded-xl">
-        <DialogTitle className="text-base font-semibold text-slate-800">Set Retention Policy</DialogTitle>
-        <DialogDescription className="text-sm text-slate-600 mt-1">
-          Control how long files are kept in this folder.
-        </DialogDescription>
-        <div className="mt-4 space-y-3">
-          <label className="block">
-            <span className="text-xs font-medium text-slate-600">Action</span>
-            <select
-              value={action}
-              onChange={(e) => setAction(e.target.value as 'prevent_deletion' | 'auto_delete')}
-              className="mt-1 w-full border border-slate-400 rounded-lg px-3 py-1.5 bg-card focus:ring-2 focus:ring-primary text-sm"
-            >
-              <option value="auto_delete">Auto-Delete (Retention limit)</option>
-              <option value="prevent_deletion">Prevent Deletion (Legal Hold)</option>
-            </select>
-          </label>
-          {action === 'auto_delete' && (
+      <DialogContent className="max-w-md p-0 gap-0 flex flex-col overflow-hidden">
+        <DialogHeader icon={<FolderLock size={20} className="text-primary" />}>
+          <DialogTitle className="text-sm font-semibold text-slate-800">Set Retention Policy</DialogTitle>
+          <DialogDescription className="text-sm text-slate-500 mt-1">
+            Control how long files are kept in this folder.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogBody>
+          <div className="space-y-3">
             <label className="block">
-              <span className="text-xs font-medium text-slate-600">Days</span>
-              <input
-                type="number"
-                min={1}
-                value={days}
-                onChange={(e) => setDays(parseInt(e.target.value, 10) || 1)}
-                className="mt-1 w-full border border-slate-400 rounded-lg px-3 py-1.5 bg-card focus:ring-2 focus:ring-primary text-sm"
-              />
+              <span className="text-xs font-medium text-slate-600">Action</span>
+              <select
+                value={action}
+                onChange={(e) => setAction(e.target.value as 'prevent_deletion' | 'auto_delete')}
+                className="mt-1 w-full px-3 py-1.5 bg-card border border-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-shadow"
+              >
+                <option value="auto_delete">Auto-Delete (Retention limit)</option>
+                <option value="prevent_deletion">Prevent Deletion (Legal Hold)</option>
+              </select>
             </label>
-          )}
-        </div>
-        <div className="mt-5 flex justify-end gap-2">
-          <button
-            onClick={onClose}
-            disabled={loading}
-            className="px-4 py-2 text-sm bg-card border border-slate-400 rounded-lg hover:bg-slate-50"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={loading}
-            className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:opacity-90 disabled:opacity-60 flex items-center gap-2"
-          >
-            {loading && <Spinner size={14} />} Save Policy
-          </button>
-        </div>
+            {action === 'auto_delete' && (
+              <label className="block">
+                <span className="text-xs font-medium text-slate-600">Days</span>
+                <Input
+                  type="number"
+                  min={1}
+                  value={days}
+                  onChange={(e) => setDays(parseInt(e.target.value, 10) || 1)}
+                  className="mt-1"
+                />
+              </label>
+            )}
+          </div>
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="secondary" onClick={onClose} disabled={loading}>Cancel</Button>
+          <Button onClick={handleSubmit} loading={loading}>Save Policy</Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

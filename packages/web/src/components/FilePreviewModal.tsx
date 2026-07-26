@@ -4,7 +4,8 @@ import type { FileEntry } from '../types';
 import { formatFileSize, formatRelativeTime } from '../lib/utils';
 import { fetchFilePreviewBlob } from '../lib/api';
 import { FileIcon, getFileTypeName } from './files/FileIcon';
-import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogTitle } from './ui/dialog';
+import { Button } from './ui/Button';
 
 interface FilePreviewModalProps {
   open: boolean;
@@ -56,26 +57,18 @@ export function FilePreviewModal({ open, file, onClose }: FilePreviewModalProps)
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-2xl p-0 gap-0 rounded-xl overflow-hidden flex flex-col max-h-full">
-        {/* Header */}
-        <div className="flex items-start p-3 sm:p-4 border-b border-slate-200 shrink-0">
-          <div className="flex items-center gap-3 min-w-0 flex-1">
-            <span className="text-3xl shrink-0"><FileIcon mimeType={file?.mimeType} /></span>
-            <div className="min-w-0">
-              <DialogTitle className="text-base font-semibold text-slate-800 truncate" title={file?.name}>
-                {file?.name}
-              </DialogTitle>
-              <div className="text-xs text-slate-500 truncate">
-                {file?.driveEmail || 'Google Drive'}
-              </div>
-            </div>
-          </div>
-        </div>
+      <DialogContent className="max-w-2xl p-0 gap-0 flex flex-col overflow-hidden max-h-full">
+        <DialogHeader
+          icon={<FileIcon mimeType={file?.mimeType} />}
+          subtitle={file?.driveEmail || 'Google Drive'}
+        >
+          <DialogTitle className="text-sm sm:text-base font-semibold text-slate-800 truncate" title={file?.name}>
+            {file?.name}
+          </DialogTitle>
+        </DialogHeader>
 
-        {/* Content Body - Scrollable */}
         {file && (
-          <div className="p-4 overflow-y-auto">
-            {/* Image preview via authenticated API proxy */}
+          <DialogBody>
             {isImage && (
               <div className="mb-6 rounded-xl overflow-hidden bg-slate-50 border border-slate-200 flex justify-center items-center p-2 min-h-[200px]">
                 {isLoading ? (
@@ -99,7 +92,6 @@ export function FilePreviewModal({ open, file, onClose }: FilePreviewModalProps)
               </div>
             )}
 
-            {/* File Info */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm bg-slate-50 p-4 rounded-xl border border-slate-100">
               <div>
                 <div className="text-slate-500 text-xs uppercase tracking-wide font-medium mb-1">Size</div>
@@ -124,35 +116,31 @@ export function FilePreviewModal({ open, file, onClose }: FilePreviewModalProps)
                 </div>
               </div>
             </div>
-          </div>
+          </DialogBody>
         )}
 
-        {/* Footer Actions */}
         {file && (
-          <div className="p-4 border-t border-slate-100 bg-slate-50 flex gap-3 justify-end shrink-0">
+          <DialogFooter>
             {file.webViewLink && (
-              <a
-                href={file.webViewLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-700 bg-card border border-slate-400 rounded-xl hover:bg-slate-100 transition-colors shadow-sm"
-                style={{ textDecoration: 'none' }}
-              >
-                <ExternalLink size={18} /> Open in Drive
-              </a>
+              <Button asChild variant="secondary">
+                <a href={file.webViewLink} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}>
+                  <ExternalLink size={18} /> Open in Drive
+                </a>
+              </Button>
             )}
             {file.webContentLink && !isGoogleDoc && (
-              <a
-                href={`${import.meta.env.VITE_API_URL || ''}/api/files/${file.id}/download`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-primary rounded-xl hover:opacity-90 transition-colors shadow-sm"
-                style={{ textDecoration: 'none' }}
-              >
-                <Download size={18} /> Download
-              </a>
+              <Button asChild variant="primary">
+                <a
+                  href={`${import.meta.env.VITE_API_URL || ''}/api/files/${file.id}/download`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ textDecoration: 'none' }}
+                >
+                  <Download size={18} /> Download
+                </a>
+              </Button>
             )}
-          </div>
+          </DialogFooter>
         )}
       </DialogContent>
     </Dialog>

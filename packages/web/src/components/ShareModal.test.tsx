@@ -25,12 +25,15 @@ vi.mock('lucide-react', () => ({
   ChevronUp: () => <svg data-testid="chevron-up-icon" />,
   Eye: () => <svg data-testid="eye-icon" />,
   EyeOff: () => <svg data-testid="eye-off-icon" />,
+  LoaderCircle: () => <svg data-testid="loader-circle-icon" />,
 }));
 
 vi.mock('./ui/dialog', () => ({
   Dialog: ({ open, children, onOpenChange }: any) =>
     open ? <div data-testid="dialog"><button data-testid="dialog-backdrop" onClick={() => onOpenChange?.(false)} />{children}</div> : null,
   DialogContent: ({ children }: any) => <div>{children}</div>,
+  DialogHeader: ({ children }: any) => <div>{children}</div>,
+  DialogBody: ({ children }: any) => <div>{children}</div>,
   DialogTitle: ({ children }: any) => <h2>{children}</h2>,
 }));
 

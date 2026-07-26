@@ -101,6 +101,25 @@ vi.mock('lucide-react', () => ({
   Pen: () => <svg data-testid="pen-icon" />,
   LoaderCircle: () => <svg data-testid="loader-circle-icon" />,
   TriangleAlert: () => <svg data-testid="triangle-alert-icon" />,
+  // Icons used by ItemModals component tree (rendered but not interacted with)
+  Download: () => <svg data-testid="download-icon" />,
+  ExternalLink: () => <svg data-testid="external-link-icon" />,
+  Copy: () => <svg data-testid="copy-icon" />,
+  Check: () => <svg data-testid="check-icon" />,
+  Share2: () => <svg data-testid="share-icon" />,
+  Calendar: () => <svg data-testid="calendar-icon" />,
+  Lock: () => <svg data-testid="lock-icon" />,
+  Settings: () => <svg data-testid="settings-icon" />,
+  ChevronDown: () => <svg data-testid="chevron-down-icon" />,
+  ChevronUp: () => <svg data-testid="chevron-up-icon" />,
+  ChevronRight: () => <svg data-testid="chevron-right-icon" />,
+  Eye: () => <svg data-testid="eye-icon" />,
+  EyeOff: () => <svg data-testid="eye-off-icon" />,
+  HardDrive: () => <svg data-testid="hard-drive-icon" />,
+  Folder: () => <svg data-testid="folder-icon" />,
+  FolderInput: () => <svg data-testid="folder-input-icon" />,
+  CheckCircle2: () => <svg data-testid="check-circle-icon" />,
+  AlertCircle: () => <svg data-testid="alert-circle-icon" />,
 }));
 
 describe('FilesPage', () => {

@@ -2,8 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { Copy, Check, Share2, Calendar, Lock, Settings, ChevronDown, ChevronUp, Eye, EyeOff } from 'lucide-react';
 import { createSharedLink } from '../lib/api';
 import { useInvalidateSharedLinks } from '../hooks/useSharedLinks';
-import { toLocalDatetimeInput } from '../lib/utils';
-import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
+import { toLocalDatetimeInput, cn } from '../lib/utils';
+import { Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle } from './ui/dialog';
+import { Button } from './ui/Button';
+import { Input } from './ui/Input';
 
 interface ShareModalProps {
   open: boolean;
@@ -61,12 +63,9 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
     try {
       let isoExpiresAt = undefined;
       if (expiresAt) {
-        // expiresAt is in "YYYY-MM-DDThh:mm" format.
-        // Manually parse it to avoid browser-specific quirks where it might be parsed as UTC.
         const [datePart, timePart] = expiresAt.split('T');
         const [year, month, day] = datePart.split('-').map(Number);
         const [hour, minute] = timePart.split(':').map(Number);
-        // new Date(year, monthIndex, day, hours, minutes) explicitly creates a local date.
         isoExpiresAt = new Date(year, month - 1, day, hour, minute).toISOString();
       }
       const resp = await createSharedLink({
@@ -75,7 +74,6 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
         password: password || undefined,
         expiresAt: isoExpiresAt,
         allowDownloads,
-
         maxDownloads: maxDownloads ? parseInt(maxDownloads, 10) : null,
         requireEmail,
         webhookUrl: webhookUrl || undefined
@@ -108,153 +106,135 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !loading && onClose()}>
-      <DialogContent className="max-w-md p-4 rounded-xl max-h-[85vh] overflow-y-auto">
-        <DialogTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2 mb-3">
-          <Share2 size={16} className="text-blue-500" />
-          Share {targetType === 'file' ? 'File' : 'Folder'}
-        </DialogTitle>
-        {error && (
-          <div className="text-red-500 mb-3 text-sm bg-red-50 p-2 rounded-lg border border-red-100">
-            {error}
-          </div>
-        )}
-        {!sharedUrl ? (
-          <form onSubmit={handleShare} className="flex flex-col gap-2.5">
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-600 flex items-center gap-1">
-                <Lock size={12} className="text-slate-400" /> Password (optional)
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="Leave blank for no password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="new-password"
-                  className="w-full px-3 py-1.5 pr-9 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-shadow"
-                />
+      <DialogContent className="max-w-md p-0 gap-0 flex flex-col overflow-hidden max-h-[85vh]">
+        <DialogHeader icon={<Share2 size={20} className="text-primary" />}>
+          <DialogTitle className="text-sm font-semibold text-slate-800">
+            Share {targetType === 'file' ? 'File' : 'Folder'}
+          </DialogTitle>
+        </DialogHeader>
+        <DialogBody>
+          {error && (
+            <div className="text-red-500 mb-3 text-sm bg-red-50 p-2 rounded-lg border border-red-100">
+              {error}
+            </div>
+          )}
+          {!sharedUrl ? (
+            <form onSubmit={handleShare} className="flex flex-col gap-2.5">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-slate-600 flex items-center gap-1">
+                  <Lock size={12} className="text-slate-400" /> Password (optional)
+                </label>
+                <div className="relative">
+                  <Input
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Leave blank for no password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="new-password"
+                    className="pr-9"
+                  />
+                  {/* eslint-disable-next-line no-restricted-syntax -- password visibility toggle */}
                 <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
-                </button>
-              </div>
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-600 flex items-center gap-1">
-                <Calendar size={12} className="text-slate-400" /> Expiration (optional)
-              </label>
-              <input
-                type="datetime-local"
-                value={expiresAt}
-                min={currentDateTime}
-                onChange={(e) => setExpiresAt(e.target.value)}
-                className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-shadow"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              className="flex items-center text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors py-1"
-            >
-              <Settings size={12} className="mr-1" />
-              Advanced
-              {showAdvanced ? <ChevronUp size={12} className="ml-1" /> : <ChevronDown size={12} className="ml-1" />}
-            </button>
-            <div className={`grid transition-[grid-template-rows] duration-200 ${showAdvanced ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
-              <div className="overflow-hidden">
-                <div className="flex flex-col gap-2 pt-1">
-                  <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={allowDownloads}
-                      onChange={(e) => setAllowDownloads(e.target.checked)}
-                      className="w-3.5 h-3.5 rounded border-slate-400 text-primary focus:ring-primary cursor-pointer"
-                    />
-                    <span className="select-none">Allow downloads</span>
-                  </label>
-                  <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={requireEmail}
-                      onChange={(e) => setRequireEmail(e.target.checked)}
-                      className="w-3.5 h-3.5 rounded border-slate-400 text-primary focus:ring-primary cursor-pointer"
-                    />
-                    <span className="select-none">Require email to view</span>
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={maxDownloads}
-                    onChange={(e) => setMaxDownloads(e.target.value)}
-                    placeholder="Max downloads (blank = unlimited)"
-                    className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                  <input
-                    type="url"
-                    value={webhookUrl}
-                    onChange={(e) => setWebhookUrl(e.target.value)}
-                    placeholder="Webhook URL (optional)"
-                    className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
                 </div>
               </div>
-            </div>
-            <div className="flex justify-end gap-2 mt-2">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-slate-600 flex items-center gap-1">
+                  <Calendar size={12} className="text-slate-400" /> Expiration (optional)
+                </label>
+                <Input
+                  type="datetime-local"
+                  value={expiresAt}
+                  min={currentDateTime}
+                  onChange={(e) => setExpiresAt(e.target.value)}
+                />
+              </div>
+              {/* eslint-disable-next-line no-restricted-syntax -- advanced section toggle */}
               <button
                 type="button"
-                className="px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                onClick={onClose}
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                className="flex items-center text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors py-1"
               >
-                Cancel
+                <Settings size={12} className="mr-1" />
+                Advanced
+                {showAdvanced ? <ChevronUp size={12} className="ml-1" /> : <ChevronDown size={12} className="ml-1" />}
               </button>
-              <button
-                type="submit"
-                className="flex items-center justify-center px-3 py-1.5 text-sm font-medium text-white bg-primary rounded-lg hover:opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={loading}
-              >
-                {loading ? (
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  'Create Link'
-                )}
-              </button>
+              <div className={`grid transition-[grid-template-rows] duration-200 ${showAdvanced ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                <div className="overflow-hidden">
+                  <div className="flex flex-col gap-2 pt-1">
+                    <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={allowDownloads}
+                        onChange={(e) => setAllowDownloads(e.target.checked)}
+                        className="w-3.5 h-3.5 rounded border-slate-400 text-primary focus:ring-primary cursor-pointer"
+                      />
+                      <span className="select-none">Allow downloads</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={requireEmail}
+                        onChange={(e) => setRequireEmail(e.target.checked)}
+                        className="w-3.5 h-3.5 rounded border-slate-400 text-primary focus:ring-primary cursor-pointer"
+                      />
+                      <span className="select-none">Require email to view</span>
+                    </label>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={maxDownloads}
+                      onChange={(e) => setMaxDownloads(e.target.value)}
+                      placeholder="Max downloads (blank = unlimited)"
+                    />
+                    <Input
+                      type="url"
+                      value={webhookUrl}
+                      onChange={(e) => setWebhookUrl(e.target.value)}
+                      placeholder="Webhook URL (optional)"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 mt-2">
+                <Button variant="secondary" type="button" onClick={onClose} disabled={loading}>Cancel</Button>
+                <Button type="submit" loading={loading}>Create Link</Button>
+              </div>
+            </form>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <p className="text-xs text-slate-600 bg-primary/10 p-2 rounded-lg border border-blue-100">
+                Anyone with this link can access the {targetType}.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={sharedUrl}
+                  className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600 focus:outline-none"
+                  onClick={(e) => e.currentTarget.select()}
+                />
+                <Button
+                  variant="secondary"
+                  className={cn('w-9 h-9 justify-center p-0 shrink-0')}
+                  onClick={copyToClipboard}
+                  title="Copy to clipboard"
+                >
+                  {copied ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
+                </Button>
+              </div>
+              <div className="flex justify-end mt-2">
+                <Button onClick={onClose}>Done</Button>
+              </div>
             </div>
-          </form>
-        ) : (
-          <div className="flex flex-col gap-2">
-            <p className="text-xs text-slate-600 bg-primary/10 p-2 rounded-lg border border-blue-100">
-              Anyone with this link can access the {targetType}.
-            </p>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                readOnly
-                value={sharedUrl}
-                className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600 focus:outline-none"
-                onClick={(e) => e.currentTarget.select()}
-              />
-              <button
-                className="flex items-center justify-center w-9 h-9 text-slate-700 bg-card border border-slate-400 rounded-lg hover:bg-slate-50 transition-colors shrink-0"
-                onClick={copyToClipboard}
-                title="Copy to clipboard"
-              >
-                {copied ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
-              </button>
-            </div>
-            <div className="flex justify-end mt-2">
-              <button
-                className="px-3 py-1.5 text-sm font-medium text-white bg-primary rounded-lg hover:opacity-90 transition-colors"
-                onClick={onClose}
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        )}
+          )}
+        </DialogBody>
       </DialogContent>
     </Dialog>
   );

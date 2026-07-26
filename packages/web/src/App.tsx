@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthGuard } from './components/AuthGuard';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppLayout } from './components/layout/AppLayout';
-import { ToastContainer } from './components/Toast';
+import { ToastContainer } from './components/ui/Toast';
 import { api } from './lib/api';
 import { lazyWithRetry } from './lib/lazyWithRetry';
 

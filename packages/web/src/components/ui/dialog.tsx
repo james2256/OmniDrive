@@ -36,7 +36,7 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed left-[50%] top-[50%] z-50 grid w-[calc(100%-1rem)] max-w-lg max-h-[85vh] overflow-hidden translate-x-[-50%] translate-y-[-50%] gap-3 border border-slate-200 bg-card p-3 sm:p-4 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 rounded-xl",
+        "fixed left-[50%] top-[50%] z-50 w-[calc(100%-1rem)] max-w-lg max-h-[85vh] overflow-hidden translate-x-[-50%] translate-y-[-50%] border border-slate-200 bg-card shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 rounded-xl",
         className
       )}
       {...props}
@@ -51,33 +51,62 @@ const DialogContent = React.forwardRef<
 ))
 DialogContent.displayName = DialogPrimitive.Content.displayName
 
-const DialogHeader = ({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) => (
+/**
+ * Styled dialog header — icon + title + subtitle with border-b.
+ * Adjusted proportions: p-2.5 sm:p-3, text-2xl icon, gap-2.5 sm:gap-3.
+ * ~20% smaller than the original p-3 sm:p-4 + text-3xl — balanced with footer.
+ */
+const DialogHeader = React.forwardRef<
+  React.ElementRef<'div'>,
+  React.HTMLAttributes<HTMLDivElement> & { icon?: React.ReactNode; subtitle?: React.ReactNode }
+>(({ className, icon, subtitle, children, ...props }, ref) => (
   <div
+    ref={ref}
     className={cn(
-      "flex flex-col space-y-1.5 text-center sm:text-left",
-      className
+      'flex items-start p-2.5 sm:p-3 border-b border-slate-200 shrink-0',
+      className,
     )}
     {...props}
-  />
-)
-DialogHeader.displayName = "DialogHeader"
+  >
+    {icon && (
+      <span className="text-2xl shrink-0 mr-2.5 sm:mr-3">{icon}</span>
+    )}
+    <div className="min-w-0 flex-1">
+      {children}
+      {subtitle && <div className="text-xs text-slate-500 truncate">{subtitle}</div>}
+    </div>
+  </div>
+));
+DialogHeader.displayName = 'DialogHeader';
 
-const DialogFooter = ({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) => (
+/** Scrollable dialog body — sits between header (border-b) and footer (border-t). */
+const DialogBody = React.forwardRef<
+  React.ElementRef<'div'>,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
   <div
+    ref={ref}
+    className={cn('p-4 overflow-y-auto', className)}
+    {...props}
+  />
+));
+DialogBody.displayName = 'DialogBody';
+
+/** Styled dialog footer — border-t, bg-slate-50, right-aligned action buttons. */
+const DialogFooter = React.forwardRef<
+  React.ElementRef<'div'>,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
     className={cn(
-      "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
-      className
+      'p-4 border-t border-slate-100 bg-slate-50 flex gap-3 justify-end shrink-0',
+      className,
     )}
     {...props}
   />
-)
-DialogFooter.displayName = "DialogFooter"
+));
+DialogFooter.displayName = 'DialogFooter';
 
 const DialogTitle = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Title>,
@@ -114,6 +143,7 @@ export {
   DialogTrigger,
   DialogContent,
   DialogHeader,
+  DialogBody,
   DialogFooter,
   DialogTitle,
   DialogDescription,

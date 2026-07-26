@@ -110,6 +110,34 @@ export default tseslint.config(
     },
   },
 
+  // ── Modals & dialogs — ban raw <button> to enforce <Button> usage ──
+  // Scoped to modal/dialog files only (the unified UI system scope).
+  // Pages and other components have many legitimate custom buttons (toolbar,
+  // file rows, context menus) that need individual review — separate task.
+  // ui/ is exempt (Button component itself lives there).
+  {
+    files: [
+      'packages/web/src/components/*Modal*.tsx',
+      'packages/web/src/components/*Dialog*.tsx',
+      'packages/web/src/components/workspaces/*Modal*.tsx',
+      'packages/web/src/components/workspaces/*Dialog*.tsx',
+    ],
+    rules: {
+      'no-restricted-syntax': ['error', {
+        selector: "JSXOpeningElement[name.name='button']",
+        message: 'Use <Button> from components/ui/Button instead of raw <button>. If this is a truly custom button (folder picker row, breadcrumb link, password toggle), add an eslint-disable-next-line comment.',
+      }],
+    },
+  },
+
+  // ── UI primitives — allow raw <button> (Button component itself) ──
+  {
+    files: ['packages/web/src/components/ui/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-syntax': 'off',
+    },
+  },
+
   // ── Test files — relax ───────────────────────────────────
   {
     files: ['**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}', '**/tests/**/*.{ts,tsx}'],
@@ -118,6 +146,7 @@ export default tseslint.config(
       '@typescript-eslint/no-non-null-assertion': 'off',
       'no-console': 'off',
       'security/detect-object-injection': 'off',
+      'no-restricted-syntax': 'off',
     },
   },
 
