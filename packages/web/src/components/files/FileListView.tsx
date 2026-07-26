@@ -145,7 +145,7 @@ export function FileListView(props: FileListViewProps) {
               </div>
               {showDriveColumn && (
                 <div className="flex items-center min-w-0">
-                  {renderDriveBadge(driveAccountId)}
+                  {renderDriveBadge(driveAccountId, 'driveEmail' in folder ? folder.driveEmail : undefined)}
                 </div>
               )}
               <div className="text-right text-xs text-slate-500">—</div>
@@ -194,7 +194,7 @@ export function FileListView(props: FileListViewProps) {
               </div>
               {showDriveColumn && (
                 <div className="flex items-center min-w-0">
-                  {renderDriveBadge(file.driveAccountId)}
+                  {renderDriveBadge(file.driveAccountId, file.driveEmail)}
                 </div>
               )}
               <div className="text-right text-xs text-slate-500">

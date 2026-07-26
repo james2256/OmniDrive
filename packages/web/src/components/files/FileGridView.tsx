@@ -78,7 +78,7 @@ export function FileGridView(props: FileViewSharedProps) {
                   {shared && <Share2 size={12} className="text-blue-400 flex-shrink-0" />}
                 </div>
               </div>
-              {renderDriveBadge(driveAccountId)}
+              {renderDriveBadge(driveAccountId, 'driveEmail' in folder ? folder.driveEmail : undefined)}
             </div>
           </ItemContextMenu>
         );
@@ -124,7 +124,7 @@ export function FileGridView(props: FileViewSharedProps) {
                 <div className="font-medium text-xs text-slate-800 truncate mb-1 leading-snug" title={file.name}>
                   {file.name}
                 </div>
-                <div className="mb-1.5">{renderDriveBadge(file.driveAccountId)}</div>
+                <div className="mb-1.5">{renderDriveBadge(file.driveAccountId, file.driveEmail)}</div>
                 <div className="flex items-center text-xs text-slate-500 gap-1.5">
                   {!native && <span className="truncate">{formatFileSize(file.size)}</span>}
                   {!native && <span>·</span>}

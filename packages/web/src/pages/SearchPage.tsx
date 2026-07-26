@@ -7,8 +7,8 @@ import { ShareModal } from '../components/ShareModal';
 import { MoveDriveModal } from '../components/MoveDriveModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
 import { api } from '../lib/api';
-import { useDrives } from '../hooks/useDrives';
-import { useSharedLinks } from '../hooks/useSharedLinks';
+import { useDrives, useGetDriveInfo } from '../hooks/useDrives';
+import { useSharedLinks, useIsTargetSharedCallback } from '../hooks/useSharedLinks';
 import { qk } from '../lib/queryKeys';
 import type { FileEntry } from '../types';
 
@@ -26,11 +26,7 @@ export function SearchPage() {
   const [moveDriveFiles, setMoveDriveFiles] = useState<FileEntry[]>([]);
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
 
-  const isTargetShared = useCallback(
-    (id: string, type: 'file' | 'folder') =>
-      sharedLinks.some((link) => link.targetId === id && link.targetType === type),
-    [sharedLinks],
-  );
+  const isTargetShared = useIsTargetSharedCallback(sharedLinks);
 
   const { data: searchResults, isLoading } = useQuery({
     queryKey: qk.search(query),
@@ -71,15 +67,7 @@ export function SearchPage() {
     [addToast, query, queryClient],
   );
 
-  const getDriveInfo = useCallback(
-    (driveAccountId?: string | null) => {
-      if (!driveAccountId) return { drive: null, index: 0 };
-      const index = drives.findIndex((d) => d.id === driveAccountId);
-      if (index === -1) return { drive: drives[0] || null, index: 0 };
-      return { drive: drives[index], index };
-    },
-    [drives],
-  );
+  const getDriveInfo = useGetDriveInfo(drives);
 
   return (
     <div className="p-4 sm:p-6 space-y-6">

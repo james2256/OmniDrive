@@ -13,8 +13,8 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { RenameDialog } from '../components/RenameDialog';
 import { AddToWorkspaceModal } from '../components/workspaces/AddToWorkspaceModal';
 import { api } from '../lib/api';
-import { useDrives } from '../hooks/useDrives';
-import { useSharedLinks } from '../hooks/useSharedLinks';
+import { useDrives, useGetDriveInfo } from '../hooks/useDrives';
+import { useSharedLinks, useIsTargetSharedCallback } from '../hooks/useSharedLinks';
 import type { FileEntry, DriveFolder, BreadcrumbItem, WorkspaceFolder } from '../types';
 import { qk } from '../lib/queryKeys';
 import type { SelectedItem } from '../stores/useSelectionStore';
@@ -22,8 +22,8 @@ import { useSelectionStore, useClearSelectionOnRouteChange } from '../stores/use
 import { useUIStore } from '../stores/useUIStore';
 import { useToastStore } from '../stores/useToastStore';
 import { FilePreviewModal } from '../components/FilePreviewModal';
-import { useDeleteFile, useRenameFile, useStarFile, useUnstarFile } from '../hooks/useFileMutations';
-import { useDeleteDriveFolder, useRenameDriveFolder, useStarFolder, useUnstarFolder } from '../hooks/useFolderMutations';
+import { useDeleteFile, useRenameFile, useToggleStar } from '../hooks/useFileMutations';
+import { useDeleteDriveFolder, useRenameDriveFolder } from '../hooks/useFolderMutations';
 
 export function ExternalPage() {
   const { folderId } = useParams<{ folderId: string }>();
@@ -37,11 +37,7 @@ export function ExternalPage() {
   const { data: drivesData } = useDrives();
   const drives = useMemo(() => drivesData?.drives ?? [], [drivesData]);
   const { data: sharedLinks = [] } = useSharedLinks();
-  const isTargetShared = useCallback(
-    (id: string, type: 'file' | 'folder') =>
-      sharedLinks.some((link) => link.targetId === id && link.targetType === type),
-    [sharedLinks],
-  );
+  const isTargetShared = useIsTargetSharedCallback(sharedLinks);
   const { selectedItems, clearSelection, toggleSelection } = useSelectionStore();
   const queryClient = useQueryClient();
   const { viewMode, setViewMode, isInfoPanelOpen, toggleInfoPanel, setIsInfoPanelOpen } = useUIStore();
@@ -120,10 +116,6 @@ export function ExternalPage() {
   const deleteDriveFolderMut = useDeleteDriveFolder();
   const renameFileMut = useRenameFile();
   const renameDriveFolderMut = useRenameDriveFolder();
-  const starFileMut = useStarFile();
-  const unstarFileMut = useUnstarFile();
-  const starFolderMut = useStarFolder();
-  const unstarFolderMut = useUnstarFolder();
 
   const handleDeleteFile = (id: string) => {
     setConfirmFileDelete(id);
@@ -163,13 +155,7 @@ export function ExternalPage() {
     setRenameTarget(null);
   };
 
-  const handleToggleStar = (id: string, type: 'file' | 'folder', currentStarStatus: boolean, driveId?: string) => {
-    if (type === 'file') {
-      if (currentStarStatus) { unstarFileMut.mutate(id); } else { starFileMut.mutate(id); }
-    } else if (driveId) {
-      if (currentStarStatus) { unstarFolderMut.mutate({ id, driveId }); } else { starFolderMut.mutate({ id, driveId }); }
-    }
-  };
+  const toggleStar = useToggleStar();
 
   const handleViewInfo = (item: FileEntry | DriveFolder | WorkspaceFolder, type: 'file' | 'folder') => {
     clearSelection();
@@ -177,12 +163,7 @@ export function ExternalPage() {
     setIsInfoPanelOpen(true);
   };
 
-  const getDriveInfo = useCallback((driveAccountId?: string) => {
-    if (!driveAccountId) return { drive: null, index: -1 };
-    const index = drives.findIndex((d) => d.id === driveAccountId);
-    if (index === -1) return { drive: null, index: -1 };
-    return { drive: drives[index], index };
-  }, [drives]);
+  const getDriveInfo = useGetDriveInfo(drives);
 
   return (
     <div className="flex flex-col h-full w-full">
@@ -280,7 +261,7 @@ export function ExternalPage() {
                   onDownloadFolder: (driveId, folderId, name) => setFolderDownloadTarget({ driveId, folderId, name }),
                   onMove: (items) => setMoveTarget(items),
                   onViewInfo: handleViewInfo,
-                  onToggleStar: handleToggleStar,
+                  onToggleStar: toggleStar,
                 }}
               />
             </div>

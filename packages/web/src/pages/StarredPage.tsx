@@ -11,16 +11,16 @@ import { RenameDialog } from '../components/RenameDialog';
 import { AddToWorkspaceModal } from '../components/workspaces/AddToWorkspaceModal';
 import { DeleteConfirmDialogs } from '../components/files/DeleteConfirmDialogs';
 import { api } from '../lib/api';
-import { useDrives } from '../hooks/useDrives';
-import { useSharedLinks } from '../hooks/useSharedLinks';
+import { useDrives, useGetDriveInfo } from '../hooks/useDrives';
+import { useSharedLinks, useIsTargetSharedCallback } from '../hooks/useSharedLinks';
 import { qk } from '../lib/queryKeys';
 import { useSelectionStore, type SelectedItem } from '../stores/useSelectionStore';
 import { useUIStore } from '../stores/useUIStore';
 import { useToastStore } from '../stores/useToastStore';
 import type { FileEntry, DriveFolder, WorkspaceFolder } from '../types';
 import { FilePreviewModal } from '../components/FilePreviewModal';
-import { useStarFile, useUnstarFile, useDeleteFile, useRenameFile } from '../hooks/useFileMutations';
-import { useStarFolder, useUnstarFolder, useDeleteDriveFolder, useRenameDriveFolder } from '../hooks/useFolderMutations';
+import { useToggleStar, useDeleteFile, useRenameFile } from '../hooks/useFileMutations';
+import { useDeleteDriveFolder, useRenameDriveFolder } from '../hooks/useFolderMutations';
 import { EmptyState, ListSkeleton } from '../components/EmptyState';
 import { Star } from 'lucide-react';
 
@@ -33,11 +33,7 @@ export function StarredPage() {
   const { data: drivesData } = useDrives();
   const drives = useMemo(() => drivesData?.drives ?? [], [drivesData]);
   const { data: sharedLinks = [] } = useSharedLinks();
-  const isTargetShared = useCallback(
-    (id: string, type: 'file' | 'folder') =>
-      sharedLinks.some((link) => link.targetId === id && link.targetType === type),
-    [sharedLinks],
-  );
+  const isTargetShared = useIsTargetSharedCallback(sharedLinks);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { clearSelection, toggleSelection, selectedItems } = useSelectionStore();
@@ -63,10 +59,6 @@ export function StarredPage() {
   const wsFolders = data?.folders ?? [];
   const driveFolders = data?.driveFolders ?? [];
 
-  const starFileMut = useStarFile();
-  const unstarFileMut = useUnstarFile();
-  const starFolderMut = useStarFolder();
-  const unstarFolderMut = useUnstarFolder();
   const deleteFileMut = useDeleteFile();
   const deleteDriveFolderMut = useDeleteDriveFolder();
   const renameFileMut = useRenameFile();
@@ -76,18 +68,7 @@ export function StarredPage() {
     queryClient.invalidateQueries({ queryKey: qk.starred });
   }, [queryClient]);
 
-  const handleToggleStar = useCallback(
-    (id: string, type: 'file' | 'folder', currentStarStatus: boolean, driveId?: string) => {
-      if (type === 'file') {
-        if (currentStarStatus) { unstarFileMut.mutate(id); } else { starFileMut.mutate(id); }
-      } else if (driveId) {
-        if (currentStarStatus) { unstarFolderMut.mutate({ id, driveId }); } else { starFolderMut.mutate({ id, driveId }); }
-      } else {
-        if (currentStarStatus) { unstarFolderMut.mutate({ id }); } else { starFolderMut.mutate({ id }); }
-      }
-    },
-    [starFileMut, unstarFileMut, starFolderMut, unstarFolderMut],
-  );
+  const toggleStar = useToggleStar();
 
   const allFolders = [...wsFolders, ...driveFolders];
 
@@ -134,15 +115,7 @@ export function StarredPage() {
     setIsInfoPanelOpen(true);
   };
 
-  const getDriveInfo = useCallback(
-    (driveAccountId?: string) => {
-      if (!driveAccountId) return { drive: null, index: 0 };
-      const index = drives.findIndex((d) => d.id === driveAccountId);
-      if (index === -1) return { drive: drives[0] || null, index: 0 };
-      return { drive: drives[index], index };
-    },
-    [drives],
-  );
+  const getDriveInfo = useGetDriveInfo(drives);
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
@@ -183,7 +156,7 @@ export function StarredPage() {
                   navigate(`/external/${folderId}?driveId=${driveId}`);
                 }
               },
-              onToggleStar: handleToggleStar,
+              onToggleStar: toggleStar,
               onPreviewFile: setPreviewFile,
               onShare: (id, type) => setShareTarget({ id, type }),
               onRenameFile: handleRenameFile,

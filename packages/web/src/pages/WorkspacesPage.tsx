@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { api } from '../lib/api';
-import { useSharedLinks } from '../hooks/useSharedLinks';
-import type { WorkspaceFolder, FileEntry, DriveFolder, BreadcrumbItem, DriveAccount } from '../types';
+import { useDrives, useGetDriveInfo } from '../hooks/useDrives';
+import { useSharedLinks, useIsTargetSharedCallback } from '../hooks/useSharedLinks';
+import { useToggleStar } from '../hooks/useFileMutations';
+import type { WorkspaceFolder, FileEntry, DriveFolder, BreadcrumbItem } from '../types';
 import { WorkspaceSidebar } from '../components/workspaces/WorkspaceSidebar';
 import { WorkspaceMainView } from '../components/workspaces/WorkspaceMainView';
 import { CreateFolderModal } from '../components/CreateFolderModal';
@@ -24,6 +26,8 @@ export function WorkspacesPage() {
   const addToast = useToastStore(state => state.addToast);
   const { clearSelection, toggleSelection } = useSelectionStore();
   const setIsInfoPanelOpen = useUIStore(s => s.setIsInfoPanelOpen);
+  const { data: drivesData } = useDrives();
+  const drives = drivesData?.drives ?? [];
   const [wsSidebarOpen, setWsSidebarOpen] = useState(false);
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
@@ -146,17 +150,13 @@ export function WorkspacesPage() {
     return path;
   }, [activeFolder, folders]);
 
-  const getDriveInfo = useCallback(() => ({ drive: null as unknown as DriveAccount, index: 0 }), []);
+  const getDriveInfo = useGetDriveInfo(drives);
   const onPreviewFile = useCallback((file: FileEntry) => setPreviewFile(file), []);
   const onShare = useCallback(() => {}, []);
   const onRenameFile = useCallback(() => {}, []);
   const onMoveDrive = useCallback(() => {}, []);
   const { data: sharedLinks = [] } = useSharedLinks();
-  const isTargetShared = useCallback(
-    (id: string, type: 'file' | 'folder') =>
-      sharedLinks.some((link) => link.targetId === id && link.targetType === type),
-    [sharedLinks],
-  );
+  const isTargetShared = useIsTargetSharedCallback(sharedLinks);
   const errorDrives = useMemo(() => new Set<string>(), []);
 
   const onRemoveFromWorkspace = useCallback(async (id: string) => {
@@ -169,30 +169,7 @@ export function WorkspacesPage() {
     }
   }, [addToast]);
 
-  const onToggleStar = useCallback(async (id: string, type: 'file' | 'folder', currentStarStatus: boolean) => {
-    try {
-      if (type === 'file') {
-        if (currentStarStatus) {
-          await api.unstarFile(id);
-          addToast('success', 'File unstarred');
-        } else {
-          await api.starFile(id);
-          addToast('success', 'File starred');
-        }
-      } else {
-        if (currentStarStatus) {
-          await api.unstarFolder(id);
-          addToast('success', 'Folder unstarred');
-        } else {
-          await api.starFolder(id);
-          addToast('success', 'Folder starred');
-        }
-      }
-      if (activeFolderId) fetchContents(activeFolderId);
-    } catch {
-      addToast('error', 'Failed to update star status');
-    }
-  }, [addToast, activeFolderId, fetchContents]);
+  const toggleStar = useToggleStar();
 
   const handleSetRetentionPolicy = useCallback((id: string, type: 'file' | 'folder') => {
     if (type === 'folder') {
@@ -213,7 +190,7 @@ export function WorkspacesPage() {
       onRenameFile,
       onDeleteFile: onRemoveFromWorkspace,
       onMoveDrive,
-      onToggleStar,
+      onToggleStar: toggleStar,
       onViewInfo: handleViewInfo,
       onSetRetentionPolicy: handleSetRetentionPolicy,
     },
@@ -226,7 +203,7 @@ export function WorkspacesPage() {
     onRenameFile,
     onRemoveFromWorkspace,
     onMoveDrive,
-    onToggleStar,
+    toggleStar,
     isTargetShared,
     errorDrives,
     handleViewInfo,

@@ -8,7 +8,7 @@ interface DriveBadgeProps {
 }
 
 export function DriveBadge({ email, colorIndex, size = 'sm', className }: DriveBadgeProps) {
-  const color = getDriveColor(colorIndex);
+  const color = colorIndex >= 0 ? getDriveColor(colorIndex) : '#94A3B8';
   const label = formatDriveLabel(email);
 
   return (

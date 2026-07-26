@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { useUploadStore } from '../stores/useUploadStore';
-import { useDrives } from '../hooks/useDrives';
+import { useDrives, useGetDriveInfo } from '../hooks/useDrives';
 import { Breadcrumb } from '../components/Breadcrumb';
 import { FileGrid } from '../components/files/FileGrid';
 import { DropZone } from '../components/DropZone';
@@ -17,7 +17,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { RenameDialog } from '../components/RenameDialog';
 import { Upload, FolderPlus, X, LayoutGrid, List, Info } from 'lucide-react';
 import { useToastStore } from '../stores/useToastStore';
-import { useSharedLinks } from '../hooks/useSharedLinks';
+import { useSharedLinks, useIsTargetSharedCallback } from '../hooks/useSharedLinks';
 import { useMergedDrive } from '../hooks/useMergedDrive';
 import { api } from '../lib/api';
 import { useUIStore } from '../stores/useUIStore';
@@ -25,10 +25,10 @@ import { useSelectionStore, useClearSelectionOnRouteChange, type SelectedItem } 
 import { BulkActionBar } from '../components/layout/BulkActionBar';
 import type { FileEntry, DriveFolder, WorkspaceFolder } from '../types';
 import {
-  useStarFile, useUnstarFile, useDeleteFile, useRenameFile,
+  useToggleStar, useDeleteFile, useRenameFile,
 } from '../hooks/useFileMutations';
 import {
-  useStarFolder, useUnstarFolder, useDeleteDriveFolder, useRenameDriveFolder,
+  useDeleteDriveFolder, useRenameDriveFolder,
 } from '../hooks/useFolderMutations';
 
 type RenameTarget =
@@ -69,14 +69,9 @@ export function FilesPage() {
   };
 
   // Mutation hooks — handle API call + toast + cache invalidation
-  const starFileMut = useStarFile();
-  const unstarFileMut = useUnstarFile();
   const deleteFileMut = useDeleteFile();
   const renameFileMut = useRenameFile();
 
-
-  const starFolderMut = useStarFolder();
-  const unstarFolderMut = useUnstarFolder();
   const deleteDriveFolderMut = useDeleteDriveFolder();
   const renameDriveFolderMut = useRenameDriveFolder();
 
@@ -93,8 +88,7 @@ export function FilesPage() {
   };
 
   const { data: sharedLinks = [] } = useSharedLinks();
-  const isTargetShared = (id: string, type: 'file' | 'folder') =>
-    sharedLinks.some((link) => link.targetId === id && link.targetType === type);
+  const isTargetShared = useIsTargetSharedCallback(sharedLinks);
 
   const { subfolders, files, breadcrumb, isLoading, errorDrives, refresh } = useMergedDrive(folderId, driveIdParam);
 
@@ -140,26 +134,13 @@ export function FilesPage() {
     setRenameTarget(null);
   };
 
-  const handleToggleStar = (id: string, type: 'file' | 'folder', currentStarStatus: boolean, driveId?: string) => {
-    if (type === 'file') {
-      if (currentStarStatus) { unstarFileMut.mutate(id); } else { starFileMut.mutate(id); }
-    } else if (driveId) {
-      if (currentStarStatus) { unstarFolderMut.mutate({ id, driveId }); } else { starFolderMut.mutate({ id, driveId }); }
-    } else {
-      if (currentStarStatus) { unstarFolderMut.mutate({ id }); } else { starFolderMut.mutate({ id }); }
-    }
-  };
+  const toggleStar = useToggleStar();
 
   const handleCreateFolder = () => {
     setShowCreateFolder(true);
   };
 
-  const getDriveInfo = (driveAccountId?: string) => {
-    if (!driveAccountId) return { drive: null, index: 0 };
-    const index = drives.findIndex(d => d.id === driveAccountId);
-    if (index === -1) return { drive: drives[0] || null, index: 0 };
-    return { drive: drives[index], index };
-  };
+  const getDriveInfo = useGetDriveInfo(drives);
 
   const filteredSubfolders = subfolders.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()));
   const filteredFiles = files.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -299,7 +280,7 @@ export function FilesPage() {
                 onMove: (items) => setMoveTarget(items),
                 onAddToWorkspace: setWorkspaceTarget,
                 onViewInfo: handleViewInfo,
-                onToggleStar: handleToggleStar,
+                onToggleStar: toggleStar,
               }}
             />
           </div>

@@ -58,11 +58,12 @@ export function FileGrid(props: FileGridProps) {
   }, [files, subfolders]);
   const showDriveColumn = showDriveColumnProp ?? uniqueDriveCount > 1;
 
-  const renderDriveBadge = (driveAccountId?: string) => {
+  const renderDriveBadge = (driveAccountId?: string, fallbackEmail?: string) => {
     if (!driveAccountId) return null;
     const { drive, index } = getDriveInfo(driveAccountId);
-    if (!drive?.email) return null;
-    return <DriveBadge email={drive.email} colorIndex={index} />;
+    if (drive?.email) return <DriveBadge email={drive.email} colorIndex={index} />;
+    if (fallbackEmail) return <DriveBadge email={fallbackEmail} colorIndex={-1} />;
+    return null;
   };
 
   if (files.length === 0 && subfolders.length === 0) {

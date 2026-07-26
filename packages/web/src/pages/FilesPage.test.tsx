@@ -17,12 +17,11 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => vi.fn(),
 }));
 
-vi.mock('../hooks/useDrives', () => ({ useDrives: vi.fn() }));
+vi.mock('../hooks/useDrives', () => ({ useDrives: vi.fn(), useGetDriveInfo: () => vi.fn() }));
 vi.mock('../hooks/useMergedDrive', () => ({ useMergedDrive: vi.fn() }));
-vi.mock('../hooks/useSharedLinks', () => ({ useSharedLinks: vi.fn() }));
+vi.mock('../hooks/useSharedLinks', () => ({ useSharedLinks: vi.fn(), useIsTargetSharedCallback: () => vi.fn() }));
 vi.mock('../hooks/useFileMutations', () => ({
-  useStarFile: () => ({ mutate: vi.fn() }),
-  useUnstarFile: () => ({ mutate: vi.fn() }),
+  useToggleStar: () => vi.fn(),
   useDeleteFile: () => ({ mutate: vi.fn() }),
   useRenameFile: () => ({ mutate: vi.fn() }),
 }));

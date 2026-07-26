@@ -1,10 +1,10 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { FileGrid } from '../components/files/FileGrid';
 import { BulkActionBar } from '../components/layout/BulkActionBar';
 import { api } from '../lib/api';
-import { useDrives } from '../hooks/useDrives';
-import { useSharedLinks } from '../hooks/useSharedLinks';
+import { useDrives, useGetDriveInfo } from '../hooks/useDrives';
+import { useSharedLinks, useIsTargetSharedCallback } from '../hooks/useSharedLinks';
 import { qk } from '../lib/queryKeys';
 import { invalidateAfterFileMutation } from '../lib/invalidate';
 import type { FileEntry } from '../types';
@@ -19,11 +19,7 @@ export function TrashPage() {
   const { data: drivesData } = useDrives();
   const drives = useMemo(() => drivesData?.drives ?? [], [drivesData]);
   const { data: sharedLinks = [] } = useSharedLinks();
-  const isTargetShared = useCallback(
-    (id: string, type: 'file' | 'folder') =>
-      sharedLinks.some((link) => link.targetId === id && link.targetType === type),
-    [sharedLinks],
-  );
+  const isTargetShared = useIsTargetSharedCallback(sharedLinks);
   const queryClient = useQueryClient();
 
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
@@ -50,15 +46,7 @@ export function TrashPage() {
   const handlePermanentDeleteFolder = (driveId: string, folderId: string) =>
     setConfirmFolderDelete({ driveId, folderId });
 
-  const getDriveInfo = useCallback(
-    (driveAccountId?: string) => {
-      if (!driveAccountId) return { drive: null, index: 0 };
-      const index = drives.findIndex((d) => d.id === driveAccountId);
-      if (index === -1) return { drive: drives[0] || null, index: 0 };
-      return { drive: drives[index], index };
-    },
-    [drives],
-  );
+  const getDriveInfo = useGetDriveInfo(drives);
 
   const hasItems = fileResults.length > 0 || folderResults.length > 0;
 

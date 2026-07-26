@@ -1,9 +1,9 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-import { useDrives } from '../hooks/useDrives';
-import { useSharedLinks } from '../hooks/useSharedLinks';
+import { useDrives, useGetDriveInfo } from '../hooks/useDrives';
+import { useSharedLinks, useIsTargetSharedCallback } from '../hooks/useSharedLinks';
 import { useAuthStore } from '../stores/useAuthStore';
 import { QuotaBar } from '../components/QuotaBar';
 import { FileGrid } from '../components/files/FileGrid';
@@ -80,11 +80,8 @@ export function DashboardPage() {
   const { data: sharedLinks = [] } = useSharedLinks();
   const { addToast } = useToastStore();
 
-  const isTargetShared = useCallback(
-    (id: string, type: 'file' | 'folder') =>
-      sharedLinks.some((link) => link.targetId === id && link.targetType === type),
-    [sharedLinks],
-  );
+  const isTargetShared = useIsTargetSharedCallback(sharedLinks);
+  const getDriveInfo = useGetDriveInfo(drives);
 
   const [shareTarget, setShareTarget] = useState<{ id: string; type: 'file' | 'folder' } | null>(null);
   const [moveDriveFiles, setMoveDriveFiles] = useState<FileEntry[]>([]);
@@ -380,12 +377,7 @@ export function DashboardPage() {
               <FileGrid
                 files={recentFiles}
                 subfolders={recentFolders}
-                getDriveInfo={(driveAccountId) => {
-                  if (!driveAccountId) return { drive: null, index: 0 };
-                  const index = drives.findIndex((d) => d.id === driveAccountId);
-                  if (index === -1) return { drive: drives[0] || null, index: 0 };
-                  return { drive: drives[index], index };
-                }}
+                getDriveInfo={getDriveInfo}
                 isTargetShared={isTargetShared}
                 viewMode="list"
                 actions={{

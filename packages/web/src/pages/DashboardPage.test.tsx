@@ -7,8 +7,8 @@ import { useDrives } from '../hooks/useDrives';
 import { useSharedLinks } from '../hooks/useSharedLinks';
 import { useAuthStore } from '../stores/useAuthStore';
 
-vi.mock('../hooks/useDrives', () => ({ useDrives: vi.fn() }));
-vi.mock('../hooks/useSharedLinks', () => ({ useSharedLinks: vi.fn() }));
+vi.mock('../hooks/useDrives', () => ({ useDrives: vi.fn(), useGetDriveInfo: () => vi.fn() }));
+vi.mock('../hooks/useSharedLinks', () => ({ useSharedLinks: vi.fn(), useIsTargetSharedCallback: () => vi.fn() }));
 vi.mock('../hooks/useFileMutations', () => ({
   useStarFile: () => ({ mutate: vi.fn() }),
   useUnstarFile: () => ({ mutate: vi.fn() }),

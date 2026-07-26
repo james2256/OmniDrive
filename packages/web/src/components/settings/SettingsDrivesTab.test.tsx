@@ -11,6 +11,7 @@ vi.mock('../../hooks/useDrives', () => ({
   useDrives: vi.fn(),
   useRemoveDrive: vi.fn(),
   useTriggerSync: vi.fn(),
+  useGetDriveInfo: () => vi.fn(),
 }));
 
 vi.mock('../../stores/useToastStore', () => ({
