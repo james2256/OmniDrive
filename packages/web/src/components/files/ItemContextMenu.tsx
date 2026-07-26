@@ -6,7 +6,7 @@ import {
   ContextMenuTrigger,
   ContextMenuSeparator,
 } from '../ui/context-menu';
-import { Folder, Download, Trash2, Pencil, ExternalLink, Share2, RefreshCw, Eye, Star, Info, FolderInput } from 'lucide-react';
+import { Folder, Download, Trash2, Pencil, ExternalLink, Share2, RefreshCw, Eye, Star, Info, FolderInput, FolderMinus } from 'lucide-react';
 import type { FileEntry, DriveFolder, WorkspaceFolder } from '../../types';
 import type { ItemActions, ItemKind } from './types';
 import type { SelectedItem } from '../../stores/useSelectionStore';
@@ -91,6 +91,7 @@ const ItemContextMenuContent: React.FC<ItemContextMenuContentProps> = ({ type, i
     onMove,
     onDeleteFile,
     onDeleteFolder,
+    onRemoveFromWorkspace,
   } = actions;
 
   return (
@@ -210,6 +211,12 @@ const ItemContextMenuContent: React.FC<ItemContextMenuContentProps> = ({ type, i
           {type === 'file' && file && onMoveDrive && (
             <ContextMenuItem onClick={() => onMoveDrive(file)}>
               <ExternalLink className="mr-2 h-4 w-4" /> Move to another drive
+            </ContextMenuItem>
+          )}
+          {type === 'file' && file && onRemoveFromWorkspace && fileId && (
+            <ContextMenuItem className={MENU_ITEM_CLASS} onClick={() => onRemoveFromWorkspace(fileId)}>
+              <FolderMinus size={16} className="mr-3 text-slate-500" />
+              Remove from workspace
             </ContextMenuItem>
           )}
           {type === 'file' && onDeleteFile && fileId && (

@@ -1,40 +1,23 @@
 import { useState, useMemo } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { useUploadStore } from '../stores/useUploadStore';
+import { api } from '../lib/api';
 import { useDrives, useGetDriveInfo } from '../hooks/useDrives';
 import { Breadcrumb } from '../components/Breadcrumb';
 import { FileGrid } from '../components/files/FileGrid';
 import { DropZone } from '../components/DropZone';
 import { UploadModal } from '../components/UploadModal';
-import { FilePreviewModal } from '../components/FilePreviewModal';
-import { ShareModal } from '../components/ShareModal';
-import { MoveDriveModal } from '../components/MoveDriveModal';
-import { FolderDownloadModal } from '../components/FolderDownloadModal';
-import { MoveModal } from '../components/MoveModal';
-import { AddToWorkspaceModal } from '../components/workspaces/AddToWorkspaceModal';
 import { CreateFolderModal } from '../components/CreateFolderModal';
-import { ConfirmDialog } from '../components/ConfirmDialog';
-import { RenameDialog } from '../components/RenameDialog';
+import { ItemModals } from '../components/files/ItemModals';
 import { Upload, FolderPlus, X, LayoutGrid, List, Info } from 'lucide-react';
 import { useToastStore } from '../stores/useToastStore';
 import { useSharedLinks, useIsTargetSharedCallback } from '../hooks/useSharedLinks';
+import { useItemModals } from '../hooks/useItemModals';
 import { useMergedDrive } from '../hooks/useMergedDrive';
-import { api } from '../lib/api';
 import { useUIStore } from '../stores/useUIStore';
 import { useSelectionStore, useClearSelectionOnRouteChange, type SelectedItem } from '../stores/useSelectionStore';
 import { BulkActionBar } from '../components/layout/BulkActionBar';
-import type { FileEntry, DriveFolder, WorkspaceFolder } from '../types';
-import {
-  useToggleStar, useDeleteFile, useRenameFile,
-} from '../hooks/useFileMutations';
-import {
-  useDeleteDriveFolder, useRenameDriveFolder,
-} from '../hooks/useFolderMutations';
-
-type RenameTarget =
-  | { kind: 'file'; id: string; currentName: string }
-  | { kind: 'folder'; driveId: string; folderId: string; currentName: string }
-  | null;
+import type { FileEntry } from '../types';
 
 export function FilesPage() {
   const { folderId = 'root' } = useParams<{ folderId: string }>();
@@ -42,38 +25,20 @@ export function FilesPage() {
   const driveIdParam = searchParams.get('driveId');
   const navigate = useNavigate();
 
-  // Bug 2 fix: clear global selection whenever the folder/drive route changes,
-  // so the BulkActionBar from folder A doesn't act on invisible items in folder B.
+  // Clear global selection whenever the folder/drive route changes, so the
+  // BulkActionBar from folder A doesn't act on invisible items in folder B.
   useClearSelectionOnRouteChange([folderId, driveIdParam]);
-  
+
   const { data: drivesData, isLoading: isDrivesLoading } = useDrives();
   const drives = useMemo(() => drivesData?.drives ?? [], [drivesData]);
   const { showModal, setShowModal } = useUploadStore();
   const { addToast } = useToastStore();
-  const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
-  const [shareTarget, setShareTarget] = useState<{ id: string, type: 'file' | 'folder' } | null>(null);
-  const [moveDriveFiles, setMoveDriveFiles] = useState<FileEntry[]>([]);
-  const [folderDownloadTarget, setFolderDownloadTarget] = useState<{ driveId: string; folderId: string; name: string } | null>(null);
-  const [workspaceTarget, setWorkspaceTarget] = useState<FileEntry | null>(null);
+  const { viewMode, setViewMode, isInfoPanelOpen, toggleInfoPanel } = useUIStore();
+  const { selectedItems } = useSelectionStore();
+
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
-  const [renameTarget, setRenameTarget] = useState<RenameTarget>(null);
-  const { viewMode, setViewMode, isInfoPanelOpen, toggleInfoPanel, setIsInfoPanelOpen } = useUIStore();
-  const { clearSelection, toggleSelection, selectedItems } = useSelectionStore();
-
-  const handleViewInfo = (item: FileEntry | DriveFolder | WorkspaceFolder, type: 'file' | 'folder') => {
-    clearSelection();
-    toggleSelection({ type, item } as SelectedItem);
-    setIsInfoPanelOpen(true);
-  };
-
-  // Mutation hooks — handle API call + toast + cache invalidation
-  const deleteFileMut = useDeleteFile();
-  const renameFileMut = useRenameFile();
-
-  const deleteDriveFolderMut = useDeleteDriveFolder();
-  const renameDriveFolderMut = useRenameDriveFolder();
 
   const handleConnectGoogle = async () => {
     if (isConnecting) return;
@@ -92,53 +57,12 @@ export function FilesPage() {
 
   const { subfolders, files, breadcrumb, isLoading, errorDrives, refresh } = useMergedDrive(folderId, driveIdParam);
 
-  const [moveTarget, setMoveTarget] = useState<SelectedItem[]>([]);
-  const [confirmFileDelete, setConfirmFileDelete] = useState<string | null>(null);
-  const [confirmFolderDelete, setConfirmFolderDelete] = useState<{ driveId: string; folderId: string } | null>(null);
-
-  const handleDeleteFile = (id: string) => {
-    setConfirmFileDelete(id);
-  };
-
-  const handleDeleteFolder = (driveId: string, folderId: string) => {
-    setConfirmFolderDelete({ driveId, folderId });
-  };
-
-  const handleRenameFile = (id: string, name: string) => {
-    renameFileMut.mutate({ fileId: id, name });
-  };
-
-  const handleRenameFolder = (driveId: string, folderId: string, name: string) => {
-    renameDriveFolderMut.mutate({ driveId, folderId, name });
-  };
-
-  const handleRenameFileRequest = (fileId: string, currentName: string) => {
-    setRenameTarget({ kind: 'file', id: fileId, currentName });
-  };
-
-  const handleRenameFolderRequest = (driveId: string, folderId: string, currentName: string) => {
-    setRenameTarget({ kind: 'folder', driveId, folderId, currentName });
-  };
-
-  const handleRenameConfirm = async (newName: string) => {
-    if (!renameTarget) return;
-    if (renameTarget.kind === 'file') {
-      await renameFileMut.mutateAsync({ fileId: renameTarget.id, name: newName });
-    } else {
-      await renameDriveFolderMut.mutateAsync({
-        driveId: renameTarget.driveId,
-        folderId: renameTarget.folderId,
-        name: newName,
-      });
-    }
-    setRenameTarget(null);
-  };
-
-  const toggleStar = useToggleStar();
-
-  const handleCreateFolder = () => {
-    setShowCreateFolder(true);
-  };
+  // Shared modal state + handlers for file/folder item interactions
+  const itemModals = useItemModals({
+    onRefresh: refresh,
+    allFolders: subfolders,
+    files,
+  });
 
   const getDriveInfo = useGetDriveInfo(drives);
 
@@ -149,13 +73,13 @@ export function FilesPage() {
     <DropZone>
       <div className="flex flex-col h-full w-full">
         {/* Toolbar */}
-        <BulkActionBar 
-          onActionComplete={() => refresh()} 
-          onMoveRequested={() => setMoveTarget(selectedItems)}
-          onWorkspaceRequested={() => setWorkspaceTarget(selectedItems[0].item as FileEntry)}
+        <BulkActionBar
+          onActionComplete={() => refresh()}
+          onMoveRequested={() => itemModals.setMoveTarget(selectedItems)}
+          onWorkspaceRequested={() => itemModals.setWorkspaceTarget(selectedItems[0].item as FileEntry)}
           onMoveDriveRequested={() => {
-            const files = selectedItems.filter(i => i.type === 'file').map(i => i.item as FileEntry);
-            setMoveDriveFiles(files);
+            const fileItems = selectedItems.filter(i => i.type === 'file').map(i => i.item as FileEntry);
+            itemModals.setMoveDriveFiles(fileItems);
           }}
         />
 
@@ -212,7 +136,7 @@ export function FilesPage() {
 
               {/* Desktop: folder + upload inline with filter row */}
               <div className="hidden sm:flex gap-2">
-                <button className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-slate-700 bg-card border border-slate-400 rounded-md hover:bg-slate-50 flex-shrink-0" onClick={handleCreateFolder}>
+                <button className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-slate-700 bg-card border border-slate-400 rounded-md hover:bg-slate-50 flex-shrink-0" onClick={() => setShowCreateFolder(true)}>
                   <FolderPlus size={16} /> <span>New Folder</span>
                 </button>
                 <button className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-white bg-primary rounded-md hover:opacity-90 flex-shrink-0" onClick={() => setShowModal(true)}>
@@ -223,7 +147,7 @@ export function FilesPage() {
 
             {/* Mobile Row 2: folder + upload */}
             <div className="flex gap-2 sm:hidden order-2">
-              <button className="flex items-center justify-center gap-1 p-2 text-sm font-medium text-slate-700 bg-card border border-slate-400 rounded-md hover:bg-slate-50 flex-shrink-0 flex-1" onClick={handleCreateFolder} title="New Folder">
+              <button className="flex items-center justify-center gap-1 p-2 text-sm font-medium text-slate-700 bg-card border border-slate-400 rounded-md hover:bg-slate-50 flex-shrink-0 flex-1" onClick={() => setShowCreateFolder(true)} title="New Folder">
                 <FolderPlus size={18} /> <span>New Folder</span>
               </button>
               <button className="flex items-center justify-center gap-1 p-2 text-sm font-medium text-white bg-primary rounded-md hover:opacity-90 flex-shrink-0 flex-1" onClick={() => setShowModal(true)} title="Upload">
@@ -266,21 +190,19 @@ export function FilesPage() {
               isTargetShared={isTargetShared}
               errorDrives={errorDrives}
               actions={{
-                onNavigateFolder: (id, driveId) => navigate(`/files/${id}?driveId=${driveId}`),
-                onPreviewFile: setPreviewFile,
-                onShare: (id, type) => setShareTarget({ id, type }),
-                onRenameFile: handleRenameFile,
-                onRenameFolder: handleRenameFolder,
-                onRenameFileRequest: handleRenameFileRequest,
-                onRenameFolderRequest: handleRenameFolderRequest,
-                onDeleteFile: handleDeleteFile,
-                onDeleteFolder: handleDeleteFolder,
-                onMoveDrive: (file) => setMoveDriveFiles([file]),
-                onDownloadFolder: (driveId, folderId, name) => setFolderDownloadTarget({ driveId, folderId, name }),
-                onMove: (items) => setMoveTarget(items),
-                onAddToWorkspace: setWorkspaceTarget,
-                onViewInfo: handleViewInfo,
-                onToggleStar: toggleStar,
+                onNavigateFolder: (id: string, driveId: string) => navigate(`/files/${id}?driveId=${driveId}`),
+                onPreviewFile: itemModals.setPreviewFile,
+                onShare: (id: string, type: 'file' | 'folder') => itemModals.setShareTarget({ id, type }),
+                onRenameFileRequest: itemModals.handleRenameFileRequest,
+                onRenameFolderRequest: itemModals.handleRenameFolderRequest,
+                onDeleteFile: itemModals.handleDeleteFile,
+                onDeleteFolder: itemModals.handleDeleteFolder,
+                onMoveDrive: (file: FileEntry) => itemModals.setMoveDriveFiles([file]),
+                onDownloadFolder: (driveId: string, folderId: string, name: string) => itemModals.setFolderDownloadTarget({ driveId, folderId, name }),
+                onMove: (items: SelectedItem[]) => itemModals.setMoveTarget(items),
+                onAddToWorkspace: itemModals.setWorkspaceTarget,
+                onViewInfo: itemModals.handleViewInfo,
+                onToggleStar: itemModals.toggleStar,
               }}
             />
           </div>
@@ -297,91 +219,7 @@ export function FilesPage() {
           onSuccess={refresh}
         />
         <UploadModal open={showModal} folderId={folderId} onClose={() => setShowModal(false)} onSuccess={refresh} />
-        <FilePreviewModal open={!!previewFile} file={previewFile ?? undefined} onClose={() => setPreviewFile(null)} />
-        <ShareModal
-          open={!!shareTarget}
-          targetType={shareTarget?.type ?? 'file'}
-          targetId={shareTarget?.id ?? ''}
-          onClose={() => setShareTarget(null)}
-        />
-        <MoveDriveModal
-          files={moveDriveFiles}
-          onClose={() => setMoveDriveFiles([])}
-          onSuccess={() => {
-            setMoveDriveFiles([]);
-            clearSelection();
-            refresh();
-          }}
-        />
-        <MoveModal
-          open={moveTarget.length > 0}
-          items={moveTarget}
-          driveId={driveIdParam || drives[0]?.id || ''}
-          onClose={() => setMoveTarget([])}
-          onSuccess={() => {
-            clearSelection();
-            refresh();
-          }}
-        />
-        <FolderDownloadModal
-          open={folderDownloadTarget !== null}
-          onClose={() => setFolderDownloadTarget(null)}
-          driveId={folderDownloadTarget?.driveId}
-          folderId={folderDownloadTarget?.folderId}
-          folderName={folderDownloadTarget?.name ?? ''}
-        />
-        <AddToWorkspaceModal
-          open={!!workspaceTarget}
-          file={workspaceTarget ?? undefined}
-          onClose={() => setWorkspaceTarget(null)}
-          onSuccess={() => {
-            setWorkspaceTarget(null);
-            addToast('success', 'Added to workspace');
-            refresh();
-          }}
-        />
-
-        <ConfirmDialog
-          open={confirmFileDelete !== null}
-          title="Delete File"
-          message="Delete this file permanently from Google Drive?"
-          confirmText="Delete"
-          cancelText="Cancel"
-          variant="danger"
-          loading={deleteFileMut.isPending}
-          onConfirm={async () => {
-            if (confirmFileDelete) {
-              await deleteFileMut.mutateAsync(confirmFileDelete);
-              setConfirmFileDelete(null);
-            }
-          }}
-          onClose={() => setConfirmFileDelete(null)}
-        />
-        <ConfirmDialog
-          open={confirmFolderDelete !== null}
-          title="Delete Folder"
-          message="Delete this folder and ALL its contents from Google Drive?"
-          confirmText="Delete"
-          cancelText="Cancel"
-          variant="danger"
-          loading={deleteDriveFolderMut.isPending}
-          onConfirm={async () => {
-            if (confirmFolderDelete) {
-              await deleteDriveFolderMut.mutateAsync(confirmFolderDelete);
-              setConfirmFolderDelete(null);
-            }
-          }}
-          onClose={() => setConfirmFolderDelete(null)}
-        />
-
-        <RenameDialog
-          open={renameTarget !== null}
-          initialName={renameTarget?.currentName ?? ''}
-          title={renameTarget?.kind === 'folder' ? 'Rename Folder' : 'Rename File'}
-          loading={renameFileMut.isPending || renameDriveFolderMut.isPending}
-          onConfirm={handleRenameConfirm}
-          onClose={() => setRenameTarget(null)}
-        />
+        <ItemModals modals={itemModals} driveId={driveIdParam || drives[0]?.id || ''} onRefresh={refresh} />
       </div>
     </DropZone>
   );

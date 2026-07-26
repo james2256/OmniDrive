@@ -35,7 +35,7 @@ export class AuthRepository {
   /** Find a user by username with all auth fields (for login). */
   findByUsernameWithAuth(username: string) {
     return this.db.prepare(
-      'SELECT id, username, password_hash, email, name, avatar_url, is_super_admin FROM users WHERE username = ?'
+      'SELECT id, username, password_hash, email, name, avatar_url, is_super_admin, is_blocked FROM users WHERE username = ?'
     ).bind(username).first();
   }
 

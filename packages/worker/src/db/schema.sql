@@ -9,7 +9,8 @@ CREATE TABLE IF NOT EXISTS users (
     avatar_url      TEXT,
     is_super_admin  INTEGER NOT NULL DEFAULT 0,
     created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+    updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    is_blocked      INTEGER NOT NULL DEFAULT 0
 );
 
 -- Move session storage from KV to D1.

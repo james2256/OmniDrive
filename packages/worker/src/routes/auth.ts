@@ -86,6 +86,11 @@ authRouter.post('/login', zValidator('json', loginSchema, zodErrorHook), async (
     throw new AppError(401, 'Invalid credentials');
   }
 
+  // Reject blocked users (admin block feature — see admin.ts PATCH /users/:id/status)
+  if (user.is_blocked) {
+    throw new AppError(403, 'Account blocked. Contact an administrator.');
+  }
+
   const now = Date.now();
   const sessionData: SessionData = { userId: user.id, username: user.username, email: user.email, name: user.name, avatarUrl: user.avatar_url, role: user.is_super_admin ? 'super_admin' : 'member', createdAt: now };
   const sessionId = generateId();

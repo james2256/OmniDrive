@@ -21,8 +21,6 @@ export interface ItemActions {
   onToggleStar?: (id: string, type: ItemKind, currentStarStatus: boolean, driveId?: string) => void;
   onPreviewFile?: (file: FileEntry) => void;
   onShare?: (id: string, type: ItemKind) => void;
-  onRenameFile?: (id: string, name: string) => void;
-  onRenameFolder?: (driveId: string, folderId: string, name: string) => void;
   /**
    * Request to rename a file — opens the RenameDialog (parent-managed) with
    * the file's current name. Replaces the previous inline `prompt()` flow.
@@ -35,6 +33,8 @@ export interface ItemActions {
   onRenameFolderRequest?: (driveId: string, folderId: string, currentName: string) => void;
   onDeleteFile?: (id: string) => void;
   onDeleteFolder?: (driveId: string, folderId: string) => void;
+  /** Remove a file from the current workspace (moves to workspace root, non-destructive). */
+  onRemoveFromWorkspace?: (id: string) => void;
   onMoveDrive?: (file: FileEntry) => void;
   /** Download a folder as a ZIP (client-side streaming). */
   onDownloadFolder?: (driveId: string, folderId: string, folderName: string) => void;

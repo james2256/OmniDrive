@@ -270,6 +270,14 @@ export const adminCreateUserSchema = z.object({
   role: z.enum(['member', 'super_admin']).default('member'),
 });
 
+export const adminUpdateRoleSchema = z.object({
+  role: z.enum(['super_admin', 'member']),
+});
+
+export const adminUpdateStatusSchema = z.object({
+  status: z.enum(['active', 'blocked']),
+});
+
 // ─── S3 credentials schema (s3-credentials.ts: 1 route) ───
 
 export const createS3CredentialsSchema = z.object({

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useToastStore } from '../stores/useToastStore';
-import { ShieldAlert, Plus } from 'lucide-react';
+import { ShieldAlert, Plus, EllipsisVertical } from 'lucide-react';
 import type { AdminUser } from '../types';
 import { api } from '../lib/api';
 import type { Invitation } from '../lib/api';
@@ -10,6 +10,13 @@ import {
   DialogContent,
   DialogTitle,
 } from '../components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '../components/ui/dropdown-menu';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Spinner } from '../components/ui/Spinner';
 
@@ -92,7 +99,16 @@ export const AdminUsersPage: React.FC = () => {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
   const [invitationToDelete, setInvitationToDelete] = useState<string | null>(null);
+  const [isDeletingInvitation, setIsDeletingInvitation] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+
+  // User management action state (role / status / delete)
+  const [roleTarget, setRoleTarget] = useState<{ id: string; role: 'super_admin' | 'member'; name: string } | null>(null);
+  const [statusTarget, setStatusTarget] = useState<{ id: string; status: 'active' | 'blocked'; name: string } | null>(null);
+  const [deleteUserTarget, setDeleteUserTarget] = useState<{ id: string; name: string } | null>(null);
+  const [isChangingRole, setIsChangingRole] = useState(false);
+  const [isChangingStatus, setIsChangingStatus] = useState(false);
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
 
   // Invitations Tab State
   const [invitations, setInvitations] = useState<Invitation[]>([]);
@@ -163,6 +179,57 @@ export const AdminUsersPage: React.FC = () => {
     } catch (e: unknown) {
       addToast('error', e instanceof Error ? e.message : 'An error occurred while deleting invitation');
       console.error(e);
+      throw e;
+    }
+  };
+
+  // ─── User management actions (role / status / delete) ───
+
+  const handleConfirmRoleChange = async () => {
+    if (!roleTarget) return;
+    setIsChangingRole(true);
+    try {
+      await api.updateUserRole(roleTarget.id, roleTarget.role);
+      setRoleTarget(null);
+      loadUsers();
+      addToast('success', `User ${roleTarget.role === 'super_admin' ? 'promoted to Super Admin' : 'demoted to Member'}`);
+    } catch (e: unknown) {
+      addToast('error', e instanceof Error ? e.message : 'Failed to update role');
+      setRoleTarget(null);
+    } finally {
+      setIsChangingRole(false);
+    }
+  };
+
+  const handleConfirmStatusChange = async () => {
+    if (!statusTarget) return;
+    setIsChangingStatus(true);
+    try {
+      await api.updateUserStatus(statusTarget.id, statusTarget.status);
+      setStatusTarget(null);
+      loadUsers();
+      addToast('success', `User ${statusTarget.status === 'blocked' ? 'blocked' : 'unblocked'}`);
+    } catch (e: unknown) {
+      addToast('error', e instanceof Error ? e.message : 'Failed to update status');
+      setStatusTarget(null);
+    } finally {
+      setIsChangingStatus(false);
+    }
+  };
+
+  const handleConfirmDeleteUser = async () => {
+    if (!deleteUserTarget) return;
+    setIsDeletingUser(true);
+    try {
+      await api.deleteUser(deleteUserTarget.id);
+      setDeleteUserTarget(null);
+      loadUsers();
+      addToast('success', 'User deleted');
+    } catch (e: unknown) {
+      addToast('error', e instanceof Error ? e.message : 'Failed to delete user');
+      setDeleteUserTarget(null);
+    } finally {
+      setIsDeletingUser(false);
     }
   };
 
@@ -237,7 +304,49 @@ export const AdminUsersPage: React.FC = () => {
                           {userItem.status || 'active'}
                         </span>
                       </td>
-                      <td className="px-2 sm:px-6 py-4 text-sm text-slate-500"></td>
+                      <td className="px-2 sm:px-6 py-4 text-sm text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              className="p-1.5 rounded-md text-slate-500 hover:text-slate-700 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed"
+                              aria-label={`Actions for ${userItem.name || userItem.username}`}
+                              disabled={userItem.id === user?.userId}
+                            >
+                              <EllipsisVertical size={16} />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => setRoleTarget({
+                                id: userItem.id,
+                                role: userItem.role === 'super_admin' ? 'member' : 'super_admin',
+                                name: userItem.name || userItem.username || 'this user',
+                              })}
+                            >
+                              {userItem.role === 'super_admin' ? 'Demote to Member' : 'Promote to Admin'}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => setStatusTarget({
+                                id: userItem.id,
+                                status: userItem.status === 'blocked' ? 'active' : 'blocked',
+                                name: userItem.name || userItem.username || 'this user',
+                              })}
+                            >
+                              {userItem.status === 'blocked' ? 'Unblock User' : 'Block User'}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                              onClick={() => setDeleteUserTarget({
+                                id: userItem.id,
+                                name: userItem.name || userItem.username || 'this user',
+                              })}
+                            >
+                              Delete User
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -315,11 +424,60 @@ export const AdminUsersPage: React.FC = () => {
         message="Are you sure you want to delete this invitation code? Users who already received it will no longer be able to register."
         confirmText="Delete"
         variant="danger"
-        onConfirm={() => {
-          if (invitationToDelete) handleDeleteInvitation(invitationToDelete);
-          setInvitationToDelete(null);
+        loading={isDeletingInvitation}
+        onConfirm={async () => {
+          if (!invitationToDelete) return;
+          setIsDeletingInvitation(true);
+          try {
+            await handleDeleteInvitation(invitationToDelete);
+            setInvitationToDelete(null);
+          } catch {
+            // toast already shown by handler; keep dialog open for retry
+          } finally {
+            setIsDeletingInvitation(false);
+          }
         }}
-        onClose={() => setInvitationToDelete(null)}
+        onClose={() => !isDeletingInvitation && setInvitationToDelete(null)}
+      />
+
+      {/* Role change confirmation */}
+      <ConfirmDialog
+        open={roleTarget !== null}
+        title={`${roleTarget?.role === 'super_admin' ? 'Promote' : 'Demote'} User`}
+        message={`Are you sure you want to ${roleTarget?.role === 'super_admin' ? 'promote' : 'demote'} "${roleTarget?.name}" ${roleTarget?.role === 'super_admin' ? 'to Super Admin' : 'to Member'}?`}
+        confirmText={roleTarget?.role === 'super_admin' ? 'Promote' : 'Demote'}
+        variant={roleTarget?.role === 'member' ? 'danger' : 'info'}
+        loading={isChangingRole}
+        onConfirm={handleConfirmRoleChange}
+        onClose={() => !isChangingRole && setRoleTarget(null)}
+      />
+
+      {/* Status change confirmation */}
+      <ConfirmDialog
+        open={statusTarget !== null}
+        title={statusTarget?.status === 'blocked' ? 'Block User' : 'Unblock User'}
+        message={
+          statusTarget?.status === 'blocked'
+            ? `Block "${statusTarget?.name}"? They will be immediately signed out and cannot log in until unblocked.`
+            : `Unblock "${statusTarget?.name}"? They will be able to log in again.`
+        }
+        confirmText={statusTarget?.status === 'blocked' ? 'Block' : 'Unblock'}
+        variant={statusTarget?.status === 'blocked' ? 'danger' : 'info'}
+        loading={isChangingStatus}
+        onConfirm={handleConfirmStatusChange}
+        onClose={() => !isChangingStatus && setStatusTarget(null)}
+      />
+
+      {/* Delete user confirmation */}
+      <ConfirmDialog
+        open={deleteUserTarget !== null}
+        title="Delete User"
+        message={`Are you sure you want to delete "${deleteUserTarget?.name}"? This permanently deletes all their drives, workspaces, files, and shared links. This action CANNOT be undone.`}
+        confirmText="Delete User"
+        variant="danger"
+        loading={isDeletingUser}
+        onConfirm={handleConfirmDeleteUser}
+        onClose={() => !isDeletingUser && setDeleteUserTarget(null)}
       />
     </div>
   );

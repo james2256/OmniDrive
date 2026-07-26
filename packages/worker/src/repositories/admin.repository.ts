@@ -22,7 +22,7 @@ export class AdminRepository {
   /** Find all users (admin view) — limited fields, most recent 100. */
   findAllUsers() {
     return this.db.prepare(
-      'SELECT id, username, email, name, avatar_url, is_super_admin FROM users ORDER BY created_at DESC LIMIT 100'
+      'SELECT id, username, email, name, avatar_url, is_super_admin, is_blocked FROM users ORDER BY created_at DESC LIMIT 100'
     ).all();
   }
 
@@ -53,6 +53,104 @@ export class AdminRepository {
       params.id, params.username, params.passwordHash, params.email,
       params.name, params.isSuperAdmin,
     ).run();
+  }
+
+  // ─── role / status / delete (admin user management) ───
+
+  /** Promote a user to super admin. */
+  promoteToAdmin(userId: string) {
+    return this.db.prepare(
+      'UPDATE users SET is_super_admin = 1, updated_at = datetime(\'now\') WHERE id = ?'
+    ).bind(userId).run();
+  }
+
+  /**
+   * Demote a super admin to member. Atomic last-admin protection:
+   * WHERE clause blocks the UPDATE if this is the last super admin.
+   * Check meta.changes === 0 to detect the guard fired (D1 FKs are off,
+   * but the subquery + UPDATE are atomic at the statement level).
+   */
+  demoteFromAdmin(userId: string) {
+    return this.db.prepare(
+      `UPDATE users SET is_super_admin = 0, updated_at = datetime('now')
+       WHERE id = ? AND (SELECT COUNT(*) FROM users WHERE is_super_admin = 1) > 1`
+    ).bind(userId).run();
+  }
+
+  /** Block a user and delete all their sessions (immediate kick-out). */
+  async blockUser(userId: string) {
+    await this.db.batch([
+      this.db.prepare('UPDATE users SET is_blocked = 1, updated_at = datetime(\'now\') WHERE id = ?').bind(userId),
+      this.db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(userId),
+    ]);
+  }
+
+  /** Unblock a user (they can log in again). */
+  unblockUser(userId: string) {
+    return this.db.prepare(
+      'UPDATE users SET is_blocked = 0, updated_at = datetime(\'now\') WHERE id = ?'
+    ).bind(userId).run();
+  }
+
+  /**
+   * Permanently delete a user with manual cascade. D1 FKs are OFF
+   * (PRAGMA foreign_keys is never enabled), so ON DELETE CASCADE is
+   * documentation-only. We delete all 23 dependent tables + the user row
+   * in dependency order (children before parents) via a single db.batch()
+   * which executes statements in array order.
+   */
+  async deleteUser(userId: string) {
+    await this.db.batch([
+      // ─── Level 0: grandchildren (depend on intermediate tables) ───
+      // Subqueries read from intermediate tables — they still exist at this point.
+      this.db.prepare(
+        'DELETE FROM s3_multipart_parts WHERE upload_id IN (SELECT upload_id FROM s3_multipart_uploads WHERE user_id = ?)'
+      ).bind(userId),
+      this.db.prepare(
+        'DELETE FROM shared_link_logs WHERE shared_link_id IN (SELECT id FROM shared_links WHERE user_id = ?)'
+      ).bind(userId),
+      this.db.prepare(
+        'DELETE FROM automation_logs WHERE rule_id IN (SELECT id FROM automation_rules WHERE user_id = ?)'
+      ).bind(userId),
+      this.db.prepare(
+        'DELETE FROM sync_state WHERE drive_account_id IN (SELECT id FROM drive_accounts WHERE user_id = ?)'
+      ).bind(userId),
+      this.db.prepare(
+        'DELETE FROM quota_cache WHERE drive_account_id IN (SELECT id FROM drive_accounts WHERE user_id = ?)'
+      ).bind(userId),
+      this.db.prepare(
+        'DELETE FROM drive_folders WHERE drive_account_id IN (SELECT id FROM drive_accounts WHERE user_id = ?)'
+      ).bind(userId),
+      this.db.prepare(
+        'DELETE FROM drive_tokens WHERE drive_account_id IN (SELECT id FROM drive_accounts WHERE user_id = ?)'
+      ).bind(userId),
+      this.db.prepare(
+        'DELETE FROM s3_lifecycle_rules WHERE workspace_id IN (SELECT id FROM workspaces WHERE owner_id = ?)'
+      ).bind(userId),
+      this.db.prepare(
+        'DELETE FROM workspace_policies WHERE workspace_id IN (SELECT id FROM workspaces WHERE owner_id = ?)'
+      ).bind(userId),
+      this.db.prepare(
+        'DELETE FROM workspace_folders WHERE workspace_id IN (SELECT id FROM workspaces WHERE owner_id = ?)'
+      ).bind(userId),
+      // ─── Level 1: intermediate parents (depend on users; have grandchildren) ───
+      this.db.prepare('DELETE FROM s3_multipart_uploads WHERE user_id = ?').bind(userId),
+      this.db.prepare('DELETE FROM shared_links WHERE user_id = ?').bind(userId),
+      this.db.prepare('DELETE FROM automation_rules WHERE user_id = ?').bind(userId),
+      this.db.prepare('DELETE FROM drive_accounts WHERE user_id = ?').bind(userId),
+      // ─── Level 2: direct children of users (no dependents) ───
+      this.db.prepare('DELETE FROM workspaces WHERE owner_id = ?').bind(userId),
+      this.db.prepare('DELETE FROM files WHERE user_id = ?').bind(userId),
+      this.db.prepare('DELETE FROM workspace_members WHERE user_id = ?').bind(userId),
+      this.db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(userId),
+      this.db.prepare('DELETE FROM audit_logs WHERE actor_id = ?').bind(userId),
+      this.db.prepare('DELETE FROM invitation_codes WHERE created_by = ?').bind(userId),
+      this.db.prepare('DELETE FROM s3_credentials WHERE user_id = ?').bind(userId),
+      this.db.prepare('DELETE FROM category_cache WHERE user_id = ?').bind(userId),
+      this.db.prepare('DELETE FROM oauth_states WHERE user_id = ?').bind(userId),
+      // ─── Level 3: root ───
+      this.db.prepare('DELETE FROM users WHERE id = ?').bind(userId),
+    ]);
   }
 
   // ─── invitation_codes ───

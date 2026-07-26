@@ -17,6 +17,13 @@ interface SchemaObject {
 // Also normalizes quoted identifiers — ALTER TABLE ... RENAME TO wraps the
 // table name in double quotes in sqlite_master, which would cause a false
 // mismatch vs schema.sql's unquoted CREATE TABLE.
+//
+// The .replace(/\s+,/g, ',') step handles ALTER TABLE ADD COLUMN's whitespace
+// quirk: SQLite appends the new column with a leading space before the comma
+// (") ," instead of ","), which would cause a false mismatch vs schema.sql's
+// clean formatting. This lets migrations use safe ALTER TABLE instead of
+// destructive table recreation (DROP TABLE on a table with inbound CASCADE FKs
+// would cascade-delete dependent data).
 function dumpSchema(db: Database.Database): SchemaObject[] {
   const rows = db
     .prepare(
@@ -26,7 +33,11 @@ function dumpSchema(db: Database.Database): SchemaObject[] {
   return rows.map((r) => ({
     type: r.type,
     name: r.name,
-    sql: r.sql.replace(/\s+/g, ' ').trim().replace(/"/g, ''),
+    sql: r.sql
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/"/g, '')
+      .replace(/\s+([,)])/g, '$1'),
   }));
 }
 

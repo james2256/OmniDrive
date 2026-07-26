@@ -443,6 +443,7 @@ export interface UserRow {
   name: string | null;
   avatar_url: string | null;
   is_super_admin: number;
+  is_blocked?: number;
   created_at: string;
   updated_at: string;
   s3_key?: string;

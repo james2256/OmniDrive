@@ -12,7 +12,7 @@ import { formatAbsoluteDate } from '../lib/utils';
 
 export function SharedLinksPage() {
   const { data: links = [], isLoading } = useSharedLinks();
-  const { copied: copiedId, copy } = useClipboard();
+  const { copiedId, copy } = useClipboard();
   const [editingLink, setEditingLink] = useState<SharedLink | null>(null);
   const { addToast } = useToastStore();
   const revokeMut = useRevokeSharedLink();
@@ -29,7 +29,7 @@ export function SharedLinksPage() {
   };
 
   const copyToClipboard = (id: string) => {
-    copy(`${window.location.origin}/shared/${id}`);
+    copy(`${window.location.origin}/shared/${id}`, id);
     addToast('success', 'Link copied to clipboard');
   };
 
@@ -98,7 +98,7 @@ export function SharedLinksPage() {
                   onClick={() => copyToClipboard(link.id)}
                   className="flex items-center justify-center gap-2 flex-1 py-2 px-4 rounded-lg bg-card border border-slate-200 text-slate-700 font-medium text-sm hover:bg-slate-50 hover:text-primary hover:border-blue-200 transition-colors"
                 >
-                  {copiedId ? (
+                  {copiedId === link.id ? (
                     <>
                       <Check size={16} className="text-green-500" />
                       <span className="text-green-600">Copied!</span>

@@ -122,11 +122,17 @@ drivesRouter.get('/:driveId/external-folders/:googleFolderId', async (c) => {
   const newFolders = await driveRepo.findDriveFoldersByParent(driveId, googleFolderId);
   const newFiles = await driveRepo.findFilesByParent(driveId, googleFolderId);
 
+  // Build real breadcrumb (same pattern as sibling route at line 291).
+  // findBreadcrumbPath returns the folder chain (parent → child) without a root;
+  // the frontend prepends its own "My External Items" root entry.
+  const { results: breadcrumbPath } = await driveRepo.findBreadcrumbPath(driveId, googleFolderId);
+  const folderRow = await driveRepo.findDriveFolderByGoogleId(driveId, googleFolderId);
+
   return c.json({
-    folder: null,
+    folder: folderRow ? mapDriveFolderRow(folderRow as Record<string, unknown>) : null,
     subfolders: newFolders.results.map((r) => mapDriveFolderRow(r as Record<string, unknown>)),
     files: newFiles.results.map((r) => mapFileRow(r as Record<string, unknown>)),
-    breadcrumb: [],
+    breadcrumb: breadcrumbPath.map((b) => ({ id: b.id, name: b.name })),
   });
 });
 

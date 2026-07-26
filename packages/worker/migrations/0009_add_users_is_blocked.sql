@@ -1,0 +1,15 @@
+-- Add is_blocked column for user blocking (admin feature).
+-- status was previously hardcoded to 'active' in admin.ts GET/POST /users.
+-- is_blocked = 1 means the user cannot log in and existing sessions are deleted
+-- (blockUser deletes sessions immediately for kick-out; login route rejects blocked users).
+--
+-- SAFE approach: ALTER TABLE ADD COLUMN. Does NOT use DROP TABLE — the users
+-- table has 12 inbound ON DELETE CASCADE foreign keys (sessions, drive_accounts,
+-- workspaces, workspace_members, files, shared_links, automation_rules, audit_logs,
+-- invitation_codes, s3_credentials, s3_multipart_uploads, category_cache). Dropping
+-- users would cascade-delete ALL dependent data. D1 enforces foreign keys.
+--
+-- ALTER TABLE ADD COLUMN appends the column at the end with a minor whitespace
+-- quirk (") ," instead of ",") in sqlite_master.sql. The migrations-parity test
+-- normalizes this with .replace(/\s+,/g, ',') so it's not a concern.
+ALTER TABLE users ADD COLUMN is_blocked INTEGER NOT NULL DEFAULT 0;

@@ -2,8 +2,8 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { api } from '../lib/api';
 import { useDrives, useGetDriveInfo } from '../hooks/useDrives';
 import { useSharedLinks, useIsTargetSharedCallback } from '../hooks/useSharedLinks';
-import { useToggleStar } from '../hooks/useFileMutations';
-import type { WorkspaceFolder, FileEntry, DriveFolder, BreadcrumbItem } from '../types';
+import { useItemModals } from '../hooks/useItemModals';
+import type { WorkspaceFolder, FileEntry, BreadcrumbItem } from '../types';
 import { WorkspaceSidebar } from '../components/workspaces/WorkspaceSidebar';
 import { WorkspaceMainView } from '../components/workspaces/WorkspaceMainView';
 import { CreateFolderModal } from '../components/CreateFolderModal';
@@ -11,8 +11,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { RenameDialog } from '../components/RenameDialog';
 import { useToastStore } from '../stores/useToastStore';
 import { useSelectionStore, type SelectedItem } from '../stores/useSelectionStore';
-import { useUIStore } from '../stores/useUIStore';
-import { FilePreviewModal } from '../components/FilePreviewModal';
+import { ItemModals } from '../components/files/ItemModals';
 import { SetRetentionPolicyDialog } from '../components/workspaces/SetRetentionPolicyDialog';
 
 export function WorkspacesPage() {
@@ -24,12 +23,12 @@ export function WorkspacesPage() {
   const [retentionTargetId, setRetentionTargetId] = useState<string | null>(null);
   const [createModal, setCreateModal] = useState<{ parentId: string | null; title: string } | null>(null);
   const addToast = useToastStore(state => state.addToast);
-  const { clearSelection, toggleSelection } = useSelectionStore();
-  const setIsInfoPanelOpen = useUIStore(s => s.setIsInfoPanelOpen);
+  const clearSelection = useSelectionStore(s => s.clearSelection);
   const { data: drivesData } = useDrives();
   const drives = drivesData?.drives ?? [];
   const [wsSidebarOpen, setWsSidebarOpen] = useState(false);
-  const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
+  // Sidebar-managed workspace-folder actions (rename/delete workspace folders,
+  // distinct from file-item actions handled by useItemModals)
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [renameTarget, setRenameTarget] = useState<{ id: string; currentName: string } | null>(null);
@@ -72,10 +71,16 @@ export function WorkspacesPage() {
     return () => { ignore = true; };
   }, [activeFolderId, clearSelection, fetchContents]);
 
+  const refreshContents = useCallback(() => {
+    if (activeFolderId) fetchContents(activeFolderId);
+  }, [activeFolderId, fetchContents]);
+
   const openCreateModal = (parentId?: string | null) => {
     const title = parentId ? 'New Folder' : 'New Workspace';
     setCreateModal({ parentId: parentId ?? null, title });
   };
+
+  // ─── Sidebar workspace-folder actions (rename/delete workspace folders) ───
 
   const handleRename = (id: string) => {
     const folder = folders.find(f => f.id === id);
@@ -132,12 +137,6 @@ export function WorkspacesPage() {
     }
   };
 
-  const handleViewInfo = useCallback((item: FileEntry | WorkspaceFolder | DriveFolder, type: 'file' | 'folder') => {
-    clearSelection();
-    toggleSelection({ type, item } as SelectedItem);
-    setIsInfoPanelOpen(true);
-  }, [clearSelection, toggleSelection, setIsInfoPanelOpen]);
-
   const activeFolder = useMemo(() => folders.find(f => f.id === activeFolderId) || null, [folders, activeFolderId]);
 
   const breadcrumbPath = useMemo(() => {
@@ -151,14 +150,12 @@ export function WorkspacesPage() {
   }, [activeFolder, folders]);
 
   const getDriveInfo = useGetDriveInfo(drives);
-  const onPreviewFile = useCallback((file: FileEntry) => setPreviewFile(file), []);
-  const onShare = useCallback(() => {}, []);
-  const onRenameFile = useCallback(() => {}, []);
-  const onMoveDrive = useCallback(() => {}, []);
   const { data: sharedLinks = [] } = useSharedLinks();
   const isTargetShared = useIsTargetSharedCallback(sharedLinks);
   const errorDrives = useMemo(() => new Set<string>(), []);
 
+  // Remove a file from the current workspace (non-destructive: moves to root).
+  // Distinct from "Delete" (permanent) — both are available in the context menu.
   const onRemoveFromWorkspace = useCallback(async (id: string) => {
     try {
       await api.moveFile(id, null);
@@ -169,13 +166,19 @@ export function WorkspacesPage() {
     }
   }, [addToast]);
 
-  const toggleStar = useToggleStar();
-
   const handleSetRetentionPolicy = useCallback((id: string, type: 'file' | 'folder') => {
     if (type === 'folder') {
       setRetentionTargetId(id);
     }
   }, []);
+
+  // Shared modal state + handlers for file/folder item interactions
+  // (preview, share, rename, delete, move, move-drive, download, add-to-workspace)
+  const itemModals = useItemModals({
+    onRefresh: refreshContents,
+    allFolders: subfolders,
+    files,
+  });
 
   const fileTabProps = useMemo(() => ({
     files,
@@ -185,29 +188,20 @@ export function WorkspacesPage() {
     errorDrives,
     actions: {
       onNavigateFolder: setActiveFolderId,
-      onPreviewFile,
-      onShare,
-      onRenameFile,
-      onDeleteFile: onRemoveFromWorkspace,
-      onMoveDrive,
-      onToggleStar: toggleStar,
-      onViewInfo: handleViewInfo,
+      onPreviewFile: itemModals.setPreviewFile,
+      onShare: (id: string, type: 'file' | 'folder') => itemModals.setShareTarget({ id, type }),
+      onRenameFileRequest: itemModals.handleRenameFileRequest,
+      onDeleteFile: itemModals.handleDeleteFile,
+      onRemoveFromWorkspace,
+      onMoveDrive: (file: FileEntry) => itemModals.setMoveDriveFiles([file]),
+      onMove: (items: SelectedItem[]) => itemModals.setMoveTarget(items),
+      onToggleStar: itemModals.toggleStar,
+      onViewInfo: itemModals.handleViewInfo,
       onSetRetentionPolicy: handleSetRetentionPolicy,
     },
   }), [
-    files,
-    subfolders,
-    getDriveInfo,
-    onPreviewFile,
-    onShare,
-    onRenameFile,
-    onRemoveFromWorkspace,
-    onMoveDrive,
-    toggleStar,
-    isTargetShared,
-    errorDrives,
-    handleViewInfo,
-    handleSetRetentionPolicy,
+    files, subfolders, getDriveInfo, isTargetShared, errorDrives,
+    itemModals, onRemoveFromWorkspace, handleSetRetentionPolicy,
   ]);
 
   return (
@@ -244,11 +238,6 @@ export function WorkspacesPage() {
         onClose={() => setCreateModal(null)}
         onSuccess={fetchTree}
       />
-      <FilePreviewModal
-        open={!!previewFile}
-        file={previewFile ?? undefined}
-        onClose={() => setPreviewFile(null)}
-      />
       <ConfirmDialog
         open={deleteTargetId !== null}
         title="Delete Workspace"
@@ -272,9 +261,9 @@ export function WorkspacesPage() {
         open={!!retentionTargetId}
         onClose={() => setRetentionTargetId(null)}
         onSubmit={async (action, days) => {
-          if (activeFolderId && retentionTargetId) {
+          if (activeFolderId && retentionTargetId && activeFolder) {
             try {
-              await api.createWorkspacePolicy(activeFolderId, {
+              await api.createWorkspacePolicy(activeFolder.workspaceId, {
                 targetType: 'folder',
                 targetId: retentionTargetId,
                 policyType: 'data_retention',
@@ -287,6 +276,8 @@ export function WorkspacesPage() {
           }
         }}
       />
+      {/* Shared file/folder modals (preview, share, rename, delete, move, etc.) */}
+      <ItemModals modals={itemModals} driveId={drives[0]?.id ?? ''} onRefresh={refreshContents} />
     </div>
   );
 }
