@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSelectionStore } from '../../stores/useSelectionStore';
 import { formatFileSize, formatRelativeTime } from '../../lib/utils';
 import type { FileEntry } from '../../types';
 import { api } from '../../lib/api';
+import { invalidateAfterFileMutation } from '../../lib/invalidate';
 import { FileIcon, getFileTypeName } from '../files/FileIcon';
 import { DriveBadge } from '../DriveBadge';
 import { X, File, Folder, RefreshCw } from 'lucide-react';
@@ -21,6 +23,7 @@ export const InfoPanel: React.FC = () => {
   // only called when selectedItems.length === 1).
   const [isSyncing, setIsSyncing] = useState(false);
   const addToast = useToastStore((s) => s.addToast);
+  const queryClient = useQueryClient();
   const { data: drivesData } = useDrives();
   const drives = drivesData?.drives ?? [];
 
@@ -34,6 +37,7 @@ export const InfoPanel: React.FC = () => {
       const driveId = (singleSelection.item as unknown as FileEntry & { driveAccountId?: string }).driveAccountId || '';
       await api.forceSyncFolder(singleSelection.item.id || '', driveId);
       addToast('success', 'Sync queued. Data will update shortly.');
+      invalidateAfterFileMutation(queryClient);
     } catch (err: unknown) {
       addToast('error', (err instanceof Error ? err.message : 'Failed to queue sync.'));
     } finally {
@@ -201,10 +205,11 @@ export const InfoPanel: React.FC = () => {
                   } else if ((item as unknown as FileEntry & { workspaceId?: string; lastSyncedAt?: string }).workspaceId) {
                     await api.updateFolderMetadata((item as unknown as FileEntry & { workspaceId?: string; lastSyncedAt?: string }).workspaceId, item.id || '', newMeta);
                   }
-                  (item as unknown as FileEntry & { workspaceId?: string; lastSyncedAt?: string }).metadata = newMeta;
+                  addToast('success', 'Metadata updated');
                   form.reset();
-                } catch (err) {
-                  console.error(err);
+                  invalidateAfterFileMutation(queryClient);
+                } catch {
+                  addToast('error', 'Failed to update metadata');
                 }
               }}
               className="flex gap-2"

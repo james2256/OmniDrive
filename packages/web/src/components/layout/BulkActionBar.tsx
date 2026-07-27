@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSelectionStore } from '../../stores/useSelectionStore';
 import { useToastStore } from '../../stores/useToastStore';
 import { api } from '../../lib/api';
+import { invalidateAfterFileMutation } from '../../lib/invalidate';
 import { X, Trash2, Folder, Star, HardDrive, RotateCcw } from 'lucide-react';
 import { ConfirmDialog } from '../ConfirmDialog';
 import { Button } from '../ui/Button';
@@ -17,6 +19,7 @@ export interface BulkActionBarProps {
 export const BulkActionBar: React.FC<BulkActionBarProps> = ({ onActionComplete, onMoveRequested, onWorkspaceRequested, onMoveDriveRequested, isTrashView = false }) => {
   const { selectedItems, clearSelection } = useSelectionStore();
   const addToast = useToastStore((s) => s.addToast);
+  const qc = useQueryClient();
   const [isProcessing, setIsProcessing] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
@@ -73,6 +76,7 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({ onActionComplete, 
     setIsConfirming(false);
     setConfirmOpen(false);
     clearSelection();
+    invalidateAfterFileMutation(qc);
     onActionComplete();
   };
 
@@ -107,6 +111,7 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({ onActionComplete, 
 
     setIsProcessing(false);
     clearSelection();
+    invalidateAfterFileMutation(qc);
     onActionComplete();
   };
 

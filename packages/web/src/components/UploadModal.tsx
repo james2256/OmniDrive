@@ -29,7 +29,17 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
   const handleUpload = async () => {
     try {
       await startUpload(selectedDriveId || undefined, folderId);
-      addToast('success', 'Upload completed');
+      const { queue: finalQueue } = useUploadStore.getState();
+      const failedCount = finalQueue.filter((q) => q.status === 'error').length;
+      const succeededCount = finalQueue.filter((q) => q.status === 'done').length;
+
+      if (succeededCount === 0 && failedCount > 0) {
+        addToast('error', `Upload failed — ${failedCount} file(s) could not be uploaded`);
+      } else if (failedCount > 0) {
+        addToast('success', `${succeededCount} file(s) uploaded, ${failedCount} failed`);
+      } else {
+        addToast('success', 'Upload completed');
+      }
       onSuccess();
     } catch {
       addToast('error', 'Upload failed');

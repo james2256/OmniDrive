@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
+import { useClipboard } from '../hooks/useClipboard';
 import { Copy, Check, Share2, Calendar, Lock, Settings, ChevronDown, ChevronUp, Eye, EyeOff } from 'lucide-react';
 import { createSharedLink } from '../lib/api';
 import { useInvalidateSharedLinks } from '../hooks/useSharedLinks';
@@ -28,16 +29,7 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [sharedUrl, setSharedUrl] = useState('');
-  const [copied, setCopied] = useState(false);
-  const timeoutRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current !== null) {
-        clearTimeout(timeoutRef.current);
-      }
-    };
-  }, []);
+  const { copiedId, copy } = useClipboard();
 
   // Reset form state each time the modal opens so stale input/URL don't persist.
   useEffect(() => {
@@ -51,7 +43,6 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
       setRequireEmail(false);
       setWebhookUrl('');
       setSharedUrl('');
-      setCopied(false);
       setError('');
     }
   }, [open]);
@@ -87,20 +78,7 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
     }
   };
 
-  const copyToClipboard = async () => {
-    try {
-      await navigator.clipboard.writeText(sharedUrl);
-      setCopied(true);
-      setError('');
-      if (timeoutRef.current !== null) {
-        clearTimeout(timeoutRef.current);
-      }
-      timeoutRef.current = window.setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy', err);
-      setError('Failed to copy to clipboard');
-    }
-  };
+  const handleCopy = () => copy(sharedUrl, 'share-modal');
 
   const currentDateTime = toLocalDatetimeInput(new Date());
 
@@ -223,10 +201,10 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
                 <Button
                   variant="secondary"
                   className={cn('w-9 h-9 justify-center p-0 shrink-0')}
-                  onClick={copyToClipboard}
+                  onClick={handleCopy}
                   title="Copy to clipboard"
                 >
-                  {copied ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
+                  {copiedId === 'share-modal' ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
                 </Button>
               </div>
               <DialogFooter>

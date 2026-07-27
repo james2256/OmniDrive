@@ -1,7 +1,6 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useToastStore } from '../stores/useToastStore';
 import { FileGrid } from '../components/files/FileGrid';
 import { ShareModal } from '../components/ShareModal';
 import { MoveDriveModal } from '../components/MoveDriveModal';
@@ -9,7 +8,9 @@ import { FilePreviewModal } from '../components/FilePreviewModal';
 import { api } from '../lib/api';
 import { useDrives, useGetDriveInfo } from '../hooks/useDrives';
 import { useSharedLinks, useIsTargetSharedCallback } from '../hooks/useSharedLinks';
+import { useToggleStar } from '../hooks/useFileMutations';
 import { qk } from '../lib/queryKeys';
+import { invalidateAfterFileMutation } from '../lib/invalidate';
 import type { FileEntry } from '../types';
 
 export function SearchPage() {
@@ -18,7 +19,6 @@ export function SearchPage() {
 
   const { data: drivesData } = useDrives();
   const drives = useMemo(() => drivesData?.drives ?? [], [drivesData]);
-  const { addToast } = useToastStore();
   const queryClient = useQueryClient();
   const { data: sharedLinks = [] } = useSharedLinks();
 
@@ -27,6 +27,7 @@ export function SearchPage() {
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
 
   const isTargetShared = useIsTargetSharedCallback(sharedLinks);
+  const toggleStar = useToggleStar();
 
   const { data: searchResults, isLoading } = useQuery({
     queryKey: qk.search(query),
@@ -42,30 +43,6 @@ export function SearchPage() {
     ...(searchResults?.driveFolders ?? []),
     ...(searchResults?.folders ?? []),
   ];
-
-  const handleToggleStar = useCallback(
-    (id: string, type: 'file' | 'folder', currentStarStatus: boolean) => {
-      const promise =
-        type === 'file'
-          ? currentStarStatus
-            ? api.unstarFile(id)
-            : api.starFile(id)
-          : currentStarStatus
-            ? api.unstarFolder(id)
-            : api.starFolder(id);
-
-      promise
-        .then(() => {
-          addToast(
-            'success',
-            `${type === 'file' ? 'File' : 'Folder'} ${currentStarStatus ? 'unstarred' : 'starred'}`,
-          );
-          queryClient.invalidateQueries({ queryKey: qk.search(query) });
-        })
-        .catch(() => addToast('error', 'Failed to update star status'));
-    },
-    [addToast, query, queryClient],
-  );
 
   const getDriveInfo = useGetDriveInfo(drives);
 
@@ -97,7 +74,7 @@ export function SearchPage() {
               onShare: (id, type) => setShareTarget({ id, type }),
               onMoveDrive: (file) => setMoveDriveFiles([file]),
               onPreviewFile: setPreviewFile,
-              onToggleStar: handleToggleStar,
+              onToggleStar: toggleStar,
             }}
           />
         </div>
@@ -120,7 +97,7 @@ export function SearchPage() {
           onClose={() => setMoveDriveFiles([])}
           onSuccess={() => {
             setMoveDriveFiles([]);
-            queryClient.invalidateQueries({ queryKey: qk.search(query) });
+            invalidateAfterFileMutation(queryClient);
           }}
         />
       )}

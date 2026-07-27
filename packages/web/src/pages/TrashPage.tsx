@@ -1,12 +1,11 @@
 import { useState, useMemo } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { FileGrid } from '../components/files/FileGrid';
 import { BulkActionBar } from '../components/layout/BulkActionBar';
 import { api } from '../lib/api';
 import { useDrives, useGetDriveInfo } from '../hooks/useDrives';
 import { useSharedLinks, useIsTargetSharedCallback } from '../hooks/useSharedLinks';
 import { qk } from '../lib/queryKeys';
-import { invalidateAfterFileMutation } from '../lib/invalidate';
 import type { FileEntry } from '../types';
 import { FilePreviewModal } from '../components/FilePreviewModal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -20,7 +19,6 @@ export function TrashPage() {
   const drives = useMemo(() => drivesData?.drives ?? [], [drivesData]);
   const { data: sharedLinks = [] } = useSharedLinks();
   const isTargetShared = useIsTargetSharedCallback(sharedLinks);
-  const queryClient = useQueryClient();
 
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
   const [confirmFileDelete, setConfirmFileDelete] = useState<string | null>(null);
@@ -54,7 +52,7 @@ export function TrashPage() {
     <div className="p-4 sm:p-6 space-y-6">
       <BulkActionBar
         isTrashView={true}
-        onActionComplete={() => invalidateAfterFileMutation(queryClient)}
+        onActionComplete={() => {}}
       />
 
       <div className="flex items-center justify-between">
