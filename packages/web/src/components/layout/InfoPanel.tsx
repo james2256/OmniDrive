@@ -209,8 +209,8 @@ export const InfoPanel: React.FC = () => {
               }}
               className="flex gap-2"
             >
-              <input name="metaKey" placeholder="Key" className="w-1/3 border border-slate-400 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary" />
-              <input name="metaValue" placeholder="Value" className="flex-1 border border-slate-400 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary" />
+              <input name="metaKey" placeholder="Key" className="w-1/3 border border-slate-400 rounded px-2 py-1 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
+              <input name="metaValue" placeholder="Value" className="flex-1 border border-slate-400 rounded px-2 py-1 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
               <Button type="submit" variant="primary" className="bg-slate-800 px-2 py-1 rounded text-xs">Add</Button>
             </form>
           </div>

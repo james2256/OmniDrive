@@ -82,7 +82,7 @@ export function MoveDriveModal({ files, onClose, onSuccess }: MoveDriveModalProp
                   key={drive.id}
                   onClick={() => handleMove(drive)}
                   disabled={isMoving}
-                  className={`flex items-center p-2.5 border border-slate-200 rounded-lg transition-colors text-left focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+                  className={`flex items-center p-2.5 border border-slate-200 rounded-lg transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
                     isMoving && movingToDriveId !== drive.id
                       ? 'opacity-50 cursor-not-allowed'
                       : 'hover:bg-slate-50'

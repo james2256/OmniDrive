@@ -81,7 +81,7 @@ const AddUserModal: React.FC<{ open: boolean, onClose: () => void, onSuccess: ()
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Role</label>
-                <select value={role} onChange={e => setRole(e.target.value as 'super_admin' | 'member')} className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-shadow">
+                <select value={role} onChange={e => setRole(e.target.value as 'super_admin' | 'member')} className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-xl text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus:border-primary transition-shadow">
                   <option value="member">Member</option>
                   <option value="super_admin">Super Admin</option>
                 </select>
@@ -376,7 +376,7 @@ export const AdminUsersPage: React.FC = () => {
                 value={inviteCode}
                 onChange={e => setInviteCode(e.target.value)}
                 placeholder="Code (e.g. TEAM-2026)"
-                className="border border-slate-400 px-3 py-2 rounded focus:ring-2 focus:ring-primary outline-none"
+                className="border border-slate-400 px-3 py-2 rounded focus-visible:ring-2 focus-visible:ring-primary outline-none"
                 required
               />
               <input
@@ -384,7 +384,7 @@ export const AdminUsersPage: React.FC = () => {
                 value={inviteMaxUses}
                 onChange={e => setInviteMaxUses(Number(e.target.value))}
                 placeholder="Max Uses"
-                className="border border-slate-400 w-24 px-3 py-2 rounded focus:ring-2 focus:ring-primary outline-none"
+                className="border border-slate-400 w-24 px-3 py-2 rounded focus-visible:ring-2 focus-visible:ring-primary outline-none"
                 required
                 min="0"
               />

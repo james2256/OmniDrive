@@ -46,7 +46,7 @@ export function SetupPage() {
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-4 py-2 border border-slate-400 rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-2 border border-slate-400 rounded-lg bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               />
             </div>
             <div>
@@ -61,7 +61,7 @@ export function SetupPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2 border border-slate-400 rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-2 border border-slate-400 rounded-lg bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               />
             </div>
             <Button

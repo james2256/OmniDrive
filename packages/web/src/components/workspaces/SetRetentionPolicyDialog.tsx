@@ -46,7 +46,7 @@ export function SetRetentionPolicyDialog({ open, onClose, onSubmit }: Props) {
               <select
                 value={action}
                 onChange={(e) => setAction(e.target.value as 'prevent_deletion' | 'auto_delete')}
-                className="mt-1 w-full px-3 py-1.5 bg-card border border-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-shadow"
+                className="mt-1 w-full px-3 py-1.5 bg-card border border-slate-400 rounded-xl text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary transition-shadow"
               >
                 <option value="auto_delete">Auto-Delete (Retention limit)</option>
                 <option value="prevent_deletion">Prevent Deletion (Legal Hold)</option>

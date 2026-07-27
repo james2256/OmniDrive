@@ -106,7 +106,7 @@ export function MoveModal({ open, items, driveId, onClose, onSuccess }: MoveModa
                 {i > 0 && <ChevronRight size={12} className="text-slate-500" />}
                 {i < breadcrumb.length - 1 ? (
                   // eslint-disable-next-line no-restricted-syntax -- breadcrumb navigation link
-                  <button onClick={() => handleBreadcrumbClick(i)} className="hover:text-slate-900 hover:underline focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2">
+                  <button onClick={() => handleBreadcrumbClick(i)} className="hover:text-slate-900 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2">
                     {item.name}
                   </button>
                 ) : (
@@ -129,7 +129,7 @@ export function MoveModal({ open, items, driveId, onClose, onSuccess }: MoveModa
                 <button
                   key={folder.googleFolderId}
                   onClick={() => handleFolderClick(folder.googleFolderId, folder.name)}
-                  className="flex items-center gap-2 w-full px-2 py-1.5 rounded-lg hover:bg-slate-100 transition-colors text-left focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                  className="flex items-center gap-2 w-full px-2 py-1.5 rounded-lg hover:bg-slate-100 transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                 >
                   <FolderInput size={16} className="text-slate-500 shrink-0" />
                   <span className="text-sm text-slate-700 truncate">{folder.name}</span>

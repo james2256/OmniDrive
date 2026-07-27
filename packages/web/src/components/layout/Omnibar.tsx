@@ -139,7 +139,7 @@ export const Omnibar: React.FC = () => {
                     <button
                       key={`df-${folder.googleFolderId}`}
                       onClick={() => handleDriveFolderClick(folder)}
-                      className="w-full px-4 py-2 hover:bg-slate-50 flex items-center gap-3 text-left focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                      className="w-full px-4 py-2 hover:bg-slate-50 flex items-center gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                     >
                       <Folder size={18} className="text-blue-500 shrink-0" />
                       <div className="flex-1 min-w-0">
@@ -152,7 +152,7 @@ export const Omnibar: React.FC = () => {
                     <button
                       key={`wf-${folder.id}`}
                       onClick={() => handleWorkspaceFolderClick(folder)}
-                      className="w-full px-4 py-2 hover:bg-slate-50 flex items-center gap-3 text-left focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                      className="w-full px-4 py-2 hover:bg-slate-50 flex items-center gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                     >
                       <Folder size={18} className="text-blue-500 shrink-0" />
                       <div className="flex-1 min-w-0">
@@ -170,7 +170,7 @@ export const Omnibar: React.FC = () => {
                     <button
                       key={file.id}
                       onClick={() => handleFileClick(file)}
-                      className="w-full px-4 py-2 hover:bg-slate-50 flex items-center gap-3 text-left focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                      className="w-full px-4 py-2 hover:bg-slate-50 flex items-center gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                     >
                       <File size={18} className="text-slate-500 shrink-0" />
                       <div className="flex-1 min-w-0">

@@ -127,7 +127,7 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
                     value=""
                     checked={!selectedDriveId}
                     onChange={() => setSelectedDriveId('')}
-                    className="w-4 h-4 text-primary border-slate-400 focus:ring-primary"
+                    className="w-4 h-4 text-primary border-slate-400 focus-visible:ring-primary"
                   />
                   <span className="text-sm text-slate-800">Auto (most free space)</span>
                 </label>
@@ -139,7 +139,7 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
                       value={drive.id}
                       checked={selectedDriveId === drive.id}
                       onChange={() => setSelectedDriveId(drive.id)}
-                      className="w-4 h-4 text-primary border-slate-400 focus:ring-primary"
+                      className="w-4 h-4 text-primary border-slate-400 focus-visible:ring-primary"
                     />
                     <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: getDriveColor(i) }} />
                     <span className="text-sm text-slate-800 flex-1 truncate">{drive.email}</span>

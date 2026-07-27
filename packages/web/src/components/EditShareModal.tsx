@@ -151,7 +151,7 @@ export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
                       type="checkbox"
                       checked={allowDownloads}
                       onChange={(e) => setAllowDownloads(e.target.checked)}
-                      className="w-3.5 h-3.5 rounded border-slate-400 text-primary focus:ring-primary cursor-pointer"
+                      className="w-3.5 h-3.5 rounded border-slate-400 text-primary focus-visible:ring-primary cursor-pointer"
                     />
                     <span className="select-none">Allow downloads</span>
                   </label>
@@ -161,7 +161,7 @@ export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
                         type="checkbox"
                         checked={allowUploads}
                         onChange={(e) => setAllowUploads(e.target.checked)}
-                        className="w-3.5 h-3.5 rounded border-slate-400 text-primary focus:ring-primary cursor-pointer"
+                        className="w-3.5 h-3.5 rounded border-slate-400 text-primary focus-visible:ring-primary cursor-pointer"
                       />
                       <span className="select-none">Allow uploads (public drop folder)</span>
                     </label>
@@ -171,7 +171,7 @@ export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
                       type="checkbox"
                       checked={requireEmail}
                       onChange={(e) => setRequireEmail(e.target.checked)}
-                      className="w-3.5 h-3.5 rounded border-slate-400 text-primary focus:ring-primary cursor-pointer"
+                      className="w-3.5 h-3.5 rounded border-slate-400 text-primary focus-visible:ring-primary cursor-pointer"
                     />
                     <span className="select-none">Require email to view</span>
                   </label>

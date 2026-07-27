@@ -46,7 +46,7 @@ export function AccountPasswordForm() {
           required
           value={currentPassword}
           onChange={(e) => setCurrentPassword(e.target.value)}
-          className="w-full border border-slate-400 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-card"
+          className="w-full border border-slate-400 rounded-xl p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-card"
         />
       </div>
       <div>
@@ -61,7 +61,7 @@ export function AccountPasswordForm() {
           minLength={8}
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
-          className="w-full border border-slate-400 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-card"
+          className="w-full border border-slate-400 rounded-xl p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-card"
         />
         <p className="mt-1 text-xs text-slate-500">Min 8 chars, with upper, lower, and a number.</p>
       </div>
@@ -77,7 +77,7 @@ export function AccountPasswordForm() {
           minLength={8}
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
-          className="w-full border border-slate-400 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-card"
+          className="w-full border border-slate-400 rounded-xl p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-card"
         />
       </div>
       <div className="flex justify-end pt-1">

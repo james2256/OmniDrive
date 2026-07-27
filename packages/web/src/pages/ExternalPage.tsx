@@ -126,7 +126,7 @@ export function ExternalPage() {
                 placeholder="Filter..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-3 pr-8 py-2 text-sm border border-slate-400 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full pl-3 pr-8 py-2 text-sm border border-slate-400 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               />
               {searchQuery && (
                 <Button

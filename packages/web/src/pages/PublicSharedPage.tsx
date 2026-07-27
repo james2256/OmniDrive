@@ -116,7 +116,7 @@ export function PublicSharedPage() {
                 id="shared-password"
                 type="password"
                 autoComplete="current-password"
-                className="w-full px-4 py-2.5 bg-card border border-slate-400 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                className="w-full px-4 py-2.5 bg-card border border-slate-400 rounded-lg text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary transition-all"
                 placeholder="Enter password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

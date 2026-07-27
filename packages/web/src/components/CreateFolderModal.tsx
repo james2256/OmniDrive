@@ -93,7 +93,7 @@ export function CreateFolderModal({ open, parentId, title, onClose, onSuccess, d
                 <select
                   value={selectedDriveId}
                   onChange={(e) => setSelectedDriveId(e.target.value)}
-                  className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-shadow"
+                  className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-xl text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary transition-shadow"
                 >
                   <option value="">Select a drive…</option>
                   {(drives ?? []).map((drive, i) => (

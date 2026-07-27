@@ -173,7 +173,7 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
                         type="checkbox"
                         checked={allowDownloads}
                         onChange={(e) => setAllowDownloads(e.target.checked)}
-                        className="w-3.5 h-3.5 rounded border-slate-400 text-primary focus:ring-primary cursor-pointer"
+                        className="w-3.5 h-3.5 rounded border-slate-400 text-primary focus-visible:ring-primary cursor-pointer"
                       />
                       <span className="select-none">Allow downloads</span>
                     </label>
@@ -182,7 +182,7 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
                         type="checkbox"
                         checked={requireEmail}
                         onChange={(e) => setRequireEmail(e.target.checked)}
-                        className="w-3.5 h-3.5 rounded border-slate-400 text-primary focus:ring-primary cursor-pointer"
+                        className="w-3.5 h-3.5 rounded border-slate-400 text-primary focus-visible:ring-primary cursor-pointer"
                       />
                       <span className="select-none">Require email to view</span>
                     </label>
@@ -217,7 +217,7 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
                   type="text"
                   readOnly
                   value={sharedUrl}
-                  className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600 focus:outline-none"
+                  className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600 focus-visible:outline-none"
                   onClick={(e) => e.currentTarget.select()}
                 />
                 <Button

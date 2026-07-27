@@ -209,7 +209,7 @@ export function SettingsDrivesTab() {
                 onChange={(e) => setSaCredentials(e.target.value)}
                 placeholder="Paste service account JSON key..."
                 rows={6}
-                className="w-full font-mono text-xs border border-slate-400 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                className="w-full font-mono text-xs border border-slate-400 rounded-xl p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary resize-none"
                 required
               />
             </div>
@@ -222,7 +222,7 @@ export function SettingsDrivesTab() {
                 value={saFolderId}
                 onChange={(e) => setSaFolderId(e.target.value)}
                 placeholder="Google Drive folder ID shared with SA"
-                className="w-full border border-slate-400 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full border border-slate-400 rounded-xl p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 required
               />
             </div>
