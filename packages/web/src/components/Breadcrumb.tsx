@@ -8,49 +8,40 @@ interface BreadcrumbProps {
 }
 
 export function Breadcrumb({ items, driveId }: BreadcrumbProps) {
+  if (items.length === 0) return null;
+
   return (
-    <nav className="breadcrumb" aria-label="Folder navigation">
-      {items.map((item, i) => {
-        let linkTo = item.id === 'root' ? '/files' : `/files/${item.id}`;
-        if (driveId && item.id !== 'root') {
-          linkTo += `?driveId=${driveId}`;
-        }
+    <nav
+      aria-label="Folder navigation"
+      className="flex items-center gap-0.5 text-sm overflow-x-auto whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    >
+      <ol className="flex items-center gap-0.5 min-w-0">
+        {items.map((item, i) => {
+          const isLast = i === items.length - 1;
+          const linkTo = item.id === 'root' ? '/files' : `/files/${item.id}`;
+          const href = driveId && item.id !== 'root' ? `${linkTo}?driveId=${driveId}` : linkTo;
 
-        return (
-          <span key={item.id ?? `fallback-${i}`} className="breadcrumb-item">
-            {i > 0 && <ChevronRight size={14} className="breadcrumb-separator" />}
-            {i < items.length - 1 ? (
-              <Link to={linkTo} className="breadcrumb-link">
-                {item.name}
-              </Link>
-            ) : (
-              <span className="breadcrumb-current">{item.name}</span>
-            )}
-          </span>
-        );
-      })}
-
-      <style>{`
-        .breadcrumb {
-          display: flex;
-          align-items: center;
-          flex-wrap: nowrap;
-          gap: 2px;
-          font-size: var(--font-size-sm);
-          overflow-x: auto;
-          white-space: nowrap;
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-        }
-        .breadcrumb::-webkit-scrollbar {
-          display: none;
-        }
-        .breadcrumb-item { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
-        .breadcrumb-separator { color: var(--text-tertiary); }
-        .breadcrumb-link { color: var(--text-secondary); text-decoration: none; }
-        .breadcrumb-link:hover { color: var(--text-primary); text-decoration: underline; }
-        .breadcrumb-current { color: var(--text-primary); font-weight: 500; }
-      `}</style>
+          return (
+            <li key={item.id ?? `fallback-${i}`} className="flex items-center gap-0.5 shrink-0">
+              {i > 0 && (
+                <ChevronRight size={14} className="text-slate-500 shrink-0" aria-hidden="true" />
+              )}
+              {isLast ? (
+                <span className="text-sm font-medium text-slate-900 px-1 py-0.5" aria-current="page">
+                  {item.name}
+                </span>
+              ) : (
+                <Link
+                  to={href}
+                  className="text-sm text-slate-500 hover:text-slate-900 hover:underline underline-offset-2 px-1 py-0.5 rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                >
+                  {item.name}
+                </Link>
+              )}
+            </li>
+          );
+        })}
+      </ol>
     </nav>
   );
 }
