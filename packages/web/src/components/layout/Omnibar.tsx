@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, SlidersHorizontal, File, Folder } from 'lucide-react';
 import { api } from '../../lib/api';
 import type { FileEntry, WorkspaceFolder, DriveFolder } from '../../types';
+import { Button } from '../ui/Button';
 
 export const Omnibar: React.FC = () => {
   const navigate = useNavigate();
@@ -96,12 +97,14 @@ export const Omnibar: React.FC = () => {
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => { if (hasResults) setIsOpen(true); }}
         />
-        <button
+        <Button
           onClick={() => setShowAdvanced(!showAdvanced)}
-          className={`p-1.5 rounded-full hover:bg-slate-100 ${showAdvanced ? 'text-primary' : 'text-slate-600'}`}
+          variant="ghost"
+          className={`p-1.5 rounded-full ${showAdvanced ? 'text-primary' : 'text-slate-600'}`}
+          aria-label="Toggle advanced search"
         >
           <SlidersHorizontal size={20} />
-        </button>
+        </Button>
       </div>
 
       {showAdvanced && (
@@ -136,7 +139,7 @@ export const Omnibar: React.FC = () => {
                     <button
                       key={`df-${folder.googleFolderId}`}
                       onClick={() => handleDriveFolderClick(folder)}
-                      className="w-full px-4 py-2 hover:bg-slate-50 flex items-center gap-3 text-left"
+                      className="w-full px-4 py-2 hover:bg-slate-50 flex items-center gap-3 text-left focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
                     >
                       <Folder size={18} className="text-blue-500 shrink-0" />
                       <div className="flex-1 min-w-0">
@@ -149,7 +152,7 @@ export const Omnibar: React.FC = () => {
                     <button
                       key={`wf-${folder.id}`}
                       onClick={() => handleWorkspaceFolderClick(folder)}
-                      className="w-full px-4 py-2 hover:bg-slate-50 flex items-center gap-3 text-left"
+                      className="w-full px-4 py-2 hover:bg-slate-50 flex items-center gap-3 text-left focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
                     >
                       <Folder size={18} className="text-blue-500 shrink-0" />
                       <div className="flex-1 min-w-0">
@@ -167,7 +170,7 @@ export const Omnibar: React.FC = () => {
                     <button
                       key={file.id}
                       onClick={() => handleFileClick(file)}
-                      className="w-full px-4 py-2 hover:bg-slate-50 flex items-center gap-3 text-left"
+                      className="w-full px-4 py-2 hover:bg-slate-50 flex items-center gap-3 text-left focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
                     >
                       <File size={18} className="text-slate-500 shrink-0" />
                       <div className="flex-1 min-w-0">

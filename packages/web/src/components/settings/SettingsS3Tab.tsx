@@ -125,12 +125,13 @@ export function SettingsS3Tab() {
             <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">S3 API Keys</h2>
             <p className="text-xs text-slate-500 mt-1">Manage workspace-scoped and global S3-compatible credentials for accessing object storage.</p>
           </div>
-          <button
+          <Button
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 px-3 py-2 bg-primary hover:opacity-90 text-white rounded-lg sm:rounded-xl transition-colors font-medium text-xs shadow-sm flex-shrink-0"
+            variant="primary"
+            className="px-3 py-2 rounded-lg sm:rounded-xl text-xs flex-shrink-0"
           >
             <Plus size={16} /> Generate New Key
-          </button>
+          </Button>
         </div>
 
         {loadingS3 ? (
@@ -179,13 +180,14 @@ export function SettingsS3Tab() {
                         {formatAbsoluteDate(key.createdAt)}
                       </td>
                       <td className="px-4 py-3.5 text-right">
-                        <button
+                        <Button
                           onClick={() => handleRevokeKey(key.id)}
-                          className="p-1 text-slate-500 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                          variant="ghostDanger"
+                          className="p-1 text-slate-500 rounded-lg"
                           title="Revoke Key"
                         >
                           <Trash2 size={16} />
-                        </button>
+                        </Button>
                       </td>
                     </tr>
                   ))}
@@ -283,9 +285,10 @@ export function SettingsS3Tab() {
                     <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
                       Access Key ID
                     </label>
-                    <button
+                    <Button
                       onClick={() => handleCopy(createdCredential.accessKeyId, 'access')}
-                      className="flex items-center gap-1 text-xs text-primary hover:text-blue-700 font-medium"
+                      variant="ghost"
+                      className="gap-1 text-xs text-primary hover:text-blue-700 hover:bg-transparent px-0 py-0 rounded-none"
                     >
                       {copiedAccessKey ? (
                         <>
@@ -298,7 +301,7 @@ export function SettingsS3Tab() {
                           Copy
                         </>
                       )}
-                    </button>
+                    </Button>
                   </div>
                   <div className="font-mono text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 break-all select-all">
                     {createdCredential.accessKeyId}
@@ -310,9 +313,10 @@ export function SettingsS3Tab() {
                     <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
                       Secret Access Key
                     </label>
-                    <button
+                    <Button
                       onClick={() => handleCopy(createdCredential.secretAccessKey, 'secret')}
-                      className="flex items-center gap-1 text-xs text-primary hover:text-blue-700 font-medium"
+                      variant="ghost"
+                      className="gap-1 text-xs text-primary hover:text-blue-700 hover:bg-transparent px-0 py-0 rounded-none"
                     >
                       {copiedSecretKey ? (
                         <>
@@ -325,7 +329,7 @@ export function SettingsS3Tab() {
                           Copy
                         </>
                       )}
-                    </button>
+                    </Button>
                   </div>
                   <div className="font-mono text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 break-all select-all">
                     {createdCredential.secretAccessKey}

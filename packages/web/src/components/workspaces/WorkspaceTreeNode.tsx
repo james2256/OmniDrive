@@ -1,6 +1,7 @@
 import { ChevronRight, ChevronDown, Ellipsis, FolderPlus, Pen, Trash2 } from 'lucide-react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import type { WorkspaceFolder } from '../../types';
+import { Button } from '../ui/Button';
 
 interface WorkspaceTreeNodeProps {
   folder: WorkspaceFolder;
@@ -33,28 +34,32 @@ export function WorkspaceTreeNode({
         style={{ paddingLeft: `${level * 0.75 + 0.5}rem` }}
       >
         <div className="flex items-center gap-1.5 overflow-hidden flex-1" onClick={() => onSelect(folder.id)}>
-          <button 
+          <Button
             data-testid={`tree-node-toggle-${folder.id}`}
             onClick={(e) => { e.stopPropagation(); onToggle(folder.id); }}
+            variant="ghost"
             className="p-0.5 rounded hover:bg-slate-200 text-slate-500"
+            aria-label={isExpanded ? 'Collapse folder' : 'Expand folder'}
           >
             {hasChildren ? (
               isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />
             ) : (
               <div className="w-[14px]" /> // Spacer
             )}
-          </button>
+          </Button>
           <span className="truncate text-sm">{folder.name}</span>
         </div>
 
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
-            <button 
-              onClick={(e) => e.stopPropagation()} 
+            <Button
+              onClick={(e) => e.stopPropagation()}
+              variant="ghost"
               className="p-1 rounded hover:bg-slate-200 text-slate-500 opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100 focus-within:opacity-100 transition-opacity"
+              aria-label="Folder actions"
             >
               <Ellipsis size={14} />
-            </button>
+            </Button>
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
             <DropdownMenu.Content className="min-w-[160px] bg-card rounded-md shadow-lg border border-slate-200 p-1 z-50">

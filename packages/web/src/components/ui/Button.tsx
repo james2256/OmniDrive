@@ -3,7 +3,7 @@ import { Slot } from '@radix-ui/react-slot';
 import { cn } from '../../lib/utils';
 import { Spinner } from './Spinner';
 
-type Variant = 'primary' | 'secondary' | 'danger' | 'warning' | 'ghost';
+type Variant = 'primary' | 'secondary' | 'danger' | 'warning' | 'ghost' | 'ghostDanger';
 type Size = 'sm' | 'md';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -18,7 +18,7 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   asChild?: boolean;
 }
 
-const base = 'flex items-center gap-2 font-medium rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm';
+const base = 'flex items-center gap-2 font-medium rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2';
 
 const variants: Record<Variant, string> = {
   primary: 'text-white bg-primary hover:opacity-90',
@@ -28,6 +28,7 @@ const variants: Record<Variant, string> = {
   // (amber-600 at 3.19:1 fails AA — do not downgrade.)
   warning: 'text-white bg-amber-700 hover:bg-amber-800',
   ghost: 'text-slate-600 hover:bg-slate-100 shadow-none',
+  ghostDanger: 'text-slate-500 hover:text-red-600 hover:bg-red-50 shadow-none',
 };
 
 const sizes: Record<Size, string> = {

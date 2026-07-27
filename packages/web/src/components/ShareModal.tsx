@@ -133,15 +133,15 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
                     autoComplete="new-password"
                     className="pr-9"
                   />
-                  {/* eslint-disable-next-line no-restricted-syntax -- password visibility toggle */}
-                <button
+                <Button
                     type="button"
+                    variant="ghost"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  >
+                >
                     {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
-                  </button>
+                </Button>
                 </div>
               </div>
               <div className="flex flex-col gap-1">
@@ -155,16 +155,16 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
                   onChange={(e) => setExpiresAt(e.target.value)}
                 />
               </div>
-              {/* eslint-disable-next-line no-restricted-syntax -- advanced section toggle */}
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => setShowAdvanced(!showAdvanced)}
-                className="flex items-center text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors py-1"
+                className="gap-0 text-xs text-slate-500 hover:text-slate-700 py-1 hover:bg-transparent px-0 rounded-none"
               >
                 <Settings size={12} className="mr-1" />
                 Advanced
                 {showAdvanced ? <ChevronUp size={12} className="ml-1" /> : <ChevronDown size={12} className="ml-1" />}
-              </button>
+              </Button>
               <div className={`grid transition-[grid-template-rows] duration-200 ${showAdvanced ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
                 <div className="overflow-hidden">
                   <div className="flex flex-col gap-2 pt-1">

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useAutomationStore } from '../stores/useAutomationStore';
+import { Button } from '../components/ui/Button';
 
 export function AutomationsPage() {
   const { rules, fetchRules, toggleRule, isLoading, error } = useAutomationStore();
@@ -41,12 +42,13 @@ export function AutomationsPage() {
                   Trigger: <span className="capitalize">{rule.triggerType}</span>
                 </p>
               </div>
-              <button
+              <Button
                 onClick={() => toggleRule(rule.id, !rule.isActive)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium flex-shrink-0 ${rule.isActive ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600'}`}
+                variant={rule.isActive ? 'primary' : 'ghost'}
+                className={`rounded-lg text-xs flex-shrink-0 ${!rule.isActive ? 'bg-slate-100 hover:bg-slate-100' : ''}`}
               >
                 {rule.isActive ? 'Active' : 'Inactive'}
-              </button>
+              </Button>
             </div>
           ))
         )}

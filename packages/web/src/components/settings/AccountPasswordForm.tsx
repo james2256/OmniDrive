@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Key, LoaderCircle } from 'lucide-react';
+import { Key } from 'lucide-react';
 import { useToastStore } from '../../stores/useToastStore';
 import { api } from '../../lib/api';
+import { Button } from '../ui/Button';
 
 /** Change-password form for the Settings → Account tab. */
 export function AccountPasswordForm() {
@@ -80,14 +81,16 @@ export function AccountPasswordForm() {
         />
       </div>
       <div className="flex justify-end pt-1">
-        <button
+        <Button
           type="submit"
+          variant="primary"
+          className="rounded-xl disabled:opacity-60"
           disabled={isChangingPassword}
-          className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-primary rounded-xl hover:opacity-90 transition-colors disabled:opacity-60"
+          loading={isChangingPassword}
         >
-          {isChangingPassword ? <LoaderCircle size={16} className="animate-spin" /> : <Key size={16} />}
+          {!isChangingPassword && <Key size={16} />}
           Change password
-        </button>
+        </Button>
       </div>
     </form>
   );

@@ -5,10 +5,11 @@ import type { FileEntry } from '../../types';
 import { api } from '../../lib/api';
 import { FileIcon, getFileTypeName } from '../files/FileIcon';
 import { DriveBadge } from '../DriveBadge';
-import { X, File, Folder, LoaderCircle, RefreshCw } from 'lucide-react';
+import { X, File, Folder, RefreshCw } from 'lucide-react';
 import { useUIStore } from '../../stores/useUIStore';
 import { useToastStore } from '../../stores/useToastStore';
 import { useDrives } from '../../hooks/useDrives';
+import { Button } from '../ui/Button';
 
 export const InfoPanel: React.FC = () => {
   const selectedItems = useSelectionStore((s) => s.selectedItems);
@@ -46,9 +47,9 @@ export const InfoPanel: React.FC = () => {
         <>
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold text-slate-800">Details</h2>
-            <button onClick={toggleInfoPanel} className="p-1.5 hover:bg-slate-100 rounded-full text-slate-500">
+            <Button onClick={toggleInfoPanel} variant="ghost" className="p-1.5 rounded-full text-slate-500" aria-label="Close panel">
               <X size={18} />
-            </button>
+            </Button>
           </div>
           <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
             <File size={48} className="text-slate-300 mb-4" />
@@ -63,9 +64,9 @@ export const InfoPanel: React.FC = () => {
         <>
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold text-slate-800">Details</h2>
-            <button onClick={toggleInfoPanel} className="p-1.5 hover:bg-slate-100 rounded-full text-slate-500">
+            <Button onClick={toggleInfoPanel} variant="ghost" className="p-1.5 rounded-full text-slate-500" aria-label="Close panel">
               <X size={18} />
-            </button>
+            </Button>
           </div>
           <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
             <File size={48} className="text-slate-300 mb-4" />
@@ -86,9 +87,9 @@ export const InfoPanel: React.FC = () => {
       <>
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-lg font-semibold text-slate-800">Details</h2>
-          <button onClick={toggleInfoPanel} className="p-1.5 hover:bg-slate-100 rounded-full text-slate-500 transition-colors">
+          <Button onClick={toggleInfoPanel} variant="ghost" className="p-1.5 rounded-full text-slate-500" aria-label="Close panel">
             <X size={18} />
-          </button>
+          </Button>
         </div>
 
         <div className="mb-6 flex justify-center">
@@ -155,14 +156,17 @@ export const InfoPanel: React.FC = () => {
 
             {type === 'folder' && (
               <div className="mt-4">
-                <button
+                <Button
                   onClick={handleForceSync}
                   disabled={isSyncing}
-                  className="flex items-center justify-center w-full gap-2 px-3 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:opacity-90 disabled:opacity-50 transition-colors"
+                  variant="primary"
+                  size="md"
+                  className="w-full justify-center rounded-lg"
+                  loading={isSyncing}
                 >
-                  {isSyncing ? <LoaderCircle size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                  {!isSyncing && <RefreshCw size={16} />}
                   {isSyncing ? 'Syncing...' : 'Force Sync'}
-                </button>
+                </Button>
               </div>
             )}
           </div>
@@ -207,7 +211,7 @@ export const InfoPanel: React.FC = () => {
             >
               <input name="metaKey" placeholder="Key" className="w-1/3 border border-slate-400 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary" />
               <input name="metaValue" placeholder="Value" className="flex-1 border border-slate-400 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary" />
-              <button type="submit" className="bg-slate-800 text-white px-2 py-1 rounded text-xs">Add</button>
+              <Button type="submit" variant="primary" className="bg-slate-800 px-2 py-1 rounded text-xs">Add</Button>
             </form>
           </div>
         </div>

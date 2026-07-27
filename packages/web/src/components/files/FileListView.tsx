@@ -51,7 +51,7 @@ export function FileListView(props: FileListViewProps) {
       <button
         type="button"
         onClick={() => toggleSort(field)}
-        className={`inline-flex items-center gap-1 hover:text-slate-700 transition-colors ${
+        className={`inline-flex items-center gap-1 hover:text-slate-700 transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
           align === 'right' ? 'ml-auto' : ''
         } ${active ? 'text-slate-800' : ''}`}
         aria-sort={active ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}

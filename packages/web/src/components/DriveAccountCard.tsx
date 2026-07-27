@@ -4,6 +4,7 @@ import { QuotaBar } from './QuotaBar';
 import { formatAbsoluteDate, formatFileSize, getDriveColor } from '../lib/utils';
 import { useState } from 'react';
 import { ConfirmDialog } from './ConfirmDialog';
+import { Button } from './ui/Button';
 
 interface DriveAccountCardProps {
   drive: DriveAccount;
@@ -98,31 +99,34 @@ export function DriveAccountCard({ drive, index, onSync, onDisconnect, onReconne
         {/* Buttons inline on the right — desktop shows full labels, mobile shows icons only */}
         <div className="flex gap-2 flex-shrink-0">
           {needsReconnect ? (
-            <button
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-white bg-primary rounded-lg hover:opacity-90 transition-colors"
+            <Button
+              variant="primary"
+              className="gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs rounded-lg"
               onClick={onReconnect}
               title="Get a new Google connection without losing your synced files"
             >
               <RefreshCw size={12} />
               <span className="hidden sm:inline">Reconnect</span>
-            </button>
+            </Button>
           ) : (
-            <button
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors disabled:opacity-50"
+            <Button
+              variant="secondary"
+              className="gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs bg-slate-50 border-slate-200 rounded-lg disabled:opacity-50"
               onClick={handleSync}
               disabled={isSyncing}
             >
               <RefreshCw size={12} className={isSyncing ? 'animate-spin' : ''} />
               <span className="hidden sm:inline">{isSyncing ? 'Syncing...' : 'Sync'}</span>
-            </button>
+            </Button>
           )}
-          <button
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+          <Button
+            variant="ghost"
+            className="gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100"
             onClick={handleDisconnect}
           >
             <Trash2 size={12} />
             <span className="hidden sm:inline">Disconnect</span>
-          </button>
+          </Button>
         </div>
       </div>
 

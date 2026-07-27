@@ -35,6 +35,7 @@ import {
   Archive,
   Users,
 } from 'lucide-react';
+import { Button } from '../components/ui/Button';
 
 type CategoryOverview = {
   images: number;
@@ -150,9 +151,10 @@ export function DashboardPage() {
               : 'Connect a Google Drive to get started'}
           </p>
         </div>
-        <button
+        <Button
           aria-label="Refresh dashboard"
-          className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm text-slate-600 bg-card border border-slate-400 rounded-lg hover:bg-slate-50 transition-colors flex-shrink-0"
+          variant="secondary"
+          className="gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm rounded-lg hover:bg-slate-50 flex-shrink-0"
           onClick={() => {
             queryClient.invalidateQueries({ queryKey: qk.recent });
             queryClient.invalidateQueries({ queryKey: qk.category });
@@ -161,7 +163,7 @@ export function DashboardPage() {
         >
           <RefreshCw size={14} />
           <span className="hidden sm:inline">Refresh</span>
-        </button>
+        </Button>
       </div>
 
       {/* Empty state — no drives yet. */}
@@ -174,13 +176,15 @@ export function DashboardPage() {
           <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">
             Connect your first Google Drive to start syncing, browsing, and sharing files from one place.
           </p>
-          <button
-            className="mt-5 inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:opacity-90 transition-opacity"
+          <Button
+            variant="primary"
+            size="md"
+            className="mt-5 rounded-lg"
             onClick={() => navigate('/settings/drives')}
           >
             <Plus size={16} />
             Connect a drive
-          </button>
+          </Button>
         </div>
       )}
 
@@ -301,10 +305,11 @@ export function DashboardPage() {
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 gap-2.5 flex-1">
               {quickLinks.map(({ to, label, Icon, hint }) => (
-                <button
+                <Button
                   key={to}
+                  variant="secondary"
                   onClick={() => navigate(to)}
-                  className="group bg-surface border border-slate-200/70 rounded-xl p-3 text-left hover:border-primary/40 hover:-translate-y-[1px] hover:shadow-sm transition-all"
+                  className="group bg-surface border-slate-200/70 rounded-xl p-3 text-left hover:border-primary/40 hover:-translate-y-[1px] hover:shadow-sm hover:bg-card flex-col items-stretch gap-0"
                 >
                   <div className="flex items-center justify-between mb-1.5">
                     <Icon size={18} className="text-slate-500 group-hover:text-primary transition-colors" />
@@ -312,7 +317,7 @@ export function DashboardPage() {
                   </div>
                   <div className="text-sm font-medium text-slate-800">{label}</div>
                   <div className="text-xs text-slate-500 mt-0.5 truncate">{hint}</div>
-                </button>
+                </Button>
               ))}
             </div>
           </article>
@@ -365,12 +370,13 @@ export function DashboardPage() {
                 <h2 className="text-sm font-medium text-slate-500">Recent</h2>
               </div>
               {hasRecent && (
-                <button
-                  className="text-xs text-primary hover:underline"
+                <Button
+                  variant="ghost"
+                  className="text-xs text-primary hover:underline hover:bg-transparent px-0 py-0"
                   onClick={() => navigate('/files/root')}
                 >
                   View all
-                </button>
+                </Button>
               )}
             </div>
             {hasRecent ? (
@@ -393,12 +399,14 @@ export function DashboardPage() {
                 title="No recent files"
                 description="Files you've viewed will appear here."
                 action={
-                  <button
-                    className="mt-4 px-4 py-2 text-sm bg-primary text-white rounded-lg hover:opacity-90"
+                  <Button
+                    variant="primary"
+                    size="md"
+                    className="mt-4 rounded-lg"
                     onClick={() => navigate('/files/root')}
                   >
                     Browse My Drive
-                  </button>
+                  </Button>
                 }
               />
             )}
@@ -417,13 +425,14 @@ export function DashboardPage() {
                 <div className="text-sm font-medium text-slate-800">Admin tools</div>
                 <p className="text-xs text-slate-500 mt-1">Manage users and invitations.</p>
               </div>
-              <button
-                className="mt-4 inline-flex items-center gap-1.5 text-sm text-primary hover:gap-2 transition-all"
+              <Button
+                variant="ghost"
+                className="mt-4 gap-1.5 text-sm text-primary hover:gap-2 hover:bg-transparent px-0 py-0"
                 onClick={() => navigate('/admin/users')}
               >
                 <Settings size={14} />
                 Open
-              </button>
+              </Button>
             </article>
           )}
         </div>

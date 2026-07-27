@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { Plus } from 'lucide-react';
 import type { WorkspaceFolder } from '../../types';
 import { WorkspaceTreeNode } from './WorkspaceTreeNode';
+import { Button } from '../ui/Button';
 
 interface WorkspaceSidebarProps {
   folders: WorkspaceFolder[];
@@ -49,13 +50,15 @@ export function WorkspaceSidebar({
     <div className="w-64 border-r border-slate-200 bg-slate-50/50 flex flex-col h-full overflow-y-auto py-4">
       <div className="px-4 mb-2 flex items-center justify-between group">
         <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Workspaces</h3>
-        <button 
-          onClick={() => onNewSubfolder(null)} 
-          className="text-slate-500 hover:text-slate-600 transition-colors"
+        <Button
+          onClick={() => onNewSubfolder(null)}
+          variant="ghost"
+          className="text-slate-500 hover:text-slate-600 hover:bg-transparent px-0 py-0 rounded-none"
           title="New Workspace"
+          aria-label="New Workspace"
         >
           <Plus size={16} />
-        </button>
+        </Button>
       </div>
       <div className="flex-1">
         {rootFolders.length === 0 ? (

@@ -1,6 +1,7 @@
 // packages/web/src/pages/LoginPage.tsx
 import { useState } from 'react';
 import { api } from '../lib/api';
+import { Button } from '../components/ui/Button';
 
 // Link styles for card (#ffffff): primary #2563EB is 4.28:1 (fails AA);
 // blue-700 + permanent underline pass contrast and "links rely on color".
@@ -148,23 +149,26 @@ export function LoginPage() {
               />
             </div>
 
-            <button
+            <Button
               type="submit"
+              variant="primary"
+              size="md"
+              className="w-full py-3 rounded-lg mt-2 hover:bg-primary/90"
               disabled={loading}
-              className="w-full py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Signing in…' : (isRegister ? 'Create Account' : 'Sign In')}
-            </button>
+            </Button>
           </form>
 
           <div className="mt-6">
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              className={`text-sm ${linkClass} hover:bg-transparent px-0 py-0 rounded-none`}
               onClick={() => setIsRegister(!isRegister)}
-              className={`text-sm ${linkClass}`}
             >
               {isRegister ? 'Already have an account? Sign in' : 'Need an account? Register'}
-            </button>
+            </Button>
           </div>
 
           <p className="mt-8 text-xs text-slate-600">

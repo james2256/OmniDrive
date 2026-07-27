@@ -10,6 +10,7 @@ import { UploadModal } from '../components/UploadModal';
 import { CreateFolderModal } from '../components/CreateFolderModal';
 import { ItemModals } from '../components/files/ItemModals';
 import { Upload, FolderPlus, X, LayoutGrid, List, Info } from 'lucide-react';
+import { Button } from '../components/ui/Button';
 import { useToastStore } from '../stores/useToastStore';
 import { useSharedLinks, useIsTargetSharedCallback } from '../hooks/useSharedLinks';
 import { useItemModals } from '../hooks/useItemModals';
@@ -95,64 +96,68 @@ export function FilesPage() {
                   className="w-full pl-3 pr-8 py-2 text-sm border border-slate-400 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                 />
                 {searchQuery && (
-                  <button
+                  <Button
                     type="button"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-600 p-1"
+                    variant="ghost"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-600 hover:bg-transparent p-1"
                     onClick={() => setSearchQuery('')}
                     aria-label="Clear filter"
                   >
                     <X size={14} />
-                  </button>
+                  </Button>
                 )}
               </div>
 
               <div className="flex items-center border border-slate-400 rounded-md overflow-hidden bg-card flex-shrink-0">
-                <button
+                <Button
+                  variant="ghost"
                   onClick={() => setViewMode('list')}
                   className={`p-2 ${viewMode === 'list' ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'}`}
                   title="List layout"
                   aria-label="List layout"
                 >
                   <List size={18} />
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="ghost"
                   onClick={() => setViewMode('grid')}
                   className={`p-2 ${viewMode === 'grid' ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'}`}
                   title="Grid layout"
                   aria-label="Grid layout"
                 >
                   <LayoutGrid size={18} />
-                </button>
+                </Button>
               </div>
 
-              <button
+              <Button
+                variant="ghost"
                 onClick={toggleInfoPanel}
                 className={`p-2 rounded-full flex-shrink-0 ${isInfoPanelOpen ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-100'}`}
                 title="View details"
                 aria-label="View details"
               >
                 <Info size={20} />
-              </button>
+              </Button>
 
               {/* Desktop: folder + upload inline with filter row */}
               <div className="hidden sm:flex gap-2">
-                <button className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-slate-700 bg-card border border-slate-400 rounded-md hover:bg-slate-50 flex-shrink-0" onClick={() => setShowCreateFolder(true)}>
+                <Button variant="secondary" size="md" className="rounded-md gap-1 hover:bg-slate-50 flex-shrink-0" onClick={() => setShowCreateFolder(true)}>
                   <FolderPlus size={16} /> <span>New Folder</span>
-                </button>
-                <button className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-white bg-primary rounded-md hover:opacity-90 flex-shrink-0" onClick={() => setShowModal(true)}>
+                </Button>
+                <Button variant="primary" size="md" className="rounded-md gap-1 flex-shrink-0" onClick={() => setShowModal(true)}>
                   <Upload size={16} /> <span>Upload</span>
-                </button>
+                </Button>
               </div>
             </div>
 
             {/* Mobile Row 2: folder + upload */}
             <div className="flex gap-2 sm:hidden order-2">
-              <button className="flex items-center justify-center gap-1 p-2 text-sm font-medium text-slate-700 bg-card border border-slate-400 rounded-md hover:bg-slate-50 flex-shrink-0 flex-1" onClick={() => setShowCreateFolder(true)} title="New Folder">
+              <Button variant="secondary" className="rounded-md gap-1 p-2 hover:bg-slate-50 flex-shrink-0 flex-1 justify-center" onClick={() => setShowCreateFolder(true)} title="New Folder">
                 <FolderPlus size={18} /> <span>New Folder</span>
-              </button>
-              <button className="flex items-center justify-center gap-1 p-2 text-sm font-medium text-white bg-primary rounded-md hover:opacity-90 flex-shrink-0 flex-1" onClick={() => setShowModal(true)} title="Upload">
+              </Button>
+              <Button variant="primary" className="rounded-md gap-1 p-2 flex-shrink-0 flex-1 justify-center" onClick={() => setShowModal(true)} title="Upload">
                 <Upload size={18} /> <span>Upload</span>
-              </button>
+              </Button>
             </div>
 
             {/* Breadcrumb — below on mobile, left side on desktop */}
@@ -173,13 +178,15 @@ export function FilesPage() {
             </div>
             <h3 className="text-lg font-medium text-slate-900 mb-2">No Google Drive Connected</h3>
             <p className="mb-6 max-w-sm text-center">You need to connect at least one Google Drive account to start using OmniDrive.</p>
-            <button
+            <Button
+              variant="primary"
+              size="md"
+              className="px-6 py-2.5 rounded-lg disabled:opacity-60"
               onClick={handleConnectGoogle}
               disabled={isConnecting}
-              className="px-6 py-2.5 bg-primary text-white rounded-lg hover:opacity-90 font-medium shadow-sm transition-colors disabled:opacity-60"
             >
               {isConnecting ? 'Connecting…' : 'Connect Google Drive Now'}
-            </button>
+            </Button>
           </div>
         ) : (
           <div className="flex-1 overflow-auto bg-card rounded-lg border border-slate-200 m-4 shadow-sm">

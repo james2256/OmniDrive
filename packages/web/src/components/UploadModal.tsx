@@ -102,14 +102,14 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
                     {statusIcon(item.status)}
                   </div>
                   {item.status === 'pending' && !isUploading && (
-                    // eslint-disable-next-line no-restricted-syntax -- file remove icon button
-                    <button
-                      className="p-1 text-slate-500 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors"
+                    <Button
+                      variant="ghost"
+                      className="p-1 text-slate-500 hover:text-slate-600 hover:bg-slate-100 rounded-md"
                       onClick={() => removeFile(item.id)}
                       aria-label="Remove file"
                     >
                       <X size={14} />
-                    </button>
+                    </Button>
                   )}
                 </div>
               ))}

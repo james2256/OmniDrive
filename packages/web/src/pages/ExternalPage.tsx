@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { List, LayoutGrid, Info, X } from 'lucide-react';
+import { Button } from '../components/ui/Button';
 import { FileGrid } from '../components/files/FileGrid';
 import { Breadcrumb } from '../components/Breadcrumb';
 import { BulkActionBar } from '../components/layout/BulkActionBar';
@@ -128,44 +129,48 @@ export function ExternalPage() {
                 className="w-full pl-3 pr-8 py-2 text-sm border border-slate-400 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
               />
               {searchQuery && (
-                <button
+                <Button
                   type="button"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-600 p-1"
+                  variant="ghost"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-600 hover:bg-transparent p-1"
                   onClick={() => setSearchQuery('')}
                   aria-label="Clear filter"
                 >
                   <X size={14} />
-                </button>
+                </Button>
               )}
             </div>
 
             <div className="flex items-center border border-slate-400 rounded-md overflow-hidden bg-card flex-shrink-0">
-              <button
+              <Button
+                variant="ghost"
                 onClick={() => setViewMode('list')}
                 className={`p-2 ${viewMode === 'list' ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'}`}
                 title="List layout"
                 aria-label="List layout"
               >
                 <List size={18} />
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
                 onClick={() => setViewMode('grid')}
                 className={`p-2 ${viewMode === 'grid' ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'}`}
                 title="Grid layout"
                 aria-label="Grid layout"
               >
                 <LayoutGrid size={18} />
-              </button>
+              </Button>
             </div>
 
-            <button
+            <Button
+              variant="ghost"
               onClick={toggleInfoPanel}
               className={`p-2 rounded-full flex-shrink-0 ${isInfoPanelOpen ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-100'}`}
               title="View details"
               aria-label="View details"
             >
               <Info size={20} />
-            </button>
+            </Button>
           </div>
 
           <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden order-2 sm:order-1">
@@ -203,13 +208,14 @@ export function ExternalPage() {
             </div>
             {hasMore && (
               <div className="flex justify-center mt-4">
-                <button
+                <Button
+                  variant="ghost"
                   onClick={() => externalInfinite.fetchNextPage()}
                   disabled={externalInfinite.isFetchingNextPage}
-                  className="px-4 py-2 text-sm font-medium text-primary bg-primary/10 border border-primary/20 rounded-lg hover:bg-primary/20 transition-colors disabled:opacity-50"
+                  className="text-primary bg-primary/10 border border-primary/20 hover:bg-primary/20"
                 >
                   {externalInfinite.isFetchingNextPage ? 'Loading...' : 'Load More'}
-                </button>
+                </Button>
               </div>
             )}
           </>

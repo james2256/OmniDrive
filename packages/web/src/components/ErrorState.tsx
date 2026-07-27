@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import { AlertCircle } from 'lucide-react';
+import { Button } from './ui/Button';
 
 /** Shared error placeholder — mirrors EmptyState's structure. No page had one before. */
 export function ErrorState({
@@ -21,12 +22,14 @@ export function ErrorState({
       <h3 className="text-lg font-medium text-slate-800">{title}</h3>
       <p className="mt-1 text-sm text-slate-500 max-w-sm">{description}</p>
       {onRetry && (
-        <button
+        <Button
+          variant="primary"
+          size="md"
+          className="mt-4 rounded-lg"
           onClick={onRetry}
-          className="mt-4 px-4 py-2 text-sm bg-primary text-white rounded-lg hover:opacity-90"
         >
           Retry
-        </button>
+        </Button>
       )}
     </div>
   );

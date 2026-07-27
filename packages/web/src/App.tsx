@@ -4,6 +4,7 @@ import { AuthGuard } from './components/AuthGuard';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppLayout } from './components/layout/AppLayout';
 import { ToastContainer } from './components/ui/Toast';
+import { Button } from './components/ui/Button';
 import { api } from './lib/api';
 import { lazyWithRetry } from './lib/lazyWithRetry';
 
@@ -66,13 +67,9 @@ export const App = () => {
         <p className="text-sm text-slate-600 text-center max-w-sm" role="alert">
           {setupError}
         </p>
-        <button
-          type="button"
-          onClick={checkSetupStatus}
-          className="px-4 py-2 rounded-lg border border-slate-400 bg-card text-slate-800 text-sm font-medium hover:bg-slate-50"
-        >
+        <Button variant="secondary" onClick={checkSetupStatus} className="rounded-lg">
           Retry
-        </button>
+        </Button>
       </main>
     );
   }

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Button } from './ui/Button';
 
 interface State { hasError: boolean; message: string; }
 
@@ -29,13 +30,15 @@ export class ErrorBoundary extends React.Component<
           <p className="text-sm text-slate-600 text-center max-w-sm" role="alert">
             {this.state.message}
           </p>
-          <button
+          <Button
             type="button"
+            variant="secondary"
+            size="md"
+            className="rounded-lg text-slate-800 hover:bg-slate-50"
             onClick={() => window.location.href = '/'}
-            className="px-4 py-2 rounded-lg border border-slate-400 bg-card text-slate-800 text-sm font-medium hover:bg-slate-50"
           >
             Go Home
-          </button>
+          </Button>
         </main>
       );
     }

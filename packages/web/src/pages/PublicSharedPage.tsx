@@ -7,6 +7,7 @@ import { formatFileSize } from '../lib/utils';
 import { FileIcon } from '../components/files/FileIcon';
 import { Lock, Download, CircleAlert, LoaderCircle, Folder } from 'lucide-react';
 import { FolderDownloadModal } from '../components/FolderDownloadModal';
+import { Button } from '../components/ui/Button';
 
 export function PublicSharedPage() {
   const { id } = useParams<{ id: string }>();
@@ -129,14 +130,16 @@ export function PublicSharedPage() {
               </p>
             )}
 
-            <button
+            <Button
               type="submit"
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-white bg-primary rounded-lg font-medium hover:opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              variant="primary"
+              size="md"
+              className="w-full justify-center py-2.5 rounded-lg"
+              loading={verifying}
               disabled={verifying || !password}
             >
-              {verifying && <LoaderCircle className="animate-spin" size={18} />}
               Unlock
-            </button>
+            </Button>
           </form>
         </div>
       );
@@ -154,13 +157,15 @@ export function PublicSharedPage() {
             </div>
 
             {/* Download All as ZIP */}
-            <button
+            <Button
+              variant="primary"
+              size="md"
+              className="w-full justify-center py-2.5 rounded-lg mb-4"
               onClick={() => setFolderDownloadOpen(true)}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-white bg-primary rounded-lg font-medium hover:opacity-90 transition-colors mb-4"
             >
               <Download size={18} />
               Download All as ZIP
-            </button>
+            </Button>
 
             {/* File list */}
             {folderContents ? (
@@ -209,13 +214,15 @@ export function PublicSharedPage() {
             {typeof meta?.target?.size === 'number' && (
               <p className="text-slate-500 text-sm mb-6">{formatFileSize(meta.target.size)}</p>
             )}
-            <button
+            <Button
+              variant="primary"
+              size="md"
+              className="w-full justify-center py-2.5 rounded-lg"
               onClick={handleDownload}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-white bg-primary rounded-lg font-medium hover:opacity-90 transition-colors"
             >
               <Download size={18} />
               Download
-            </button>
+            </Button>
           </div>
         )}
       </div>

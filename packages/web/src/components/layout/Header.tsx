@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
 import { Omnibar } from './Omnibar';
+import { Button } from '../ui/Button';
 
 export const Header: React.FC = () => {
   const toggleSidebar = useUIStore((state) => state.toggleSidebar);
@@ -23,20 +24,22 @@ export const Header: React.FC = () => {
     <header className="flex items-center justify-between px-2 py-2 bg-surface h-16 w-full gap-2 sm:gap-4">
       <div className="flex items-center min-w-0 px-2 gap-3 sm:gap-4">
         {/* Mobile: drawer toggle; Desktop: collapse rail */}
-        <button
+        <Button
           onClick={toggleMobileSidebar}
-          className="md:hidden p-2 hover:bg-slate-200 rounded-full text-slate-700 transition-colors flex-shrink-0"
+          variant="ghost"
+          className="md:hidden p-2 hover:bg-slate-200 rounded-full text-slate-700 flex-shrink-0"
           aria-label="Open menu"
         >
           <Menu size={24} />
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={toggleSidebar}
-          className="hidden md:flex p-2 hover:bg-slate-200 rounded-full text-slate-700 transition-colors flex-shrink-0"
+          variant="ghost"
+          className="hidden md:flex p-2 hover:bg-slate-200 rounded-full text-slate-700 flex-shrink-0"
           aria-label="Toggle sidebar"
         >
           <Menu size={24} />
-        </button>
+        </Button>
         <div className="flex items-center gap-2 min-w-0">
           <img src="/logo.svg" alt="OmniDrive" className="w-12 h-auto sm:w-14 object-contain flex-shrink-0" />
           <img src="/logowordmark.svg" alt="" aria-hidden="true" decoding="async" className="h-5 sm:h-6 w-auto flex-shrink-0" />
@@ -51,17 +54,18 @@ export const Header: React.FC = () => {
       <div className="flex items-center gap-2 px-1 sm:px-2 text-slate-600 flex-shrink-0">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button
+            <Button
               type="button"
+              variant="primary"
               aria-label="Account menu"
-              className="w-9 h-9 rounded-full bg-primary text-white flex items-center justify-center font-medium cursor-pointer hover:opacity-90 select-none overflow-hidden flex-shrink-0"
+              className="w-9 h-9 rounded-full justify-center cursor-pointer select-none overflow-hidden flex-shrink-0 px-0 py-0"
             >
               {user?.avatarUrl ? (
                 <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
               ) : (
                 <span aria-hidden="true">{getInitials(user?.name || 'User')}</span>
               )}
-            </button>
+            </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56 bg-card shadow-xl rounded-xl border border-slate-200">
             <DropdownMenuLabel className="font-normal">

@@ -7,6 +7,7 @@ import { FileIcon } from '../components/files/FileIcon';
 import { useSharedLinks, useRevokeSharedLink } from '../hooks/useSharedLinks';
 import { useClipboard } from '../hooks/useClipboard';
 import { EmptyState, ListSkeleton } from '../components/EmptyState';
+import { Button } from '../components/ui/Button';
 import type { SharedLink } from '../lib/api';
 import { formatAbsoluteDate } from '../lib/utils';
 
@@ -94,9 +95,10 @@ export function SharedLinksPage() {
               </div>
 
               <div className="px-5 py-4 bg-slate-50 flex items-center justify-between gap-3">
-                <button
+                <Button
+                  variant="secondary"
                   onClick={() => copyToClipboard(link.id)}
-                  className="flex items-center justify-center gap-2 flex-1 py-2 px-4 rounded-lg bg-card border border-slate-200 text-slate-700 font-medium text-sm hover:bg-slate-50 hover:text-primary hover:border-blue-200 transition-colors"
+                  className="justify-center flex-1 py-2 px-4 rounded-lg border-slate-200 hover:bg-slate-50 hover:text-primary hover:border-blue-200"
                 >
                   {copiedId === link.id ? (
                     <>
@@ -109,21 +111,23 @@ export function SharedLinksPage() {
                       <span>Copy Link</span>
                     </>
                   )}
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="ghost"
                   onClick={() => setEditingLink(link)}
-                  className="p-2 rounded-lg text-slate-500 hover:text-primary hover:bg-primary/10 transition-colors"
+                  className="p-2 rounded-lg text-slate-500 hover:text-primary hover:bg-primary/10"
                   title="Edit Settings"
                 >
                   <Settings size={18} />
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="ghostDanger"
                   onClick={() => revoke(link.id)}
-                  className="p-2 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors"
+                  className="p-2 rounded-lg"
                   title="Stop Sharing"
                 >
                   <Trash2 size={18} />
-                </button>
+                </Button>
               </div>
             </div>
           ))}

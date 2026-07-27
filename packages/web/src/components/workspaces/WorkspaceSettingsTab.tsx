@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import type { WorkspacePolicy } from '../../types';
 import { ConfirmDialog } from '../ConfirmDialog';
+import { Button } from '../ui/Button';
 
 export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
   const [policies, setPolicies] = useState<WorkspacePolicy[]>([]);
@@ -75,7 +76,7 @@ export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
           {maxBytes ? (
             <div className="bg-slate-100 rounded p-4 flex justify-between items-center">
               <span>Quota: <strong>{Math.round(maxBytes / (1024 * 1024 * 1024))} GB</strong></span>
-              <button onClick={() => { if (quotaPolicy?.id) handleDeletePolicy(quotaPolicy.id); }} className="text-red-600 text-sm hover:underline">Remove Quota</button>
+              <Button onClick={() => { if (quotaPolicy?.id) handleDeletePolicy(quotaPolicy.id); }} variant="ghostDanger" className="text-red-600 text-sm hover:underline hover:bg-transparent px-0 py-0 rounded-none">Remove Quota</Button>
             </div>
           ) : (
             <div className="flex gap-2">
@@ -86,13 +87,15 @@ export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
                 onChange={(e) => setQuotaInput(e.target.value)}
                 className="border border-slate-400 rounded px-3 py-1.5 text-sm"
               />
-              <button 
-                onClick={handleSetQuota} 
+              <Button
+                onClick={handleSetQuota}
                 disabled={loading}
-                className="bg-primary text-white px-4 py-1.5 rounded text-sm hover:opacity-90 disabled:opacity-50"
+                variant="primary"
+                size="md"
+                className="py-1.5 rounded"
               >
                 Set Quota
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -124,7 +127,7 @@ export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
                       {p.policyType === 'storage_quota' ? `${Math.round(config.max_bytes / (1024*1024*1024))} GB limit` : `${config.action} (${config.days || 'indefinite'} days)`}
                     </td>
                     <td className="px-2 sm:px-6 py-4 text-sm text-right">
-                      <button onClick={() => handleDeletePolicy(p.id)} className="text-red-600 hover:text-red-800 font-medium">Delete</button>
+                      <Button onClick={() => handleDeletePolicy(p.id)} variant="ghostDanger" className="text-red-600 hover:text-red-800 hover:bg-transparent px-0 py-0 rounded-none">Delete</Button>
                     </td>
                   </tr>
                 );

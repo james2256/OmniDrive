@@ -1,6 +1,7 @@
 // packages/web/src/pages/SetupPage.tsx
 import { useState } from 'react';
 import { api } from '../lib/api';
+import { Button } from '../components/ui/Button';
 
 export function SetupPage() {
   const [username, setUsername] = useState('');
@@ -63,13 +64,15 @@ export function SetupPage() {
                 className="w-full px-4 py-2 border border-slate-400 rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
-            <button
+            <Button
               type="submit"
+              variant="primary"
+              size="md"
+              className="w-full py-3 rounded-lg mt-4 hover:bg-primary/90"
               disabled={loading}
-              className="w-full py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Creating…' : 'Complete Setup'}
-            </button>
+            </Button>
           </form>
         </div>
       </div>

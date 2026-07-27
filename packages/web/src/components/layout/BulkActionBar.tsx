@@ -4,6 +4,7 @@ import { useToastStore } from '../../stores/useToastStore';
 import { api } from '../../lib/api';
 import { X, Trash2, Folder, Star, HardDrive, RotateCcw } from 'lucide-react';
 import { ConfirmDialog } from '../ConfirmDialog';
+import { Button } from '../ui/Button';
 
 export interface BulkActionBarProps {
   onActionComplete: () => void;
@@ -113,46 +114,48 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({ onActionComplete, 
     <>
     <div className="fixed bottom-3 left-2 right-2 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-50 flex flex-wrap items-center gap-1.5 sm:gap-2 bg-card/80 backdrop-blur-md border border-slate-200 text-slate-800 rounded-2xl sm:rounded-full shadow-2xl px-3 py-2 sm:px-4 sm:py-3 animate-in fade-in-0 slide-in-from-bottom-5 duration-300">
       <div className="flex items-center gap-2 sm:gap-3 sm:border-r sm:border-slate-200 sm:pr-4">
-        <button onClick={clearSelection} disabled={isProcessing} className="p-1.5 sm:p-2 hover:bg-slate-100 text-slate-500 rounded-full transition-colors" aria-label="Clear selection">
+        <Button onClick={clearSelection} disabled={isProcessing} variant="ghost" className="p-1.5 sm:p-2 text-slate-500 rounded-full" aria-label="Clear selection">
           <X size={18} />
-        </button>
+        </Button>
         <span className="font-medium text-sm text-primary bg-primary/10 px-2.5 py-0.5 rounded-full">{selectedItems.length} selected</span>
       </div>
       <div className="flex flex-wrap items-center gap-0.5 sm:gap-2 sm:pl-2">
         {isTrashView ? (
           <>
-            <button onClick={handleRestore} disabled={isProcessing} className="flex items-center gap-2 px-2.5 sm:px-3 py-2 hover:bg-green-50 text-slate-600 hover:text-green-600 rounded-full transition-colors text-sm font-medium" title="Restore selected items">
+            <Button onClick={handleRestore} disabled={isProcessing} variant="ghost" className="px-2.5 sm:px-3 py-2 hover:bg-green-50 hover:text-green-600 rounded-full text-sm" title="Restore selected items">
               <RotateCcw size={16} /> <span className="hidden sm:inline">Restore</span>
-            </button>
-            <button onClick={handleDelete} disabled={isProcessing} className="flex items-center gap-2 px-2.5 sm:px-3 py-2 hover:bg-red-50 text-slate-600 hover:text-red-600 rounded-full transition-colors text-sm font-medium" title="Permanently delete selected items">
+            </Button>
+            <Button onClick={handleDelete} disabled={isProcessing} variant="ghostDanger" className="px-2.5 sm:px-3 py-2 rounded-full text-sm text-slate-600" title="Permanently delete selected items">
               <Trash2 size={16} /> <span className="hidden sm:inline">Delete Forever</span>
-            </button>
+            </Button>
           </>
         ) : (
           <>
-            <button onClick={handleDelete} disabled={isProcessing} className="flex items-center gap-2 px-2.5 sm:px-3 py-2 hover:bg-red-50 text-slate-600 hover:text-red-600 rounded-full transition-colors text-sm font-medium" title="Delete selected items">
+            <Button onClick={handleDelete} disabled={isProcessing} variant="ghostDanger" className="px-2.5 sm:px-3 py-2 rounded-full text-sm text-slate-600" title="Delete selected items">
               <Trash2 size={16} /> <span className="hidden sm:inline">Delete</span>
-            </button>
-            <button onClick={onMoveRequested} disabled={isProcessing} className="flex items-center gap-2 px-2.5 sm:px-3 py-2 hover:bg-slate-100 text-slate-600 rounded-full transition-colors text-sm font-medium" title="Move selected items">
+            </Button>
+            <Button onClick={onMoveRequested} disabled={isProcessing} variant="ghost" className="px-2.5 sm:px-3 py-2 rounded-full text-sm" title="Move selected items">
               <Folder size={16} /> <span className="hidden sm:inline">Move</span>
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={onMoveDriveRequested}
               disabled={isProcessing || !allFiles}
-              className={`flex items-center gap-2 px-2.5 sm:px-3 py-2 rounded-full transition-colors text-sm font-medium ${!allFiles ? 'opacity-50 cursor-not-allowed text-slate-500' : 'hover:bg-slate-100 text-slate-600'}`}
+              variant="ghost"
+              className={`px-2.5 sm:px-3 py-2 rounded-full text-sm ${!allFiles ? 'opacity-50 cursor-not-allowed text-slate-500 hover:bg-transparent' : 'hover:bg-slate-100 text-slate-600'}`}
               title={!allFiles ? 'Can only move files to another drive' : 'Move to another drive'}
             >
               <HardDrive size={16} /> <span className="hidden sm:inline">Move Drive</span>
-            </button>
+            </Button>
             {onWorkspaceRequested && (
-              <button
+              <Button
                 onClick={onWorkspaceRequested}
                 disabled={isProcessing || !allFiles}
-                className={`flex items-center gap-2 px-2.5 sm:px-3 py-2 rounded-full transition-colors text-sm font-medium ${!allFiles ? 'opacity-50 cursor-not-allowed text-slate-500' : 'hover:bg-slate-100 text-slate-600'}`}
+                variant="ghost"
+                className={`px-2.5 sm:px-3 py-2 rounded-full text-sm ${!allFiles ? 'opacity-50 cursor-not-allowed text-slate-500 hover:bg-transparent' : 'hover:bg-slate-100 text-slate-600'}`}
                 title={!allFiles ? 'Can only add files to Workspace' : 'Add to Workspace'}
               >
                 <Star size={16} /> <span className="hidden sm:inline">Workspace</span>
-              </button>
+              </Button>
             )}
           </>
         )}

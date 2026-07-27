@@ -23,7 +23,6 @@ import {
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { Spinner } from '../components/ui/Spinner';
 
 const AddUserModal: React.FC<{ open: boolean, onClose: () => void, onSuccess: () => void }> = ({ open, onClose, onSuccess }) => {
   const [username, setUsername] = useState('');
@@ -249,31 +248,35 @@ export const AdminUsersPage: React.FC = () => {
       </div>
 
       <div className="flex border-b border-slate-200 mb-4 sm:mb-6 gap-4 sm:gap-6">
-        <button
-          className={`pb-3 font-medium text-sm transition-colors ${activeTab === 'users' ? 'border-b-2 border-primary text-primary' : 'text-slate-500 hover:text-slate-700'}`}
+        <Button
+          variant="ghost"
+          className={`pb-3 px-0 rounded-none border-b-2 ${activeTab === 'users' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700'} hover:bg-transparent`}
           onClick={() => setActiveTab('users')}
         >
           Active Users
-        </button>
-        <button
-          className={`pb-3 font-medium text-sm transition-colors ${activeTab === 'invitations' ? 'border-b-2 border-primary text-primary' : 'text-slate-500 hover:text-slate-700'}`}
+        </Button>
+        <Button
+          variant="ghost"
+          className={`pb-3 px-0 rounded-none border-b-2 ${activeTab === 'invitations' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700'} hover:bg-transparent`}
           onClick={() => setActiveTab('invitations')}
         >
           Invitation Codes
-        </button>
+        </Button>
       </div>
 
       <div className="flex-1 overflow-y-auto">
         {activeTab === 'users' && (
           <div>
             <div className="flex justify-end mb-4">
-              <button
+              <Button
+                variant="primary"
+                size="md"
+                className="rounded-md"
                 onClick={() => setIsAddUserModalOpen(true)}
-                className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-md hover:opacity-90 transition-colors"
               >
                 <Plus size={20} />
                 <span>Add User</span>
-              </button>
+              </Button>
             </div>
 
             <div className="bg-card border border-slate-200 rounded-lg overflow-hidden overflow-x-auto">
@@ -316,13 +319,14 @@ export const AdminUsersPage: React.FC = () => {
                       <td className="px-2 sm:px-6 py-4 text-sm text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <button
-                              className="p-1.5 rounded-md text-slate-500 hover:text-slate-700 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed"
+                            <Button
+                              variant="ghost"
+                              className="p-1.5 rounded-md text-slate-500 hover:text-slate-700 disabled:opacity-30"
                               aria-label={`Actions for ${userItem.name || userItem.username}`}
                               disabled={userItem.id === user?.userId}
                             >
                               <EllipsisVertical size={16} />
-                            </button>
+                            </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem
@@ -384,10 +388,9 @@ export const AdminUsersPage: React.FC = () => {
                 required
                 min="0"
               />
-              <button type="submit" disabled={isCreating} className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-                {isCreating && <Spinner size={14} />}
+              <Button type="submit" variant="primary" size="md" className="rounded" loading={isCreating} disabled={isCreating}>
                 <span>Create Code</span>
-              </button>
+              </Button>
             </form>
             
             <div className="bg-card border border-slate-200 rounded-lg overflow-hidden">
@@ -403,12 +406,13 @@ export const AdminUsersPage: React.FC = () => {
                           Used: {inv.used_count} / {inv.max_uses === 0 ? 'Unlimited' : inv.max_uses}
                         </span>
                       </div>
-                      <button
+                      <Button
+                        variant="ghostDanger"
+                        className="text-red-600 hover:text-red-800 hover:bg-transparent text-sm px-0 py-0"
                         onClick={() => setInvitationToDelete(inv.id)}
-                        className="text-red-600 hover:text-red-800 text-sm font-medium"
                       >
                         Delete
-                      </button>
+                      </Button>
                     </li>
                   ))
                 )}

@@ -6,6 +6,7 @@ import { WorkspaceFilesTab } from './WorkspaceFilesTab';
 import { WorkspaceMembersTab } from './WorkspaceMembersTab';
 import { WorkspaceSettingsTab } from './WorkspaceSettingsTab';
 import { WorkspaceAuditTab } from './WorkspaceAuditTab';
+import { Button } from '../ui/Button';
 
 interface WorkspaceMainViewProps {
   activeFolder: WorkspaceFolder | null;
@@ -27,14 +28,14 @@ export function WorkspaceMainView({
     return (
       <div className="flex-1 flex flex-col items-center justify-center text-slate-500 bg-slate-50 gap-4 p-4 text-center">
         {onToggleSidebar && (
-          <button onClick={onToggleSidebar} className="md:hidden flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-700 bg-card border border-slate-400 rounded-lg hover:bg-slate-50 transition-colors">
+          <Button onClick={onToggleSidebar} variant="secondary" className="md:hidden gap-1.5 rounded-lg hover:bg-slate-50">
             <PanelLeft size={16} /> Browse Workspaces
-          </button>
+          </Button>
         )}
         <p>Select or create a Workspace to get started.</p>
-        <button onClick={onCreateRootFolder} className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-primary rounded-md hover:opacity-90 transition-colors">
+        <Button onClick={onCreateRootFolder} variant="primary" className="gap-1 rounded-md">
           <FolderPlus size={16} /> New Workspace
-        </button>
+        </Button>
       </div>
     );
   }
@@ -46,9 +47,9 @@ export function WorkspaceMainView({
         {/* Breadcrumbs + sidebar toggle */}
         <div className="flex items-center text-xs sm:text-sm text-slate-500 gap-2 min-w-0">
           {onToggleSidebar && (
-            <button onClick={onToggleSidebar} className="md:hidden p-1.5 hover:bg-slate-100 rounded-md flex-shrink-0" aria-label="Toggle workspace tree">
+            <Button onClick={onToggleSidebar} variant="ghost" className="md:hidden p-1.5 rounded-md flex-shrink-0" aria-label="Toggle workspace tree">
               <PanelLeft size={16} />
-            </button>
+            </Button>
           )}
           {path.map((item, index) => (
             <div key={item.id || index} className="flex items-center gap-1.5 min-w-0">
@@ -62,29 +63,26 @@ export function WorkspaceMainView({
         <div className="flex items-center justify-between gap-2">
           <h1 className="text-lg sm:text-2xl font-semibold text-slate-900 truncate">{activeFolder.name}</h1>
           <div className="flex gap-1.5 sm:gap-2 flex-shrink-0">
-            <button onClick={onCreateFolder} className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium text-slate-700 bg-card border border-slate-400 rounded-md hover:bg-slate-50">
+            <Button onClick={onCreateFolder} variant="secondary" className="gap-1 px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm rounded-md hover:bg-slate-50">
               <FolderPlus size={14} /> <span className="hidden sm:inline">New Folder</span>
-            </button>
-            <button onClick={onSync} disabled={isSyncing} className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium text-slate-700 bg-card border border-slate-400 rounded-md hover:bg-slate-50">
+            </Button>
+            <Button onClick={onSync} disabled={isSyncing} variant="secondary" className="gap-1 px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm rounded-md hover:bg-slate-50">
               <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''} /> <span className="hidden sm:inline">Sync</span>
-            </button>
+            </Button>
           </div>
         </div>
 
         {/* Tabs */}
         <div className="flex gap-3 sm:gap-6 mt-1">
           {(['files', 'members', 'settings', 'audit'] as const).map(tab => (
-            <button
+            <Button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`pb-2 text-xs sm:text-sm font-medium capitalize border-b-2 transition-colors ${
-                activeTab === tab
-                  ? 'border-slate-900 text-slate-900'
-                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-400'
-              }`}
+              variant="ghost"
+              className={`pb-2 px-0 rounded-none border-b-2 capitalize ${activeTab === tab ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-400'} hover:bg-transparent`}
             >
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </button>
+            </Button>
           ))}
         </div>
       </div>
