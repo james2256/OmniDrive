@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { FolderPlus } from 'lucide-react';
 import { api } from '../lib/api';
 import { useToastStore } from '../stores/useToastStore';
-import { Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle } from './ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogTitle } from './ui/dialog';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import type { DriveAccount } from '../types';
@@ -78,17 +78,17 @@ export function CreateFolderModal({ open, parentId, title, onClose, onSuccess, d
     <Dialog open={open} onOpenChange={(o) => !o && !loading && onClose()}>
       <DialogContent className="max-w-md p-0 gap-0 flex flex-col overflow-hidden">
         <DialogHeader icon={<FolderPlus size={20} className="text-primary" />}>
-          <DialogTitle className="text-sm font-semibold text-slate-800">{title}</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        <DialogBody>
-          {error && (
-            <div className="text-red-500 mb-3 text-sm bg-red-50 p-2 rounded-lg border border-red-100">
-              {error}
-            </div>
-          )}
-          <form onSubmit={handleSubmit} className="flex flex-col gap-2.5">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <DialogBody>
+            {error && (
+              <div className="text-red-500 mb-3 text-sm bg-red-50 p-2 rounded-lg border border-red-100">
+                {error}
+              </div>
+            )}
             {showDrivePicker && (
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1 mb-2.5">
                 <label className="text-xs font-medium text-slate-600">Target Drive</label>
                 <select
                   value={selectedDriveId}
@@ -114,12 +114,12 @@ export function CreateFolderModal({ open, parentId, title, onClose, onSuccess, d
                 onChange={(e) => setName(e.target.value)}
               />
             </div>
-            <div className="flex justify-end gap-3 mt-1">
-              <Button variant="secondary" type="button" onClick={onClose} disabled={loading}>Cancel</Button>
-              <Button type="submit" loading={loading} disabled={loading || (showDrivePicker && !selectedDriveId)}>Create</Button>
-            </div>
-          </form>
-        </DialogBody>
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="secondary" type="button" onClick={onClose} disabled={loading}>Cancel</Button>
+            <Button type="submit" loading={loading} disabled={loading || (showDrivePicker && !selectedDriveId)}>Create</Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

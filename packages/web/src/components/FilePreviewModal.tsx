@@ -62,7 +62,7 @@ export function FilePreviewModal({ open, file, onClose }: FilePreviewModalProps)
           icon={<FileIcon mimeType={file?.mimeType} />}
           subtitle={file?.driveEmail || 'Google Drive'}
         >
-          <DialogTitle className="text-sm sm:text-base font-semibold text-slate-800 truncate" title={file?.name}>
+          <DialogTitle className="truncate" title={file?.name}>
             {file?.name}
           </DialogTitle>
         </DialogHeader>

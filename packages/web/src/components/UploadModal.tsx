@@ -61,8 +61,8 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
         className="max-w-md p-0 gap-0 flex flex-col overflow-hidden max-h-[85vh]"
         onInteractOutside={(e) => { if (isUploading) e.preventDefault(); }}
       >
-        <DialogHeader>
-          <DialogTitle className="text-sm font-semibold text-slate-800">Upload Files</DialogTitle>
+        <DialogHeader icon={<Upload size={20} className="text-primary" />}>
+          <DialogTitle>Upload Files</DialogTitle>
         </DialogHeader>
         <DialogBody>
           {/* File list or File Picker */}

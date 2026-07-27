@@ -5,7 +5,7 @@ import type { SharedLink } from '../lib/api';
 import { useInvalidateSharedLinks } from '../hooks/useSharedLinks';
 import { useToastStore } from '../stores/useToastStore';
 import { toLocalDatetimeInput } from '../lib/utils';
-import { Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle } from './ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogTitle } from './ui/dialog';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 
@@ -89,7 +89,7 @@ export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
     <Dialog open={open} onOpenChange={(o) => !o && !loading && onClose()}>
       <DialogContent className="max-w-md p-0 gap-0 flex flex-col overflow-hidden max-h-[85vh]">
         <DialogHeader icon={<Settings size={20} className="text-primary" />}>
-          <DialogTitle className="text-sm font-semibold text-slate-800">Edit Settings</DialogTitle>
+          <DialogTitle>Edit Settings</DialogTitle>
         </DialogHeader>
         <DialogBody>
           {error && (
@@ -191,10 +191,10 @@ export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
                 </div>
               </div>
             </div>
-            <div className="flex justify-end gap-3 mt-2">
+            <DialogFooter>
               <Button variant="secondary" type="button" onClick={onClose} disabled={loading}>Cancel</Button>
               <Button type="submit" loading={loading}>Save Settings</Button>
-            </div>
+            </DialogFooter>
           </form>
         </DialogBody>
       </DialogContent>

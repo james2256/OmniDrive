@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useToastStore } from '../stores/useToastStore';
-import { ShieldAlert, Plus, EllipsisVertical } from 'lucide-react';
+import { ShieldAlert, Plus, EllipsisVertical, UserPlus } from 'lucide-react';
 import type { AdminUser } from '../types';
 import { api } from '../lib/api';
 import type { Invitation } from '../lib/api';
 import {
   Dialog,
   DialogContent,
+  DialogHeader,
+  DialogBody,
+  DialogFooter,
   DialogTitle,
 } from '../components/ui/dialog';
 import {
@@ -18,6 +21,8 @@ import {
   DropdownMenuSeparator,
 } from '../components/ui/dropdown-menu';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
 import { Spinner } from '../components/ui/Spinner';
 
 const AddUserModal: React.FC<{ open: boolean, onClose: () => void, onSuccess: () => void }> = ({ open, onClose, onSuccess }) => {
@@ -51,39 +56,43 @@ const AddUserModal: React.FC<{ open: boolean, onClose: () => void, onSuccess: ()
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md p-4 rounded-xl">
-        <DialogTitle className="text-sm font-medium text-slate-900 mb-3">Add User</DialogTitle>
-        <form onSubmit={handleSubmit}>
-          {error && <div className="mb-3 text-sm text-red-600 bg-red-50 p-2 rounded">{error}</div>}
-          <div className="space-y-2.5">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Username *</label>
-              <input required value={username} onChange={e => setUsername(e.target.value)} className="w-full px-3 py-1.5 border border-slate-400 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
+      <DialogContent className="max-w-md p-0 gap-0 flex flex-col overflow-hidden">
+        <DialogHeader icon={<UserPlus size={20} className="text-primary" />}>
+          <DialogTitle>Add User</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <DialogBody>
+            {error && <div className="mb-3 text-sm text-red-600 bg-red-50 p-2 rounded-lg border border-red-100">{error}</div>}
+            <div className="space-y-2.5">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Username *</label>
+                <Input required value={username} onChange={e => setUsername(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Password *</label>
+                <Input required type="password" value={password} onChange={e => setPassword(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Name</label>
+                <Input value={name} onChange={e => setName(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Email</label>
+                <Input type="email" value={email} onChange={e => setEmail(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Role</label>
+                <select value={role} onChange={e => setRole(e.target.value as 'super_admin' | 'member')} className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-shadow">
+                  <option value="member">Member</option>
+                  <option value="super_admin">Super Admin</option>
+                </select>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Password *</label>
-              <input required type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-3 py-1.5 border border-slate-400 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
-              <input value={name} onChange={e => setName(e.target.value)} className="w-full px-3 py-1.5 border border-slate-400 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full px-3 py-1.5 border border-slate-400 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
-              <select value={role} onChange={e => setRole(e.target.value as 'super_admin' | 'member')} className="w-full px-3 py-1.5 border border-slate-400 rounded-lg focus:ring-2 focus:ring-primary outline-none">
-                <option value="member">Member</option>
-                <option value="super_admin">Super Admin</option>
-              </select>
-            </div>
-          </div>
-          <div className="mt-6 flex justify-end gap-3">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 border rounded-md transition-colors">Cancel</button>
-            <button type="submit" disabled={loading} className="px-4 py-2 text-sm font-medium text-white bg-primary hover:opacity-90 rounded-md disabled:opacity-50 transition-colors">Create</button>
-          </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="secondary" type="button" onClick={onClose} disabled={loading}>Cancel</Button>
+            <Button type="submit" loading={loading}>Create</Button>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

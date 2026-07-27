@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle } from './ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogTitle } from './ui/dialog';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Pen } from 'lucide-react';
@@ -38,10 +38,10 @@ export function RenameDialog({ open, initialName, title, onConfirm, onClose, loa
     <Dialog open={open} onOpenChange={(o) => !o && !loading && onClose()}>
       <DialogContent className="max-w-sm p-0 gap-0 flex flex-col overflow-hidden">
         <DialogHeader icon={<Pen size={20} className="text-primary" />}>
-          <DialogTitle className="text-sm font-semibold text-slate-800">{title}</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        <DialogBody>
-          <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <DialogBody>
             <Input
               ref={inputRef}
               type="text"
@@ -50,12 +50,12 @@ export function RenameDialog({ open, initialName, title, onConfirm, onClose, loa
               placeholder="Enter new name"
               autoFocus
             />
-            <div className="flex justify-end gap-3 mt-4">
-              <Button variant="secondary" type="button" onClick={onClose} disabled={loading}>Cancel</Button>
-              <Button type="submit" disabled={loading || !name.trim() || name === initialName} loading={loading}>Rename</Button>
-            </div>
-          </form>
-        </DialogBody>
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="secondary" type="button" onClick={onClose} disabled={loading}>Cancel</Button>
+            <Button type="submit" disabled={loading || !name.trim() || name === initialName} loading={loading}>Rename</Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

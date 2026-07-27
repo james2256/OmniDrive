@@ -63,8 +63,8 @@ export function MoveDriveModal({ files, onClose, onSuccess }: MoveDriveModalProp
   return (
     <Dialog open={files.length > 0} onOpenChange={(open) => !open && !isMoving && onClose()}>
       <DialogContent className="max-w-md p-0 gap-0 flex flex-col overflow-hidden max-h-[85vh]">
-        <DialogHeader>
-          <DialogTitle className="text-sm font-semibold text-slate-800">Move to Another Drive</DialogTitle>
+        <DialogHeader icon={<HardDrive size={20} className="text-primary" />}>
+          <DialogTitle>Move to Another Drive</DialogTitle>
           <DialogDescription className="text-xs text-slate-500 mt-1">
             Select a destination drive to move {files.length} item(s). This may take a moment depending on the file size.
           </DialogDescription>

@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { S3Credential } from '../../lib/api';
 import { useToastStore } from '../../stores/useToastStore';
-import { Plus, Trash2, Copy, Check, TriangleAlert, LoaderCircle } from 'lucide-react';
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from '../ui/dialog';
+import { Plus, Trash2, Copy, Check, TriangleAlert, KeyRound, CheckCircle2, LoaderCircle } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogTitle, DialogDescription } from '../ui/dialog';
+import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
 import { ConfirmDialog } from '../ConfirmDialog';
 import { api } from '../../lib/api';
 import { formatAbsoluteDate } from '../../lib/utils';
@@ -196,57 +198,48 @@ export function SettingsS3Tab() {
 
       {/* Create S3 Key Dialog */}
       <Dialog open={showCreateModal} onOpenChange={(open) => !open && !isCreatingKey && setShowCreateModal(false)}>
-        <DialogContent className="max-w-md p-4 rounded-xl">
-          <DialogTitle className="text-sm font-semibold text-slate-800 mb-1">Generate S3 API Key</DialogTitle>
-          <DialogDescription className="text-xs text-slate-500 mb-3">
-            Create credentials to access OmniDrive storage with S3 compatible applications.
-          </DialogDescription>
-          <form onSubmit={handleCreateKey} className="space-y-2.5">
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-600">Description</label>
-              <input
-                type="text"
-                value={newKeyDescription}
-                onChange={(e) => setNewKeyDescription(e.target.value)}
-                placeholder="e.g. Rclone desktop client"
-                className="w-full border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                required
-                maxLength={100}
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-600">Scope</label>
-              <select
-                value={newKeyScope}
-                onChange={(e) => setNewKeyScope(e.target.value)}
-                className="w-full border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-card"
-              >
-                <option value="">Global (All Workspaces)</option>
-                {workspaces.map((w: { id: string; name: string; role: string }) => (
-                  <option key={w.id} value={w.id}>
-                    Workspace: {w.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex gap-2 justify-end mt-1">
-              <button
-                type="button"
-                className="px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                onClick={() => setShowCreateModal(false)}
-                disabled={isCreatingKey}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary rounded-lg hover:opacity-90 transition-colors disabled:opacity-50"
-                disabled={isCreatingKey || !newKeyDescription.trim()}
-              >
-                {isCreatingKey && <LoaderCircle className="animate-spin" size={14} />}
-                Generate Key
-              </button>
-            </div>
+        <DialogContent className="max-w-md p-0 gap-0 flex flex-col overflow-hidden">
+          <DialogHeader icon={<KeyRound size={20} className="text-primary" />}>
+            <DialogTitle>Generate S3 API Key</DialogTitle>
+            <DialogDescription className="text-xs text-slate-500 mt-1">
+              Create credentials to access OmniDrive storage with S3 compatible applications.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateKey} className="flex flex-col flex-1 min-h-0">
+            <DialogBody>
+              <div className="space-y-2.5">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-medium text-slate-600">Description</label>
+                  <Input
+                    type="text"
+                    value={newKeyDescription}
+                    onChange={(e) => setNewKeyDescription(e.target.value)}
+                    placeholder="e.g. Rclone desktop client"
+                    required
+                    maxLength={100}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-medium text-slate-600">Scope</label>
+                  <select
+                    value={newKeyScope}
+                    onChange={(e) => setNewKeyScope(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-shadow"
+                  >
+                    <option value="">Global (All Workspaces)</option>
+                    {workspaces.map((w: { id: string; name: string; role: string }) => (
+                      <option key={w.id} value={w.id}>
+                        Workspace: {w.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </DialogBody>
+            <DialogFooter>
+              <Button variant="secondary" type="button" onClick={() => setShowCreateModal(false)} disabled={isCreatingKey}>Cancel</Button>
+              <Button type="submit" loading={isCreatingKey} disabled={isCreatingKey || !newKeyDescription.trim()}>Generate Key</Button>
+            </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
@@ -254,102 +247,96 @@ export function SettingsS3Tab() {
       {/* Success Modal - Credentials Display */}
       <Dialog open={createdCredential !== null} onOpenChange={(open) => !open && setCreatedCredential(null)}>
         <DialogContent
-          className="sm:max-w-[460px] p-4 rounded-xl"
+          className="sm:max-w-[460px] p-0 gap-0 flex flex-col overflow-hidden"
           onPointerDownOutside={(e) => e.preventDefault()}
           onEscapeKeyDown={(e) => e.preventDefault()}
         >
-          <DialogTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2 mb-1">
-            <span className="w-2 h-2 rounded-full bg-green-500 inline-block animate-ping" />
-            S3 Key Created
-          </DialogTitle>
-          <DialogDescription className="text-xs text-slate-500 mb-3">
-            Save these credentials. The secret key will never be shown again.
-          </DialogDescription>
+          <DialogHeader icon={<CheckCircle2 size={20} className="text-green-500" />}>
+            <DialogTitle>S3 Key Created</DialogTitle>
+            <DialogDescription className="text-xs text-slate-500 mt-1">
+              Save these credentials. The secret key will never be shown again.
+            </DialogDescription>
+          </DialogHeader>
 
-          {createdCredential && (
-            <div className="space-y-2.5">
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex gap-3">
-                <TriangleAlert className="text-amber-600 flex-shrink-0 mt-0.5" size={18} />
-                <div className="text-xs text-amber-800">
-                  <span className="font-semibold block mb-0.5">Security Warning:</span>
-                  Please copy the Secret Access Key below now. You will not be able to retrieve or view it again once this modal is closed.
+          <DialogBody>
+            {createdCredential && (
+              <div className="space-y-2.5">
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex gap-3">
+                  <TriangleAlert className="text-amber-600 flex-shrink-0 mt-0.5" size={18} />
+                  <div className="text-xs text-amber-800">
+                    <span className="font-semibold block mb-0.5">Security Warning:</span>
+                    Please copy the Secret Access Key below now. You will not be able to retrieve or view it again once this modal is closed.
+                  </div>
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                  Description
-                </label>
-                <div className="text-sm font-medium text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
-                  {createdCredential.description || <span className="text-slate-500 italic">No description</span>}
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between items-center mb-1.5">
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Access Key ID
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                    Description
                   </label>
-                  <button
-                    onClick={() => handleCopy(createdCredential.accessKeyId, 'access')}
-                    className="flex items-center gap-1 text-xs text-primary hover:text-blue-700 font-medium"
-                  >
-                    {copiedAccessKey ? (
-                      <>
-                        <Check size={14} />
-                        Copied!
-                      </>
-                    ) : (
-                      <>
-                        <Copy size={14} />
-                        Copy
-                      </>
-                    )}
-                  </button>
+                  <div className="text-sm font-medium text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                    {createdCredential.description || <span className="text-slate-500 italic">No description</span>}
+                  </div>
                 </div>
-                <div className="font-mono text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 break-all select-all">
-                  {createdCredential.accessKeyId}
-                </div>
-              </div>
 
-              <div>
-                <div className="flex justify-between items-center mb-1.5">
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Secret Access Key
-                  </label>
-                  <button
-                    onClick={() => handleCopy(createdCredential.secretAccessKey, 'secret')}
-                    className="flex items-center gap-1 text-xs text-primary hover:text-blue-700 font-medium"
-                  >
-                    {copiedSecretKey ? (
-                      <>
-                        <Check size={14} />
-                        Copied!
-                      </>
-                    ) : (
-                      <>
-                        <Copy size={14} />
-                        Copy
-                      </>
-                    )}
-                  </button>
+                <div>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Access Key ID
+                    </label>
+                    <button
+                      onClick={() => handleCopy(createdCredential.accessKeyId, 'access')}
+                      className="flex items-center gap-1 text-xs text-primary hover:text-blue-700 font-medium"
+                    >
+                      {copiedAccessKey ? (
+                        <>
+                          <Check size={14} />
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={14} />
+                          Copy
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <div className="font-mono text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 break-all select-all">
+                    {createdCredential.accessKeyId}
+                  </div>
                 </div>
-                <div className="font-mono text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 break-all select-all">
-                  {createdCredential.secretAccessKey}
-                </div>
-              </div>
 
-              <div className="flex justify-end pt-4 border-t border-slate-100">
-                <button
-                  type="button"
-                  className="px-5 py-2 text-sm font-semibold text-white bg-primary rounded-xl hover:opacity-90 transition-colors shadow-sm"
-                  onClick={() => setCreatedCredential(null)}
-                >
-                  I've Copied the Secret Key
-                </button>
+                <div>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Secret Access Key
+                    </label>
+                    <button
+                      onClick={() => handleCopy(createdCredential.secretAccessKey, 'secret')}
+                      className="flex items-center gap-1 text-xs text-primary hover:text-blue-700 font-medium"
+                    >
+                      {copiedSecretKey ? (
+                        <>
+                          <Check size={14} />
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={14} />
+                          Copy
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <div className="font-mono text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 break-all select-all">
+                    {createdCredential.secretAccessKey}
+                  </div>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </DialogBody>
+          <DialogFooter>
+            <Button onClick={() => setCreatedCredential(null)}>I've Copied the Secret Key</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

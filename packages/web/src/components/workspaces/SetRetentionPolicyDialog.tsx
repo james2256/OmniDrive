@@ -34,7 +34,7 @@ export function SetRetentionPolicyDialog({ open, onClose, onSubmit }: Props) {
     <Dialog open={open} onOpenChange={(o) => !o && !loading && onClose()}>
       <DialogContent className="max-w-md p-0 gap-0 flex flex-col overflow-hidden">
         <DialogHeader icon={<FolderLock size={20} className="text-primary" />}>
-          <DialogTitle className="text-sm font-semibold text-slate-800">Set Retention Policy</DialogTitle>
+          <DialogTitle>Set Retention Policy</DialogTitle>
           <DialogDescription className="text-sm text-slate-500 mt-1">
             Control how long files are kept in this folder.
           </DialogDescription>

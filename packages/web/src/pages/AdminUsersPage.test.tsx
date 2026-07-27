@@ -30,6 +30,7 @@ vi.mock('lucide-react', () => ({
   X: () => <div data-testid="x-icon" />,
   TriangleAlert: () => <div data-testid="triangle-alert-icon" />,
   LoaderCircle: () => <div data-testid="loader-circle-icon" />,
+  UserPlus: () => <div data-testid="user-plus-icon" />,
 }));
 
 vi.mock('../components/ui/dropdown-menu', () => ({
@@ -45,11 +46,22 @@ vi.mock('../components/ui/dialog', () => ({
   Dialog: ({ open, children }: any) => (open ? <div data-testid="dialog">{children}</div> : null),
   DialogContent: ({ children }: any) => <div>{children}</div>,
   DialogHeader: ({ children }: any) => <div>{children}</div>,
+  DialogBody: ({ children }: any) => <div>{children}</div>,
   // Render DialogTitle as an <h2> so it carries role="heading", matching the
   // real Radix DialogTitle semantics and enabling getByRole('heading', ...).
   DialogTitle: ({ children }: any) => <h2>{children}</h2>,
   DialogDescription: ({ children }: any) => <div>{children}</div>,
   DialogFooter: ({ children }: any) => <div>{children}</div>,
+}));
+
+vi.mock('../components/ui/Button', () => ({
+  Button: ({ children, onClick, disabled, type, loading, ...props }: any) => (
+    <button onClick={onClick} disabled={disabled} type={type} {...props}>{loading ? 'Loading...' : children}</button>
+  ),
+}));
+
+vi.mock('../components/ui/Input', () => ({
+  Input: (props: any) => <input {...props} />,
 }));
 
 describe('AdminUsersPage', () => {

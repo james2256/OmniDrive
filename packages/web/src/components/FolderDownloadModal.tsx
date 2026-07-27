@@ -98,7 +98,7 @@ export function FolderDownloadModal({ open, onClose, driveId, folderId, sharedLi
     <Dialog open={open} onOpenChange={(o) => !o && status !== 'downloading' && onClose()}>
       <DialogContent className="max-w-md p-0 gap-0 flex flex-col overflow-hidden">
         <DialogHeader icon={<Download size={20} className="text-primary" />}>
-          <DialogTitle className="text-sm font-semibold text-slate-800">
+          <DialogTitle>
             Download &ldquo;{folderName}&rdquo;
           </DialogTitle>
         </DialogHeader>

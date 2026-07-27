@@ -26,6 +26,8 @@ vi.mock('lucide-react', () => ({
   Check: () => <svg data-testid="check-icon" />,
   TriangleAlert: () => <svg data-testid="alert-icon" />,
   LoaderCircle: () => <svg data-testid="loader-icon" className="animate-spin" />,
+  KeyRound: () => <svg data-testid="key-icon" />,
+  CheckCircle2: () => <svg data-testid="check-circle-icon" />,
 }));
 
 vi.mock('../ui/dialog', () => ({
@@ -33,8 +35,20 @@ vi.mock('../ui/dialog', () => ({
     open ? <div data-testid="dialog"><button data-testid="dialog-close" onClick={() => onOpenChange?.(false)} />{children}</div> : null,
   DialogContent: ({ children }: any) => <div>{children}</div>,
   DialogHeader: ({ children }: any) => <div>{children}</div>,
+  DialogBody: ({ children }: any) => <div>{children}</div>,
+  DialogFooter: ({ children }: any) => <div>{children}</div>,
   DialogTitle: ({ children }: any) => <h2>{children}</h2>,
   DialogDescription: ({ children }: any) => <p>{children}</p>,
+}));
+
+vi.mock('../ui/Button', () => ({
+  Button: ({ children, onClick, disabled, type, loading, ...props }: any) => (
+    <button onClick={onClick} disabled={disabled} type={type} {...props}>{loading ? 'Loading...' : children}</button>
+  ),
+}));
+
+vi.mock('../ui/Input', () => ({
+  Input: (props: any) => <input {...props} />,
 }));
 
 vi.mock('../ConfirmDialog', () => ({

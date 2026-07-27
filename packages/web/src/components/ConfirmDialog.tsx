@@ -32,7 +32,7 @@ export function ConfirmDialog({
     <Dialog open={open} onOpenChange={(o) => !o && !loading && onClose()}>
       <DialogContent className="max-w-sm p-0 gap-0 flex flex-col overflow-hidden">
         <DialogHeader icon={<TriangleAlert size={20} className={iconColor} />}>
-          <DialogTitle className="text-sm font-semibold text-slate-800">{title}</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
           <DialogDescription className="text-sm text-slate-600 mt-1 leading-relaxed">
             {message}
           </DialogDescription>

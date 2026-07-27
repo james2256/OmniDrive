@@ -63,7 +63,7 @@ const DialogHeader = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      'flex items-start p-2.5 sm:p-3 border-b border-slate-200 shrink-0',
+      'flex items-center p-2.5 sm:p-3 border-b border-slate-200 shrink-0',
       className,
     )}
     {...props}
@@ -115,7 +115,7 @@ const DialogTitle = React.forwardRef<
   <DialogPrimitive.Title
     ref={ref}
     className={cn(
-      "text-lg font-semibold leading-none tracking-tight",
+      "text-sm sm:text-base font-semibold text-slate-800 tracking-tight",
       className
     )}
     {...props}

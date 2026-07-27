@@ -92,8 +92,8 @@ export function MoveModal({ open, items, driveId, onClose, onSuccess }: MoveModa
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !isMoving && onClose()}>
       <DialogContent className="max-w-lg p-0 gap-0 flex flex-col overflow-hidden max-h-[85vh]">
-        <DialogHeader>
-          <DialogTitle className="text-sm font-semibold text-slate-800">
+        <DialogHeader icon={<FolderInput size={20} className="text-primary" />}>
+          <DialogTitle>
             Move {items.length} item{items.length > 1 ? 's' : ''}
           </DialogTitle>
         </DialogHeader>

@@ -3,7 +3,7 @@ import { Copy, Check, Share2, Calendar, Lock, Settings, ChevronDown, ChevronUp, 
 import { createSharedLink } from '../lib/api';
 import { useInvalidateSharedLinks } from '../hooks/useSharedLinks';
 import { toLocalDatetimeInput, cn } from '../lib/utils';
-import { Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle } from './ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogTitle } from './ui/dialog';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 
@@ -108,7 +108,7 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
     <Dialog open={open} onOpenChange={(o) => !o && !loading && onClose()}>
       <DialogContent className="max-w-md p-0 gap-0 flex flex-col overflow-hidden max-h-[85vh]">
         <DialogHeader icon={<Share2 size={20} className="text-primary" />}>
-          <DialogTitle className="text-sm font-semibold text-slate-800">
+          <DialogTitle>
             Share {targetType === 'file' ? 'File' : 'Folder'}
           </DialogTitle>
         </DialogHeader>
@@ -202,10 +202,10 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
                   </div>
                 </div>
               </div>
-              <div className="flex justify-end gap-3 mt-2">
+              <DialogFooter>
                 <Button variant="secondary" type="button" onClick={onClose} disabled={loading}>Cancel</Button>
                 <Button type="submit" loading={loading}>Create Link</Button>
-              </div>
+              </DialogFooter>
             </form>
           ) : (
             <div className="flex flex-col gap-2">
@@ -229,9 +229,9 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
                   {copied ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
                 </Button>
               </div>
-              <div className="flex justify-end mt-2">
+              <DialogFooter>
                 <Button onClick={onClose}>Done</Button>
-              </div>
+              </DialogFooter>
             </div>
           )}
         </DialogBody>
