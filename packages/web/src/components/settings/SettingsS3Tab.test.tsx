@@ -3,14 +3,20 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { SettingsS3Tab } from './SettingsS3Tab';
-import { api } from '../../lib/api';
+import { s3Api } from '../../lib/api/s3';
+import { workspacesApi } from '../../lib/api/workspaces';
 import { useToastStore } from '../../stores/useToastStore';
 
-vi.mock('../../lib/api', () => ({
-  api: {
+vi.mock('../../lib/api/s3', () => ({
+  s3Api: {
     getS3Credentials: vi.fn(),
     createS3Credential: vi.fn(),
     deleteS3Credential: vi.fn(),
+  },
+}));
+
+vi.mock('../../lib/api/workspaces', () => ({
+  workspacesApi: {
     getWorkspaces: vi.fn(),
   },
 }));
@@ -89,8 +95,8 @@ describe('SettingsS3Tab', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (useToastStore as unknown as Mock).mockReturnValue({ addToast });
-    (api.getS3Credentials as Mock).mockResolvedValue([]);
-    (api.getWorkspaces as Mock).mockResolvedValue({ workspaces: [] });
+    (s3Api.getS3Credentials as Mock).mockResolvedValue([]);
+    (workspacesApi.getWorkspaces as Mock).mockResolvedValue({ workspaces: [] });
   });
 
   afterEach(() => cleanup());
@@ -103,7 +109,7 @@ describe('SettingsS3Tab', () => {
   });
 
   it('renders S3 key table with correct columns and data', async () => {
-    (api.getS3Credentials as Mock).mockResolvedValue([
+    (s3Api.getS3Credentials as Mock).mockResolvedValue([
       {
         id: 'k1',
         description: 'rclone laptop',
@@ -151,7 +157,7 @@ describe('SettingsS3Tab', () => {
   });
 
   it('creates key and shows success toast on form submit', async () => {
-    (api.createS3Credential as Mock).mockResolvedValue({
+    (s3Api.createS3Credential as Mock).mockResolvedValue({
       id: 'k3',
       accessKeyId: 'OMNINEW1234567890',
       secretAccessKey: 'secret-key-value',
@@ -169,7 +175,7 @@ describe('SettingsS3Tab', () => {
     fireEvent.click(screen.getByRole('button', { name: /generate key/i }));
 
     await waitFor(() => {
-      expect(api.createS3Credential).toHaveBeenCalledWith('test key', undefined);
+      expect(s3Api.createS3Credential).toHaveBeenCalledWith('test key', undefined);
     });
 
     expect(addToast).toHaveBeenCalledWith('success', 'S3 API key created successfully');
@@ -180,7 +186,7 @@ describe('SettingsS3Tab', () => {
   });
 
   it('revokes key when trash button clicked', async () => {
-    (api.getS3Credentials as Mock).mockResolvedValue([
+    (s3Api.getS3Credentials as Mock).mockResolvedValue([
       {
         id: 'k1',
         description: 'old key',
@@ -190,7 +196,7 @@ describe('SettingsS3Tab', () => {
         createdAt: '2026-01-15 10:30:00',
       },
     ]);
-    (api.deleteS3Credential as Mock).mockResolvedValue({ success: true });
+    (s3Api.deleteS3Credential as Mock).mockResolvedValue({ success: true });
 
     render(<SettingsS3Tab />);
 
@@ -202,7 +208,7 @@ describe('SettingsS3Tab', () => {
     fireEvent.click(confirmBtn);
 
     await waitFor(() => {
-      expect(api.deleteS3Credential).toHaveBeenCalledWith('k1');
+      expect(s3Api.deleteS3Credential).toHaveBeenCalledWith('k1');
     });
 
     expect(addToast).toHaveBeenCalledWith('success', 'S3 key revoked successfully');

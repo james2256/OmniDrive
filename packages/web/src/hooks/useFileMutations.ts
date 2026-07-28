@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
-import { api } from '../lib/api';
+import { filesApi } from '../lib/api/files';
 import { useToastStore } from '../stores/useToastStore';
 import { invalidateAfterFileMutation } from '../lib/invalidate';
 import { useStarFolder, useUnstarFolder } from './useFolderMutations';
@@ -9,7 +9,7 @@ export function useStarFile() {
   const qc = useQueryClient();
   const { addToast } = useToastStore();
   return useMutation({
-    mutationFn: (fileId: string) => api.starFile(fileId),
+    mutationFn: (fileId: string) => filesApi.starFile(fileId),
     onSuccess: () => {
       addToast('success', 'File starred');
       invalidateAfterFileMutation(qc);
@@ -22,7 +22,7 @@ export function useUnstarFile() {
   const qc = useQueryClient();
   const { addToast } = useToastStore();
   return useMutation({
-    mutationFn: (fileId: string) => api.unstarFile(fileId),
+    mutationFn: (fileId: string) => filesApi.unstarFile(fileId),
     onSuccess: () => {
       addToast('success', 'File unstarred');
       invalidateAfterFileMutation(qc);
@@ -35,7 +35,7 @@ export function useDeleteFile() {
   const qc = useQueryClient();
   const { addToast } = useToastStore();
   return useMutation({
-    mutationFn: (fileId: string) => api.deleteFile(fileId),
+    mutationFn: (fileId: string) => filesApi.deleteFile(fileId),
     onSuccess: () => {
       addToast('success', 'File deleted');
       invalidateAfterFileMutation(qc);
@@ -48,7 +48,7 @@ export function useRestoreFile() {
   const qc = useQueryClient();
   const { addToast } = useToastStore();
   return useMutation({
-    mutationFn: (fileId: string) => api.restoreFile(fileId),
+    mutationFn: (fileId: string) => filesApi.restoreFile(fileId),
     onSuccess: () => {
       addToast('success', 'File restored');
       invalidateAfterFileMutation(qc);
@@ -61,7 +61,7 @@ export function usePermanentDeleteFile() {
   const qc = useQueryClient();
   const { addToast } = useToastStore();
   return useMutation({
-    mutationFn: (fileId: string) => api.deleteFilePermanent(fileId),
+    mutationFn: (fileId: string) => filesApi.deleteFilePermanent(fileId),
     onSuccess: () => {
       addToast('success', 'File permanently deleted');
       invalidateAfterFileMutation(qc);
@@ -75,7 +75,7 @@ export function useRenameFile() {
   const { addToast } = useToastStore();
   return useMutation({
     mutationFn: ({ fileId, name }: { fileId: string; name: string }) =>
-      api.renameFile(fileId, name),
+      filesApi.renameFile(fileId, name),
     onSuccess: () => {
       addToast('success', 'File renamed');
       invalidateAfterFileMutation(qc);
@@ -94,7 +94,7 @@ export function useMoveFile() {
     }: {
       fileId: string;
       workspaceFolderId?: string | null;
-    }) => api.moveFile(fileId, workspaceFolderId),
+    }) => filesApi.moveFile(fileId, workspaceFolderId),
     onSuccess: () => {
       addToast('success', 'File moved');
       invalidateAfterFileMutation(qc);
@@ -108,7 +108,7 @@ export function useMoveFileToDrive() {
   const { addToast } = useToastStore();
   return useMutation({
     mutationFn: ({ fileId, targetDriveId }: { fileId: string; targetDriveId: string }) =>
-      api.moveFileToDrive(fileId, targetDriveId),
+      filesApi.moveFileToDrive(fileId, targetDriveId),
     onSuccess: () => {
       addToast('success', 'File moved to another drive');
       invalidateAfterFileMutation(qc);

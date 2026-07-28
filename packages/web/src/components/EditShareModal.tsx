@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Settings, ChevronDown, ChevronUp, Lock, Calendar, Eye, EyeOff } from 'lucide-react';
-import { updateSharedLink } from '../lib/api';
-import type { SharedLink } from '../lib/api';
+import { sharedApi } from '../lib/api/shared';
+import type { SharedLink } from '../types';
 import { useInvalidateSharedLinks } from '../hooks/useSharedLinks';
 import { useToastStore } from '../stores/useToastStore';
 import { toLocalDatetimeInput } from '../lib/utils';
@@ -72,7 +72,7 @@ export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
         isoExpiresAt = new Date(year, month - 1, day, hour, minute).toISOString();
       }
 
-      await updateSharedLink(link.id, {
+      await sharedApi.updateSharedLink(link.id, {
         password: password === '' ? null : password,
         expiresAt: expiresAt ? isoExpiresAt : null,
         allowDownloads,

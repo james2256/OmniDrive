@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Key } from 'lucide-react';
 import { useToastStore } from '../../stores/useToastStore';
-import { api } from '../../lib/api';
+import { authApi } from '../../lib/api/auth';
 import { Button } from '../ui/Button';
 
 /** Change-password form for the Settings → Account tab. */
@@ -20,7 +20,7 @@ export function AccountPasswordForm() {
     }
     setIsChangingPassword(true);
     try {
-      await api.changePassword(currentPassword, newPassword);
+      await authApi.changePassword(currentPassword, newPassword);
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');

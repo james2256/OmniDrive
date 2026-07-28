@@ -12,7 +12,7 @@ import { MoveDriveModal } from '../components/MoveDriveModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
 import { EmptyState } from '../components/EmptyState';
 import { formatFileSize, getDriveColor } from '../lib/utils';
-import { api } from '../lib/api';
+import { filesApi } from '../lib/api/files';
 import { useToastStore } from '../stores/useToastStore';
 import { qk } from '../lib/queryKeys';
 import type { FileEntry } from '../types';
@@ -92,7 +92,7 @@ export function DashboardPage() {
 
   const { data: recentData } = useQuery({
     queryKey: qk.recent,
-    queryFn: () => api.getRecentFiles(),
+    queryFn: () => filesApi.getRecentFiles(),
   });
   const recentFiles = (recentData?.files ?? []).slice(0, 8);
   const recentFolders = (recentData?.folders ?? []).slice(0, 8);
@@ -101,7 +101,7 @@ export function DashboardPage() {
     queryKey: qk.category,
     queryFn: async () => {
       try {
-        return await api.getFileCategoryOverview();
+        return await filesApi.getFileCategoryOverview();
       } catch {
         return null;
       }

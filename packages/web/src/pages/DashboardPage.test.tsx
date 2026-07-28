@@ -24,8 +24,8 @@ vi.mock('../hooks/useFolderMutations', () => ({
 vi.mock('../stores/useAuthStore', () => ({ useAuthStore: vi.fn() }));
 vi.mock('../stores/useToastStore', () => ({ useToastStore: () => ({ addToast: vi.fn() }) }));
 
-vi.mock('../lib/api', () => ({
-  api: {},
+vi.mock('../lib/api/files', () => ({
+  filesApi: {},
 }));
 
 vi.mock('@tanstack/react-query', () => ({

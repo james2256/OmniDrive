@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { FolderPlus } from 'lucide-react';
-import { api } from '../lib/api';
+import { drivesApi } from '../lib/api/drives';
+import { foldersApi } from '../lib/api/folders';
 import { useToastStore } from '../stores/useToastStore';
 import {
   Dialog,
@@ -76,9 +77,9 @@ export function CreateFolderModal({
     setError('');
     try {
       if (effectiveDriveId) {
-        await api.createDriveFolder(effectiveDriveId, trimmed, parentId ?? undefined);
+        await drivesApi.createDriveFolder(effectiveDriveId, trimmed, parentId ?? undefined);
       } else {
-        await api.createFolder(trimmed, parentId ?? undefined);
+        await foldersApi.createFolder(trimmed, parentId ?? undefined);
       }
       addToast('success', `${entityLabel} created successfully`);
       onSuccess();

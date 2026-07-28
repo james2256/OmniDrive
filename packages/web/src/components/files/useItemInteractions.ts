@@ -1,5 +1,6 @@
 import React from 'react';
-import { api } from '../../lib/api';
+import { foldersApi } from '../../lib/api/folders';
+import { drivesApi } from '../../lib/api/drives';
 import { useSelectionStore, type SelectedItem, isSameItem } from '../../stores/useSelectionStore';
 import type { FileEntry } from '../../types';
 import type { FolderItem, ItemActions } from './types';
@@ -87,9 +88,11 @@ export function useItemInteractions(opts: {
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     hoverTimeoutRef.current = setTimeout(() => {
       if (!('googleFolderId' in folder)) {
-        api.getFolderContents(folder.id).catch(() => {});
+        foldersApi.getFolderContents(folder.id).catch(() => {});
       } else if (folder.driveAccountId) {
-        api.getDriveFolderContents(folder.driveAccountId, folder.googleFolderId).catch(() => {});
+        drivesApi
+          .getDriveFolderContents(folder.driveAccountId, folder.googleFolderId)
+          .catch(() => {});
       }
     }, 300);
   }, []);

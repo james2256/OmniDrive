@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { api } from '../../lib/api';
+import { foldersApi } from '../../lib/api/folders';
 import type { WorkspaceFolder, FileEntry } from '../../types';
 import { Folder } from 'lucide-react';
 import {
@@ -26,14 +26,14 @@ export function AddToWorkspaceModal({ open, file, onClose, onSuccess }: Props) {
   useEffect(() => {
     if (open) {
       setSelectedId(null);
-      api.getWorkspaceTree().then((res) => setFolders(res.folders));
+      foldersApi.getWorkspaceTree().then((res) => setFolders(res.folders));
     }
   }, [open]);
 
   const handleAdd = async () => {
     if (!selectedId || !file) return;
     try {
-      await api.addFilesToWorkspace(selectedId, [file.id]);
+      await foldersApi.addFilesToWorkspace(selectedId, [file.id]);
       onSuccess();
     } catch {
       // Error handled by parent

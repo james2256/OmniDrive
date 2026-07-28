@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { api } from '../lib/api';
+import { automationsApi } from '../lib/api/automations';
 
 interface Rule {
   id: string;
@@ -23,7 +23,7 @@ export const useAutomationStore = create<AutomationStore>((set) => ({
   fetchRules: async () => {
     set({ isLoading: true, error: null });
     try {
-      const data = await api.getAutomations();
+      const data = await automationsApi.getAutomations();
       set({ rules: data.rules as Rule[], isLoading: false });
     } catch (error: unknown) {
       console.error('Failed to fetch automations:', error);
@@ -39,7 +39,7 @@ export const useAutomationStore = create<AutomationStore>((set) => ({
       rules: state.rules.map((r) => (r.id === id ? { ...r, isActive } : r)),
     }));
     try {
-      await api.toggleAutomation(id, isActive);
+      await automationsApi.toggleAutomation(id, isActive);
     } catch (error: unknown) {
       console.error('Failed to toggle automation:', error);
       // Revert optimistic update

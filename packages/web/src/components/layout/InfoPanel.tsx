@@ -3,7 +3,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useSelectionStore } from '../../stores/useSelectionStore';
 import { formatFileSize, formatRelativeTime } from '../../lib/utils';
 import type { FileEntry } from '../../types';
-import { api } from '../../lib/api';
+import { foldersApi } from '../../lib/api/folders';
+import { filesApi } from '../../lib/api/files';
 import { invalidateAfterFileMutation } from '../../lib/invalidate';
 import { FileIcon, getFileTypeName } from '../files/FileIcon';
 import { DriveBadge } from '../DriveBadge';
@@ -48,7 +49,7 @@ export const InfoPanel: React.FC = () => {
       const driveId =
         (singleSelection.item as unknown as FileEntry & { driveAccountId?: string })
           .driveAccountId || '';
-      await api.forceSyncFolder(singleSelection.item.id || '', driveId);
+      await foldersApi.forceSyncFolder(singleSelection.item.id || '', driveId);
       addToast('success', 'Sync queued. Data will update shortly.');
       invalidateAfterFileMutation(queryClient);
     } catch (err: unknown) {
@@ -265,12 +266,12 @@ export const InfoPanel: React.FC = () => {
 
                 try {
                   if (type === 'file') {
-                    await api.updateFileMetadata(item.id || '', newMeta);
+                    await filesApi.updateFileMetadata(item.id || '', newMeta);
                   } else if (
                     (item as unknown as FileEntry & { workspaceId?: string; lastSyncedAt?: string })
                       .workspaceId
                   ) {
-                    await api.updateFolderMetadata(
+                    await filesApi.updateFolderMetadata(
                       (
                         item as unknown as FileEntry & {
                           workspaceId?: string;

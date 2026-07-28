@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { useUploadStore } from '../stores/useUploadStore';
-import { api } from '../lib/api';
+import { authApi } from '../lib/api/auth';
 import { useDrives, useGetDriveInfo } from '../hooks/useDrives';
 import { Breadcrumb } from '../components/Breadcrumb';
 import { FileGrid } from '../components/files/FileGrid';
@@ -49,7 +49,7 @@ export function FilesPage() {
     if (isConnecting) return;
     setIsConnecting(true);
     try {
-      const { url } = await api.getGoogleOAuthUrl();
+      const { url } = await authApi.getGoogleOAuthUrl();
       window.location.href = url;
     } catch (e) {
       setIsConnecting(false);

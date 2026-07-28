@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api } from '../../lib/api';
+import { workspacesApi } from '../../lib/api/workspaces';
 import type { WorkspacePolicy } from '../../types';
 import { ConfirmDialog } from '../ConfirmDialog';
 import { Button } from '../ui/Button';
@@ -15,7 +15,7 @@ export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
   // We need the workspace object for usedBytes, but since we only have workspaceId here,
   // we would ideally fetch the workspace details. For this MVP, we will just fetch policies.
   const loadPolicies = useCallback(() => {
-    api
+    workspacesApi
       .getWorkspacePolicies(workspaceId)
       .then((res) => {
         setPolicies(res.policies);
@@ -31,7 +31,7 @@ export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
     if (!quotaInput) return;
     setLoading(true);
     try {
-      await api.createWorkspacePolicy(workspaceId, {
+      await workspacesApi.createWorkspacePolicy(workspaceId, {
         targetType: 'workspace',
         policyType: 'storage_quota',
         config: { max_bytes: parseInt(quotaInput, 10) * 1024 * 1024 * 1024 }, // Input in GB
@@ -54,7 +54,7 @@ export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
     if (!deleteTargetId) return;
     setIsDeleting(true);
     try {
-      await api.deleteWorkspacePolicy(workspaceId, deleteTargetId);
+      await workspacesApi.deleteWorkspacePolicy(workspaceId, deleteTargetId);
       loadPolicies();
     } catch (e) {
       console.error(e);

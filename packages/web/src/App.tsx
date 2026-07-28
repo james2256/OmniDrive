@@ -5,7 +5,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppLayout } from './components/layout/AppLayout';
 import { ToastContainer } from './components/ui/Toast';
 import { Button } from './components/ui/Button';
-import { api } from './lib/api';
+import { authApi } from './lib/api/auth';
 import { lazyWithRetry } from './lib/lazyWithRetry';
 
 // ponytail: lazy-load pages so login/public shells don't pull recharts + file UI (~900KB) into LCP path
@@ -91,7 +91,7 @@ export const App = () => {
   const checkSetupStatus = () => {
     setSetupError(null);
     setIsSetup(null);
-    api
+    authApi
       .getSetupStatus()
       .then((res) => setIsSetup(res.isSetup))
       .catch((err) =>

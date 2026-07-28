@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '../lib/api';
+import { drivesApi } from '../lib/api/drives';
+import { foldersApi } from '../lib/api/folders';
 import { useToastStore } from '../stores/useToastStore';
 import { invalidateAfterFileMutation } from '../lib/invalidate';
 
@@ -8,7 +9,7 @@ export function useStarFolder() {
   const { addToast } = useToastStore();
   return useMutation({
     mutationFn: ({ id, driveId }: { id: string; driveId?: string }) =>
-      driveId ? api.starDriveFolder(driveId, id) : api.starFolder(id),
+      driveId ? drivesApi.starDriveFolder(driveId, id) : foldersApi.starFolder(id),
     onSuccess: () => {
       addToast('success', 'Folder starred');
       invalidateAfterFileMutation(qc);
@@ -22,7 +23,7 @@ export function useUnstarFolder() {
   const { addToast } = useToastStore();
   return useMutation({
     mutationFn: ({ id, driveId }: { id: string; driveId?: string }) =>
-      driveId ? api.unstarDriveFolder(driveId, id) : api.unstarFolder(id),
+      driveId ? drivesApi.unstarDriveFolder(driveId, id) : foldersApi.unstarFolder(id),
     onSuccess: () => {
       addToast('success', 'Folder unstarred');
       invalidateAfterFileMutation(qc);
@@ -36,7 +37,7 @@ export function useDeleteDriveFolder() {
   const { addToast } = useToastStore();
   return useMutation({
     mutationFn: ({ driveId, folderId }: { driveId: string; folderId: string }) =>
-      api.deleteDriveFolder(driveId, folderId),
+      drivesApi.deleteDriveFolder(driveId, folderId),
     onSuccess: () => {
       addToast('success', 'Folder deleted');
       invalidateAfterFileMutation(qc);
@@ -50,7 +51,7 @@ export function useRestoreDriveFolder() {
   const { addToast } = useToastStore();
   return useMutation({
     mutationFn: ({ driveId, folderId }: { driveId: string; folderId: string }) =>
-      api.restoreDriveFolder(driveId, folderId),
+      drivesApi.restoreDriveFolder(driveId, folderId),
     onSuccess: () => {
       addToast('success', 'Folder restored');
       invalidateAfterFileMutation(qc);
@@ -64,7 +65,7 @@ export function usePermanentDeleteDriveFolder() {
   const { addToast } = useToastStore();
   return useMutation({
     mutationFn: ({ driveId, folderId }: { driveId: string; folderId: string }) =>
-      api.deleteDriveFolderPermanent(driveId, folderId),
+      drivesApi.deleteDriveFolderPermanent(driveId, folderId),
     onSuccess: () => {
       addToast('success', 'Folder permanently deleted');
       invalidateAfterFileMutation(qc);
@@ -85,7 +86,7 @@ export function useRenameDriveFolder() {
       driveId: string;
       folderId: string;
       name: string;
-    }) => api.renameDriveFolder(driveId, folderId, name),
+    }) => drivesApi.renameDriveFolder(driveId, folderId, name),
     onSuccess: () => {
       addToast('success', 'Folder renamed');
       invalidateAfterFileMutation(qc);

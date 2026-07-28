@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { SessionData } from '../types';
-import { api, ApiError } from '../lib/api';
+import { ApiError } from '../lib/api/core';
+import { authApi } from '../lib/api/auth';
 import { queryClient } from '../lib/queryClient';
 
 interface AuthState {
@@ -20,7 +21,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   fetchUser: async () => {
     try {
-      const { user } = await api.getUser();
+      const { user } = await authApi.getUser();
       set({ user, isAuthenticated: true, isLoading: false, authError: null });
     } catch (err) {
       // 401 = session expired → legitimate logout.
@@ -35,7 +36,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   logout: async () => {
     try {
-      await api.logout();
+      await authApi.logout();
     } finally {
       // Drop all cached queries so a subsequent login as a different user
       // never renders the previous user's data (files, shared links, workspaces).

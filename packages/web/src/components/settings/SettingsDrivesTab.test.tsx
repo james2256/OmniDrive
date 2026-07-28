@@ -5,7 +5,7 @@ import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/re
 import { SettingsDrivesTab } from './SettingsDrivesTab';
 import { useDrives, useRemoveDrive, useTriggerSync } from '../../hooks/useDrives';
 import { useToastStore } from '../../stores/useToastStore';
-import { api } from '../../lib/api';
+import { authApi } from '../../lib/api/auth';
 
 vi.mock('../../hooks/useDrives', () => ({
   useDrives: vi.fn(),
@@ -18,9 +18,14 @@ vi.mock('../../stores/useToastStore', () => ({
   useToastStore: vi.fn(),
 }));
 
-vi.mock('../../lib/api', () => ({
-  api: {
+vi.mock('../../lib/api/auth', () => ({
+  authApi: {
     getDriveConnectUrl: vi.fn(),
+  },
+}));
+
+vi.mock('../../lib/api/drives', () => ({
+  drivesApi: {
     addServiceAccount: vi.fn(),
   },
 }));
@@ -142,7 +147,9 @@ describe('SettingsDrivesTab', () => {
 
   it('redirects to OAuth URL when Add Google Drive clicked', async () => {
     (useDrives as Mock).mockReturnValue({ data: { drives: [] } });
-    (api.getDriveConnectUrl as Mock).mockResolvedValue({ url: 'https://accounts.google.com/auth' });
+    (authApi.getDriveConnectUrl as Mock).mockResolvedValue({
+      url: 'https://accounts.google.com/auth',
+    });
 
     // Mock window.location.href setter
     const originalLocation = window.location;
@@ -162,7 +169,7 @@ describe('SettingsDrivesTab', () => {
     fireEvent.click(screen.getByRole('button', { name: /add google drive/i }));
 
     await waitFor(() => {
-      expect(api.getDriveConnectUrl).toHaveBeenCalledTimes(1);
+      expect(authApi.getDriveConnectUrl).toHaveBeenCalledTimes(1);
     });
 
     // Restore
@@ -171,7 +178,7 @@ describe('SettingsDrivesTab', () => {
 
   it('shows error toast when OAuth URL fetch fails', async () => {
     (useDrives as Mock).mockReturnValue({ data: { drives: [] } });
-    (api.getDriveConnectUrl as Mock).mockRejectedValue(new Error('Network error'));
+    (authApi.getDriveConnectUrl as Mock).mockRejectedValue(new Error('Network error'));
 
     render(<SettingsDrivesTab />);
 

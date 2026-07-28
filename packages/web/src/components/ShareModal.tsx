@@ -12,7 +12,7 @@ import {
   Eye,
   EyeOff,
 } from 'lucide-react';
-import { createSharedLink } from '../lib/api';
+import { sharedApi } from '../lib/api/shared';
 import { useInvalidateSharedLinks } from '../hooks/useSharedLinks';
 import { toLocalDatetimeInput, cn } from '../lib/utils';
 import {
@@ -77,7 +77,7 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
         const [hour, minute] = timePart.split(':').map(Number);
         isoExpiresAt = new Date(year, month - 1, day, hour, minute).toISOString();
       }
-      const resp = await createSharedLink({
+      const resp = await sharedApi.createSharedLink({
         targetType,
         targetId,
         password: password || undefined,

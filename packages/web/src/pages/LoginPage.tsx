@@ -1,6 +1,6 @@
 // packages/web/src/pages/LoginPage.tsx
 import { useState } from 'react';
-import { api } from '../lib/api';
+import { authApi } from '../lib/api/auth';
 import { Button } from '../components/ui/Button';
 
 // Link styles for card (#ffffff): primary #2563EB is 4.28:1 (fails AA);
@@ -23,9 +23,15 @@ export function LoginPage() {
     setLoading(true);
     try {
       if (isRegister) {
-        await api.register({ name, username, password, email, invitation_code: invitationCode });
+        await authApi.register({
+          name,
+          username,
+          password,
+          email,
+          invitation_code: invitationCode,
+        });
       } else {
-        await api.login({ username, password });
+        await authApi.login({ username, password });
       }
       window.location.href = '/';
     } catch (err: unknown) {

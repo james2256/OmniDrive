@@ -3,8 +3,8 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useToastStore } from '../stores/useToastStore';
 import { ShieldAlert, Plus, EllipsisVertical, UserPlus } from 'lucide-react';
 import type { AdminUser } from '../types';
-import { api } from '../lib/api';
-import type { Invitation } from '../lib/api';
+import { adminApi } from '../lib/api/admin';
+import type { Invitation } from '../types';
 import {
   Dialog,
   DialogContent,
@@ -42,7 +42,7 @@ const AddUserModal: React.FC<{ open: boolean; onClose: () => void; onSuccess: ()
     setError('');
     setLoading(true);
     try {
-      await api.adminCreateUser({
+      await adminApi.adminCreateUser({
         username: username.trim(),
         name: name.trim() || undefined,
         email: email.trim() || undefined,
@@ -156,7 +156,7 @@ export const AdminUsersPage: React.FC = () => {
 
   const loadUsers = useCallback(async () => {
     try {
-      const res = await api.getAdminUsers();
+      const res = await adminApi.getAdminUsers();
       setUsers(res.users);
     } catch (e: unknown) {
       addToast('error', 'Failed to load users');
@@ -166,7 +166,7 @@ export const AdminUsersPage: React.FC = () => {
 
   const loadInvitations = useCallback(async () => {
     try {
-      const res = await api.getInvitations();
+      const res = await adminApi.getInvitations();
       setInvitations(res.invitations);
     } catch (e: unknown) {
       addToast('error', 'Failed to load invitations');
@@ -199,7 +199,7 @@ export const AdminUsersPage: React.FC = () => {
     e.preventDefault();
     setIsCreating(true);
     try {
-      await api.createInvitation(inviteCode, inviteMaxUses);
+      await adminApi.createInvitation(inviteCode, inviteMaxUses);
       setInviteCode('');
       setInviteMaxUses(1);
       loadInvitations();
@@ -216,7 +216,7 @@ export const AdminUsersPage: React.FC = () => {
 
   const handleDeleteInvitation = async (id: string) => {
     try {
-      await api.deleteInvitation(id);
+      await adminApi.deleteInvitation(id);
       loadInvitations();
     } catch (e: unknown) {
       addToast(
@@ -234,7 +234,7 @@ export const AdminUsersPage: React.FC = () => {
     if (!roleTarget) return;
     setIsChangingRole(true);
     try {
-      await api.updateUserRole(roleTarget.id, roleTarget.role);
+      await adminApi.updateUserRole(roleTarget.id, roleTarget.role);
       setRoleTarget(null);
       loadUsers();
       addToast(
@@ -253,7 +253,7 @@ export const AdminUsersPage: React.FC = () => {
     if (!statusTarget) return;
     setIsChangingStatus(true);
     try {
-      await api.updateUserStatus(statusTarget.id, statusTarget.status);
+      await adminApi.updateUserStatus(statusTarget.id, statusTarget.status);
       setStatusTarget(null);
       loadUsers();
       addToast('success', `User ${statusTarget.status === 'blocked' ? 'blocked' : 'unblocked'}`);
@@ -269,7 +269,7 @@ export const AdminUsersPage: React.FC = () => {
     if (!deleteUserTarget) return;
     setIsDeletingUser(true);
     try {
-      await api.deleteUser(deleteUserTarget.id);
+      await adminApi.deleteUser(deleteUserTarget.id);
       setDeleteUserTarget(null);
       loadUsers();
       addToast('success', 'User deleted');

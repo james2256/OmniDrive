@@ -7,7 +7,7 @@ import { FileGrid } from '../components/files/FileGrid';
 import { Breadcrumb } from '../components/Breadcrumb';
 import { BulkActionBar } from '../components/layout/BulkActionBar';
 import { ItemModals } from '../components/files/ItemModals';
-import { api } from '../lib/api';
+import { drivesApi } from '../lib/api/drives';
 import { useDrives, useGetDriveInfo } from '../hooks/useDrives';
 import { useSharedLinks, useIsTargetSharedCallback } from '../hooks/useSharedLinks';
 import { useItemModals } from '../hooks/useItemModals';
@@ -55,7 +55,7 @@ export function ExternalPage() {
     string | undefined
   >({
     queryKey: qk.external,
-    queryFn: ({ pageParam }) => api.getExternal(pageParam),
+    queryFn: ({ pageParam }) => drivesApi.getExternal(pageParam),
     initialPageParam: undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     enabled: isTopLevel,
@@ -65,7 +65,7 @@ export function ExternalPage() {
     queryKey: qk.externalFolder(driveIdParam ?? '', folderId ?? ''),
     queryFn: async () => {
       if (driveIdParam && folderId) {
-        const data = await api.getExternalFolderContents(driveIdParam, folderId);
+        const data = await drivesApi.getExternalFolderContents(driveIdParam, folderId);
         return {
           subfolders: data.subfolders ?? [],
           files: data.files ?? [],

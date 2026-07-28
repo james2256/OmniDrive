@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { FileGrid } from '../components/files/FileGrid';
 import { BulkActionBar } from '../components/layout/BulkActionBar';
-import { api } from '../lib/api';
+import { filesApi } from '../lib/api/files';
 import { useDrives, useGetDriveInfo } from '../hooks/useDrives';
 import { useSharedLinks, useIsTargetSharedCallback } from '../hooks/useSharedLinks';
 import { qk } from '../lib/queryKeys';
@@ -29,7 +29,7 @@ export function TrashPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: qk.trash,
-    queryFn: () => api.getTrashFiles(),
+    queryFn: () => filesApi.getTrashFiles(),
   });
 
   const fileResults = data?.files ?? [];

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useToastStore } from '../stores/useToastStore';
-import { api } from '../lib/api';
+import { drivesApi } from '../lib/api/drives';
 import type { DriveFolder, BreadcrumbItem } from '../types';
 import type { SelectedItem } from '../stores/useSelectionStore';
 import {
@@ -34,7 +34,7 @@ export function MoveModal({ open, items, driveId, onClose, onSuccess }: MoveModa
   const fetchFolders = useCallback(async () => {
     if (!open || !driveId) return;
     try {
-      const data = await api.getDriveFolderContents(driveId, currentFolderId);
+      const data = await drivesApi.getDriveFolderContents(driveId, currentFolderId);
       setSubfolders(data.subfolders || []);
       setBreadcrumb(data.breadcrumb || [{ id: 'root', name: 'My Drive' }]);
     } catch {
@@ -64,7 +64,7 @@ export function MoveModal({ open, items, driveId, onClose, onSuccess }: MoveModa
       try {
         if (item.type === 'file') {
           const file = item.item as { id: string; googleParentId?: string | null };
-          await api.moveToFolder(
+          await drivesApi.moveToFolder(
             driveId,
             file.id,
             currentFolderId,
@@ -74,7 +74,7 @@ export function MoveModal({ open, items, driveId, onClose, onSuccess }: MoveModa
         } else {
           const folder = item.item;
           if ('googleFolderId' in folder) {
-            await api.moveToFolder(
+            await drivesApi.moveToFolder(
               driveId,
               folder.googleFolderId,
               currentFolderId,

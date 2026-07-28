@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vite
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { AdminUsersPage } from './AdminUsersPage';
 import { useAuthStore } from '../stores/useAuthStore';
-import { api } from '../lib/api';
+import { adminApi } from '../lib/api/admin';
 
 // Mock the auth store
 vi.mock('../stores/useAuthStore', () => ({
@@ -12,8 +12,8 @@ vi.mock('../stores/useAuthStore', () => ({
 }));
 
 // Mock API
-vi.mock('../lib/api', () => ({
-  api: {
+vi.mock('../lib/api/admin', () => ({
+  adminApi: {
     getAdminUsers: vi.fn(),
     adminCreateUser: vi.fn(),
     getInvitations: vi.fn(),
@@ -71,8 +71,8 @@ vi.mock('../components/ui/Input', () => ({
 describe('AdminUsersPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (api.getAdminUsers as Mock).mockResolvedValue({ users: [] });
-    (api.getInvitations as Mock).mockResolvedValue({ invitations: [] });
+    (adminApi.getAdminUsers as Mock).mockResolvedValue({ users: [] });
+    (adminApi.getInvitations as Mock).mockResolvedValue({ invitations: [] });
   });
 
   afterEach(() => {
@@ -99,7 +99,7 @@ describe('AdminUsersPage', () => {
 
     expect(await screen.findByText('Users')).toBeTruthy();
     expect(screen.getByRole('button', { name: /add user/i })).toBeTruthy();
-    expect(api.getAdminUsers).toHaveBeenCalledTimes(1);
+    expect(adminApi.getAdminUsers).toHaveBeenCalledTimes(1);
   });
 
   it('opens and closes the add user modal', async () => {
@@ -134,12 +134,12 @@ describe('AdminUsersPage', () => {
 
     render(<AdminUsersPage />);
 
-    expect(api.getAdminUsers).toHaveBeenCalledTimes(1);
+    expect(adminApi.getAdminUsers).toHaveBeenCalledTimes(1);
 
     const invTab = await screen.findByText('Invitation Codes');
     fireEvent.click(invTab);
 
-    expect(api.getInvitations).toHaveBeenCalledTimes(1);
+    expect(adminApi.getInvitations).toHaveBeenCalledTimes(1);
     expect(screen.getByText('Create Code')).toBeTruthy();
   });
 });

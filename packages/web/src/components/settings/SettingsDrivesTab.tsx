@@ -5,7 +5,8 @@ import { qk } from '../../lib/queryKeys';
 import { DriveAccountCard } from '../DriveAccountCard';
 import { useToastStore } from '../../stores/useToastStore';
 import { Plus, Key, X } from 'lucide-react';
-import { api } from '../../lib/api';
+import { drivesApi } from '../../lib/api/drives';
+import { authApi } from '../../lib/api/auth';
 import { Button } from '../ui/Button';
 
 export function SettingsDrivesTab() {
@@ -79,7 +80,7 @@ export function SettingsDrivesTab() {
     if (isConnecting) return;
     setIsConnecting(true);
     try {
-      const { url } = await api.getDriveConnectUrl();
+      const { url } = await authApi.getDriveConnectUrl();
       window.location.href = url;
     } catch (e) {
       setIsConnecting(false);
@@ -113,7 +114,7 @@ export function SettingsDrivesTab() {
   // loss, no full re-sync. Only the dead refresh token is replaced.
   const handleReconnect = async () => {
     try {
-      const { url } = await api.getDriveConnectUrl();
+      const { url } = await authApi.getDriveConnectUrl();
       window.location.href = url;
     } catch {
       addToast('error', 'Failed to start reconnection');
@@ -123,7 +124,7 @@ export function SettingsDrivesTab() {
   const handleAddServiceAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.addServiceAccount(saCredentials, saFolderId);
+      await drivesApi.addServiceAccount(saCredentials, saFolderId);
       addToast('success', 'Service account added');
       setSaCredentials('');
       setSaFolderId('');

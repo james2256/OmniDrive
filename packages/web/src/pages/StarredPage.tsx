@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { FileGrid } from '../components/files/FileGrid';
 import { BulkActionBar } from '../components/layout/BulkActionBar';
 import { ItemModals } from '../components/files/ItemModals';
-import { api } from '../lib/api';
+import { filesApi } from '../lib/api/files';
 import { useDrives, useGetDriveInfo } from '../hooks/useDrives';
 import { useSharedLinks, useIsTargetSharedCallback } from '../hooks/useSharedLinks';
 import { useItemModals } from '../hooks/useItemModals';
@@ -25,7 +25,7 @@ export function StarredPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: qk.starred,
-    queryFn: () => api.getStarred(),
+    queryFn: () => filesApi.getStarred(),
   });
 
   const files = data?.files ?? [];

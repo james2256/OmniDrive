@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSelectionStore } from '../../stores/useSelectionStore';
 import { useToastStore } from '../../stores/useToastStore';
-import { api } from '../../lib/api';
+import { drivesApi } from '../../lib/api/drives';
+import { filesApi } from '../../lib/api/files';
+import { foldersApi } from '../../lib/api/folders';
 import { invalidateAfterFileMutation } from '../../lib/invalidate';
 import { X, Trash2, Folder, Star, HardDrive, RotateCcw } from 'lucide-react';
 import { ConfirmDialog } from '../ConfirmDialog';
@@ -53,9 +55,9 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({
       try {
         if (selected.type === 'file') {
           if (isTrashView) {
-            await api.deleteFilePermanent(selected.item.id);
+            await filesApi.deleteFilePermanent(selected.item.id);
           } else {
-            await api.deleteFile(selected.item.id);
+            await filesApi.deleteFile(selected.item.id);
           }
         } else {
           const folder = selected.item;
@@ -67,13 +69,13 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({
               throw new Error('Cannot delete Drive folder without a drive ID');
             }
             if (isTrashView) {
-              await api.deleteDriveFolderPermanent(driveId, folder.googleFolderId);
+              await drivesApi.deleteDriveFolderPermanent(driveId, folder.googleFolderId);
             } else {
-              await api.deleteDriveFolder(driveId, folder.googleFolderId);
+              await drivesApi.deleteDriveFolder(driveId, folder.googleFolderId);
             }
           } else {
             // WorkspaceFolder — use workspace folder delete endpoint.
-            await api.deleteFolder(folder.id);
+            await foldersApi.deleteFolder(folder.id);
           }
         }
         successCount++;
@@ -109,11 +111,11 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({
     for (const selected of selectedItems) {
       try {
         if (selected.type === 'file') {
-          await api.restoreFile(selected.item.id);
+          await filesApi.restoreFile(selected.item.id);
         } else {
           const folder = selected.item;
           if ('googleFolderId' in folder && folder.driveAccountId) {
-            await api.restoreDriveFolder(folder.driveAccountId, folder.googleFolderId);
+            await drivesApi.restoreDriveFolder(folder.driveAccountId, folder.googleFolderId);
           }
         }
         successCount++;

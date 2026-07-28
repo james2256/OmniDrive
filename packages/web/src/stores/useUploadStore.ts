@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { api } from '../lib/api';
+import { filesApi } from '../lib/api/files';
 
 export interface UploadItem {
   id: string;
@@ -57,7 +57,7 @@ export const useUploadStore = create<UploadState>((set, get) => ({
         }));
 
         // 1. Initiate upload — get resumable URL from Worker
-        const { uploadUrl, driveAccountId: actualDriveId } = await api.initiateUpload({
+        const { uploadUrl, driveAccountId: actualDriveId } = await filesApi.initiateUpload({
           name: item.file.name,
           mimeType: item.file.type || 'application/octet-stream',
           size: item.file.size,
@@ -66,7 +66,7 @@ export const useUploadStore = create<UploadState>((set, get) => ({
         });
 
         // 2. Upload via Worker proxy (bypasses Google CORS restriction)
-        const uploadResponse = await api.uploadViaProxy(uploadUrl, item.file, (progress) => {
+        const uploadResponse = await filesApi.uploadViaProxy(uploadUrl, item.file, (progress) => {
           set((state) => ({
             queue: state.queue.map((q) => (q.id === item.id ? { ...q, progress } : q)),
           }));
@@ -79,7 +79,7 @@ export const useUploadStore = create<UploadState>((set, get) => ({
           ),
         }));
 
-        await api.confirmUpload({
+        await filesApi.confirmUpload({
           googleFileId: uploadResponse.id,
           driveAccountId: actualDriveId,
           parentFolderId,

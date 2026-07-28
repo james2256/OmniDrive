@@ -41,7 +41,7 @@ vi.mock('../stores/useSelectionStore', () => ({
   useSelectionStore: vi.fn(),
   useClearSelectionOnRouteChange: () => {},
 }));
-vi.mock('../lib/api', () => ({ api: { createFolder: vi.fn() } }));
+vi.mock('../lib/api/auth', () => ({ authApi: {} }));
 
 vi.mock('../components/Breadcrumb', () => ({
   Breadcrumb: ({ items }: any) => (

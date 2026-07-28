@@ -18,7 +18,7 @@ import { useSharedLinks, useRevokeSharedLink } from '../hooks/useSharedLinks';
 import { useClipboard } from '../hooks/useClipboard';
 import { EmptyState, ListSkeleton } from '../components/EmptyState';
 import { Button } from '../components/ui/Button';
-import type { SharedLink } from '../lib/api';
+import type { SharedLink } from '../types';
 import { formatAbsoluteDate } from '../lib/utils';
 
 export function SharedLinksPage() {

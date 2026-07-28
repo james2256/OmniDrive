@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, SlidersHorizontal, File, Folder } from 'lucide-react';
-import { api } from '../../lib/api';
+import { filesApi } from '../../lib/api/files';
 import type { FileEntry, WorkspaceFolder, DriveFolder } from '../../types';
 import { Button } from '../ui/Button';
 
@@ -46,7 +46,7 @@ export const Omnibar: React.FC = () => {
       try {
         const metadata =
           metadataKey && metadataValue ? { [metadataKey]: metadataValue } : undefined;
-        const res = await api.globalSearch(query, undefined, metadata, controller.signal);
+        const res = await filesApi.globalSearch(query, undefined, metadata, controller.signal);
         setFileResults(res.files);
         setFolderResults(res.folders ?? []);
         setDriveFolderResults(res.driveFolders ?? []);

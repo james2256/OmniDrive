@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { api } from './api';
+import { filesApi } from './api/files';
 
-describe('api', () => {
+describe('filesApi', () => {
   it('has trash related functions', () => {
-    expect(typeof api.getTrashFiles).toBe('function');
-    expect(typeof api.restoreFile).toBe('function');
-    expect(typeof api.deleteFilePermanent).toBe('function');
+    expect(typeof filesApi.getTrashFiles).toBe('function');
+    expect(typeof filesApi.restoreFile).toBe('function');
+    expect(typeof filesApi.deleteFilePermanent).toBe('function');
   });
 });

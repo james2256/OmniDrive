@@ -3,11 +3,13 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { ShareModal } from './ShareModal';
-import { createSharedLink } from '../lib/api';
+import { sharedApi } from '../lib/api/shared';
 import { useInvalidateSharedLinks } from '../hooks/useSharedLinks';
 
-vi.mock('../lib/api', () => ({
-  createSharedLink: vi.fn(),
+vi.mock('../lib/api/shared', () => ({
+  sharedApi: {
+    createSharedLink: vi.fn(),
+  },
 }));
 
 vi.mock('../hooks/useSharedLinks', () => ({
@@ -52,7 +54,7 @@ describe('ShareModal', () => {
   afterEach(() => cleanup());
 
   it('submits form with correct payload and displays generated URL', async () => {
-    (createSharedLink as Mock).mockResolvedValue({ url: 'https://example.com/s/abc123' });
+    (sharedApi.createSharedLink as Mock).mockResolvedValue({ url: 'https://example.com/s/abc123' });
 
     render(<ShareModal open targetType="file" targetId="file-1" onClose={vi.fn()} />);
 
@@ -65,10 +67,10 @@ describe('ShareModal', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create Link' }));
 
     await waitFor(() => {
-      expect(createSharedLink).toHaveBeenCalledTimes(1);
+      expect(sharedApi.createSharedLink).toHaveBeenCalledTimes(1);
     });
 
-    const callArg = (createSharedLink as Mock).mock.calls[0][0];
+    const callArg = (sharedApi.createSharedLink as Mock).mock.calls[0][0];
     expect(callArg).toMatchObject({
       targetType: 'file',
       targetId: 'file-1',
@@ -83,7 +85,7 @@ describe('ShareModal', () => {
   });
 
   it('displays error message when API call fails', async () => {
-    (createSharedLink as Mock).mockRejectedValue(new Error('Rate limit exceeded'));
+    (sharedApi.createSharedLink as Mock).mockRejectedValue(new Error('Rate limit exceeded'));
 
     render(<ShareModal open targetType="folder" targetId="folder-1" onClose={vi.fn()} />);
 
@@ -95,7 +97,7 @@ describe('ShareModal', () => {
   });
 
   it('shows copy button and toggles to check icon after copying', async () => {
-    (createSharedLink as Mock).mockResolvedValue({ url: 'https://example.com/s/xyz' });
+    (sharedApi.createSharedLink as Mock).mockResolvedValue({ url: 'https://example.com/s/xyz' });
 
     render(<ShareModal open targetType="file" targetId="file-1" onClose={vi.fn()} />);
 
@@ -121,7 +123,7 @@ describe('ShareModal', () => {
   });
 
   it('sends advanced settings when expanded and filled', async () => {
-    (createSharedLink as Mock).mockResolvedValue({ url: 'https://example.com/s/adv' });
+    (sharedApi.createSharedLink as Mock).mockResolvedValue({ url: 'https://example.com/s/adv' });
 
     render(<ShareModal open targetType="file" targetId="file-1" onClose={vi.fn()} />);
 
@@ -142,10 +144,10 @@ describe('ShareModal', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create Link' }));
 
     await waitFor(() => {
-      expect(createSharedLink).toHaveBeenCalledTimes(1);
+      expect(sharedApi.createSharedLink).toHaveBeenCalledTimes(1);
     });
 
-    const callArg = (createSharedLink as Mock).mock.calls[0][0];
+    const callArg = (sharedApi.createSharedLink as Mock).mock.calls[0][0];
     expect(callArg).toMatchObject({
       allowDownloads: false,
       requireEmail: true,

@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useCallback } from 'react';
-import { getSharedLinks, deleteSharedLink } from '../lib/api';
-import type { SharedLink } from '../lib/api';
+import { sharedApi } from '../lib/api/shared';
+import type { SharedLink } from '../types';
 import { qk } from '../lib/queryKeys';
 import { useToastStore } from '../stores/useToastStore';
 
@@ -15,7 +15,7 @@ export function useSharedLinks() {
   return useQuery<SharedLink[]>({
     queryKey: qk.sharedLinks,
     queryFn: async () => {
-      const { links } = await getSharedLinks();
+      const { links } = await sharedApi.getSharedLinks();
       return links;
     },
   });
@@ -48,7 +48,7 @@ export function useRevokeSharedLink() {
   const qc = useQueryClient();
   const { addToast } = useToastStore();
   return useMutation({
-    mutationFn: (id: string) => deleteSharedLink(id),
+    mutationFn: (id: string) => sharedApi.deleteSharedLink(id),
     onSuccess: () => {
       addToast('success', 'Link revoked successfully');
       qc.invalidateQueries({ queryKey: qk.sharedLinks });

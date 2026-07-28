@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
-import { getSharedMeta, verifySharedPassword } from '../lib/api';
-import type { SharedMetaResponse } from '../lib/api';
+import { sharedApi } from '../lib/api/shared';
+import type { SharedMetaResponse } from '../types';
 import { formatFileSize } from '../lib/utils';
 import { FileIcon } from '../components/files/FileIcon';
 import { Lock, Download, CircleAlert, LoaderCircle, Folder } from 'lucide-react';
@@ -36,7 +36,7 @@ export function PublicSharedPage() {
       try {
         if (!skipLoadingState) setLoading(true);
         setError('');
-        const data = await getSharedMeta(id);
+        const data = await sharedApi.getSharedMeta(id);
         setMeta(data);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -78,7 +78,7 @@ export function PublicSharedPage() {
     try {
       setVerifying(true);
       setPasswordError('');
-      await verifySharedPassword(id, password);
+      await sharedApi.verifySharedPassword(id, password);
       await loadMeta(true);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

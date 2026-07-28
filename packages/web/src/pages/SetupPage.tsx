@@ -1,6 +1,6 @@
 // packages/web/src/pages/SetupPage.tsx
 import { useState } from 'react';
-import { api } from '../lib/api';
+import { authApi } from '../lib/api/auth';
 import { Button } from '../components/ui/Button';
 
 export function SetupPage() {
@@ -13,7 +13,7 @@ export function SetupPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      await api.register({ username, password });
+      await authApi.register({ username, password });
       window.location.href = '/';
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : 'Setup failed');

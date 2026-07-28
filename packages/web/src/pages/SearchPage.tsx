@@ -5,7 +5,7 @@ import { FileGrid } from '../components/files/FileGrid';
 import { ShareModal } from '../components/ShareModal';
 import { MoveDriveModal } from '../components/MoveDriveModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
-import { api } from '../lib/api';
+import { filesApi } from '../lib/api/files';
 import { useDrives, useGetDriveInfo } from '../hooks/useDrives';
 import { useSharedLinks, useIsTargetSharedCallback } from '../hooks/useSharedLinks';
 import { useToggleStar } from '../hooks/useFileMutations';
@@ -35,7 +35,7 @@ export function SearchPage() {
     queryKey: qk.search(query),
     queryFn: async () => {
       if (!query) return null;
-      return api.searchFiles(query);
+      return filesApi.searchFiles(query);
     },
     enabled: !!query,
   });

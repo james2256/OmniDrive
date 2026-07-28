@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useDrives } from '../../hooks/useDrives';
 import { formatFileSize } from '../../lib/utils';
-import { api } from '../../lib/api';
+import { filesApi } from '../../lib/api/files';
 
 interface CategoryData {
   name: string;
@@ -16,7 +16,7 @@ export const SidebarStorage: React.FC = () => {
 
   useEffect(() => {
     if (aggregate && aggregate.totalQuota > 0) {
-      api
+      filesApi
         .getFileCategoryOverview()
         .then((res) => {
           const allCategories = [

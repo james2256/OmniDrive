@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { api } from '../lib/api';
+import { workspacesApi } from '../lib/api/workspaces';
+import { foldersApi } from '../lib/api/folders';
+import { filesApi } from '../lib/api/files';
 import { useDrives, useGetDriveInfo } from '../hooks/useDrives';
 import { useSharedLinks, useIsTargetSharedCallback } from '../hooks/useSharedLinks';
 import { useItemModals } from '../hooks/useItemModals';
@@ -40,7 +42,7 @@ export function WorkspacesPage() {
 
   const fetchTree = useCallback(async () => {
     try {
-      const res = await api.getWorkspaceTree();
+      const res = await foldersApi.getWorkspaceTree();
       setFolders(res.folders);
     } catch {
       addToast('error', 'Failed to load workspaces');
@@ -50,7 +52,7 @@ export function WorkspacesPage() {
   const fetchContents = useCallback(
     async (folderId: string, isStale?: () => boolean) => {
       try {
-        const res = await api.getFolderContents(folderId);
+        const res = await foldersApi.getFolderContents(folderId);
         if (isStale?.()) return;
         setFiles(res.files);
         setSubfolders(res.subfolders);
@@ -101,7 +103,7 @@ export function WorkspacesPage() {
     if (!renameTarget) return;
     setIsRenaming(true);
     try {
-      await api.updateFolder(renameTarget.id, { name: newName });
+      await foldersApi.updateFolder(renameTarget.id, { name: newName });
       fetchTree();
       setRenameTarget(null);
     } catch {
@@ -119,7 +121,7 @@ export function WorkspacesPage() {
     if (!deleteTargetId) return;
     setIsDeleting(true);
     try {
-      await api.deleteFolder(deleteTargetId);
+      await foldersApi.deleteFolder(deleteTargetId);
       if (activeFolderId === deleteTargetId) {
         setActiveFolderId(null);
       }
@@ -136,7 +138,7 @@ export function WorkspacesPage() {
     if (!activeFolderId) return;
     setIsSyncing(true);
     try {
-      await api.syncWorkspace(activeFolderId);
+      await foldersApi.syncWorkspace(activeFolderId);
       addToast('success', 'Sync started.');
       setTimeout(() => fetchContents(activeFolderId), 2000);
     } catch {
@@ -171,7 +173,7 @@ export function WorkspacesPage() {
   const onRemoveFromWorkspace = useCallback(
     async (id: string) => {
       try {
-        await api.moveFile(id, null);
+        await filesApi.moveFile(id, null);
         addToast('success', 'Removed from workspace');
         setFiles((prev) => prev.filter((f) => f.id !== id));
       } catch {
@@ -296,7 +298,7 @@ export function WorkspacesPage() {
         onSubmit={async (action, days) => {
           if (activeFolderId && retentionTargetId && activeFolder) {
             try {
-              await api.createWorkspacePolicy(activeFolder.workspaceId, {
+              await workspacesApi.createWorkspacePolicy(activeFolder.workspaceId, {
                 targetType: 'folder',
                 targetId: retentionTargetId,
                 policyType: 'data_retention',

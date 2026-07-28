@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { S3Credential } from '../../lib/api';
+import type { S3Credential } from '../../types';
 import { useToastStore } from '../../stores/useToastStore';
 import {
   Plus,
@@ -23,7 +23,8 @@ import {
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { ConfirmDialog } from '../ConfirmDialog';
-import { api } from '../../lib/api';
+import { s3Api } from '../../lib/api/s3';
+import { workspacesApi } from '../../lib/api/workspaces';
 import { formatAbsoluteDate } from '../../lib/utils';
 
 export function SettingsS3Tab() {
@@ -52,7 +53,10 @@ export function SettingsS3Tab() {
   const loadData = useCallback(async () => {
     setLoadingS3(true);
     try {
-      const [keys, wsData] = await Promise.all([api.getS3Credentials(), api.getWorkspaces()]);
+      const [keys, wsData] = await Promise.all([
+        s3Api.getS3Credentials(),
+        workspacesApi.getWorkspaces(),
+      ]);
       setS3Keys(keys);
       // Filter the list of workspaces to only contain items where role === 'manager' || role === 'owner'
       const filtered = (wsData.workspaces || []).filter(
@@ -77,7 +81,7 @@ export function SettingsS3Tab() {
 
     setIsCreatingKey(true);
     try {
-      const result = await api.createS3Credential(newKeyDescription, newKeyScope || undefined);
+      const result = await s3Api.createS3Credential(newKeyDescription, newKeyScope || undefined);
 
       setCreatedCredential({
         accessKeyId: result.accessKeyId,
@@ -106,7 +110,7 @@ export function SettingsS3Tab() {
     if (!revokeTargetId) return;
     setIsRevoking(true);
     try {
-      await api.deleteS3Credential(revokeTargetId);
+      await s3Api.deleteS3Credential(revokeTargetId);
       addToast('success', 'S3 key revoked successfully');
       setRevokeTargetId(null);
       loadData();

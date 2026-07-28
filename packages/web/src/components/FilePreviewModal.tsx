@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ExternalLink, Download, LoaderCircle } from 'lucide-react';
 import type { FileEntry } from '../types';
 import { formatFileSize, formatRelativeTime } from '../lib/utils';
-import { fetchFilePreviewBlob } from '../lib/api';
+import { fetchFilePreviewBlob } from '../lib/api/files';
 import { FileIcon, getFileTypeName } from './files/FileIcon';
 import {
   Dialog,

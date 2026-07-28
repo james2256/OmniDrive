@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import type { AuditLog } from '../../types';
-import { api } from '../../lib/api';
+import { workspacesApi } from '../../lib/api/workspaces';
 import { formatAbsoluteDate } from '../../lib/utils';
 
 export function WorkspaceAuditTab({ workspaceId }: { workspaceId: string }) {
   const [logs, setLogs] = useState<AuditLog[]>([]);
 
   useEffect(() => {
-    api
+    workspacesApi
       .getWorkspaceAuditLogs(workspaceId)
       .then((res) => setLogs(res.logs))
       .catch(console.error);
