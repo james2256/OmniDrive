@@ -1,10 +1,10 @@
 import { Hono } from 'hono';
 import type { AppContext, Env } from '../types/env';
 import { authGuard } from '../middleware/auth-guard';
+import { createDriveService } from '../middleware/shared-services';
 import { AppError } from '../lib/errors';
 import { mapDriveRow } from '../types';
 import { syncDriveAccount, syncDriveFolder } from '../services/sync';
-import { GoogleDriveService } from '../services/google-drive';
 import { decodeCursor } from '../lib/cursor';
 import { zValidator } from '@hono/zod-validator';
 import {
@@ -225,12 +225,7 @@ foldersRouter.post('/:id/sync', async (c) => {
   const { results } = await c.get('driveService').findDrivesForFolder(folderId, userId);
 
   if (results && results.length > 0) {
-    const driveService = new GoogleDriveService(
-      c.env.DB,
-      c.env.GOOGLE_CLIENT_ID,
-      c.env.GOOGLE_CLIENT_SECRET,
-      c.env.TOKEN_ENCRYPTION_KEY,
-    );
+    const driveService = createDriveService(c.env);
     for (const row of results) {
       const drive = mapDriveRow(row as unknown as Record<string, unknown>);
       c.executionCtx.waitUntil(

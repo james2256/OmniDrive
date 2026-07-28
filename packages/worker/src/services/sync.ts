@@ -3,11 +3,12 @@ import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types'
 import type { DriveAccount } from '../types/index';
 import { mapDriveRow } from '../types/index';
 import {
-  GoogleDriveService,
+  type GoogleDriveService,
   type GDriveFile,
   type GDriveFolder,
   type GDriveOwner,
 } from './google-drive';
+import { createDriveService } from '../middleware/shared-services';
 import { resolveSyncRootFolderId } from '../lib/drive-folder';
 import type { Env } from '../types/env';
 import { FileRepository } from '../repositories/file.repository';
@@ -104,12 +105,7 @@ export async function syncDriveFolder(
     if (!row) throw new NotFoundError('Drive not found');
 
     const drive = mapDriveRow(row as Record<string, unknown>);
-    const driveService = new GoogleDriveService(
-      env.DB,
-      env.GOOGLE_CLIENT_ID,
-      env.GOOGLE_CLIENT_SECRET,
-      env.TOKEN_ENCRYPTION_KEY,
-    );
+    const driveService = createDriveService(env);
     await syncDriveAccount(drive, env.DB, driveService);
   } finally {
     activeSyncs.delete(driveId);
@@ -386,12 +382,7 @@ export async function runScheduledSync(env: {
 }): Promise<void> {
   if (getIsShuttingDown()) return;
 
-  const driveService = new GoogleDriveService(
-    env.DB,
-    env.GOOGLE_CLIENT_ID,
-    env.GOOGLE_CLIENT_SECRET,
-    env.TOKEN_ENCRYPTION_KEY,
-  );
+  const driveService = createDriveService(env);
 
   const rows = await env.DB.prepare(
     "SELECT * FROM drive_accounts WHERE type IN ('oauth', 'service_account')",

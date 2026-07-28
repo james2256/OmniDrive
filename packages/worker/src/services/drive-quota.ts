@@ -2,7 +2,7 @@ import type { D1Database } from '@cloudflare/workers-types';
 import type { Env } from '../types/env';
 import { computeDriveQuota } from '../lib/storage-quota';
 import { mapDriveRow, type DriveWithQuota } from '../types';
-import { GoogleDriveService } from './google-drive';
+import { createDriveService } from '../middleware/shared-services';
 import { logErrorNoCtx } from '../lib/logger';
 
 export async function resolveDrivesWithQuota(
@@ -30,12 +30,7 @@ export async function resolveDrivesWithQuota(
       }
 
       try {
-        const driveService = new GoogleDriveService(
-          db,
-          env.GOOGLE_CLIENT_ID,
-          env.GOOGLE_CLIENT_SECRET,
-          env.TOKEN_ENCRYPTION_KEY,
-        );
+        const driveService = createDriveService(env);
         const quota = await driveService.getQuota(drive.id);
         onQuotaPersist?.(drive.id, quota.total, quota.used);
         const computed = computeDriveQuota(drive, quota);

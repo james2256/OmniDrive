@@ -3,7 +3,8 @@ import { generateId } from '../lib/id';
 export class AuditService {
   constructor(private db: D1Database) {}
 
-  async logEvent(params: {
+  /** Build a prepared statement for logEvent (for use in db.batch()). */
+  prepareLogEvent(params: {
     workspaceId: string | null;
     actorId: string;
     actionType: string;
@@ -12,7 +13,7 @@ export class AuditService {
     metadata?: Record<string, unknown>;
   }) {
     const id = generateId();
-    await this.db
+    return this.db
       .prepare(
         `INSERT INTO audit_logs (id, workspace_id, actor_id, action_type, resource_id, resource_name, metadata)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -25,8 +26,18 @@ export class AuditService {
         params.resourceId || null,
         params.resourceName || null,
         params.metadata ? JSON.stringify(params.metadata) : null,
-      )
-      .run();
+      );
+  }
+
+  async logEvent(params: {
+    workspaceId: string | null;
+    actorId: string;
+    actionType: string;
+    resourceId?: string | null;
+    resourceName?: string | null;
+    metadata?: Record<string, unknown>;
+  }) {
+    await this.prepareLogEvent(params).run();
   }
 
   async cleanupOldLogs(daysToKeep = 30) {

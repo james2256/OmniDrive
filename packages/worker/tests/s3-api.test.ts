@@ -1765,7 +1765,7 @@ describe('S3 API compatibility endpoints', () => {
       const res = await makeSignedRequest('GET', '/s3/my-bucket-1/file.txt', env);
       expect(res.status).toBe(404);
       const body = await res.text();
-      expect(body).toBe('Bucket not found');
+      expect(body).toContain('NoSuchBucket');
     });
 
     it('rejects DELETE object if workspace does not match scoped workspace ID', async () => {
@@ -1776,7 +1776,7 @@ describe('S3 API compatibility endpoints', () => {
       const res = await makeSignedRequest('DELETE', '/s3/my-bucket-1/file.txt', env);
       expect(res.status).toBe(404);
       const body = await res.text();
-      expect(body).toBe('Bucket not found');
+      expect(body).toContain('NoSuchBucket');
     });
 
     it('rejects PUT object if workspace does not match scoped workspace ID', async () => {
@@ -1787,7 +1787,7 @@ describe('S3 API compatibility endpoints', () => {
       const res = await makeSignedRequest('PUT', '/s3/my-bucket-1/file.txt', env, 'some content');
       expect(res.status).toBe(404);
       const body = await res.text();
-      expect(body).toBe('Bucket not found');
+      expect(body).toContain('NoSuchBucket');
     });
 
     it('rejects POST object (initiate multipart upload) if workspace does not match scoped workspace ID', async () => {
@@ -1800,7 +1800,7 @@ describe('S3 API compatibility endpoints', () => {
       });
       expect(res.status).toBe(404);
       const body = await res.text();
-      expect(body).toBe('Bucket not found');
+      expect(body).toContain('NoSuchBucket');
     });
   });
 });

@@ -1,6 +1,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import { DriveRepository } from '../repositories/drive.repository';
-import { GoogleDriveService } from './google-drive';
+import type { GoogleDriveService } from './google-drive';
+import { createDriveService } from '../middleware/shared-services';
 import { AppError } from '../lib/errors';
 import { generateId } from '../lib/id';
 import { encodeCursor } from '../lib/cursor';
@@ -18,7 +19,12 @@ export class DriveService {
 
   constructor(db: D1Database, clientId: string, clientSecret: string, encryptionKey: string) {
     this.driveRepo = new DriveRepository(db);
-    this.googleDriveService = new GoogleDriveService(db, clientId, clientSecret, encryptionKey);
+    this.googleDriveService = createDriveService({
+      DB: db,
+      GOOGLE_CLIENT_ID: clientId,
+      GOOGLE_CLIENT_SECRET: clientSecret,
+      TOKEN_ENCRYPTION_KEY: encryptionKey,
+    });
   }
 
   /** Create a Google Drive folder via the API, then persist to D1 so it appears immediately. */

@@ -15,7 +15,7 @@ import { runScheduledSync } from './services/sync';
 import { runLifecycleExpiration, cleanupOrphanMultipartUploads } from './services/s3-lifecycle';
 import { AuditService } from './services/audit.service';
 import { PolicyService } from './services/policy.service';
-import { GoogleDriveService } from './services/google-drive';
+import { createDriveService } from './middleware/shared-services';
 
 import { authRouter } from './routes/auth';
 import { drivesRouter } from './routes/drives';
@@ -130,15 +130,7 @@ export default {
     await runScheduledSync(env);
     await runLifecycleExpiration(env);
     await cleanupOrphanMultipartUploads(env);
-    const engine = new AutomationEngine(
-      env,
-      new GoogleDriveService(
-        env.DB,
-        env.GOOGLE_CLIENT_ID,
-        env.GOOGLE_CLIENT_SECRET,
-        env.TOKEN_ENCRYPTION_KEY,
-      ),
-    );
+    const engine = new AutomationEngine(env, createDriveService(env));
     await engine.processCronTrigger(ctx);
 
     // Audit log cleanup
@@ -146,12 +138,7 @@ export default {
     await auditService.cleanupOldLogs(30);
 
     // Data retention policies
-    const driveService = new GoogleDriveService(
-      env.DB,
-      env.GOOGLE_CLIENT_ID,
-      env.GOOGLE_CLIENT_SECRET,
-      env.TOKEN_ENCRYPTION_KEY,
-    );
+    const driveService = createDriveService(env);
     const policyService = new PolicyService(env.DB, driveService);
     await policyService.processAutoDeleteRetentionPolicies();
 

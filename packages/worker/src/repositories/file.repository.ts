@@ -307,6 +307,14 @@ export class FileRepository {
       .run();
   }
 
+  /** Atomically delete a file and invalidate its user's category cache. */
+  async deleteAndInvalidateCache(fileId: string, userId: string) {
+    await this.db.batch([
+      this.db.prepare('DELETE FROM files WHERE id = ? AND user_id = ?').bind(fileId, userId),
+      this.db.prepare('DELETE FROM category_cache WHERE user_id = ?').bind(userId),
+    ]);
+  }
+
   updateMetadata(fileId: string, metadata: string) {
     return this.db
       .prepare('UPDATE files SET metadata = ? WHERE id = ?')

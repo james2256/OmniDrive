@@ -7,12 +7,12 @@ import { AuthService } from '../services/auth.service';
 import { AppError, ConflictError } from '../lib/errors';
 import { generateId } from '../lib/id';
 import { authGuard } from '../middleware/auth-guard';
+import { createDriveService } from '../middleware/shared-services';
 import { zValidator } from '@hono/zod-validator';
 import { registerSchema, loginSchema, changePasswordSchema, zodErrorHook } from '../lib/schemas';
 import { generatePKCE } from '../lib/pkce';
 import { encrypt } from '../lib/crypto';
 import { syncDriveAccount } from '../services/sync';
-import { GoogleDriveService } from '../services/google-drive';
 import { mapDriveRow } from '../types';
 import {
   SESSION_TTL_MS,
@@ -284,12 +284,7 @@ authRouter.get('/callback', async (c) => {
     .first();
   if (driveRow) {
     const driveObj = mapDriveRow(driveRow as Record<string, unknown>);
-    const driveService = new GoogleDriveService(
-      db,
-      c.env.GOOGLE_CLIENT_ID,
-      c.env.GOOGLE_CLIENT_SECRET,
-      c.env.TOKEN_ENCRYPTION_KEY,
-    );
+    const driveService = createDriveService(c.env);
     c.executionCtx.waitUntil(syncDriveAccount(driveObj, db, driveService));
   }
 

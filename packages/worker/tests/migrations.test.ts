@@ -2,9 +2,10 @@ import { describe, it, expect } from 'vitest';
 import Database from 'better-sqlite3';
 import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
+import { TABLES } from './integration/helpers';
 
-const MIGRATIONS_DIR = './migrations';
-const SCHEMA_FILE = './src/db/schema.sql';
+const MIGRATIONS_DIR = join(__dirname, '..', 'migrations');
+const SCHEMA_FILE = join(__dirname, '..', 'src', 'db', 'schema.sql');
 
 interface SchemaObject {
   type: string;
@@ -63,5 +64,40 @@ describe('D1 migrations vs schema.sql parity', () => {
     // Deep-equals: any divergence (a migration added but schema.sql not updated,
     // or vice-versa) fails this test.
     expect(schemaA).toEqual(schemaB);
+  });
+});
+
+describe('Integration helpers.ts vs schema.sql parity', () => {
+  it('helpers.ts creates all the same tables as schema.sql', () => {
+    // Compare table names only (not full DDL or columns — helpers.ts intentionally
+    // has simplified definitions without FKs/CHECKs, and some columns may differ).
+    // This catches the original bug: missing tables in helpers.ts that exist in
+    // schema.sql (e.g., automation_logs, quota_cache, s3_lifecycle_rules were
+    // missing before this test was added). A column-level comparison would be
+    // stronger but requires syncing all column definitions first — deferred.
+    const dbA = new Database(':memory:');
+    for (const sql of TABLES) {
+      dbA.exec(sql);
+    }
+
+    const dbB = new Database(':memory:');
+    dbB.exec(readFileSync(SCHEMA_FILE, 'utf-8'));
+
+    const tablesA = dbA
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+      )
+      .all() as { name: string }[];
+    const tablesB = dbB
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+      )
+      .all() as { name: string }[];
+    dbA.close();
+    dbB.close();
+
+    const namesA = tablesA.map((t) => t.name);
+    const namesB = tablesB.map((t) => t.name);
+    expect(namesA).toEqual(namesB);
   });
 });

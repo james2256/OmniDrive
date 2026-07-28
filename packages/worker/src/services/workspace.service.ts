@@ -3,6 +3,7 @@ import { WorkspaceRepository } from '../repositories/workspace.repository';
 import { AuditService } from './audit.service';
 import { getWorkspaceRole, hasPermission, roleLevel } from '../lib/rbac';
 import { AppError, ConflictError } from '../lib/errors';
+import { generateId } from '../lib/id';
 import type { WorkspaceRole } from '../lib/schemas';
 import { mapAuditLogRow, type AuditLog } from '../types';
 
@@ -89,9 +90,8 @@ export class WorkspaceService {
     }
 
     try {
-      await this.workspaceRepo.addMember(workspaceId, targetUser.id, role);
-
-      await this.auditService.logEvent({
+      const memberId = generateId();
+      const auditStmt = this.auditService.prepareLogEvent({
         workspaceId,
         actorId: userId,
         actionType: 'member.invite',
@@ -99,6 +99,14 @@ export class WorkspaceService {
         resourceName: email,
         metadata: { role },
       });
+      await this.db.batch([
+        this.db
+          .prepare(
+            'INSERT INTO workspace_members (id, workspace_id, user_id, role) VALUES (?, ?, ?, ?)',
+          )
+          .bind(memberId, workspaceId, targetUser.id, role),
+        auditStmt,
+      ]);
     } catch (e: unknown) {
       if ((e instanceof Error ? e.message : String(e)).includes('UNIQUE constraint failed')) {
         throw new ConflictError('User is already a member');
@@ -136,15 +144,18 @@ export class WorkspaceService {
       }
     }
 
-    await this.workspaceRepo.removeMember(workspaceId, targetUserId);
-
-    await this.auditService.logEvent({
-      workspaceId,
-      actorId: userId,
-      actionType: 'member.remove',
-      resourceId: targetUserId,
-      metadata: { targetUserId },
-    });
+    await this.db.batch([
+      this.db
+        .prepare('DELETE FROM workspace_members WHERE workspace_id = ? AND user_id = ?')
+        .bind(workspaceId, targetUserId),
+      this.auditService.prepareLogEvent({
+        workspaceId,
+        actorId: userId,
+        actionType: 'member.remove',
+        resourceId: targetUserId,
+        metadata: { targetUserId },
+      }),
+    ]);
   }
 
   /**

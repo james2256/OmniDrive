@@ -4,7 +4,7 @@ import type { D1Database } from '@cloudflare/workers-types';
 // Only the tables the integration tests touch — add more as coverage grows.
 // Full schema lives in src/db/schema.sql and migrations/.
 
-const TABLES = [
+export const TABLES = [
   `CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, google_id TEXT UNIQUE, email TEXT UNIQUE, name TEXT, avatar_url TEXT, is_super_admin INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), is_blocked INTEGER NOT NULL DEFAULT 0)`,
   `CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, data TEXT NOT NULL, expires_at INTEGER NOT NULL, touched_at INTEGER NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS invitation_codes (id TEXT PRIMARY KEY, code TEXT UNIQUE NOT NULL, created_by TEXT, max_uses INTEGER NOT NULL DEFAULT 1, used_count INTEGER NOT NULL DEFAULT 0, expires_at TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))`,

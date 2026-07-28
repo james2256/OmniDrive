@@ -8,7 +8,7 @@ import type { Context } from 'hono';
 import { Hono } from 'hono';
 import { s3AuthMiddleware } from '../middleware/s3-auth';
 import type { AppContext } from '../types/env';
-import { GoogleDriveService } from '../services/google-drive';
+import { createDriveService } from '../middleware/shared-services';
 import { generateId } from '../lib/id';
 import { getMD5HashingStream } from '../lib/crypto-s3';
 import { UploadRouter } from '../services/upload-router';
@@ -121,40 +121,12 @@ ${bucketsXml}  </Buckets>
 
 // GET /s3/:bucket (List Objects V2) or HEAD /s3/:bucket (HeadBucket)
 s3Router.on(['GET', 'HEAD'], '/:bucket', async (c) => {
-  const userId = c.get('userId');
-  const s3WorkspaceId = c.get('s3WorkspaceId') || null;
   const bucketName = c.req.param('bucket');
-  const db = c.env.DB;
-
   // Resolve Workspace by Bucket Name
-  const workspace = (await db
-    .prepare(
-      `
-    SELECT w.id, wm.role FROM workspaces w
-    JOIN workspace_members wm ON w.id = wm.workspace_id
-    WHERE w.name = ? AND wm.user_id = ?
-      AND (? IS NULL OR w.id = ?)
-  `,
-    )
-    .bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId)
-    .first()) as WorkspaceWithRoleRow;
-
-  if (!workspace) {
-    const errorCode = 'NoSuchBucket';
-    const errorMessage = 'Bucket not found';
-    if (c.req.method === 'HEAD') {
-      c.header('Content-Type', 'application/xml');
-      return c.body(null, 404);
-    }
-    return c.text(
-      `<?xml version="1.0" encoding="UTF-8"?><Error><Code>${escapeXml(errorCode)}</Code><Message>${escapeXml(errorMessage)}</Message></Error>`,
-      404,
-      { 'Content-Type': 'application/xml' },
-    );
-  }
-
-  const rbacDenied = requireS3Role(c, workspace.role, false);
-  if (rbacDenied) return rbacDenied;
+  const resolved = await resolveBucket(c, false);
+  if (resolved instanceof Response) return resolved;
+  const { workspace } = resolved;
+  const db = c.env.DB;
 
   // GET /s3/:bucket?lifecycle -> GetBucketLifecycleConfiguration
   if (c.req.method === 'GET' && c.req.query('lifecycle') !== undefined) {
@@ -438,28 +410,12 @@ async function getOrCreateWorkspaceFolder(
 
 // HEAD /s3/:bucket/:key (HeadObject - Get Metadata)
 s3Router.on('HEAD', '/:bucket/:key{.+}', async (c) => {
-  const userId = c.get('userId');
-  const s3WorkspaceId = c.get('s3WorkspaceId') || null;
-  const bucketName = c.req.param('bucket');
   const key = c.req.param('key');
   const db = c.env.DB;
 
-  const workspace = (await db
-    .prepare(
-      `
-    SELECT w.id, wm.role FROM workspaces w
-    JOIN workspace_members wm ON w.id = wm.workspace_id
-    WHERE w.name = ? AND wm.user_id = ?
-      AND (? IS NULL OR w.id = ?)
-  `,
-    )
-    .bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId)
-    .first()) as WorkspaceWithRoleRow;
-
-  if (!workspace) return c.text('Not Found', 404);
-
-  const rbacDenied = requireS3Role(c, workspace.role, false);
-  if (rbacDenied) return rbacDenied;
+  const resolved = await resolveBucket(c, false);
+  if (resolved instanceof Response) return resolved;
+  const { workspace } = resolved;
 
   const pathParts = key.split('/');
   const fileName = pathParts.pop();
@@ -489,28 +445,12 @@ s3Router.on('HEAD', '/:bucket/:key{.+}', async (c) => {
 
 // GET /s3/:bucket/:key (GetObject - Download)
 s3Router.get('/:bucket/:key{.+}', async (c) => {
-  const userId = c.get('userId');
-  const s3WorkspaceId = c.get('s3WorkspaceId') || null;
-  const bucketName = c.req.param('bucket');
   const key = c.req.param('key');
   const db = c.env.DB;
 
-  const workspace = (await db
-    .prepare(
-      `
-    SELECT w.id, wm.role FROM workspaces w
-    JOIN workspace_members wm ON w.id = wm.workspace_id
-    WHERE w.name = ? AND wm.user_id = ?
-      AND (? IS NULL OR w.id = ?)
-  `,
-    )
-    .bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId)
-    .first()) as WorkspaceWithRoleRow;
-
-  if (!workspace) return c.text('Bucket not found', 404);
-
-  const rbacDenied = requireS3Role(c, workspace.role, false);
-  if (rbacDenied) return rbacDenied;
+  const resolved = await resolveBucket(c, false);
+  if (resolved instanceof Response) return resolved;
+  const { workspace } = resolved;
 
   // Split S3 key to locate file
   const pathParts = key.split('/');
@@ -542,12 +482,7 @@ s3Router.get('/:bucket/:key{.+}', async (c) => {
     return c.body(null);
   }
 
-  const driveService = new GoogleDriveService(
-    c.env.DB,
-    c.env.GOOGLE_CLIENT_ID,
-    c.env.GOOGLE_CLIENT_SECRET,
-    c.env.TOKEN_ENCRYPTION_KEY,
-  );
+  const driveService = createDriveService(c.env);
 
   const { stream, exportedMimeType } = await driveService.downloadFile(
     file.drive_account_id,
@@ -570,27 +505,12 @@ s3Router.get('/:bucket/:key{.+}', async (c) => {
 // DELETE /s3/:bucket/:key (DeleteObject)
 s3Router.delete('/:bucket/:key{.+}', async (c) => {
   const userId = c.get('userId');
-  const s3WorkspaceId = c.get('s3WorkspaceId') || null;
-  const bucketName = c.req.param('bucket');
   const key = c.req.param('key');
   const db = c.env.DB;
 
-  const workspace = (await db
-    .prepare(
-      `
-    SELECT w.id, wm.role FROM workspaces w
-    JOIN workspace_members wm ON w.id = wm.workspace_id
-    WHERE w.name = ? AND wm.user_id = ?
-      AND (? IS NULL OR w.id = ?)
-  `,
-    )
-    .bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId)
-    .first()) as WorkspaceWithRoleRow;
-
-  if (!workspace) return c.text('Bucket not found', 404);
-
-  const rbacDenied = requireS3Role(c, workspace.role, true);
-  if (rbacDenied) return rbacDenied;
+  const resolved = await resolveBucket(c, true);
+  if (resolved instanceof Response) return resolved;
+  const { workspace } = resolved;
 
   const uploadId = c.req.query('uploadId');
   if (uploadId) {
@@ -610,12 +530,7 @@ s3Router.delete('/:bucket/:key{.+}', async (c) => {
       );
     }
 
-    const driveService = new GoogleDriveService(
-      c.env.DB,
-      c.env.GOOGLE_CLIENT_ID,
-      c.env.GOOGLE_CLIENT_SECRET,
-      c.env.TOKEN_ENCRYPTION_KEY,
-    );
+    const driveService = createDriveService(c.env);
 
     try {
       await driveService.deleteFile(upload.drive_account_id, upload.temp_folder_id);
@@ -649,12 +564,7 @@ s3Router.delete('/:bucket/:key{.+}', async (c) => {
 
   if (!file) return xmlError(c, 'NoSuchKey', `The specified key does not exist.`, 404);
 
-  const driveService = new GoogleDriveService(
-    c.env.DB,
-    c.env.GOOGLE_CLIENT_ID,
-    c.env.GOOGLE_CLIENT_SECRET,
-    c.env.TOKEN_ENCRYPTION_KEY,
-  );
+  const driveService = createDriveService(c.env);
 
   // Trash file in Google Drive (recoverable ~30 days) and mark as trashed in D1.
   // Matches s3-lifecycle.ts pattern — S3 DELETE trashes, not hard-deletes.
@@ -677,28 +587,13 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
     return handleUploadPart(c, uploadId, parseInt(partNumberStr, 10));
   }
 
-  const userId = c.get('userId');
-  const s3WorkspaceId = c.get('s3WorkspaceId') || null;
-  const bucketName = c.req.param('bucket');
   const key = c.req.param('key');
   const db = c.env.DB;
 
-  const workspace = (await db
-    .prepare(
-      `
-    SELECT w.id, wm.role FROM workspaces w
-    JOIN workspace_members wm ON w.id = wm.workspace_id
-    WHERE w.name = ? AND wm.user_id = ?
-      AND (? IS NULL OR w.id = ?)
-  `,
-    )
-    .bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId)
-    .first()) as WorkspaceWithRoleRow;
-
-  if (!workspace) return c.text('Bucket not found', 404);
-
-  const rbacDenied = requireS3Role(c, workspace.role, true);
-  if (rbacDenied) return rbacDenied;
+  const resolved = await resolveBucket(c, true);
+  if (resolved instanceof Response) return resolved;
+  const { workspace } = resolved;
+  const userId = c.get('userId');
 
   const contentLength = parseInt(c.req.header('Content-Length') || '0', 10);
   const mimeType = c.req.header('Content-Type') || 'application/octet-stream';
@@ -729,12 +624,7 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
   const pipedStream = bodyStream.pipeThrough(hashingStream);
 
   // 3. Perform Direct Google Drive Upload
-  const driveService = new GoogleDriveService(
-    c.env.DB,
-    c.env.GOOGLE_CLIENT_ID,
-    c.env.GOOGLE_CLIENT_SECRET,
-    c.env.TOKEN_ENCRYPTION_KEY,
-  );
+  const driveService = createDriveService(c.env);
 
   const pathParts = key.split('/');
   const fileName = pathParts.pop();
@@ -851,12 +741,7 @@ async function handleUploadPart(
   const { stream: hashingStream, getHash } = getMD5HashingStream();
   const pipedStream = bodyStream.pipeThrough(hashingStream);
 
-  const driveService = new GoogleDriveService(
-    c.env.DB,
-    c.env.GOOGLE_CLIENT_ID,
-    c.env.GOOGLE_CLIENT_SECRET,
-    c.env.TOKEN_ENCRYPTION_KEY,
-  );
+  const driveService = createDriveService(c.env);
 
   // Upload part as a separate temporary file inside temp_folder_id in Google Drive
   const partFileName = `part_${partNumber}`;
@@ -911,29 +796,11 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
   const uploadId = c.req.query('uploadId');
   const db = c.env.DB;
 
-  const workspace = (await db
-    .prepare(
-      `
-    SELECT w.id, wm.role FROM workspaces w
-    JOIN workspace_members wm ON w.id = wm.workspace_id
-    WHERE w.name = ? AND wm.user_id = ?
-      AND (? IS NULL OR w.id = ?)
-  `,
-    )
-    .bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId)
-    .first()) as WorkspaceWithRoleRow;
+  const resolved = await resolveBucket(c, true);
+  if (resolved instanceof Response) return resolved;
+  const { workspace } = resolved;
 
-  if (!workspace) return c.text('Bucket not found', 404);
-
-  const rbacDenied = requireS3Role(c, workspace.role, true);
-  if (rbacDenied) return rbacDenied;
-
-  const driveService = new GoogleDriveService(
-    c.env.DB,
-    c.env.GOOGLE_CLIENT_ID,
-    c.env.GOOGLE_CLIENT_SECRET,
-    c.env.TOKEN_ENCRYPTION_KEY,
-  );
+  const driveService = createDriveService(c.env);
 
   // 1. Initiate Multipart Upload
   if (uploadsParam !== undefined) {

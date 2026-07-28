@@ -7,11 +7,12 @@ import { zValidator } from '@hono/zod-validator';
 import type { AppContext } from '../types/env';
 import { authGuard } from '../middleware/auth-guard';
 import type { SharedLink } from '../types';
-import { GoogleDriveService } from '../services/google-drive';
+import { createDriveService } from '../middleware/shared-services';
 import { verifySharedPassword } from '../lib/password';
 import { logError } from '../lib/logger';
 import { isFileInSharedFolder } from '../lib/shared-folder';
 import { sharedLinkCookieOptions } from '../lib/session-cookie';
+import { buildDownloadTree } from '../services/download-tree';
 import {
   createSharedLinkSchema,
   updateSharedLinkSchema,
@@ -266,12 +267,7 @@ sharedRouter.get('/:id/download', async (c) => {
     if (!ctx) return c.text('File not found', 404);
     const { file, driveAccountId } = ctx;
 
-    const driveService = new GoogleDriveService(
-      c.env.DB,
-      c.env.GOOGLE_CLIENT_ID,
-      c.env.GOOGLE_CLIENT_SECRET,
-      c.env.TOKEN_ENCRYPTION_KEY,
-    );
+    const driveService = createDriveService(c.env);
 
     let stream: ReadableStream<Uint8Array>;
     let finalMimeType = (file.mime_type as string) || 'application/octet-stream';
@@ -329,12 +325,7 @@ sharedRouter.get('/:id/download', async (c) => {
     if (!target) return c.text('Folder not found', 404);
     const { driveId, googleFolderId } = target;
 
-    const driveService = new GoogleDriveService(
-      c.env.DB,
-      c.env.GOOGLE_CLIENT_ID,
-      c.env.GOOGLE_CLIENT_SECRET,
-      c.env.TOKEN_ENCRYPTION_KEY,
-    );
+    const driveService = createDriveService(c.env);
 
     // IDOR prevention: verify the file is inside the shared folder tree
     const isInside = await isFileInSharedFolder(driveService, driveId, fileId, googleFolderId);
@@ -398,12 +389,7 @@ sharedRouter.get('/:id/folder-contents', async (c) => {
   if (!target) return c.text('Folder not found', 404);
   const { driveId, googleFolderId } = target;
 
-  const driveService = new GoogleDriveService(
-    c.env.DB,
-    c.env.GOOGLE_CLIENT_ID,
-    c.env.GOOGLE_CLIENT_SECRET,
-    c.env.TOKEN_ENCRYPTION_KEY,
-  );
+  const driveService = createDriveService(c.env);
   const { files, folders } = await driveService.listFolderContents(driveId, googleFolderId);
 
   return c.json({
@@ -419,6 +405,7 @@ sharedRouter.get('/:id/folder-contents', async (c) => {
 });
 
 // GET /:id/download-tree — recursive tree for client-side ZIP (folder links)
+// Tree-walk logic lives in services/download-tree.ts (shared with drives.ts).
 sharedRouter.get('/:id/download-tree', async (c) => {
   const sharedService = c.get('sharedService');
   const link = await sharedService.getLinkForValidation(c.req.param('id'));
@@ -434,60 +421,12 @@ sharedRouter.get('/:id/download-tree', async (c) => {
   if (!target) return c.text('Folder not found', 404);
   const { driveId, googleFolderId, rootName } = target;
 
-  const driveService = new GoogleDriveService(
-    c.env.DB,
-    c.env.GOOGLE_CLIENT_ID,
-    c.env.GOOGLE_CLIENT_SECRET,
-    c.env.TOKEN_ENCRYPTION_KEY,
-  );
-
-  const MAX_FILES = 500;
-  const MAX_API_CALLS = 40;
-  let apiCallCount = 0;
-  let truncated = false;
-
-  const tree: Array<{
-    googleFileId: string;
-    name: string;
-    path: string;
-    size: number;
-    mimeType: string | null;
-  }> = [];
-
-  async function walk(folderId: string, pathPrefix: string): Promise<void> {
-    if (tree.length >= MAX_FILES || apiCallCount >= MAX_API_CALLS) {
-      truncated = true;
-      return;
-    }
-    apiCallCount++;
-
-    const { files: gFiles, folders: gFolders } = await driveService.listFolderContents(
-      driveId,
-      folderId,
-    );
-    for (const file of gFiles) {
-      if (tree.length >= MAX_FILES) {
-        truncated = true;
-        break;
-      }
-      tree.push({
-        googleFileId: file.id,
-        name: file.name,
-        path: pathPrefix + file.name,
-        size: parseInt(file.size ?? '0', 10),
-        mimeType: file.mimeType ?? null,
-      });
-    }
-    for (const folder of gFolders) {
-      if (tree.length >= MAX_FILES || apiCallCount >= MAX_API_CALLS) {
-        truncated = true;
-        break;
-      }
-      await walk(folder.id, `${pathPrefix}${folder.name}/`);
-    }
-  }
-
-  await walk(googleFolderId, '');
+  const driveService = createDriveService(c.env);
+  const { files, truncated } = await buildDownloadTree({
+    driveService,
+    driveId,
+    rootFolderId: googleFolderId,
+  });
 
   // Enforce download limit
   if (link.maxDownloads !== null && link.maxDownloads !== undefined) {
@@ -498,5 +437,5 @@ sharedRouter.get('/:id/download-tree', async (c) => {
   }
   c.executionCtx.waitUntil(sharedService.logAction(link.id, 'download'));
 
-  return c.json({ files: tree, rootName, truncated });
+  return c.json({ files, rootName, truncated });
 });

@@ -79,7 +79,7 @@ describe('csrfGuard', () => {
     expect(res.status).toBe(200);
   });
 
-  it('exempts /api/auth/login', async () => {
+  it('blocks /api/auth/login without Origin (CSRF protection)', async () => {
     const { app, env } = createApp();
     const res = await app.request(
       '/api/auth/login',
@@ -90,16 +90,44 @@ describe('csrfGuard', () => {
       },
       env,
     );
+    expect(res.status).toBe(403);
+  });
+
+  it('allows /api/auth/login with valid Origin', async () => {
+    const { app, env } = createApp();
+    const res = await app.request(
+      '/api/auth/login',
+      {
+        method: 'POST',
+        headers: { Origin: 'https://app.example.com', 'Content-Type': 'application/json' },
+        body: '{}',
+      },
+      env,
+    );
     expect(res.status).toBe(200);
   });
 
-  it('exempts /api/auth/register', async () => {
+  it('blocks /api/auth/register without Origin (CSRF protection)', async () => {
     const { app, env } = createApp();
     const res = await app.request(
       '/api/auth/register',
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      },
+      env,
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it('allows /api/auth/register with valid Origin', async () => {
+    const { app, env } = createApp();
+    const res = await app.request(
+      '/api/auth/register',
+      {
+        method: 'POST',
+        headers: { Origin: 'https://app.example.com', 'Content-Type': 'application/json' },
         body: '{}',
       },
       env,

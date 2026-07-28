@@ -1,5 +1,5 @@
 import type { Env } from '../types/env';
-import { GoogleDriveService } from './google-drive';
+import { createDriveService } from '../middleware/shared-services';
 import { logErrorNoCtx } from '../lib/logger';
 
 export interface LifecycleRule {
@@ -57,12 +57,7 @@ export async function runLifecycleExpiration(env: Env): Promise<void> {
 
   if (!rules?.length) return;
 
-  const driveService = new GoogleDriveService(
-    env.DB,
-    env.GOOGLE_CLIENT_ID,
-    env.GOOGLE_CLIENT_SECRET,
-    env.TOKEN_ENCRYPTION_KEY,
-  );
+  const driveService = createDriveService(env);
 
   for (const rule of rules) {
     // Reuse the ListObjects CTE to build S3 keys, then filter by prefix + age.
@@ -121,12 +116,7 @@ export async function cleanupOrphanMultipartUploads(env: Env): Promise<void> {
 
   if (!orphans?.length) return;
 
-  const driveService = new GoogleDriveService(
-    env.DB,
-    env.GOOGLE_CLIENT_ID,
-    env.GOOGLE_CLIENT_SECRET,
-    env.TOKEN_ENCRYPTION_KEY,
-  );
+  const driveService = createDriveService(env);
 
   for (const upload of orphans) {
     try {

@@ -3,12 +3,13 @@ import { setCookie } from 'hono/cookie';
 import { AppError, ConflictError, ValidationError } from '../lib/errors';
 import type { AppContext } from '../types/env';
 import { authGuard } from '../middleware/auth-guard';
-import { GoogleDriveService } from '../services/google-drive';
+import { createDriveService } from '../middleware/shared-services';
 import { DriveRepository } from '../repositories/drive.repository';
 import { syncDriveAccount, batchUpsertFolderContents } from '../services/sync';
-import { mapDriveRow, mapDriveFolderRow, mapFileRow } from '../types';
+import { mapDriveRow, mapDriveFolderRow, mapFileRow, type FileEntry } from '../types';
 import { generateId } from '../lib/id';
 import type { BreadcrumbItem } from '../types';
+import { buildDownloadTree } from '../services/download-tree';
 import { generatePKCE } from '../lib/pkce';
 import { decodeCursor } from '../lib/cursor';
 import { computeDriveQuota } from '../lib/storage-quota';
@@ -124,12 +125,7 @@ drivesRouter.get('/:driveId/external-folders/:googleFolderId', async (c) => {
   if (!driveRow) return c.json({ error: 'Drive not found' }, 404);
 
   const drive = mapDriveRow(driveRow as Record<string, unknown>);
-  const driveService = new GoogleDriveService(
-    db,
-    c.env.GOOGLE_CLIENT_ID,
-    c.env.GOOGLE_CLIENT_SECRET,
-    c.env.TOKEN_ENCRYPTION_KEY,
-  );
+  const driveService = createDriveService(c.env);
   const { files: gFiles, folders: gFolders } = await driveService.listFolderContents(
     driveId,
     googleFolderId,
@@ -307,12 +303,7 @@ drivesRouter.post(
     const driveRow = await c.get('driveService').findById(driveId);
     if (driveRow) {
       const driveObj = mapDriveRow(driveRow as Record<string, unknown>);
-      const driveService = new GoogleDriveService(
-        db,
-        c.env.GOOGLE_CLIENT_ID,
-        c.env.GOOGLE_CLIENT_SECRET,
-        c.env.TOKEN_ENCRYPTION_KEY,
-      );
+      const driveService = createDriveService(c.env);
       c.executionCtx.waitUntil(syncDriveAccount(driveObj, db, driveService));
     }
 
@@ -366,12 +357,7 @@ drivesRouter.post('/:id/sync', async (c) => {
   if (!row) return c.json({ error: 'Drive not found' }, 404);
 
   const drive = mapDriveRow(row as Record<string, unknown>);
-  const driveService = new GoogleDriveService(
-    c.env.DB,
-    c.env.GOOGLE_CLIENT_ID,
-    c.env.GOOGLE_CLIENT_SECRET,
-    c.env.TOKEN_ENCRYPTION_KEY,
-  );
+  const driveService = createDriveService(c.env);
 
   // Run the sync process in the background via c.executionCtx.waitUntil
   // so the user doesn't have to wait for the entire sync to complete
@@ -409,12 +395,7 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/sync', async (c) => {
   if (!hasTokens) return c.json({ error: 'No tokens for drive' }, 400);
 
   const drive = mapDriveRow(driveRow as Record<string, unknown>);
-  const driveService = new GoogleDriveService(
-    c.env.DB,
-    c.env.GOOGLE_CLIENT_ID,
-    c.env.GOOGLE_CLIENT_SECRET,
-    c.env.TOKEN_ENCRYPTION_KEY,
-  );
+  const driveService = createDriveService(c.env);
   const effectiveFolderId = resolveGoogleFolderId(drive, googleFolderId);
   const { files: gFiles, folders: gFolders } = await driveService.listFolderContents(
     driveId,
@@ -564,6 +545,7 @@ drivesRouter.delete('/:id', async (c) => {
 // to D1 so the existing GET /api/files/:id/download endpoint works, and returns
 // a flat array with relative paths for client-side ZIP assembly.
 // Caps at 500 files + 40 API calls to stay within Free tier subrequest budget.
+// Tree-walk logic lives in services/download-tree.ts (shared with shared.ts).
 drivesRouter.get('/:driveId/folders/:googleFolderId/download-tree', async (c) => {
   const userId = c.get('userId');
   const { driveId, googleFolderId } = c.req.param();
@@ -574,66 +556,46 @@ drivesRouter.get('/:driveId/folders/:googleFolderId/download-tree', async (c) =>
   if (!driveRow) return c.json({ error: 'Drive not found' }, 404);
 
   const drive = mapDriveRow(driveRow as Record<string, unknown>);
-  const driveService = new GoogleDriveService(
-    db,
-    c.env.GOOGLE_CLIENT_ID,
-    c.env.GOOGLE_CLIENT_SECRET,
-    c.env.TOKEN_ENCRYPTION_KEY,
-  );
+  const driveService = createDriveService(c.env);
 
-  const MAX_FILES = 500;
-  const MAX_API_CALLS = 40;
-  let apiCallCount = 0;
-  let truncated = false;
+  // Build a googleFileId → FileEntry map as we persist each folder's contents
+  // to D1. The helper returns Google-file-keyed tree items; this map swaps in
+  // D1 row ids (so GET /api/files/:id/download works) and applies the userId
+  // sanity check (no-op given findFullByIdAndUser, but preserved for parity
+  // with the pre-refactor handler).
+  const d1FilesByGoogleId = new Map<string, FileEntry>();
 
-  const tree: Array<{
-    id: string;
-    name: string;
-    path: string;
-    size: number;
-    mimeType: string | null;
-  }> = [];
-
-  async function walk(folderId: string, pathPrefix: string): Promise<void> {
-    if (tree.length >= MAX_FILES || apiCallCount >= MAX_API_CALLS) {
-      truncated = true;
-      return;
-    }
-    apiCallCount++;
-
-    const { files: gFiles, folders: gFolders } = await driveService.listFolderContents(
-      driveId,
-      folderId,
-    );
-    await batchUpsertFolderContents(db, drive, gFolders, gFiles, folderId);
-
-    const fileRows = await driveRepo.findFilesByParent(driveId, folderId);
-    for (const row of fileRows.results) {
-      if (tree.length >= MAX_FILES) {
-        truncated = true;
-        break;
+  const { files: googleTree, truncated } = await buildDownloadTree({
+    driveService,
+    driveId,
+    rootFolderId: googleFolderId,
+    // Exclude files not owned by the user — mirrors batchUpsertFolderContents's
+    // ownership filter so maxFiles counts only owned files (the pre-refactor
+    // handler iterated D1 rows already filtered to owned).
+    filterFile: (f) => f.owners?.some((o) => o.me) ?? false,
+    onFolderListed: async (folderId, gFiles, gFolders) => {
+      await batchUpsertFolderContents(db, drive, gFolders, gFiles, folderId);
+      const fileRows = await driveRepo.findFilesByParent(driveId, folderId);
+      for (const row of fileRows.results) {
+        const file = mapFileRow(row as Record<string, unknown>);
+        d1FilesByGoogleId.set(file.googleFileId, file);
       }
-      const file = mapFileRow(row as Record<string, unknown>);
-      if (file.userId !== userId) continue;
-      tree.push({
+    },
+  });
+
+  const tree = googleTree
+    .map((item) => {
+      const file = d1FilesByGoogleId.get(item.googleFileId);
+      if (!file || file.userId !== userId) return null;
+      return {
         id: file.id,
         name: file.name,
-        path: pathPrefix + file.name,
+        path: item.path,
         size: file.size,
         mimeType: file.mimeType,
-      });
-    }
-
-    for (const folder of gFolders) {
-      if (tree.length >= MAX_FILES || apiCallCount >= MAX_API_CALLS) {
-        truncated = true;
-        break;
-      }
-      await walk(folder.id, `${pathPrefix}${folder.name}/`);
-    }
-  }
-
-  await walk(googleFolderId, '');
+      };
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null);
 
   const rootFolder = await driveRepo.findDriveFolderByGoogleId(driveId, googleFolderId);
   return c.json({

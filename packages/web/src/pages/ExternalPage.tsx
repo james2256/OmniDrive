@@ -1,11 +1,11 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
-import { List, LayoutGrid, Info, X } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { FileGrid } from '../components/files/FileGrid';
 import { Breadcrumb } from '../components/Breadcrumb';
 import { BulkActionBar } from '../components/layout/BulkActionBar';
+import { FilesToolbar } from '../components/layout/FilesToolbar';
 import { ItemModals } from '../components/files/ItemModals';
 import { drivesApi } from '../lib/api/drives';
 import { useDrives, useGetDriveInfo } from '../hooks/useDrives';
@@ -118,82 +118,32 @@ export function ExternalPage() {
 
   return (
     <div className="flex flex-col h-full w-full">
-      <BulkActionBar
-        onActionComplete={() => refresh()}
-        onMoveRequested={() => itemModals.setMoveTarget(selectedItems)}
-        onWorkspaceRequested={() =>
-          itemModals.setWorkspaceTarget(selectedItems[0].item as FileEntry)
+      <FilesToolbar
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        viewMode={viewMode}
+        setViewMode={setViewMode}
+        isInfoPanelOpen={isInfoPanelOpen}
+        toggleInfoPanel={toggleInfoPanel}
+        bulkActionBar={
+          <BulkActionBar
+            onActionComplete={() => refresh()}
+            onMoveRequested={() => itemModals.setMoveTarget(selectedItems)}
+            onWorkspaceRequested={() =>
+              itemModals.setWorkspaceTarget(selectedItems[0].item as FileEntry)
+            }
+            onMoveDriveRequested={() => {
+              const fileItems = selectedItems
+                .filter((i) => i.type === 'file')
+                .map((i) => i.item as FileEntry);
+              itemModals.setMoveDriveFiles(fileItems);
+            }}
+          />
         }
-        onMoveDriveRequested={() => {
-          const fileItems = selectedItems
-            .filter((i) => i.type === 'file')
-            .map((i) => i.item as FileEntry);
-          itemModals.setMoveDriveFiles(fileItems);
-        }}
+        breadcrumb={<Breadcrumb items={breadcrumb} driveId={driveIdParam || undefined} />}
       />
 
       <div className="p-4 sm:p-6 space-y-6">
-        {/* Toolbar */}
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3 px-4 pt-4 mb-4">
-          <div className="flex gap-2 items-center order-1 sm:order-2 sm:ml-auto w-full sm:w-auto">
-            <div className="relative flex-1 sm:w-48 sm:flex-initial flex-shrink-0 sm:flex-shrink">
-              <input
-                type="text"
-                placeholder="Filter..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-3 pr-8 py-2 text-sm border border-slate-400 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              />
-              {searchQuery && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-600 hover:bg-transparent p-1"
-                  onClick={() => setSearchQuery('')}
-                  aria-label="Clear filter"
-                >
-                  <X size={14} />
-                </Button>
-              )}
-            </div>
-
-            <div className="flex items-center border border-slate-400 rounded-md overflow-hidden bg-card flex-shrink-0">
-              <Button
-                variant="ghost"
-                onClick={() => setViewMode('list')}
-                className={`p-2 ${viewMode === 'list' ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'}`}
-                title="List layout"
-                aria-label="List layout"
-              >
-                <List size={18} />
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => setViewMode('grid')}
-                className={`p-2 ${viewMode === 'grid' ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'}`}
-                title="Grid layout"
-                aria-label="Grid layout"
-              >
-                <LayoutGrid size={18} />
-              </Button>
-            </div>
-
-            <Button
-              variant="ghost"
-              onClick={toggleInfoPanel}
-              className={`p-2 rounded-full flex-shrink-0 ${isInfoPanelOpen ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-100'}`}
-              title="View details"
-              aria-label="View details"
-            >
-              <Info size={20} />
-            </Button>
-          </div>
-
-          <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden order-2 sm:order-1">
-            <Breadcrumb items={breadcrumb} driveId={driveIdParam || undefined} />
-          </div>
-        </div>
-
         {isLoading ? (
           <div className="flex justify-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />

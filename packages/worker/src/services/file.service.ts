@@ -2,7 +2,8 @@ import type { D1Database } from '@cloudflare/workers-types';
 import { FileRepository } from '../repositories/file.repository';
 import { FolderRepository } from '../repositories/folder.repository';
 import { DriveRepository } from '../repositories/drive.repository';
-import { GoogleDriveService } from './google-drive';
+import type { GoogleDriveService } from './google-drive';
+import { createDriveService } from '../middleware/shared-services';
 import { PolicyService } from './policy.service';
 import { getWorkspaceRole, hasPermission } from '../lib/rbac';
 import { AppError } from '../lib/errors';
@@ -35,7 +36,12 @@ export class FileService {
     this.fileRepo = new FileRepository(db);
     this.folderRepo = new FolderRepository(db);
     this.driveRepo = new DriveRepository(db);
-    this.driveService = new GoogleDriveService(db, clientId, clientSecret, encryptionKey);
+    this.driveService = createDriveService({
+      DB: db,
+      GOOGLE_CLIENT_ID: clientId,
+      GOOGLE_CLIENT_SECRET: clientSecret,
+      TOKEN_ENCRYPTION_KEY: encryptionKey,
+    });
     this.policyService = new PolicyService(db, this.driveService);
   }
 
@@ -91,8 +97,7 @@ export class FileService {
       throw new AppError(500, 'Failed to delete file from Google Drive');
     }
 
-    await this.fileRepo.delete(fileId, file.user_id);
-    await this.fileRepo.invalidateCategoryCache(file.user_id);
+    await this.fileRepo.deleteAndInvalidateCache(fileId, file.user_id);
 
     if (file.workspace_id && file.size) {
       await this.policyService.updateWorkspaceStorage(file.workspace_id, -file.size);
