@@ -6,3 +6,7 @@
 **/*.min.js
 **/package-lock.json
 **/bun.lock
+
+# Don't format markdown docs — formatting churn isn't worth the noise
+docs/
+*.md
