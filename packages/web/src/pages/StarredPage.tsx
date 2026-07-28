@@ -49,6 +49,10 @@ export function StarredPage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl sm:text-2xl font-semibold text-slate-800">Starred</h1>
+      </div>
+
       <BulkActionBar
         onActionComplete={refresh}
         onMoveRequested={() => itemModals.setMoveTarget(selectedItems)}
@@ -59,10 +63,6 @@ export function StarredPage() {
           itemModals.setMoveDriveFiles(fileItems);
         }}
       />
-
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl sm:text-2xl font-semibold text-slate-800">Starred</h1>
-      </div>
 
       {isLoading ? (
         <ListSkeleton rows={6} />
