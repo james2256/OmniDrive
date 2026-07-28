@@ -18,7 +18,8 @@ export const Omnibar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
-  const hasResults = fileResults.length > 0 || folderResults.length > 0 || driveFolderResults.length > 0;
+  const hasResults =
+    fileResults.length > 0 || folderResults.length > 0 || driveFolderResults.length > 0;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -43,7 +44,8 @@ export const Omnibar: React.FC = () => {
       }
       setIsSearching(true);
       try {
-        const metadata = metadataKey && metadataValue ? { [metadataKey]: metadataValue } : undefined;
+        const metadata =
+          metadataKey && metadataValue ? { [metadataKey]: metadataValue } : undefined;
         const res = await api.globalSearch(query, undefined, metadata, controller.signal);
         setFileResults(res.files);
         setFolderResults(res.folders ?? []);
@@ -96,7 +98,9 @@ export const Omnibar: React.FC = () => {
           className="bg-transparent outline-none w-full text-slate-800 placeholder-slate-600"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          onFocus={() => { if (hasResults) setIsOpen(true); }}
+          onFocus={() => {
+            if (hasResults) setIsOpen(true);
+          }}
         />
         <Button
           onClick={() => setShowAdvanced(!showAdvanced)}
@@ -135,7 +139,9 @@ export const Omnibar: React.FC = () => {
             <div className="py-2">
               {(folderResults.length > 0 || driveFolderResults.length > 0) && (
                 <>
-                  <div className="px-4 py-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Folders</div>
+                  <div className="px-4 py-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                    Folders
+                  </div>
                   {driveFolderResults.map((folder) => (
                     <button
                       key={`df-${folder.googleFolderId}`}
@@ -145,7 +151,9 @@ export const Omnibar: React.FC = () => {
                       <Folder size={18} className="text-blue-500 shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-slate-800 truncate">{folder.name}</p>
-                        <p className="text-xs text-slate-500 truncate">{folder.driveEmail ?? 'Drive folder'}</p>
+                        <p className="text-xs text-slate-500 truncate">
+                          {folder.driveEmail ?? 'Drive folder'}
+                        </p>
                       </div>
                     </button>
                   ))}
@@ -166,7 +174,9 @@ export const Omnibar: React.FC = () => {
               )}
               {fileResults.length > 0 && (
                 <>
-                  <div className="px-4 py-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Files</div>
+                  <div className="px-4 py-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                    Files
+                  </div>
                   {fileResults.map((file) => (
                     <button
                       key={file.id}

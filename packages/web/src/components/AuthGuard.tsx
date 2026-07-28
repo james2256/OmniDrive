@@ -11,7 +11,9 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (isLoading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+      <div
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}
+      >
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
       </div>
     );
@@ -19,9 +21,20 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (authError) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', gap: '1rem' }}>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100vh',
+          gap: '1rem',
+        }}
+      >
         <p className="text-slate-600 text-sm">{authError}</p>
-        <Button variant="primary" size="sm" onClick={() => fetchUser()}>Retry</Button>
+        <Button variant="primary" size="sm" onClick={() => fetchUser()}>
+          Retry
+        </Button>
       </div>
     );
   }

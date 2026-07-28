@@ -2,7 +2,7 @@ import { intro, outro, select, text, isCancel, cancel, spinner, confirm } from '
 import pc from 'picocolors';
 import fs from 'fs';
 import crypto from 'crypto';
-import { execSync } from 'child_process';
+import { execSync, spawnSync } from 'child_process';
 
 function runCmd(cmd) {
   try {
@@ -21,6 +21,22 @@ function runCmdSilent(cmd) {
   }
 }
 
+/**
+ * Push a secret to Cloudflare Worker via wrangler secret put.
+ * Uses spawnSync with stdin pipe (not shell echo) so the secret value
+ * never appears in the process list (ps/proc).
+ */
+function putSecret(name, value) {
+  const result = spawnSync(
+    'npx',
+    ['wrangler', 'secret', 'put', name, '-c', 'packages/worker/wrangler.toml'],
+    { input: value, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] },
+  );
+  if (result.status !== 0) {
+    throw new Error(`Failed to set secret ${name}: ${result.stderr?.trim() || 'unknown error'}`);
+  }
+}
+
 function generateSecret(length = 32) {
   return crypto.randomBytes(length / 2).toString('hex');
 }
@@ -34,20 +50,27 @@ function checkCancel(val) {
 }
 
 async function getOAuthCredentials() {
-  const useOAuth = checkCancel(await confirm({
-    message: 'Do you want to configure Google OAuth Credentials now? (Optional - you can skip if using a Service Account later)',
-    initialValue: true,
-  }));
+  const useOAuth = checkCancel(
+    await confirm({
+      message:
+        'Do you want to configure Google OAuth Credentials now? (Optional - you can skip if using a Service Account later)',
+      initialValue: true,
+    }),
+  );
 
   if (!useOAuth) return { clientId: '', clientSecret: '' };
 
-  const clientId = checkCancel(await text({
-    message: 'Enter your Google OAuth Client ID (Optional, press enter to skip):',
-  }));
+  const clientId = checkCancel(
+    await text({
+      message: 'Enter your Google OAuth Client ID (Optional, press enter to skip):',
+    }),
+  );
 
-  const clientSecret = checkCancel(await text({
-    message: 'Enter your Google OAuth Client Secret (Optional, press enter to skip):',
-  }));
+  const clientSecret = checkCancel(
+    await text({
+      message: 'Enter your Google OAuth Client Secret (Optional, press enter to skip):',
+    }),
+  );
 
   return { clientId, clientSecret };
 }
@@ -55,7 +78,7 @@ async function getOAuthCredentials() {
 async function getBaseUrls(target, defaultPort = '3000') {
   let defaultFrontend = 'http://localhost:' + defaultPort;
   let defaultWorker = 'http://localhost:' + defaultPort;
-  
+
   if (target === 'local') {
     defaultFrontend = 'http://localhost:5173';
     defaultWorker = 'http://localhost:8787';
@@ -64,23 +87,27 @@ async function getBaseUrls(target, defaultPort = '3000') {
     defaultWorker = 'https://omnidrive-api.serunix.workers.dev';
   }
 
-  const frontendUrl = checkCancel(await text({
-    message: 'Enter your Frontend URL (Mandatory):',
-    initialValue: defaultFrontend,
-    validate(value) {
-      if (value.length === 0) return 'Frontend URL is required';
-      if (!value.startsWith('http')) return 'Must start with http:// or https://';
-    }
-  }));
+  const frontendUrl = checkCancel(
+    await text({
+      message: 'Enter your Frontend URL (Mandatory):',
+      initialValue: defaultFrontend,
+      validate(value) {
+        if (value.length === 0) return 'Frontend URL is required';
+        if (!value.startsWith('http')) return 'Must start with http:// or https://';
+      },
+    }),
+  );
 
-  const workerUrl = checkCancel(await text({
-    message: 'Enter your Worker API URL (Mandatory):',
-    initialValue: defaultWorker,
-    validate(value) {
-      if (value.length === 0) return 'Worker URL is required';
-      if (!value.startsWith('http')) return 'Must start with http:// or https://';
-    }
-  }));
+  const workerUrl = checkCancel(
+    await text({
+      message: 'Enter your Worker API URL (Mandatory):',
+      initialValue: defaultWorker,
+      validate(value) {
+        if (value.length === 0) return 'Worker URL is required';
+        if (!value.startsWith('http')) return 'Must start with http:// or https://';
+      },
+    }),
+  );
 
   return { frontendUrl, workerUrl };
 }
@@ -93,14 +120,16 @@ async function main() {
   } catch (e) {}
   intro(pc.inverse(` Welcome to Omnidrive Deployment Wizard (v${version}) `));
 
-  const target = checkCancel(await select({
-    message: 'Where do you want to deploy Omnidrive?',
-    options: [
-      { value: 'docker', label: '🐳 Docker Compose (Self-hosted)' },
-      { value: 'cloudflare', label: '☁️ Cloudflare (Production)' },
-      { value: 'local', label: '💻 Local Development (npm run dev)' },
-    ],
-  }));
+  const target = checkCancel(
+    await select({
+      message: 'Where do you want to deploy Omnidrive?',
+      options: [
+        { value: 'docker', label: '🐳 Docker Compose (Self-hosted)' },
+        { value: 'cloudflare', label: '☁️ Cloudflare (Production)' },
+        { value: 'local', label: '💻 Local Development (npm run dev)' },
+      ],
+    }),
+  );
 
   if (target === 'docker') {
     const hasDocker = runCmdSilent('command -v docker');
@@ -115,34 +144,40 @@ async function main() {
       process.exit(1);
     }
 
-    const buildStrategy = checkCancel(await select({
-      message: 'How do you want to run Docker Compose?',
-      options: [
-        { value: 'prebuilt', label: '📦 Use pre-built Docker image (Fastest)' },
-        { value: 'source', label: '🛠️ Build from source' },
-      ],
-    }));
+    const buildStrategy = checkCancel(
+      await select({
+        message: 'How do you want to run Docker Compose?',
+        options: [
+          { value: 'prebuilt', label: '📦 Use pre-built Docker image (Fastest)' },
+          { value: 'source', label: '🛠️ Build from source' },
+        ],
+      }),
+    );
 
     if (fs.existsSync('.env')) {
-      const overwrite = checkCancel(await confirm({
-        message: '.env file already exists. Do you want to overwrite it?'
-      }));
+      const overwrite = checkCancel(
+        await confirm({
+          message: '.env file already exists. Do you want to overwrite it?',
+        }),
+      );
       if (!overwrite) {
         cancel('Setup cancelled. .env file not overwritten.');
         process.exit(0);
       }
     }
 
-    const port = checkCancel(await text({
-      message: 'What port should the web server run on?',
-      initialValue: '3000',
-      validate(value) {
-        const num = parseInt(value, 10);
-        if (isNaN(num) || num < 1 || num > 65535) {
-          return 'Port must be a valid number between 1 and 65535';
-        }
-      }
-    }));
+    const port = checkCancel(
+      await text({
+        message: 'What port should the web server run on?',
+        initialValue: '3000',
+        validate(value) {
+          const num = parseInt(value, 10);
+          if (isNaN(num) || num < 1 || num > 65535) {
+            return 'Port must be a valid number between 1 and 65535';
+          }
+        },
+      }),
+    );
 
     const { frontendUrl, workerUrl } = await getBaseUrls('docker', port);
     const { clientId, clientSecret } = await getOAuthCredentials();
@@ -164,7 +199,7 @@ async function main() {
     } else {
       runCmd('docker compose up -d');
     }
-    
+
     outro(pc.green(`✅ Deployed successfully! Open http://localhost:${port}`));
   } else if (target === 'cloudflare') {
     const whoami = runCmdSilent('npx wrangler whoami');
@@ -175,15 +210,15 @@ async function main() {
 
     const sCheck = spinner();
     sCheck.start('Checking existing Cloudflare deployments...');
-    
+
     const existingPages = runCmdSilent('npx wrangler pages project info omnidrive');
     const hasWeb = existingPages !== null && existingPages.includes('omnidrive');
-    
+
     const existingWorker = runCmdSilent('npx wrangler deployments list --name omnidrive-api');
     const hasWorker = existingWorker !== null;
-    
+
     sCheck.stop('Cloudflare deployment status checked.');
-    
+
     if (hasWeb || hasWorker) {
       console.log(pc.cyan(`\nExisting deployments detected:`));
       console.log(`- Web (Pages): ${hasWeb ? pc.green('Yes') : pc.yellow('No')}`);
@@ -192,7 +227,7 @@ async function main() {
 
     const wranglerPath = 'packages/worker/wrangler.toml';
     const wranglerExamplePath = 'packages/worker/wrangler.example.toml';
-    
+
     if (!fs.existsSync(wranglerPath)) {
       if (fs.existsSync(wranglerExamplePath)) {
         fs.copyFileSync(wranglerExamplePath, wranglerPath);
@@ -207,47 +242,55 @@ async function main() {
 
     const sFetch = spinner();
     sFetch.start('Fetching available D1 databases and KV namespaces from Cloudflare...');
-    
+
     const d1ListRaw = runCmdSilent('npx wrangler d1 list --json');
     let d1s = [];
     if (d1ListRaw) {
-      try { d1s = JSON.parse(d1ListRaw); } catch(e){}
+      try {
+        d1s = JSON.parse(d1ListRaw);
+      } catch (e) {}
     }
 
     const kvListRaw = runCmdSilent('npx wrangler kv namespace list');
     let kvs = [];
     if (kvListRaw) {
-      try { kvs = JSON.parse(kvListRaw); } catch(e){}
+      try {
+        kvs = JSON.parse(kvListRaw);
+      } catch (e) {}
     }
     sFetch.stop('Cloudflare resources fetched.');
 
     const d1Options = [{ value: 'CREATE_NEW', label: '✨ Create New D1 Database' }];
-    d1s.forEach(d => {
+    d1s.forEach((d) => {
       const isCurrent = d.uuid === currentD1;
       d1Options.push({
         value: d.uuid,
-        label: `${d.name} (${d.uuid})${isCurrent ? ' (current)' : ''}`
+        label: `${d.name} (${d.uuid})${isCurrent ? ' (current)' : ''}`,
       });
     });
 
-    const selectedD1 = checkCancel(await select({
-      message: 'Select D1 Database to use:',
-      options: d1Options,
-    }));
+    const selectedD1 = checkCancel(
+      await select({
+        message: 'Select D1 Database to use:',
+        options: d1Options,
+      }),
+    );
 
     const kvOptions = [{ value: 'CREATE_NEW', label: '✨ Create New KV Namespace' }];
-    kvs.forEach(k => {
+    kvs.forEach((k) => {
       const isCurrent = k.id === currentKV;
       kvOptions.push({
         value: k.id,
-        label: `${k.title} (${k.id})${isCurrent ? ' (current)' : ''}`
+        label: `${k.title} (${k.id})${isCurrent ? ' (current)' : ''}`,
       });
     });
 
-    const selectedKV = checkCancel(await select({
-      message: 'Select KV Namespace to use:',
-      options: kvOptions,
-    }));
+    const selectedKV = checkCancel(
+      await select({
+        message: 'Select KV Namespace to use:',
+        options: kvOptions,
+      }),
+    );
 
     let d1UuidToUse = selectedD1;
     let kvIdToUse = selectedKV;
@@ -281,10 +324,13 @@ async function main() {
     fs.writeFileSync(wranglerPath, toml);
     sProv.stop('Resources updated in wrangler.toml.');
 
-    const updateSecrets = checkCancel(await confirm({
-      message: 'Do you want to update/push secrets to Cloudflare? (Select Yes if this is a new deployment)',
-      initialValue: selectedD1 === 'CREATE_NEW' || selectedKV === 'CREATE_NEW'
-    }));
+    const updateSecrets = checkCancel(
+      await confirm({
+        message:
+          'Do you want to update/push secrets to Cloudflare? (Select Yes if this is a new deployment)',
+        initialValue: selectedD1 === 'CREATE_NEW' || selectedKV === 'CREATE_NEW',
+      }),
+    );
 
     if (updateSecrets) {
       const { frontendUrl, workerUrl } = await getBaseUrls('cloudflare');
@@ -292,30 +338,32 @@ async function main() {
 
       const sSec = spinner();
       sSec.start('Pushing secrets to Cloudflare...');
-      
+
       const jwtSecret = generateSecret(32);
       const tokenEncryptionKey = generateSecret(32);
 
-      runCmdSilent(`echo "${frontendUrl}" | npx wrangler secret put FRONTEND_URL -c packages/worker/wrangler.toml`);
-      runCmdSilent(`echo "${workerUrl}" | npx wrangler secret put WORKER_URL -c packages/worker/wrangler.toml`);
-      if (clientId) runCmdSilent(`echo "${clientId}" | npx wrangler secret put GOOGLE_CLIENT_ID -c packages/worker/wrangler.toml`);
-      if (clientSecret) runCmdSilent(`echo "${clientSecret}" | npx wrangler secret put GOOGLE_CLIENT_SECRET -c packages/worker/wrangler.toml`);
-      runCmdSilent(`echo "${jwtSecret}" | npx wrangler secret put JWT_SECRET -c packages/worker/wrangler.toml`);
-      runCmdSilent(`echo "${tokenEncryptionKey}" | npx wrangler secret put TOKEN_ENCRYPTION_KEY -c packages/worker/wrangler.toml`);
+      putSecret('FRONTEND_URL', frontendUrl);
+      putSecret('WORKER_URL', workerUrl);
+      if (clientId) putSecret('GOOGLE_CLIENT_ID', clientId);
+      if (clientSecret) putSecret('GOOGLE_CLIENT_SECRET', clientSecret);
+      putSecret('JWT_SECRET', jwtSecret);
+      putSecret('TOKEN_ENCRYPTION_KEY', tokenEncryptionKey);
 
       sSec.stop('Secrets provisioned.');
     }
 
     console.log(pc.cyan('Deploying to Cloudflare (Worker & Web)...'));
     runCmd('npm run deploy:full');
-    
+
     outro(pc.green('✅ Deployed successfully to Cloudflare!'));
   } else if (target === 'local') {
     let proceedWithEnv = true;
     if (fs.existsSync('packages/worker/.dev.vars') || fs.existsSync('packages/web/.env')) {
-      const overwrite = checkCancel(await confirm({
-        message: 'Local environment files already exist. Do you want to overwrite them?'
-      }));
+      const overwrite = checkCancel(
+        await confirm({
+          message: 'Local environment files already exist. Do you want to overwrite them?',
+        }),
+      );
       if (!overwrite) {
         proceedWithEnv = false;
       }
@@ -332,7 +380,7 @@ async function main() {
       const tokenEncryptionKey = generateSecret(32);
 
       const devVarsContent = `FRONTEND_URL=${frontendUrl}\nWORKER_URL=${workerUrl}\nGOOGLE_CLIENT_ID=${clientId}\nGOOGLE_CLIENT_SECRET=${clientSecret}\nJWT_SECRET=${jwtSecret}\nTOKEN_ENCRYPTION_KEY=${tokenEncryptionKey}\n`;
-      
+
       if (!fs.existsSync('packages/worker')) fs.mkdirSync('packages/worker', { recursive: true });
       fs.writeFileSync('packages/worker/.dev.vars', devVarsContent);
 
@@ -353,13 +401,15 @@ async function main() {
       }
     }
 
-    runCmdSilent('npx wrangler d1 execute omnidrive --local --file=packages/worker/src/db/schema.sql -c packages/worker/wrangler.toml');
+    runCmdSilent(
+      'npx wrangler d1 execute omnidrive --local --file=packages/worker/src/db/schema.sql -c packages/worker/wrangler.toml',
+    );
 
     s2.stop('Local environment ready.');
 
     console.log(pc.cyan('Starting local development server...'));
     runCmd('npm run dev');
-    
+
     outro(pc.green('✅ Local server stopped.'));
   }
 }

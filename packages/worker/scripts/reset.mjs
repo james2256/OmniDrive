@@ -5,30 +5,35 @@ import { fileURLToPath } from 'url';
 
 export async function promptUser(isRemote) {
   if (!isRemote) return true;
-  
+
   const rl = readline.createInterface({
     input: process.stdin,
-    output: process.stdout
+    output: process.stdout,
   });
 
   return new Promise((resolve) => {
-    rl.question("\x1b[31mPERINGATAN: Anda akan menghapus SELURUH data di PRODUCTION. Ketik 'YES' untuk melanjutkan: \x1b[0m", (answer) => {
-      rl.close();
-      resolve(answer.trim().toUpperCase() === 'YES');
-    });
+    rl.question(
+      "\x1b[31mPERINGATAN: Anda akan menghapus SELURUH data di PRODUCTION. Ketik 'YES' untuk melanjutkan: \x1b[0m",
+      (answer) => {
+        rl.close();
+        resolve(answer.trim().toUpperCase() === 'YES');
+      },
+    );
   });
 }
 
 export function resetD1(execSync, flag) {
   console.log(`\n=> Mereset D1 Database (${flag})...`);
   console.log('Menghapus tabel secara berurutan (berdasarkan dependensi)...');
-  
+
   // Daftar tabel diurutkan dari child ke parent untuk menghindari error foreign keys di D1
   const TABLES_TO_DROP = [
     'shared_link_logs',
     'automation_logs',
+    's3_multipart_parts',
     'sync_state',
     'drive_folders',
+    'drive_tokens',
     'files',
     'workspace_policies',
     'workspace_members',
@@ -37,16 +42,27 @@ export function resetD1(execSync, flag) {
     'workspace_folders',
     'shared_links',
     'automation_rules',
+    's3_lifecycle_rules',
+    's3_credentials',
+    's3_multipart_uploads',
+    'oauth_states',
+    'quota_cache',
+    'category_cache',
+    'sessions',
     'workspaces',
     'drive_accounts',
-    'users'
+    'users',
   ];
 
-  const dropCommands = TABLES_TO_DROP.map(t => `DROP TABLE IF EXISTS ${t};`).join(' ');
-  execSync(`npx wrangler d1 execute omnidrive ${flag} -y --command="${dropCommands}"`, { stdio: 'inherit' });
-  
+  const dropCommands = TABLES_TO_DROP.map((t) => `DROP TABLE IF EXISTS ${t};`).join(' ');
+  execSync(`npx wrangler d1 execute omnidrive ${flag} -y --command="${dropCommands}"`, {
+    stdio: 'inherit',
+  });
+
   console.log('Menerapkan schema baru...');
-  execSync(`npx wrangler d1 execute omnidrive ${flag} -y --file=src/db/schema.sql`, { stdio: 'inherit' });
+  execSync(`npx wrangler d1 execute omnidrive ${flag} -y --file=src/db/schema.sql`, {
+    stdio: 'inherit',
+  });
 }
 
 export function resetKV(execSync, writeFileSync, unlinkSync, flag) {
@@ -54,12 +70,14 @@ export function resetKV(execSync, writeFileSync, unlinkSync, flag) {
   console.log('Mendapatkan daftar keys...');
   const keysOutput = execSync(`npx wrangler kv key list --binding=KV ${flag}`).toString();
   const keysData = JSON.parse(keysOutput);
-  
+
   if (keysData.length > 0) {
-    const keysToDelete = keysData.map(k => k.name);
+    const keysToDelete = keysData.map((k) => k.name);
     writeFileSync('temp_keys.json', JSON.stringify(keysToDelete));
     console.log(`Menghapus ${keysToDelete.length} keys...`);
-    execSync(`npx wrangler kv bulk delete --binding=KV ${flag} temp_keys.json`, { stdio: 'inherit' });
+    execSync(`npx wrangler kv bulk delete --binding=KV ${flag} temp_keys.json`, {
+      stdio: 'inherit',
+    });
     unlinkSync('temp_keys.json');
   } else {
     console.log('KV Namespace sudah kosong.');

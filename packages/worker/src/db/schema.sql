@@ -362,3 +362,12 @@ CREATE TABLE IF NOT EXISTS category_cache (
     payload    TEXT NOT NULL,
     updated_at INTEGER NOT NULL
 );
+
+-- Missing FK indexes — used in deleteUser cascade (admin.repository.ts) and
+-- multipart cleanup cron (s3-lifecycle.ts). Without these, cascade deletes
+-- do full table scans.
+CREATE INDEX IF NOT EXISTS idx_s3_credentials_user ON s3_credentials(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_actor ON audit_logs(actor_id);
+CREATE INDEX IF NOT EXISTS idx_invitation_codes_created_by ON invitation_codes(created_by);
+CREATE INDEX IF NOT EXISTS idx_oauth_states_user ON oauth_states(user_id);
+CREATE INDEX IF NOT EXISTS idx_s3_multipart_uploads_created ON s3_multipart_uploads(created_at);

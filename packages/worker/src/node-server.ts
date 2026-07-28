@@ -42,9 +42,15 @@ async function main() {
       console.warn('Database schema initialized.');
     }
     if (fs.existsSync(migrationsDir)) {
-      const files = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql')).sort();
+      const files = fs
+        .readdirSync(migrationsDir)
+        .filter((f) => f.endsWith('.sql'))
+        .sort();
       for (const filename of files) {
-        await d1.prepare('INSERT OR IGNORE INTO d1_migrations (filename) VALUES (?)').bind(filename).run();
+        await d1
+          .prepare('INSERT OR IGNORE INTO d1_migrations (filename) VALUES (?)')
+          .bind(filename)
+          .run();
       }
     }
   } else {
@@ -52,19 +58,32 @@ async function main() {
     // Transactions prevent partial-failure corruption (e.g., migration 0006's
     // DROP TABLE + RENAME — if the process crashes mid-migration, ROLLBACK restores).
     if (fs.existsSync(migrationsDir)) {
-      const files = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql')).sort();
+      const files = fs
+        .readdirSync(migrationsDir)
+        .filter((f) => f.endsWith('.sql'))
+        .sort();
       for (const filename of files) {
-        const applied = await d1.prepare('SELECT 1 as ok FROM d1_migrations WHERE filename = ?').bind(filename).first<{ ok: number } | null>();
+        const applied = await d1
+          .prepare('SELECT 1 as ok FROM d1_migrations WHERE filename = ?')
+          .bind(filename)
+          .first<{ ok: number } | null>();
         if (!applied) {
           const sql = fs.readFileSync(path.join(migrationsDir, filename), 'utf-8');
           d1.exec('BEGIN');
           try {
             d1.exec(sql);
-            await d1.prepare('INSERT INTO d1_migrations (filename) VALUES (?)').bind(filename).run();
+            await d1
+              .prepare('INSERT INTO d1_migrations (filename) VALUES (?)')
+              .bind(filename)
+              .run();
             d1.exec('COMMIT');
             console.warn(`Migration applied: ${filename}`);
           } catch (e) {
-            try { d1.exec('ROLLBACK'); } catch { /* transaction may not be active */ }
+            try {
+              d1.exec('ROLLBACK');
+            } catch {
+              /* transaction may not be active */
+            }
             console.error(`Migration failed: ${filename}`, e);
             throw e;
           }
@@ -74,7 +93,9 @@ async function main() {
   }
 
   // Startup cleanup: reset stuck syncing states
-  d1.exec("UPDATE sync_state SET status = 'error', error_message = 'Sync interrupted by server restart' WHERE status = 'syncing'");
+  d1.exec(
+    "UPDATE sync_state SET status = 'error', error_message = 'Sync interrupted by server restart' WHERE status = 'syncing'",
+  );
 
   // Initialize KV
   const kv = new KVNamespaceWrapper(path.join(dataDir, 'kv.sqlite'));
@@ -112,7 +133,7 @@ async function main() {
   // Construct a dummy execution context for waitUntil
   const dummyCtx = {
     waitUntil: (promise: Promise<unknown>) => promise.catch(console.error),
-    passThroughOnException: () => {}
+    passThroughOnException: () => {},
   } as unknown as ExecutionContext;
 
   // Setup Cron Schedule
@@ -120,7 +141,11 @@ async function main() {
   cron.schedule(CRON_SCHEDULE, () => {
     console.warn('Executing cron schedule...');
     if (worker.scheduled) {
-      worker.scheduled({ cron: CRON_SCHEDULE, scheduledTime: Date.now() } as unknown as ScheduledController, nodeEnv, dummyCtx as unknown as ExecutionContext);
+      worker.scheduled(
+        { cron: CRON_SCHEDULE, scheduledTime: Date.now() } as unknown as ScheduledController,
+        nodeEnv,
+        dummyCtx as unknown as ExecutionContext,
+      );
     }
   });
 
@@ -129,7 +154,7 @@ async function main() {
 
   const server = serve({
     fetch: (req) => app.fetch(req, nodeEnv, dummyCtx as unknown as ExecutionContext),
-    port
+    port,
   });
 
   function shutdown(signal: string) {

@@ -108,10 +108,9 @@ export interface FileEntry {
   lastSyncedAt: string | null;
   syncStatus: 'idle' | 'syncing' | 'error';
   createdAt: string;
-  driveEmail?: string;  // optional — not present in folder-browse responses
+  driveEmail?: string; // optional — not present in folder-browse responses
   isStarred?: boolean;
 }
-
 
 export interface BreadcrumbItem {
   id: string | null;
@@ -195,4 +194,89 @@ export interface AutomationRule {
   name: string;
   triggerType: string;
   isActive: boolean;
+}
+
+// ─── API payload/response types (moved from lib/api.ts) ───
+
+export interface LoginPayload {
+  username: string;
+  password: string;
+}
+
+export interface RegisterPayload extends LoginPayload {
+  name?: string;
+  email?: string;
+  invitation_code?: string;
+}
+
+export interface AdminCreateUserPayload {
+  username: string;
+  password: string;
+  name?: string;
+  email?: string;
+  role?: string;
+}
+
+export interface Invitation {
+  id: string;
+  code: string;
+  max_uses: number;
+  used_count: number;
+  expires_at: string | null;
+  created_at: string;
+}
+
+export interface S3Credential {
+  id: string;
+  description: string | null;
+  accessKeyId: string;
+  workspaceId: string | null;
+  workspaceName: string | null;
+  createdAt: string;
+}
+
+/** Search results from GET /api/files/search — files + workspace folders + drive folders. */
+export interface SearchResults {
+  files: FileEntry[];
+  folders: WorkspaceFolder[];
+  driveFolders: DriveFolder[];
+  query: string;
+}
+
+export interface SharedLink {
+  id: string;
+  userId: string;
+  targetType: 'file' | 'folder';
+  targetId: string;
+  targetName?: string;
+  targetMimeType?: string | null;
+  expiresAt: string | null;
+  viewCount: number;
+  downloadCount: number;
+  createdAt: string;
+  allowDownloads: boolean;
+  allowUploads: boolean;
+  maxDownloads: number | null;
+  requireEmail: boolean;
+  webhookUrl: string | null;
+}
+
+export interface SharedMetaResponse {
+  type?: 'file' | 'folder';
+  target?: FileEntry;
+  targetName?: string;
+  targetId?: string;
+  requiresPassword?: boolean;
+}
+
+export interface CreateSharedLinkPayload {
+  targetType: 'file' | 'folder';
+  targetId: string;
+  password?: string | null;
+  expiresAt?: string | null;
+  allowDownloads?: boolean;
+  allowUploads?: boolean;
+  maxDownloads?: number | null;
+  requireEmail?: boolean;
+  webhookUrl?: string;
 }
