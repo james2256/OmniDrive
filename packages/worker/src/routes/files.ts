@@ -28,6 +28,33 @@ export const filesRouter = new Hono<AppContext>({ strict: false });
 
 filesRouter.use('*', authGuard);
 
+// Google hosts permitted for resumable upload proxying (SSRF guard).
+const ALLOWED_UPLOAD_HOSTS = new Set([
+  'www.googleapis.com',
+  'upload.googleapis.com',
+  'storage.googleapis.com',
+  'www.googleusercontent.com',
+  'lh3.googleusercontent.com',
+  'drive.google.com',
+]);
+
+/** Validate X-Upload-Url points to an allowed Google host over HTTPS (SSRF guard). */
+function validateUploadUrl(rawUrl: string): URL {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new AppError(400, 'Invalid upload URL');
+  }
+  if (parsed.protocol !== 'https:') {
+    throw new AppError(400, 'Upload URL must use HTTPS');
+  }
+  if (!ALLOWED_UPLOAD_HOSTS.has(parsed.hostname)) {
+    throw new AppError(400, 'Disallowed upload URL host');
+  }
+  return parsed;
+}
+
 // GET /api/files/recent
 // Access via ownership OR workspace membership (EXISTS in repository SQL).
 filesRouter.get('/recent', async (c) => {
@@ -169,8 +196,9 @@ filesRouter.post('/:id/move-drive', zValidator('json', moveDriveFileSchema, zodE
 // Proxy direct-to-Google upload bytes through Worker (Google resumable endpoints
 // don't set CORS headers, so browser can't PUT directly)
 filesRouter.put('/upload/proxy', async (c) => {
-  const uploadUrl = c.req.header('X-Upload-Url');
-  if (!uploadUrl) throw new AppError(400, 'Missing X-Upload-Url header');
+  const rawUploadUrl = c.req.header('X-Upload-Url');
+  if (!rawUploadUrl) throw new AppError(400, 'Missing X-Upload-Url header');
+  const uploadUrl = validateUploadUrl(rawUploadUrl);
 
   const contentLength = c.req.header('Content-Length');
   const contentType = c.req.header('Content-Type') || 'application/octet-stream';
@@ -186,7 +214,7 @@ filesRouter.put('/upload/proxy', async (c) => {
   // (arrayBuffer() would hold the whole file, crashing the Worker's 128MB limit
   // on large uploads). duplex: 'half' is required to send a streaming body.
   // ponytail: `as any` — RequestInit's type lacks `duplex`, which the Workers runtime supports.
-  const googleResponse = await fetch(uploadUrl, {
+  const googleResponse = await fetch(uploadUrl.href, {
     method: 'PUT',
     headers,
     body: c.req.raw.body,

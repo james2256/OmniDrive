@@ -875,7 +875,7 @@ The Pages Function at `packages/web/functions/api/[[path]].ts` forwards to the
 Worker. If it returns 502:
 
 - Confirm the Worker is deployed and reachable (`curl https://<worker-url>/api/health` → `{"status":"ok"}`).
-- Confirm the Pages project's `API_URL` environment variable (set in the
+- Confirm the Pages project's `WORKER_URL` environment variable (set in the
   Cloudflare dashboard → Pages → Settings → Environment variables) points to
   the correct Worker URL.
 

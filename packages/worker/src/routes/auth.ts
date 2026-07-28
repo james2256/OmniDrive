@@ -159,7 +159,7 @@ authRouter.get('/callback', async (c) => {
   if (!state) throw new AppError(400, 'Missing state parameter');
   const savedState = getCookie(c, 'oauth_state');
   deleteCookie(c, 'oauth_state', { path: '/' });
-  if (savedState && state !== savedState) {
+  if (!savedState || state !== savedState) {
     throw new AppError(400, 'Invalid state parameter');
   }
 

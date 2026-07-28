@@ -95,6 +95,18 @@ describe('OAuth callback (integration)', () => {
     expect(res.status).toBe(400);
   });
 
+  it('GET /callback with missing state cookie returns 400 (state fixation guard)', async () => {
+    // No oauth_state cookie sent — attacker initiated OAuth on their browser,
+    // victim clicks the phishing link. Fail-closed must reject.
+    const res = await app.request('/api/auth/callback?code=fakecode&state=anything', {
+      headers: { Origin: ORIGIN },
+    }, env);
+
+    expect(res.status).toBe(400);
+    const body = await res.json() as { error: string };
+    expect(body.error).toContain('Invalid state');
+  });
+
   it('GET /callback with expired state (not in DB) returns 400', async () => {
     // State cookie matches the query param, but no row in oauth_states table
     const res = await app.request('/api/auth/callback?code=fakecode&state=unknown-state', {

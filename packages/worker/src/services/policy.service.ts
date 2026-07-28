@@ -1,6 +1,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import type { GoogleDriveService } from './google-drive';
 import { logErrorNoCtx } from '../lib/logger';
+import { toSQLiteDatetime } from '../lib/datetime';
 
 export class PolicyService {
   constructor(
@@ -54,7 +55,7 @@ export class PolicyService {
       const config = JSON.parse(policy.config) as { action: string, days: number };
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - config.days);
-      const cutoffStr = cutoffDate.toISOString();
+      const cutoffStr = toSQLiteDatetime(cutoffDate);
 
       let query: string;
       let binds: (string | number | null)[];

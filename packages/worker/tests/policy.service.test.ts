@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import Database from 'better-sqlite3';
 import { PolicyService } from '../src/services/policy.service';
+import { toSQLiteDatetime } from '../src/lib/datetime';
 import type { GoogleDriveService } from '../src/services/google-drive';
 
 /**
@@ -111,7 +112,7 @@ describe('PolicyService.processAutoDeleteRetentionPolicies', () => {
       "INSERT INTO drive_accounts (id, user_id, email) VALUES ('d1', 'u1', 'a@b.com')"
     ).run();
     // File created 10 days ago — policy deletes after 7 days
-    const oldDate = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
+    const oldDate = toSQLiteDatetime(new Date(Date.now() - 10 * 24 * 60 * 60 * 1000));
     db.prepare(
       "INSERT INTO files (id, user_id, drive_account_id, google_file_id, workspace_id, name, size, is_trashed, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)"
     ).run('f1', 'u1', 'd1', 'gfile-1', 'ws-1', 'old.pdf', 500, oldDate);
@@ -148,7 +149,7 @@ describe('PolicyService.processAutoDeleteRetentionPolicies', () => {
     db.prepare(
       "INSERT INTO drive_accounts (id, user_id, email) VALUES ('d1', 'u1', 'a@b.com')"
     ).run();
-    const oldDate = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
+    const oldDate = toSQLiteDatetime(new Date(Date.now() - 10 * 24 * 60 * 60 * 1000));
     // Trashed file — should be skipped
     db.prepare(
       "INSERT INTO files (id, user_id, drive_account_id, google_file_id, workspace_id, name, size, is_trashed, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)"
@@ -178,7 +179,7 @@ describe('PolicyService.processAutoDeleteRetentionPolicies', () => {
     db.prepare(
       "INSERT INTO drive_accounts (id, user_id, email) VALUES ('d1', 'u1', 'a@b.com')"
     ).run();
-    const oldDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const oldDate = toSQLiteDatetime(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
 
     // Insert 25 expired files
     const insertFile = db.prepare(
@@ -215,7 +216,7 @@ describe('PolicyService.processAutoDeleteRetentionPolicies', () => {
     db.prepare(
       "INSERT INTO drive_accounts (id, user_id, email) VALUES ('d1', 'u1', 'a@b.com')"
     ).run();
-    const oldDate = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
+    const oldDate = toSQLiteDatetime(new Date(Date.now() - 10 * 24 * 60 * 60 * 1000));
     db.prepare(
       "INSERT INTO files (id, user_id, drive_account_id, google_file_id, workspace_id, name, size, is_trashed, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)"
     ).run('f1', 'u1', 'd1', 'gfile-1', 'ws-1', 'old.pdf', 500, oldDate);
@@ -236,6 +237,58 @@ describe('PolicyService.processAutoDeleteRetentionPolicies', () => {
     const row = db.prepare('SELECT COUNT(*) as count FROM files WHERE id = ?').get('f1') as { count: number };
     expect(row.count).toBe(1); // file still in DB — not orphaned
 
+    db.close();
+  });
+
+  it('does not delete files created on the cutoff day but at a later time (format regression)', async () => {
+    // Regression: ISO cutoff "2026-06-21T15:00:00" vs SQLite created_at "2026-06-21 20:00:00"
+    // Lexicographic: space (0x20) < T (0x54) → file wrongly deleted.
+    // After fix: cutoff is SQLite format "2026-06-21 15:00:00" → same-day comparison is correct.
+    //
+    // Deterministic: vi.useFakeTimers freezes new Date() so the 7-day cutoff lands
+    // on the same calendar day as the file we expect to keep. Without this, the test
+    // only exercises the bug ~50% of the time (when UTC hour ≥ 12).
+    const NOW = new Date('2026-06-28T15:00:00.000Z');
+    vi.useFakeTimers({ now: NOW });
+
+    const db = createDb();
+    db.prepare(
+      "INSERT INTO workspaces (id, name, owner_id, used_bytes) VALUES ('ws-1', 'Test', 'u1', 0)"
+    ).run();
+    db.prepare(
+      "INSERT INTO drive_accounts (id, user_id, email) VALUES ('d1', 'u1', 'a@b.com')"
+    ).run();
+
+    // Cutoff = now - 7d = 2026-06-21 15:00:00. File at 2026-06-21 20:00:00 is on the
+    // SAME day but 5h NEWER → must NOT be deleted.
+    const newerSameDay = toSQLiteDatetime(new Date('2026-06-21T20:00:00.000Z'));
+    db.prepare(
+      "INSERT INTO files (id, user_id, drive_account_id, google_file_id, workspace_id, name, size, is_trashed, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)"
+    ).run('f-keep', 'u1', 'd1', 'gfile-keep', 'ws-1', 'keep.pdf', 500, newerSameDay);
+
+    // File created 8 days ago (OLDER than cutoff — should be deleted)
+    const olderThanCutoff = toSQLiteDatetime(new Date('2026-06-20T10:00:00.000Z'));
+    db.prepare(
+      "INSERT INTO files (id, user_id, drive_account_id, google_file_id, workspace_id, name, size, is_trashed, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)"
+    ).run('f-del', 'u1', 'd1', 'gfile-del', 'ws-1', 'delete.pdf', 300, olderThanCutoff);
+
+    db.prepare(
+      "INSERT INTO workspace_policies (id, workspace_id, target_type, target_id, policy_type, config) VALUES ('p1', 'ws-1', 'workspace', NULL, 'data_retention', ?)"
+    ).run(JSON.stringify({ action: 'auto_delete', days: 7 }));
+
+    const driveService = makeMockDriveService();
+    const service = new PolicyService(wrapSqlite(db), driveService);
+
+    await service.processAutoDeleteRetentionPolicies();
+
+    // Only the 8-day-old file should be deleted; the same-day-newer file must be kept
+    expect(driveService.deleteFile).toHaveBeenCalledTimes(1);
+    expect(driveService.deleteFile).toHaveBeenCalledWith('d1', 'gfile-del');
+
+    const keepRow = db.prepare('SELECT COUNT(*) as count FROM files WHERE id = ?').get('f-keep') as { count: number };
+    expect(keepRow.count).toBe(1); // kept ✅
+
+    vi.useRealTimers();
     db.close();
   });
 });
