@@ -89,9 +89,58 @@ export class FolderRepository {
       .bind(folderId).run();
   }
 
-  delete(folderId: string) {
-    return this.db.prepare('DELETE FROM workspace_folders WHERE id = ?')
-      .bind(folderId).run();
+  /**
+   * Delete a workspace folder with manual cascade. D1 FKs are OFF, so
+   * ON DELETE CASCADE / SET NULL are documentation-only.
+   *
+   * Cascade order (children before parents):
+   * 1. Recursively delete subfolders (self-FK parent_id, arbitrary depth via CTE)
+   * 2. Delete folder-scoped policies (workspace_policies.target_id)
+   * 3. Detach files (ON DELETE SET NULL intent → UPDATE to NULL)
+   * 4. Delete the folder row itself
+   *
+   * The recursive CTE is repeated in 3 statements because db.batch() cannot
+   * share variables across prepared statements. This keeps the cascade atomic
+   * (single round-trip) at the cost of repeated SQL — the right tradeoff.
+   */
+  async delete(folderId: string) {
+    await this.db.batch([
+      // 1. Recursively delete all descendant subfolders (arbitrary depth).
+      this.db.prepare(
+        `DELETE FROM workspace_folders WHERE id IN (
+          WITH RECURSIVE descendants(id) AS (
+            SELECT id FROM workspace_folders WHERE parent_id = ?
+            UNION ALL
+            SELECT wf.id FROM workspace_folders wf JOIN descendants d ON wf.parent_id = d.id
+          )
+          SELECT id FROM descendants
+        )`
+      ).bind(folderId),
+      // 2. Delete folder-scoped policies pointing at this folder or its descendants.
+      this.db.prepare(
+        `DELETE FROM workspace_policies WHERE target_type = 'folder' AND target_id IN (
+          WITH RECURSIVE descendants(id) AS (
+            SELECT id FROM workspace_folders WHERE id = ?
+            UNION ALL
+            SELECT wf.id FROM workspace_folders wf JOIN descendants d ON wf.parent_id = d.id
+          )
+          SELECT id FROM descendants
+        )`
+      ).bind(folderId),
+      // 3. Detach files from this folder and all descendants (ON DELETE SET NULL intent).
+      this.db.prepare(
+        `UPDATE files SET workspace_folder_id = NULL WHERE workspace_folder_id IN (
+          WITH RECURSIVE descendants(id) AS (
+            SELECT id FROM workspace_folders WHERE id = ?
+            UNION ALL
+            SELECT wf.id FROM workspace_folders wf JOIN descendants d ON wf.parent_id = d.id
+          )
+          SELECT id FROM descendants
+        )`
+      ).bind(folderId),
+      // 4. Delete the folder itself.
+      this.db.prepare('DELETE FROM workspace_folders WHERE id = ?').bind(folderId),
+    ]);
   }
 
   /** Update sync status (syncing / idle / error). */

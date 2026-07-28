@@ -118,10 +118,21 @@ export class SharedRepository {
     return r.meta.changes;
   }
 
-  /** Delete a shared link. */
-  delete(id: string, userId: string) {
-    return this.db.prepare('DELETE FROM shared_links WHERE id = ? AND user_id = ?')
-      .bind(id, userId).run();
+  /**
+   * Delete a shared link with manual cascade. D1 FKs are OFF, so
+   * ON DELETE CASCADE is documentation-only.
+   *
+   * Cascade order (children before parents):
+   * 1. shared_link_logs (shared_link_id FK)
+   * 2. shared_links (the row itself)
+   *
+   * Uses db.batch() for atomicity (single round-trip).
+   */
+  async delete(id: string, userId: string) {
+    await this.db.batch([
+      this.db.prepare('DELETE FROM shared_link_logs WHERE shared_link_id = ?').bind(id),
+      this.db.prepare('DELETE FROM shared_links WHERE id = ? AND user_id = ?').bind(id, userId),
+    ]);
   }
 
   // ─── Counters ───

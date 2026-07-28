@@ -193,7 +193,7 @@ describe('S3 Protocol (integration)', () => {
     await insertDrive(userId, 'drive-1', 'alice@gmail.com');
     await insertFile(userId, 'drive-1', wsId, null, 'to-delete.txt', 'gfile-delete');
 
-    // Mock Google Drive API delete (the route calls driveService.deleteFile)
+    // Mock Google Drive API trash (the route calls driveService.trashFile)
     // 204 response must have null body per fetch spec
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 204 }));
 

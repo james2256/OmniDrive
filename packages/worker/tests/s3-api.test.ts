@@ -710,7 +710,7 @@ describe('S3 API compatibility endpoints', () => {
         sqlQueries
       });
 
-      const deleteSpy = vi.spyOn(GoogleDriveService.prototype, 'deleteFile').mockResolvedValue(undefined);
+      const trashSpy = vi.spyOn(GoogleDriveService.prototype, 'trashFile').mockResolvedValue(undefined);
 
       const amzDate = '20260621T120000Z';
       const dateStr = '20260621';
@@ -740,13 +740,13 @@ describe('S3 API compatibility endpoints', () => {
       }, env);
 
       expect(res.status).toBe(204);
-      expect(deleteSpy).toHaveBeenCalledWith('drive-123', 'g-123');
-      
+      expect(trashSpy).toHaveBeenCalledWith('drive-123', 'g-123');
+
       const updateQuery = sqlQueries.find(q => q.sql.includes('UPDATE files SET is_trashed = 1'));
       expect(updateQuery).toBeDefined();
       expect(updateQuery.args[0]).toBe('file-123');
 
-      deleteSpy.mockRestore();
+      trashSpy.mockRestore();
     });
 
     it('uploads an object using single-part PUT (PutObject)', async () => {

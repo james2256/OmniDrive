@@ -32,6 +32,7 @@ describe('DELETE /api/drives/:id', () => {
         }
         return (db as any).prepare(sql);
       }),
+      batch: vi.fn((stmts: unknown[]) => (db as any).batch ? (db as any).batch(stmts) : Promise.resolve([])),
     };
 
     const app = new Hono<AppContext>();
@@ -73,6 +74,7 @@ describe('DELETE /api/drives/:id', () => {
 
   it('disconnects oauth drive, revokes tokens, and reassigns primary', async () => {
     const runMock = vi.fn().mockResolvedValue({ success: true });
+    const batchMock = vi.fn().mockResolvedValue([]);
     const firstMock = vi
       .fn()
       .mockResolvedValueOnce({
@@ -90,6 +92,7 @@ describe('DELETE /api/drives/:id', () => {
           run: runMock,
         })),
       })),
+      batch: batchMock,
     };
 
     const revokeSpy = vi.spyOn(GoogleDriveService.prototype, 'revokeTokens').mockResolvedValue(undefined);
@@ -101,13 +104,13 @@ describe('DELETE /api/drives/:id', () => {
     expect(res.status).toBe(200);
     expect(body).toEqual({ success: true });
     expect(revokeSpy).toHaveBeenCalledWith(DRIVE_ID);
-    expect(runMock).toHaveBeenCalled();
-    // Tokens now deleted via D1 (drive_tokens table), not KV
-    expect(db.prepare).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM drive_tokens'));
+    // deleteDrive now uses db.batch() for cascade (includes drive_tokens deletion)
+    expect(batchMock).toHaveBeenCalled();
   });
 
   it('skips token revoke for service account drives', async () => {
     const runMock = vi.fn().mockResolvedValue({ success: true });
+    const batchMock = vi.fn().mockResolvedValue([]);
     const firstMock = vi.fn().mockResolvedValue({
       id: DRIVE_ID,
       user_id: USER_ID,
@@ -122,6 +125,7 @@ describe('DELETE /api/drives/:id', () => {
           run: runMock,
         })),
       })),
+      batch: batchMock,
     };
 
     const revokeSpy = vi.spyOn(GoogleDriveService.prototype, 'revokeTokens').mockResolvedValue(undefined);
@@ -131,7 +135,7 @@ describe('DELETE /api/drives/:id', () => {
 
     expect(res.status).toBe(200);
     expect(revokeSpy).not.toHaveBeenCalled();
-    // Tokens now deleted via D1 (drive_tokens table), not KV
-    expect(db.prepare).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM drive_tokens'));
+    // deleteDrive now uses db.batch() for cascade (includes drive_tokens deletion)
+    expect(batchMock).toHaveBeenCalled();
   });
 });

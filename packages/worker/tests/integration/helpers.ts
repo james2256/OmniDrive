@@ -26,6 +26,8 @@ const TABLES = [
   `CREATE TABLE IF NOT EXISTS s3_multipart_uploads (upload_id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE, key TEXT NOT NULL, drive_account_id TEXT NOT NULL REFERENCES drive_accounts(id) ON DELETE CASCADE, temp_folder_id TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')))`,
   `CREATE TABLE IF NOT EXISTS s3_multipart_parts (upload_id TEXT NOT NULL REFERENCES s3_multipart_uploads(upload_id) ON DELETE CASCADE, part_number INTEGER NOT NULL, google_file_id TEXT NOT NULL, etag TEXT NOT NULL, size INTEGER NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (upload_id, part_number))`,
   `CREATE TABLE IF NOT EXISTS sync_state (drive_account_id TEXT PRIMARY KEY REFERENCES drive_accounts(id) ON DELETE CASCADE, change_token TEXT, next_page_token TEXT, last_synced_at TEXT, status TEXT DEFAULT 'idle', error_message TEXT)`,
+  `CREATE TABLE IF NOT EXISTS quota_cache (drive_account_id TEXT PRIMARY KEY REFERENCES drive_accounts(id) ON DELETE CASCADE, payload TEXT NOT NULL, updated_at INTEGER NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS s3_lifecycle_rules (id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE, prefix TEXT NOT NULL DEFAULT '', expiration_days INTEGER NOT NULL, enabled INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE(workspace_id, prefix))`,
 ];
 
 /** Create all tables needed by the integration tests. Idempotent. */
@@ -37,7 +39,7 @@ export async function ensureSchema(db: D1Database): Promise<void> {
 
 /** Clear all rows from all tables (for test isolation between files). */
 export async function clearAllTables(db: D1Database): Promise<void> {
-  const tables = ['sync_state', 's3_multipart_parts', 's3_multipart_uploads', 'automation_rules', 's3_credentials', 'drive_tokens', 'category_cache', 'oauth_states', 'shared_link_logs', 'shared_links', 'audit_logs', 'workspace_policies', 'drive_folders', 'files', 'workspace_members', 'workspace_folders', 'workspaces', 'drive_accounts', 'sessions', 'users', 'invitation_codes'];
+  const tables = ['s3_lifecycle_rules', 'quota_cache', 'sync_state', 's3_multipart_parts', 's3_multipart_uploads', 'automation_rules', 's3_credentials', 'drive_tokens', 'category_cache', 'oauth_states', 'shared_link_logs', 'shared_links', 'audit_logs', 'workspace_policies', 'drive_folders', 'files', 'workspace_members', 'workspace_folders', 'workspaces', 'drive_accounts', 'sessions', 'users', 'invitation_codes'];
   for (const table of tables) {
     await db.prepare(`DELETE FROM ${table}`).run();
   }

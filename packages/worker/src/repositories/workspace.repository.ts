@@ -68,10 +68,41 @@ export class WorkspaceRepository {
       .bind(name, workspaceId).run();
   }
 
-  /** Delete a workspace. */
-  delete(workspaceId: string) {
-    return this.db.prepare('DELETE FROM workspaces WHERE id = ?')
-      .bind(workspaceId).run();
+  /**
+   * Delete a workspace with manual cascade. D1 FKs are OFF, so
+   * ON DELETE CASCADE / SET NULL are documentation-only.
+   *
+   * Cascade order (children before parents):
+   *  1. s3_multipart_parts (via uploads subquery)
+   *  2. s3_multipart_uploads (workspace_id FK)
+   *  3. s3_lifecycle_rules (workspace_id FK)
+   *  4. workspace_policies (workspace_id FK)
+   *  5. workspace_folders (workspace_id FK — subfolders handled by self-FK in FolderRepository)
+   *  6. s3_credentials (workspace_id FK)
+   *  7. files — NULL out workspace_id + workspace_folder_id (files survive workspace
+   *     deletion; they're Google Drive files, not workspace-owned. Service also calls
+   *     detachFromWorkspace, but we null here too for safety.)
+   *  8. audit_logs — NULL out workspace_id (ON DELETE SET NULL intent)
+   *  9. workspace_members (workspace_id FK)
+   * 10. workspaces (the row itself)
+   *
+   * Uses db.batch() for atomicity (single round-trip).
+   */
+  async delete(workspaceId: string) {
+    await this.db.batch([
+      this.db.prepare(
+        'DELETE FROM s3_multipart_parts WHERE upload_id IN (SELECT upload_id FROM s3_multipart_uploads WHERE workspace_id = ?)'
+      ).bind(workspaceId),
+      this.db.prepare('DELETE FROM s3_multipart_uploads WHERE workspace_id = ?').bind(workspaceId),
+      this.db.prepare('DELETE FROM s3_lifecycle_rules WHERE workspace_id = ?').bind(workspaceId),
+      this.db.prepare('DELETE FROM workspace_policies WHERE workspace_id = ?').bind(workspaceId),
+      this.db.prepare('DELETE FROM workspace_folders WHERE workspace_id = ?').bind(workspaceId),
+      this.db.prepare('DELETE FROM s3_credentials WHERE workspace_id = ?').bind(workspaceId),
+      this.db.prepare('UPDATE files SET workspace_id = NULL, workspace_folder_id = NULL WHERE workspace_id = ?').bind(workspaceId),
+      this.db.prepare('UPDATE audit_logs SET workspace_id = NULL WHERE workspace_id = ?').bind(workspaceId),
+      this.db.prepare('DELETE FROM workspace_members WHERE workspace_id = ?').bind(workspaceId),
+      this.db.prepare('DELETE FROM workspaces WHERE id = ?').bind(workspaceId),
+    ]);
   }
 
   // ─── Member management ───

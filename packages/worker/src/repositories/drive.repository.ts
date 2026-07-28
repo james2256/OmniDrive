@@ -141,16 +141,35 @@ export class DriveRepository {
       .bind(driveId).run();
   }
 
-  /** Delete a drive account. */
-  deleteDrive(driveId: string, userId: string) {
-    return this.db.prepare('DELETE FROM drive_accounts WHERE id = ? AND user_id = ?')
-      .bind(driveId, userId).run();
-  }
-
-  /** Delete tokens for a drive. */
-  deleteTokens(driveId: string) {
-    return this.db.prepare('DELETE FROM drive_tokens WHERE drive_account_id = ?')
-      .bind(driveId).run();
+  /**
+   * Delete a drive account with manual cascade. D1 FKs are OFF, so
+   * ON DELETE CASCADE is documentation-only.
+   *
+   * Cascade order (children before parents):
+   * 1. s3_multipart_parts (via uploads subquery)
+   * 2. s3_multipart_uploads (drive_account_id FK)
+   * 3. sync_state (drive_account_id FK)
+   * 4. quota_cache (drive_account_id FK)
+   * 5. drive_folders (drive_account_id FK)
+   * 6. files (drive_account_id FK)
+   * 7. drive_tokens (drive_account_id FK)
+   * 8. drive_accounts (the row itself)
+   *
+   * Uses db.batch() for atomicity (single round-trip).
+   */
+  async deleteDrive(driveId: string, userId: string) {
+    await this.db.batch([
+      this.db.prepare(
+        'DELETE FROM s3_multipart_parts WHERE upload_id IN (SELECT upload_id FROM s3_multipart_uploads WHERE drive_account_id = ?)'
+      ).bind(driveId),
+      this.db.prepare('DELETE FROM s3_multipart_uploads WHERE drive_account_id = ?').bind(driveId),
+      this.db.prepare('DELETE FROM sync_state WHERE drive_account_id = ?').bind(driveId),
+      this.db.prepare('DELETE FROM quota_cache WHERE drive_account_id = ?').bind(driveId),
+      this.db.prepare('DELETE FROM drive_folders WHERE drive_account_id = ?').bind(driveId),
+      this.db.prepare('DELETE FROM files WHERE drive_account_id = ?').bind(driveId),
+      this.db.prepare('DELETE FROM drive_tokens WHERE drive_account_id = ?').bind(driveId),
+      this.db.prepare('DELETE FROM drive_accounts WHERE id = ? AND user_id = ?').bind(driveId, userId),
+    ]);
   }
 
   // ─── external reads ───

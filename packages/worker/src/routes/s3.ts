@@ -475,9 +475,10 @@ s3Router.delete('/:bucket/:key{.+}', async (c) => {
     c.env.TOKEN_ENCRYPTION_KEY
   );
 
-  // Trash/delete file in Google Drive and update SQLite
-  await driveService.deleteFile(file.drive_account_id, file.google_file_id);
-  await db.prepare('UPDATE files SET is_trashed = 1 WHERE id = ?').bind(file.id).run();
+  // Trash file in Google Drive (recoverable ~30 days) and mark as trashed in D1.
+  // Matches s3-lifecycle.ts pattern — S3 DELETE trashes, not hard-deletes.
+  await driveService.trashFile(file.drive_account_id, file.google_file_id);
+  await db.prepare('UPDATE files SET is_trashed = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(file.id).run();
 
   return c.body(null, 204);
 });

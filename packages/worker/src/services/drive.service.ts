@@ -232,10 +232,6 @@ export class DriveService {
         await this.driveRepo.setPrimary(next.id);
       }
     }
-
-    // drive_tokens row auto-deleted by ON DELETE CASCADE when drive_accounts row removed,
-    // but explicit delete in case the drive_account row is kept.
-    await this.driveRepo.deleteTokens(driveId);
   }
 
   /** Get the GoogleDriveService instance (for routes that need Google API directly). */
