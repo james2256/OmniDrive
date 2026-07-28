@@ -23,6 +23,8 @@ import {
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { ListSkeleton } from '../components/EmptyState';
+import { ErrorState } from '../components/ErrorState';
 
 const AddUserModal: React.FC<{ open: boolean; onClose: () => void; onSuccess: () => void }> = ({
   open,
@@ -126,6 +128,8 @@ export const AdminUsersPage: React.FC = () => {
 
   // Users Tab State
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [usersError, setUsersError] = useState(false);
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
   const [invitationToDelete, setInvitationToDelete] = useState<string | null>(null);
   const [isDeletingInvitation, setIsDeletingInvitation] = useState(false);
@@ -155,12 +159,17 @@ export const AdminUsersPage: React.FC = () => {
   const [inviteMaxUses, setInviteMaxUses] = useState(1);
 
   const loadUsers = useCallback(async () => {
+    setIsLoadingUsers(true);
+    setUsersError(false);
     try {
       const res = await adminApi.getAdminUsers();
       setUsers(res.users);
     } catch (e: unknown) {
+      setUsersError(true);
       addToast('error', 'Failed to load users');
       console.error(e);
+    } finally {
+      setIsLoadingUsers(false);
     }
   }, [addToast]);
 
@@ -282,8 +291,8 @@ export const AdminUsersPage: React.FC = () => {
   };
 
   return (
-    <div className="p-4 sm:p-6 h-full flex flex-col">
-      <div className="mb-4 sm:mb-6">
+    <div className="p-4 sm:p-6 space-y-6">
+      <div className="flex items-center justify-between">
         <h1 className="text-xl sm:text-2xl font-semibold text-slate-800">Users</h1>
       </div>
 
@@ -320,124 +329,133 @@ export const AdminUsersPage: React.FC = () => {
             </div>
 
             <div className="bg-card border border-slate-200 rounded-lg overflow-hidden overflow-x-auto">
-              <table className="w-full text-left border-collapse min-w-[500px]">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="px-2 sm:px-6 py-3 text-xs font-medium text-slate-500 uppercase">
-                      Name
-                    </th>
-                    <th className="px-2 sm:px-6 py-3 text-xs font-medium text-slate-500 uppercase">
-                      Email
-                    </th>
-                    <th className="px-2 sm:px-6 py-3 text-xs font-medium text-slate-500 uppercase">
-                      Role
-                    </th>
-                    <th className="px-2 sm:px-6 py-3 text-xs font-medium text-slate-500 uppercase">
-                      Status
-                    </th>
-                    <th className="px-2 sm:px-6 py-3 text-xs font-medium text-slate-500 uppercase">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {users.map((userItem) => (
-                    <tr key={userItem.id} className="hover:bg-slate-50">
-                      <td className="px-2 sm:px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-medium overflow-hidden"
-                            role="img"
-                            aria-label={userItem.name || userItem.username || 'User avatar'}
-                          >
-                            {userItem.avatarUrl ? (
-                              <img
-                                src={userItem.avatarUrl}
-                                alt={userItem.name || userItem.username || 'User avatar'}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              (userItem.name || userItem.email || '?').charAt(0).toUpperCase()
-                            )}
-                          </div>
-                          <span className="text-sm font-medium text-slate-900">
-                            {userItem.name || userItem.username || 'Unknown'}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-2 sm:px-6 py-4 text-sm text-slate-500">
-                        {userItem.email || '-'}
-                      </td>
-                      <td className="px-2 sm:px-6 py-4 text-sm">
-                        <span
-                          className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${userItem.role === 'super_admin' ? 'bg-purple-100 text-purple-800' : 'bg-slate-100 text-slate-800'}`}
-                        >
-                          {userItem.role || 'member'}
-                        </span>
-                      </td>
-                      <td className="px-2 sm:px-6 py-4 text-sm">
-                        <span
-                          className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${userItem.status === 'blocked' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}
-                        >
-                          {userItem.status || 'active'}
-                        </span>
-                      </td>
-                      <td className="px-2 sm:px-6 py-4 text-sm text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              className="p-1.5 rounded-md text-slate-500 hover:text-slate-700 disabled:opacity-30"
-                              aria-label={`Actions for ${userItem.name || userItem.username}`}
-                              disabled={userItem.id === user?.userId}
-                            >
-                              <EllipsisVertical size={16} />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() =>
-                                setRoleTarget({
-                                  id: userItem.id,
-                                  role: userItem.role === 'super_admin' ? 'member' : 'super_admin',
-                                  name: userItem.name || userItem.username || 'this user',
-                                })
-                              }
-                            >
-                              {userItem.role === 'super_admin'
-                                ? 'Demote to Member'
-                                : 'Promote to Admin'}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() =>
-                                setStatusTarget({
-                                  id: userItem.id,
-                                  status: userItem.status === 'blocked' ? 'active' : 'blocked',
-                                  name: userItem.name || userItem.username || 'this user',
-                                })
-                              }
-                            >
-                              {userItem.status === 'blocked' ? 'Unblock User' : 'Block User'}
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-red-600 focus:text-red-600 focus:bg-red-50"
-                              onClick={() =>
-                                setDeleteUserTarget({
-                                  id: userItem.id,
-                                  name: userItem.name || userItem.username || 'this user',
-                                })
-                              }
-                            >
-                              Delete User
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </td>
+              {isLoadingUsers ? (
+                <div className="p-4 sm:p-6">
+                  <ListSkeleton rows={6} />
+                </div>
+              ) : usersError ? (
+                <ErrorState onRetry={() => loadUsers()} />
+              ) : (
+                <table className="w-full text-left border-collapse min-w-[500px]">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200">
+                      <th className="px-2 sm:px-6 py-3 text-xs font-medium text-slate-500 uppercase">
+                        Name
+                      </th>
+                      <th className="px-2 sm:px-6 py-3 text-xs font-medium text-slate-500 uppercase">
+                        Email
+                      </th>
+                      <th className="px-2 sm:px-6 py-3 text-xs font-medium text-slate-500 uppercase">
+                        Role
+                      </th>
+                      <th className="px-2 sm:px-6 py-3 text-xs font-medium text-slate-500 uppercase">
+                        Status
+                      </th>
+                      <th className="px-2 sm:px-6 py-3 text-xs font-medium text-slate-500 uppercase">
+                        Actions
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {users.map((userItem) => (
+                      <tr key={userItem.id} className="hover:bg-slate-50">
+                        <td className="px-2 sm:px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-medium overflow-hidden"
+                              role="img"
+                              aria-label={userItem.name || userItem.username || 'User avatar'}
+                            >
+                              {userItem.avatarUrl ? (
+                                <img
+                                  src={userItem.avatarUrl}
+                                  alt={userItem.name || userItem.username || 'User avatar'}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                (userItem.name || userItem.email || '?').charAt(0).toUpperCase()
+                              )}
+                            </div>
+                            <span className="text-sm font-medium text-slate-900">
+                              {userItem.name || userItem.username || 'Unknown'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-2 sm:px-6 py-4 text-sm text-slate-500">
+                          {userItem.email || '-'}
+                        </td>
+                        <td className="px-2 sm:px-6 py-4 text-sm">
+                          <span
+                            className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${userItem.role === 'super_admin' ? 'bg-purple-100 text-purple-800' : 'bg-slate-100 text-slate-800'}`}
+                          >
+                            {userItem.role || 'member'}
+                          </span>
+                        </td>
+                        <td className="px-2 sm:px-6 py-4 text-sm">
+                          <span
+                            className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${userItem.status === 'blocked' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}
+                          >
+                            {userItem.status || 'active'}
+                          </span>
+                        </td>
+                        <td className="px-2 sm:px-6 py-4 text-sm text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                className="p-1.5 rounded-md text-slate-500 hover:text-slate-700 disabled:opacity-30"
+                                aria-label={`Actions for ${userItem.name || userItem.username}`}
+                                disabled={userItem.id === user?.userId}
+                              >
+                                <EllipsisVertical size={16} />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  setRoleTarget({
+                                    id: userItem.id,
+                                    role:
+                                      userItem.role === 'super_admin' ? 'member' : 'super_admin',
+                                    name: userItem.name || userItem.username || 'this user',
+                                  })
+                                }
+                              >
+                                {userItem.role === 'super_admin'
+                                  ? 'Demote to Member'
+                                  : 'Promote to Admin'}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  setStatusTarget({
+                                    id: userItem.id,
+                                    status: userItem.status === 'blocked' ? 'active' : 'blocked',
+                                    name: userItem.name || userItem.username || 'this user',
+                                  })
+                                }
+                              >
+                                {userItem.status === 'blocked' ? 'Unblock User' : 'Block User'}
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                                onClick={() =>
+                                  setDeleteUserTarget({
+                                    id: userItem.id,
+                                    name: userItem.name || userItem.username || 'this user',
+                                  })
+                                }
+                              >
+                                Delete User
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         )}

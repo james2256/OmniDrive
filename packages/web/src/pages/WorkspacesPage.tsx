@@ -15,9 +15,11 @@ import { useToastStore } from '../stores/useToastStore';
 import { useSelectionStore, type SelectedItem } from '../stores/useSelectionStore';
 import { ItemModals } from '../components/files/ItemModals';
 import { SetRetentionPolicyDialog } from '../components/workspaces/SetRetentionPolicyDialog';
+import { ListSkeleton } from '../components/EmptyState';
 
 export function WorkspacesPage() {
   const [folders, setFolders] = useState<WorkspaceFolder[]>([]);
+  const [isLoadingTree, setIsLoadingTree] = useState(false);
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [subfolders, setSubfolders] = useState<WorkspaceFolder[]>([]);
@@ -41,11 +43,14 @@ export function WorkspacesPage() {
   const [isRenaming, setIsRenaming] = useState(false);
 
   const fetchTree = useCallback(async () => {
+    setIsLoadingTree(true);
     try {
       const res = await foldersApi.getWorkspaceTree();
       setFolders(res.folders);
     } catch {
       addToast('error', 'Failed to load workspaces');
+    } finally {
+      setIsLoadingTree(false);
     }
   }, [addToast]);
 
@@ -244,17 +249,30 @@ export function WorkspacesPage() {
       <div
         className={`${wsSidebarOpen ? 'fixed left-0 top-0 bottom-0 z-50 shadow-xl' : 'hidden'} md:relative md:block md:shadow-none md:z-auto`}
       >
-        <WorkspaceSidebar
-          folders={folders}
-          activeFolderId={activeFolderId}
-          onSelect={(id) => {
-            setActiveFolderId(id);
-            setWsSidebarOpen(false);
-          }}
-          onRename={handleRename}
-          onDelete={handleDelete}
-          onNewSubfolder={openCreateModal}
-        />
+        {isLoadingTree ? (
+          <div
+            className="w-64 border-r border-slate-200 bg-slate-50/50 p-4 h-full"
+            aria-busy="true"
+            aria-label="Loading workspaces"
+          >
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+              Workspaces
+            </div>
+            <ListSkeleton rows={6} />
+          </div>
+        ) : (
+          <WorkspaceSidebar
+            folders={folders}
+            activeFolderId={activeFolderId}
+            onSelect={(id) => {
+              setActiveFolderId(id);
+              setWsSidebarOpen(false);
+            }}
+            onRename={handleRename}
+            onDelete={handleDelete}
+            onNewSubfolder={openCreateModal}
+          />
+        )}
       </div>
       <WorkspaceMainView
         activeFolder={activeFolder}

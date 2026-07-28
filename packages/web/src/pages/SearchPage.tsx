@@ -11,6 +11,8 @@ import { useSharedLinks, useIsTargetSharedCallback } from '../hooks/useSharedLin
 import { useToggleStar } from '../hooks/useFileMutations';
 import { qk } from '../lib/queryKeys';
 import { invalidateAfterFileMutation } from '../lib/invalidate';
+import { ListSkeleton } from '../components/EmptyState';
+import { ErrorState } from '../components/ErrorState';
 import type { FileEntry } from '../types';
 
 export function SearchPage() {
@@ -31,7 +33,12 @@ export function SearchPage() {
   const isTargetShared = useIsTargetSharedCallback(sharedLinks);
   const toggleStar = useToggleStar();
 
-  const { data: searchResults, isLoading } = useQuery({
+  const {
+    data: searchResults,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: qk.search(query),
     queryFn: async () => {
       if (!query) return null;
@@ -48,7 +55,7 @@ export function SearchPage() {
   return (
     <div className="p-4 sm:p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-slate-800">
+        <h1 className="text-xl sm:text-2xl font-semibold text-slate-800">
           {query ? `Search results for "${query}"` : 'Search'}
         </h1>
       </div>
@@ -58,9 +65,9 @@ export function SearchPage() {
           <p className="text-lg">Please enter a search term.</p>
         </div>
       ) : isLoading ? (
-        <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-        </div>
+        <ListSkeleton rows={6} />
+      ) : error ? (
+        <ErrorState onRetry={() => refetch()} />
       ) : fileResults.length > 0 || folderResults.length > 0 ? (
         <div className="bg-card rounded-xl border border-slate-200 overflow-hidden">
           <FileGrid

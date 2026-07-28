@@ -17,12 +17,13 @@ import { FileIcon } from '../components/files/FileIcon';
 import { useSharedLinks, useRevokeSharedLink } from '../hooks/useSharedLinks';
 import { useClipboard } from '../hooks/useClipboard';
 import { EmptyState, ListSkeleton } from '../components/EmptyState';
+import { ErrorState } from '../components/ErrorState';
 import { Button } from '../components/ui/Button';
 import type { SharedLink } from '../types';
 import { formatAbsoluteDate } from '../lib/utils';
 
 export function SharedLinksPage() {
-  const { data: links = [], isLoading } = useSharedLinks();
+  const { data: links = [], isLoading, error, refetch } = useSharedLinks();
   const { copiedId, copy } = useClipboard();
   const [editingLink, setEditingLink] = useState<SharedLink | null>(null);
   const { addToast } = useToastStore();
@@ -45,19 +46,20 @@ export function SharedLinksPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full">
-      <div className="mb-4 sm:mb-8">
-        <h1 className="text-xl sm:text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-2 sm:gap-3">
-          <LinkIcon className="text-primary" size={20} />
-          <span>Shared Links</span>
-        </h1>
-        <p className="text-slate-500 mt-1 sm:mt-2 text-xs sm:text-lg">
-          Manage files and folders you have shared with others.
-        </p>
+    <div className="p-4 sm:p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-semibold text-slate-800">Shared Links</h1>
+          <p className="text-sm text-slate-500 mt-0.5">
+            Manage files and folders you have shared with others.
+          </p>
+        </div>
       </div>
 
       {isLoading ? (
         <ListSkeleton rows={4} />
+      ) : error ? (
+        <ErrorState onRetry={() => refetch()} />
       ) : links.length === 0 ? (
         <EmptyState
           icon={LinkIcon}

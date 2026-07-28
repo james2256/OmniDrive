@@ -12,6 +12,7 @@ import { qk } from '../lib/queryKeys';
 import { useSelectionStore } from '../stores/useSelectionStore';
 import type { FileEntry } from '../types';
 import { EmptyState, ListSkeleton } from '../components/EmptyState';
+import { ErrorState } from '../components/ErrorState';
 import { Star } from 'lucide-react';
 
 export function StarredPage() {
@@ -23,7 +24,7 @@ export function StarredPage() {
   const queryClient = useQueryClient();
   const { selectedItems } = useSelectionStore();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.starred,
     queryFn: () => filesApi.getStarred(),
   });
@@ -65,6 +66,8 @@ export function StarredPage() {
 
       {isLoading ? (
         <ListSkeleton rows={6} />
+      ) : error ? (
+        <ErrorState onRetry={() => refetch()} />
       ) : files.length > 0 || allFolders.length > 0 ? (
         <div className="bg-card rounded-xl border border-slate-200 overflow-hidden">
           <FileGrid

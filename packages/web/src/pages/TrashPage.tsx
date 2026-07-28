@@ -12,6 +12,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useRestoreFile, usePermanentDeleteFile } from '../hooks/useFileMutations';
 import { useRestoreDriveFolder, usePermanentDeleteDriveFolder } from '../hooks/useFolderMutations';
 import { EmptyState, ListSkeleton } from '../components/EmptyState';
+import { ErrorState } from '../components/ErrorState';
 import { Trash2 } from 'lucide-react';
 
 export function TrashPage() {
@@ -27,7 +28,7 @@ export function TrashPage() {
     folderId: string;
   } | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.trash,
     queryFn: () => filesApi.getTrashFiles(),
   });
@@ -61,6 +62,8 @@ export function TrashPage() {
 
       {isLoading ? (
         <ListSkeleton rows={6} />
+      ) : error ? (
+        <ErrorState onRetry={() => refetch()} />
       ) : hasItems ? (
         <div className="bg-card rounded-xl border border-slate-200 overflow-hidden">
           <FileGrid

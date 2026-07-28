@@ -10,7 +10,8 @@ import { FileGrid } from '../components/files/FileGrid';
 import { ShareModal } from '../components/ShareModal';
 import { MoveDriveModal } from '../components/MoveDriveModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
-import { EmptyState } from '../components/EmptyState';
+import { EmptyState, ListSkeleton } from '../components/EmptyState';
+import { ErrorState } from '../components/ErrorState';
 import { formatFileSize, getDriveColor } from '../lib/utils';
 import { filesApi } from '../lib/api/files';
 import { useToastStore } from '../stores/useToastStore';
@@ -74,7 +75,7 @@ function firstName(name?: string | null): string {
 export function DashboardPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { data: drivesData, isLoading } = useDrives();
+  const { data: drivesData, isLoading, error: drivesError, refetch: refetchDrives } = useDrives();
   const drives = useMemo(() => drivesData?.drives ?? [], [drivesData]);
   const aggregate = drivesData?.aggregate;
   const { user } = useAuthStore();
@@ -90,7 +91,12 @@ export function DashboardPage() {
   const [moveDriveFiles, setMoveDriveFiles] = useState<FileEntry[]>([]);
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
 
-  const { data: recentData } = useQuery({
+  const {
+    data: recentData,
+    isLoading: isRecentLoading,
+    error: recentError,
+    refetch: refetchRecent,
+  } = useQuery({
     queryKey: qk.recent,
     queryFn: () => filesApi.getRecentFiles(),
   });
@@ -146,7 +152,7 @@ export function DashboardPage() {
   ] as const;
 
   return (
-    <div className="p-4 sm:p-6 space-y-4 max-w-[1400px] mx-auto">
+    <div className="p-4 sm:p-6 space-y-6">
       {/* Greeting + refresh */}
       <div className="flex items-center justify-between gap-2 sm:gap-3">
         <div>
@@ -175,8 +181,20 @@ export function DashboardPage() {
         </Button>
       </div>
 
+      {/* Loading skeleton — matches bento shape */}
+      {isLoading && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 auto-rows-[minmax(150px,auto)]">
+          <div className="md:col-span-2 lg:col-span-2 bg-card border border-slate-200 rounded-2xl animate-pulse" />
+          <div className="md:col-span-2 lg:col-span-2 lg:row-span-2 bg-card border border-slate-200 rounded-2xl animate-pulse" />
+          <div className="md:col-span-2 lg:col-span-2 bg-card border border-slate-200 rounded-2xl animate-pulse" />
+        </div>
+      )}
+
+      {/* Error state — drives failed to load. Show full-page error. */}
+      {!isLoading && drivesError ? <ErrorState onRetry={() => refetchDrives()} /> : null}
+
       {/* Empty state — no drives yet. */}
-      {!hasDrives && !isLoading && (
+      {!hasDrives && !isLoading && !drivesError && (
         <div className="bg-card border border-slate-200 rounded-2xl p-8 sm:p-12 text-center bento-reveal">
           <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
             <Cloud size={26} className="text-primary" />
@@ -198,17 +216,8 @@ export function DashboardPage() {
         </div>
       )}
 
-      {/* Loading skeleton — matches bento shape */}
-      {isLoading && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 auto-rows-[minmax(150px,auto)]">
-          <div className="md:col-span-2 lg:col-span-2 bg-card border border-slate-200 rounded-2xl animate-pulse" />
-          <div className="md:col-span-2 lg:col-span-2 lg:row-span-2 bg-card border border-slate-200 rounded-2xl animate-pulse" />
-          <div className="md:col-span-2 lg:col-span-2 bg-card border border-slate-200 rounded-2xl animate-pulse" />
-        </div>
-      )}
-
       {/* Bento grid — 4 cols desktop. Cell count = content count, no empty cells. */}
-      {hasDrives && (
+      {hasDrives && !drivesError && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 auto-rows-[minmax(150px,auto)]">
           {/* Storage hero — col-span-2 */}
           <article
@@ -408,7 +417,13 @@ export function DashboardPage() {
                 </Button>
               )}
             </div>
-            {hasRecent ? (
+            {isRecentLoading ? (
+              <div className="p-4 sm:p-5">
+                <ListSkeleton rows={6} />
+              </div>
+            ) : recentError ? (
+              <ErrorState onRetry={() => refetchRecent()} />
+            ) : hasRecent ? (
               <FileGrid
                 files={recentFiles}
                 subfolders={recentFolders}
