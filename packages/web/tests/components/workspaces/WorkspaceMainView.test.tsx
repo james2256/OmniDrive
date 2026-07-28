@@ -4,37 +4,54 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { WorkspaceMainView } from '../../../src/components/workspaces/WorkspaceMainView';
 
 vi.mock('../../../src/components/workspaces/WorkspaceFilesTab', () => ({
-  WorkspaceFilesTab: () => <div data-testid="files-tab">Files Tab Content</div>
+  WorkspaceFilesTab: () => <div data-testid="files-tab">Files Tab Content</div>,
 }));
 vi.mock('../../../src/components/workspaces/WorkspaceMembersTab', () => ({
-  WorkspaceMembersTab: () => <div data-testid="members-tab">Members Tab Content</div>
+  WorkspaceMembersTab: () => <div data-testid="members-tab">Members Tab Content</div>,
 }));
 vi.mock('../../../src/components/workspaces/WorkspaceSettingsTab', () => ({
-  WorkspaceSettingsTab: () => <div data-testid="settings-tab">Settings Tab Content</div>
+  WorkspaceSettingsTab: () => <div data-testid="settings-tab">Settings Tab Content</div>,
 }));
 
 function renderWithProviders(ui: React.ReactElement) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(
-    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>
-  );
+  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
 }
 
 describe('WorkspaceMainView', () => {
   const mockProps = {
-    activeFolder: { id: '1', name: 'Engineering', workspaceId: 'w1', parentId: null, icon: null, color: null, isStarred: false, createdAt: '', updatedAt: '' },
+    activeFolder: {
+      id: '1',
+      name: 'Engineering',
+      workspaceId: 'w1',
+      parentId: null,
+      icon: null,
+      color: null,
+      isStarred: false,
+      createdAt: '',
+      updatedAt: '',
+    },
     path: [{ id: '1', name: 'Engineering' }],
     onCreateFolder: vi.fn(),
     onSync: vi.fn(),
     isSyncing: false,
     fileTabProps: {
-      files: [], subfolders: [], getDriveInfo: vi.fn(), onNavigateFolder: vi.fn(),
-      onPreviewFile: vi.fn(), onShare: vi.fn(), onRenameFile: vi.fn(), onDeleteFile: vi.fn(),
-      onMoveDrive: vi.fn(), isTargetShared: vi.fn(), errorDrives: new Set<string>(), onViewInfo: vi.fn(),
-      actions: { onToggleStar: vi.fn(), onPreviewFile: vi.fn() }
-    }
+      files: [],
+      subfolders: [],
+      getDriveInfo: vi.fn(),
+      onNavigateFolder: vi.fn(),
+      onPreviewFile: vi.fn(),
+      onShare: vi.fn(),
+      onRenameFile: vi.fn(),
+      onDeleteFile: vi.fn(),
+      onMoveDrive: vi.fn(),
+      isTargetShared: vi.fn(),
+      errorDrives: new Set<string>(),
+      onViewInfo: vi.fn(),
+      actions: { onToggleStar: vi.fn(), onPreviewFile: vi.fn() },
+    },
   };
 
   it('renders breadcrumbs and title', () => {

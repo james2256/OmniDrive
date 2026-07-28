@@ -1,8 +1,25 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { S3Credential } from '../../lib/api';
 import { useToastStore } from '../../stores/useToastStore';
-import { Plus, Trash2, Copy, Check, TriangleAlert, KeyRound, CheckCircle2, LoaderCircle } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogTitle, DialogDescription } from '../ui/dialog';
+import {
+  Plus,
+  Trash2,
+  Copy,
+  Check,
+  TriangleAlert,
+  KeyRound,
+  CheckCircle2,
+  LoaderCircle,
+} from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogBody,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+} from '../ui/dialog';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { ConfirmDialog } from '../ConfirmDialog';
@@ -35,14 +52,12 @@ export function SettingsS3Tab() {
   const loadData = useCallback(async () => {
     setLoadingS3(true);
     try {
-      const [keys, wsData] = await Promise.all([
-        api.getS3Credentials(),
-        api.getWorkspaces()
-      ]);
+      const [keys, wsData] = await Promise.all([api.getS3Credentials(), api.getWorkspaces()]);
       setS3Keys(keys);
       // Filter the list of workspaces to only contain items where role === 'manager' || role === 'owner'
       const filtered = (wsData.workspaces || []).filter(
-        (w: { id: string; name: string; role: string }) => w.role === 'manager' || w.role === 'owner'
+        (w: { id: string; name: string; role: string }) =>
+          w.role === 'manager' || w.role === 'owner',
       );
       setWorkspaces(filtered);
     } catch {
@@ -62,10 +77,7 @@ export function SettingsS3Tab() {
 
     setIsCreatingKey(true);
     try {
-      const result = await api.createS3Credential(
-        newKeyDescription,
-        newKeyScope || undefined
-      );
+      const result = await api.createS3Credential(newKeyDescription, newKeyScope || undefined);
 
       setCreatedCredential({
         accessKeyId: result.accessKeyId,
@@ -122,8 +134,13 @@ export function SettingsS3Tab() {
       <div className="border-t border-slate-200 pt-6">
         <div className="flex justify-between items-center mb-4 gap-2 sm:gap-3 flex-wrap">
           <div className="min-w-0">
-            <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">S3 API Keys</h2>
-            <p className="text-xs text-slate-500 mt-1">Manage workspace-scoped and global S3-compatible credentials for accessing object storage.</p>
+            <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
+              S3 API Keys
+            </h2>
+            <p className="text-xs text-slate-500 mt-1">
+              Manage workspace-scoped and global S3-compatible credentials for accessing object
+              storage.
+            </p>
           </div>
           <Button
             onClick={() => setShowCreateModal(true)}
@@ -149,18 +166,30 @@ export function SettingsS3Tab() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Description</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Access Key ID</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Scope</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Created At</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Actions</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Description
+                    </th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Access Key ID
+                    </th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Scope
+                    </th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Created At
+                    </th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
                   {s3Keys.map((key: S3Credential) => (
                     <tr key={key.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-4 py-3.5 text-sm text-slate-800 font-medium">
-                        {key.description || <span className="text-slate-500 italic">No description</span>}
+                        {key.description || (
+                          <span className="text-slate-500 italic">No description</span>
+                        )}
                       </td>
                       <td className="px-4 py-3.5 text-xs font-mono text-slate-600 bg-slate-50/50 rounded select-all font-semibold">
                         {key.accessKeyId}
@@ -199,7 +228,10 @@ export function SettingsS3Tab() {
       </div>
 
       {/* Create S3 Key Dialog */}
-      <Dialog open={showCreateModal} onOpenChange={(open) => !open && !isCreatingKey && setShowCreateModal(false)}>
+      <Dialog
+        open={showCreateModal}
+        onOpenChange={(open) => !open && !isCreatingKey && setShowCreateModal(false)}
+      >
         <DialogContent className="max-w-md p-0 gap-0 flex flex-col overflow-hidden">
           <DialogHeader icon={<KeyRound size={20} className="text-primary" />}>
             <DialogTitle>Generate S3 API Key</DialogTitle>
@@ -239,15 +271,31 @@ export function SettingsS3Tab() {
               </div>
             </DialogBody>
             <DialogFooter>
-              <Button variant="secondary" type="button" onClick={() => setShowCreateModal(false)} disabled={isCreatingKey}>Cancel</Button>
-              <Button type="submit" loading={isCreatingKey} disabled={isCreatingKey || !newKeyDescription.trim()}>Generate Key</Button>
+              <Button
+                variant="secondary"
+                type="button"
+                onClick={() => setShowCreateModal(false)}
+                disabled={isCreatingKey}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                loading={isCreatingKey}
+                disabled={isCreatingKey || !newKeyDescription.trim()}
+              >
+                Generate Key
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
       {/* Success Modal - Credentials Display */}
-      <Dialog open={createdCredential !== null} onOpenChange={(open) => !open && setCreatedCredential(null)}>
+      <Dialog
+        open={createdCredential !== null}
+        onOpenChange={(open) => !open && setCreatedCredential(null)}
+      >
         <DialogContent
           className="sm:max-w-[460px] p-0 gap-0 flex flex-col overflow-hidden"
           onPointerDownOutside={(e) => e.preventDefault()}
@@ -267,7 +315,8 @@ export function SettingsS3Tab() {
                   <TriangleAlert className="text-amber-600 flex-shrink-0 mt-0.5" size={18} />
                   <div className="text-xs text-amber-800">
                     <span className="font-semibold block mb-0.5">Security Warning:</span>
-                    Please copy the Secret Access Key below now. You will not be able to retrieve or view it again once this modal is closed.
+                    Please copy the Secret Access Key below now. You will not be able to retrieve or
+                    view it again once this modal is closed.
                   </div>
                 </div>
 
@@ -276,7 +325,9 @@ export function SettingsS3Tab() {
                     Description
                   </label>
                   <div className="text-sm font-medium text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
-                    {createdCredential.description || <span className="text-slate-500 italic">No description</span>}
+                    {createdCredential.description || (
+                      <span className="text-slate-500 italic">No description</span>
+                    )}
                   </div>
                 </div>
 

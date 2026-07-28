@@ -20,15 +20,17 @@ export class KVNamespaceWrapper {
         try {
           const stmt = this.db.prepare('SELECT value, expiration FROM kv_store WHERE id = ?');
           const row = stmt.get(key) as { value: string; expiration: number | null } | undefined;
-          
+
           if (!row) return resolve(null);
-          
+
           if (row.expiration && row.expiration < Math.floor(Date.now() / 1000)) {
             // Delete asynchronously, resolve null
-            this.delete(key).then(() => resolve(null)).catch(reject);
+            this.delete(key)
+              .then(() => resolve(null))
+              .catch(reject);
             return;
           }
-          
+
           resolve(row.value);
         } catch (e) {
           reject(e);
@@ -45,7 +47,7 @@ export class KVNamespaceWrapper {
           if (options?.expirationTtl) {
             expiration = Math.floor(Date.now() / 1000) + options.expirationTtl;
           }
-          
+
           const stmt = this.db.prepare(`
             INSERT INTO kv_store (id, value, expiration) 
             VALUES (?, ?, ?) 

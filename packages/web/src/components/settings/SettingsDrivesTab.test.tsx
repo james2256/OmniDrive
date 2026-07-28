@@ -79,8 +79,26 @@ describe('SettingsDrivesTab', () => {
     (useDrives as Mock).mockReturnValue({
       data: {
         drives: [
-          { id: 'd1', email: 'user1@gmail.com', type: 'oauth', isPrimary: true, syncStatus: 'idle', usedQuota: 0, totalQuota: 100, usagePercent: 0 },
-          { id: 'd2', email: 'user2@gmail.com', type: 'service_account', isPrimary: false, syncStatus: 'idle', usedQuota: 50, totalQuota: 200, usagePercent: 25 },
+          {
+            id: 'd1',
+            email: 'user1@gmail.com',
+            type: 'oauth',
+            isPrimary: true,
+            syncStatus: 'idle',
+            usedQuota: 0,
+            totalQuota: 100,
+            usagePercent: 0,
+          },
+          {
+            id: 'd2',
+            email: 'user2@gmail.com',
+            type: 'service_account',
+            isPrimary: false,
+            syncStatus: 'idle',
+            usedQuota: 50,
+            totalQuota: 200,
+            usagePercent: 25,
+          },
         ],
       },
     });
@@ -97,7 +115,20 @@ describe('SettingsDrivesTab', () => {
     const removeDriveMutation = vi.fn().mockResolvedValue(undefined);
     (useRemoveDrive as Mock).mockReturnValue({ mutateAsync: removeDriveMutation });
     (useDrives as Mock).mockReturnValue({
-      data: { drives: [{ id: 'd1', email: 'user1@gmail.com', type: 'oauth', isPrimary: true, syncStatus: 'idle', usedQuota: 0, totalQuota: 100, usagePercent: 0 }] },
+      data: {
+        drives: [
+          {
+            id: 'd1',
+            email: 'user1@gmail.com',
+            type: 'oauth',
+            isPrimary: true,
+            syncStatus: 'idle',
+            usedQuota: 0,
+            totalQuota: 100,
+            usagePercent: 0,
+          },
+        ],
+      },
     });
 
     render(<SettingsDrivesTab />);
@@ -118,7 +149,12 @@ describe('SettingsDrivesTab', () => {
     const hrefSetter = vi.fn();
     Object.defineProperty(window, 'location', {
       writable: true,
-      value: { ...originalLocation, set href(url: string) { hrefSetter(url); } },
+      value: {
+        ...originalLocation,
+        set href(url: string) {
+          hrefSetter(url);
+        },
+      },
     });
 
     render(<SettingsDrivesTab />);

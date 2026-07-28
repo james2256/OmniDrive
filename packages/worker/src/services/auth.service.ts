@@ -12,7 +12,11 @@ export class AuthService {
    * endpoint is already retried there during refresh; this covers the initial
    * code exchange + userinfo fetch during login.
    */
-  private async fetchWithBackoff(url: string, init: RequestInit, errorLabel: string): Promise<Response> {
+  private async fetchWithBackoff(
+    url: string,
+    init: RequestInit,
+    errorLabel: string,
+  ): Promise<Response> {
     try {
       return await withBackoff(() => fetch(url, init));
     } catch (err) {
@@ -22,7 +26,11 @@ export class AuthService {
     }
   }
 
-  async exchangeCodeForTokens(code: string, redirectUri: string, codeVerifier?: string): Promise<OAuthTokens> {
+  async exchangeCodeForTokens(
+    code: string,
+    redirectUri: string,
+    codeVerifier?: string,
+  ): Promise<OAuthTokens> {
     const params = new URLSearchParams({
       code,
       client_id: this.env.GOOGLE_CLIENT_ID,
@@ -33,13 +41,21 @@ export class AuthService {
     if (codeVerifier) {
       params.append('code_verifier', codeVerifier);
     }
-    const response = await this.fetchWithBackoff('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params,
-    }, 'OAuth token exchange failed');
+    const response = await this.fetchWithBackoff(
+      'https://oauth2.googleapis.com/token',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params,
+      },
+      'OAuth token exchange failed',
+    );
 
-    const data = await response.json() as unknown as { access_token: string; refresh_token?: string; expires_in: number };
+    const data = (await response.json()) as unknown as {
+      access_token: string;
+      refresh_token?: string;
+      expires_in: number;
+    };
     return {
       accessToken: data.access_token,
       refreshToken: data.refresh_token,
@@ -47,11 +63,22 @@ export class AuthService {
     };
   }
 
-  async fetchUserInfo(accessToken: string): Promise<{ id: string; email: string; name: string; picture?: string }> {
-    const response = await this.fetchWithBackoff('https://www.googleapis.com/oauth2/v2/userinfo', {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    }, 'OAuth userinfo fetch failed');
+  async fetchUserInfo(
+    accessToken: string,
+  ): Promise<{ id: string; email: string; name: string; picture?: string }> {
+    const response = await this.fetchWithBackoff(
+      'https://www.googleapis.com/oauth2/v2/userinfo',
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+      'OAuth userinfo fetch failed',
+    );
 
-    return (await response.json()) as unknown as { id: string; email: string; name: string; picture?: string };
+    return (await response.json()) as unknown as {
+      id: string;
+      email: string;
+      name: string;
+      picture?: string;
+    };
   }
 }

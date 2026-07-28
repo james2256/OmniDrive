@@ -13,7 +13,7 @@ export const QUOTA_CACHE_VERSION = 2;
 export function parseStorageQuota(
   limit?: string,
   usageInDrive?: string,
-  usage?: string
+  usage?: string,
 ): { total: number; used: number } {
   const used = parseInt(usageInDrive ?? usage ?? '0', 10);
   const total = limit != null && limit !== '' ? parseInt(limit, 10) : UNLIMITED_DRIVE_QUOTA_BYTES;
@@ -22,14 +22,20 @@ export function parseStorageQuota(
 
 export function computeDriveQuota(
   stored: { totalQuota: number; usedQuota: number; quotaOverride?: number | null },
-  live?: { total: number; used: number; hasLimit?: boolean } | null
-): { totalQuota: number; usedQuota: number; freeSpace: number; usagePercent: number; hasLimit: boolean } {
+  live?: { total: number; used: number; hasLimit?: boolean } | null,
+): {
+  totalQuota: number;
+  usedQuota: number;
+  freeSpace: number;
+  usagePercent: number;
+  hasLimit: boolean;
+} {
   // User-set override wins for the total capacity, because Google's API
   // omits storageQuota.limit for Google Workspace pooled storage and service
   // accounts (it returns limit only "if applicable"). Without an override
   // those drives would always show the 1 TiB unlimited ceiling.
   const liveTotal = live?.total ?? 0;
-  const hasLiveLimit = live?.hasLimit ?? (liveTotal > 0);
+  const hasLiveLimit = live?.hasLimit ?? liveTotal > 0;
   const hasOverride = stored.quotaOverride != null && stored.quotaOverride > 0;
 
   // hasLimit signals the UI whether to show a progress bar (real limit known)

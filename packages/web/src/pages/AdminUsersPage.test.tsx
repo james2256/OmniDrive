@@ -19,7 +19,7 @@ vi.mock('../lib/api', () => ({
     getInvitations: vi.fn(),
     createInvitation: vi.fn(),
     deleteInvitation: vi.fn(),
-  }
+  },
 }));
 
 // Mock the lucide-react icons
@@ -38,7 +38,9 @@ vi.mock('../components/ui/dropdown-menu', () => ({
   DropdownMenuTrigger: ({ children }: any) => <div data-testid="dropdown-trigger">{children}</div>,
   DropdownMenuContent: ({ children }: any) => <div data-testid="dropdown-content">{children}</div>,
   DropdownMenuItem: ({ children, onClick, onSelect }: any) => (
-    <button data-testid="dropdown-item" onClick={onClick || onSelect}>{children}</button>
+    <button data-testid="dropdown-item" onClick={onClick || onSelect}>
+      {children}
+    </button>
   ),
 }));
 
@@ -56,7 +58,9 @@ vi.mock('../components/ui/dialog', () => ({
 
 vi.mock('../components/ui/Button', () => ({
   Button: ({ children, onClick, disabled, type, loading, ...props }: any) => (
-    <button onClick={onClick} disabled={disabled} type={type} {...props}>{loading ? 'Loading...' : children}</button>
+    <button onClick={onClick} disabled={disabled} type={type} {...props}>
+      {loading ? 'Loading...' : children}
+    </button>
   ),
 }));
 
@@ -129,7 +133,7 @@ describe('AdminUsersPage', () => {
     });
 
     render(<AdminUsersPage />);
-    
+
     expect(api.getAdminUsers).toHaveBeenCalledTimes(1);
 
     const invTab = await screen.findByText('Invitation Codes');

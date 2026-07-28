@@ -13,9 +13,7 @@ type PagesContext = {
 
 export function proxyToWorker({ request, env }: PagesContext): Promise<Response> {
   if (!env.WORKER_URL) {
-    return Promise.resolve(
-      new Response('WORKER_URL env var is not set on Pages', { status: 502 })
-    );
+    return Promise.resolve(new Response('WORKER_URL env var is not set on Pages', { status: 502 }));
   }
   const url = new URL(request.url);
   return fetch(new Request(`${env.WORKER_URL}${url.pathname}${url.search}`, request));

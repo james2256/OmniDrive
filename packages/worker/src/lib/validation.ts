@@ -21,7 +21,12 @@ export function validateWebhookUrl(url: string): string | null {
   const hostname = parsed.hostname.toLowerCase();
 
   // Block localhost variants
-  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0' || hostname === '::1') {
+  if (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '0.0.0.0' ||
+    hostname === '::1'
+  ) {
     return 'Webhook URL must not point to private/internal addresses';
   }
 
@@ -39,19 +44,32 @@ export function validateWebhookUrl(url: string): string | null {
     // 10.0.0.0/8
     if (a === 10) return 'Webhook URL must not point to private/internal addresses';
     // 100.64.0.0/10 (CGNAT)
-    if (a === 100 && b >= 64 && b <= 127) return 'Webhook URL must not point to private/internal addresses';
+    if (a === 100 && b >= 64 && b <= 127) {
+      return 'Webhook URL must not point to private/internal addresses';
+    }
     // 169.254.0.0/16 (link-local)
     if (a === 169 && b === 254) return 'Webhook URL must not point to private/internal addresses';
     // 172.16.0.0/12
-    if (a === 172 && b >= 16 && b <= 31) return 'Webhook URL must not point to private/internal addresses';
+    if (a === 172 && b >= 16 && b <= 31) {
+      return 'Webhook URL must not point to private/internal addresses';
+    }
     // 192.168.0.0/16
     if (a === 192 && b === 168) return 'Webhook URL must not point to private/internal addresses';
     // 198.18.0.0/15 (benchmark)
-    if (a === 198 && b >= 18 && b <= 19) return 'Webhook URL must not point to private/internal addresses';
+    if (a === 198 && b >= 18 && b <= 19) {
+      return 'Webhook URL must not point to private/internal addresses';
+    }
   }
 
   // Block IPv6 private ranges (ULA fc00::/7, link-local fe80::/10)
-  if (hostname.startsWith('fc') || hostname.startsWith('fd') || hostname.startsWith('fe8') || hostname.startsWith('fe9') || hostname.startsWith('fea') || hostname.startsWith('feb')) {
+  if (
+    hostname.startsWith('fc') ||
+    hostname.startsWith('fd') ||
+    hostname.startsWith('fe8') ||
+    hostname.startsWith('fe9') ||
+    hostname.startsWith('fea') ||
+    hostname.startsWith('feb')
+  ) {
     return 'Webhook URL must not point to private/internal addresses';
   }
 
@@ -80,11 +98,14 @@ export async function validateWebhookUrlAsync(url: string): Promise<string | nul
   if (/^[\d.]+$/.test(hostname) || hostname.includes(':')) return null;
 
   try {
-    const dohResponse = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(hostname)}&type=A`, {
-      headers: { 'Accept': 'application/dns-json' },
-    });
+    const dohResponse = await fetch(
+      `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(hostname)}&type=A`,
+      {
+        headers: { Accept: 'application/dns-json' },
+      },
+    );
     if (!dohResponse.ok) return null; // If DoH fails, don't block — basic checks already passed
-    const dohData = await dohResponse.json() as { Status: number; Answer?: { data: string }[] };
+    const dohData = (await dohResponse.json()) as { Status: number; Answer?: { data: string }[] };
     const answers = dohData.Answer || [];
     for (const answer of answers) {
       const resolvedIp = answer.data;

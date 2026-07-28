@@ -18,7 +18,7 @@ export const Header: React.FC = () => {
   const toggleMobileSidebar = useUIStore((state) => state.toggleMobileSidebar);
   const { user, logout } = useAuthStore();
 
-  const getInitials = (name: string) => name ? name.charAt(0).toUpperCase() : 'U';
+  const getInitials = (name: string) => (name ? name.charAt(0).toUpperCase() : 'U');
 
   return (
     <header className="flex items-center justify-between px-2 py-2 bg-surface h-16 w-full gap-2 sm:gap-4">
@@ -41,8 +41,18 @@ export const Header: React.FC = () => {
           <Menu size={24} />
         </Button>
         <div className="flex items-center gap-2 min-w-0">
-          <img src="/logo.svg" alt="OmniDrive" className="w-12 h-auto sm:w-14 object-contain flex-shrink-0" />
-          <img src="/logowordmark.svg" alt="" aria-hidden="true" decoding="async" className="h-5 sm:h-6 w-auto flex-shrink-0" />
+          <img
+            src="/logo.svg"
+            alt="OmniDrive"
+            className="w-12 h-auto sm:w-14 object-contain flex-shrink-0"
+          />
+          <img
+            src="/logowordmark.svg"
+            alt=""
+            aria-hidden="true"
+            decoding="async"
+            className="h-5 sm:h-6 w-auto flex-shrink-0"
+          />
         </div>
       </div>
 
@@ -67,11 +77,18 @@ export const Header: React.FC = () => {
               )}
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56 bg-card shadow-xl rounded-xl border border-slate-200">
+          <DropdownMenuContent
+            align="end"
+            className="w-56 bg-card shadow-xl rounded-xl border border-slate-200"
+          >
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col space-y-1 py-1">
-                <p className="text-sm font-medium leading-none text-slate-800">{user?.name || 'User'}</p>
-                <p className="text-xs leading-none text-slate-500">{user?.email || 'user@example.com'}</p>
+                <p className="text-sm font-medium leading-none text-slate-800">
+                  {user?.name || 'User'}
+                </p>
+                <p className="text-xs leading-none text-slate-500">
+                  {user?.email || 'user@example.com'}
+                </p>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator className="bg-slate-200" />

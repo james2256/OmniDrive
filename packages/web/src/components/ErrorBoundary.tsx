@@ -1,17 +1,17 @@
 import React from 'react';
 import { Button } from './ui/Button';
 
-interface State { hasError: boolean; message: string; }
+interface State {
+  hasError: boolean;
+  message: string;
+}
 
 /**
  * Catches render errors in the subtree so a single page crash doesn't
  * blank the entire app. Placed inside <BrowserRouter> so navigation
  * still works after an error — user can click "Go Home" to recover.
  */
-export class ErrorBoundary extends React.Component<
-  { children: React.ReactNode },
-  State
-> {
+export class ErrorBoundary extends React.Component<{ children: React.ReactNode }, State> {
   state: State = { hasError: false, message: '' };
 
   static getDerivedStateFromError(err: Error): State {
@@ -35,7 +35,7 @@ export class ErrorBoundary extends React.Component<
             variant="secondary"
             size="md"
             className="rounded-lg text-slate-800 hover:bg-slate-50"
-            onClick={() => window.location.href = '/'}
+            onClick={() => (window.location.href = '/')}
           >
             Go Home
           </Button>

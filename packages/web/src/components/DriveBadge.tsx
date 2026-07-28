@@ -15,8 +15,10 @@ export function DriveBadge({ email, colorIndex, size = 'sm', className }: DriveB
     <span
       className={cn(
         'inline-flex items-center gap-1.5 rounded-full border font-medium shrink-0',
-        size === 'sm' ? 'text-[10px] px-2 py-0.5 max-w-[150px]' : 'text-xs px-2.5 py-1 max-w-[180px]',
-        className
+        size === 'sm'
+          ? 'text-[10px] px-2 py-0.5 max-w-[150px]'
+          : 'text-xs px-2.5 py-1 max-w-[180px]',
+        className,
       )}
       style={{ borderColor: color, color }}
       title={email ?? undefined}

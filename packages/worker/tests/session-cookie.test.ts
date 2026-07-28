@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { isSameSiteDeployment, sessionCookieOptions, SESSION_TTL_SEC } from '../src/lib/session-cookie';
+import {
+  isSameSiteDeployment,
+  sessionCookieOptions,
+  SESSION_TTL_SEC,
+} from '../src/lib/session-cookie';
 
 describe('session-cookie', () => {
   it('detects same host', () => {
@@ -7,7 +11,7 @@ describe('session-cookie', () => {
       isSameSiteDeployment({
         FRONTEND_URL: 'https://omnidrive-7w1.pages.dev',
         WORKER_URL: 'https://omnidrive-7w1.pages.dev',
-      })
+      }),
     ).toBe(true);
   });
 
@@ -16,7 +20,7 @@ describe('session-cookie', () => {
       isSameSiteDeployment({
         FRONTEND_URL: 'https://omnidrive-7w1.pages.dev',
         WORKER_URL: 'https://api.omnidrive-7w1.pages.dev',
-      })
+      }),
     ).toBe(true);
   });
 
@@ -25,7 +29,7 @@ describe('session-cookie', () => {
       isSameSiteDeployment({
         FRONTEND_URL: 'https://omnidrive-7w1.pages.dev',
         WORKER_URL: 'https://omnidrive-api.asmara-putra.workers.dev',
-      })
+      }),
     ).toBe(false);
   });
 

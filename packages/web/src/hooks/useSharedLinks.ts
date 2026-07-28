@@ -25,12 +25,13 @@ export function useSharedLinks() {
  * Replaces `sharedStore.isTargetShared`. Derives from cached data — no
  * separate fetch. Returns false while data is loading.
  */
-export function useIsTargetShared(targetId: string | undefined, targetType: 'file' | 'folder'): boolean {
+export function useIsTargetShared(
+  targetId: string | undefined,
+  targetType: 'file' | 'folder',
+): boolean {
   const { data: sharedLinks = [] } = useSharedLinks();
   if (!targetId) return false;
-  return sharedLinks.some(
-    (link) => link.targetId === targetId && link.targetType === targetType,
-  );
+  return sharedLinks.some((link) => link.targetId === targetId && link.targetType === targetType);
 }
 
 /**

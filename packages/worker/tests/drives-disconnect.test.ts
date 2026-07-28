@@ -28,11 +28,15 @@ describe('DELETE /api/drives/:id', () => {
     const wrappedDb = {
       prepare: vi.fn((sql: string) => {
         if (sql.includes('FROM sessions')) {
-          return { bind: vi.fn(() => ({ first: vi.fn().mockResolvedValue(sessionRow), run: vi.fn() })) };
+          return {
+            bind: vi.fn(() => ({ first: vi.fn().mockResolvedValue(sessionRow), run: vi.fn() })),
+          };
         }
         return (db as any).prepare(sql);
       }),
-      batch: vi.fn((stmts: unknown[]) => (db as any).batch ? (db as any).batch(stmts) : Promise.resolve([])),
+      batch: vi.fn((stmts: unknown[]) =>
+        (db as any).batch ? (db as any).batch(stmts) : Promise.resolve([]),
+      ),
     };
 
     const app = new Hono<AppContext>();
@@ -95,7 +99,9 @@ describe('DELETE /api/drives/:id', () => {
       batch: batchMock,
     };
 
-    const revokeSpy = vi.spyOn(GoogleDriveService.prototype, 'revokeTokens').mockResolvedValue(undefined);
+    const revokeSpy = vi
+      .spyOn(GoogleDriveService.prototype, 'revokeTokens')
+      .mockResolvedValue(undefined);
 
     const { app, env, requestInit } = buildApp(db);
     const res = await app.request(`/drives/${DRIVE_ID}`, requestInit, env);
@@ -128,7 +134,9 @@ describe('DELETE /api/drives/:id', () => {
       batch: batchMock,
     };
 
-    const revokeSpy = vi.spyOn(GoogleDriveService.prototype, 'revokeTokens').mockResolvedValue(undefined);
+    const revokeSpy = vi
+      .spyOn(GoogleDriveService.prototype, 'revokeTokens')
+      .mockResolvedValue(undefined);
 
     const { app, env, requestInit } = buildApp(db);
     const res = await app.request(`/drives/${DRIVE_ID}`, requestInit, env);

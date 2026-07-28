@@ -27,13 +27,16 @@ export const useAutomationStore = create<AutomationStore>((set) => ({
       set({ rules: data.rules as Rule[], isLoading: false });
     } catch (error: unknown) {
       console.error('Failed to fetch automations:', error);
-      set({ error: (error instanceof Error ? error.message : 'Failed to fetch rules'), isLoading: false });
+      set({
+        error: error instanceof Error ? error.message : 'Failed to fetch rules',
+        isLoading: false,
+      });
     }
   },
   toggleRule: async (id, isActive) => {
     // Optimistic update
     set((state) => ({
-      rules: state.rules.map(r => r.id === id ? { ...r, isActive } : r)
+      rules: state.rules.map((r) => (r.id === id ? { ...r, isActive } : r)),
     }));
     try {
       await api.toggleAutomation(id, isActive);
@@ -41,9 +44,9 @@ export const useAutomationStore = create<AutomationStore>((set) => ({
       console.error('Failed to toggle automation:', error);
       // Revert optimistic update
       set((state) => ({
-        rules: state.rules.map(r => r.id === id ? { ...r, isActive: !isActive } : r),
-        error: (error instanceof Error ? error.message : 'Failed to update rule')
+        rules: state.rules.map((r) => (r.id === id ? { ...r, isActive: !isActive } : r)),
+        error: error instanceof Error ? error.message : 'Failed to update rule',
       }));
     }
-  }
+  },
 }));

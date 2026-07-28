@@ -41,6 +41,6 @@ export const useUIStore = create<UIState>((set) => ({
     set((state) =>
       state.sortField === field
         ? { sortDirection: state.sortDirection === 'asc' ? 'desc' : 'asc' }
-        : { sortField: field, sortDirection: field === 'name' ? 'asc' : 'desc' }
+        : { sortField: field, sortDirection: field === 'name' ? 'asc' : 'desc' },
     ),
 }));

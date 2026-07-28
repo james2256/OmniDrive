@@ -15,9 +15,12 @@ export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
   // We need the workspace object for usedBytes, but since we only have workspaceId here,
   // we would ideally fetch the workspace details. For this MVP, we will just fetch policies.
   const loadPolicies = useCallback(() => {
-    api.getWorkspacePolicies(workspaceId).then((res) => {
-      setPolicies(res.policies);
-    }).catch(console.error);
+    api
+      .getWorkspacePolicies(workspaceId)
+      .then((res) => {
+        setPolicies(res.policies);
+      })
+      .catch(console.error);
   }, [workspaceId]);
 
   useEffect(() => {
@@ -31,7 +34,7 @@ export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
       await api.createWorkspacePolicy(workspaceId, {
         targetType: 'workspace',
         policyType: 'storage_quota',
-        config: { max_bytes: parseInt(quotaInput, 10) * 1024 * 1024 * 1024 } // Input in GB
+        config: { max_bytes: parseInt(quotaInput, 10) * 1024 * 1024 * 1024 }, // Input in GB
       });
       loadPolicies();
       setQuotaInput('');
@@ -62,7 +65,7 @@ export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
     }
   };
 
-  const quotaPolicy = policies.find(p => p.policyType === 'storage_quota');
+  const quotaPolicy = policies.find((p) => p.policyType === 'storage_quota');
   const maxBytes = quotaPolicy ? JSON.parse(quotaPolicy.config).max_bytes : null;
 
   return (
@@ -75,15 +78,25 @@ export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
           </p>
           {maxBytes ? (
             <div className="bg-slate-100 rounded p-4 flex justify-between items-center">
-              <span>Quota: <strong>{Math.round(maxBytes / (1024 * 1024 * 1024))} GB</strong></span>
-              <Button onClick={() => { if (quotaPolicy?.id) handleDeletePolicy(quotaPolicy.id); }} variant="ghostDanger" className="text-red-600 text-sm hover:underline hover:bg-transparent px-0 py-0 rounded-none">Remove Quota</Button>
+              <span>
+                Quota: <strong>{Math.round(maxBytes / (1024 * 1024 * 1024))} GB</strong>
+              </span>
+              <Button
+                onClick={() => {
+                  if (quotaPolicy?.id) handleDeletePolicy(quotaPolicy.id);
+                }}
+                variant="ghostDanger"
+                className="text-red-600 text-sm hover:underline hover:bg-transparent px-0 py-0 rounded-none"
+              >
+                Remove Quota
+              </Button>
             </div>
           ) : (
             <div className="flex gap-2">
-              <input 
-                type="number" 
-                placeholder="Limit in GB" 
-                value={quotaInput} 
+              <input
+                type="number"
+                placeholder="Limit in GB"
+                value={quotaInput}
                 onChange={(e) => setQuotaInput(e.target.value)}
                 className="border border-slate-400 rounded px-3 py-1.5 text-sm"
               />
@@ -104,7 +117,9 @@ export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
       <section className="bg-card rounded-lg shadow overflow-hidden">
         <div className="p-4 sm:p-6 border-b border-slate-200">
           <h2 className="text-lg sm:text-xl font-semibold text-slate-900">Governance Policies</h2>
-          <p className="text-sm text-slate-600 mt-1">Manage active retention and quota rules for this workspace.</p>
+          <p className="text-sm text-slate-600 mt-1">
+            Manage active retention and quota rules for this workspace.
+          </p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
@@ -117,24 +132,38 @@ export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {policies.map(p => {
+              {policies.map((p) => {
                 const config = JSON.parse(p.config);
                 return (
                   <tr key={p.id} className="hover:bg-slate-50">
-                    <td className="px-2 sm:px-6 py-4 text-sm font-medium text-slate-900">{p.policyType.replace('_', ' ')}</td>
-                    <td className="px-2 sm:px-6 py-4 text-sm text-slate-500">{p.targetType} {p.targetId ? `(${p.targetId})` : ''}</td>
+                    <td className="px-2 sm:px-6 py-4 text-sm font-medium text-slate-900">
+                      {p.policyType.replace('_', ' ')}
+                    </td>
+                    <td className="px-2 sm:px-6 py-4 text-sm text-slate-500">
+                      {p.targetType} {p.targetId ? `(${p.targetId})` : ''}
+                    </td>
                     <td className="px-2 sm:px-6 py-4 text-sm text-slate-500 font-mono text-xs">
-                      {p.policyType === 'storage_quota' ? `${Math.round(config.max_bytes / (1024*1024*1024))} GB limit` : `${config.action} (${config.days || 'indefinite'} days)`}
+                      {p.policyType === 'storage_quota'
+                        ? `${Math.round(config.max_bytes / (1024 * 1024 * 1024))} GB limit`
+                        : `${config.action} (${config.days || 'indefinite'} days)`}
                     </td>
                     <td className="px-2 sm:px-6 py-4 text-sm text-right">
-                      <Button onClick={() => handleDeletePolicy(p.id)} variant="ghostDanger" className="text-red-600 hover:text-red-800 hover:bg-transparent px-0 py-0 rounded-none">Delete</Button>
+                      <Button
+                        onClick={() => handleDeletePolicy(p.id)}
+                        variant="ghostDanger"
+                        className="text-red-600 hover:text-red-800 hover:bg-transparent px-0 py-0 rounded-none"
+                      >
+                        Delete
+                      </Button>
                     </td>
                   </tr>
                 );
               })}
               {policies.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-2 sm:px-6 py-8 text-center text-slate-500 text-sm">No governance policies active.</td>
+                  <td colSpan={4} className="px-2 sm:px-6 py-8 text-center text-slate-500 text-sm">
+                    No governance policies active.
+                  </td>
                 </tr>
               )}
             </tbody>

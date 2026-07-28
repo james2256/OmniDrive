@@ -24,16 +24,16 @@ export function TermsOfServicePage() {
         <p>
           OmniDrive is a cloud-hosted application that lets you connect multiple Google Drive
           accounts, manage files through a unified interface, create team workspaces, generate
-          shared links, configure automation rules, and optionally access files via an
-          S3-compatible API.
+          shared links, configure automation rules, and optionally access files via an S3-compatible
+          API.
         </p>
       </section>
 
       <section className="space-y-4">
         <h2 className="text-xl font-semibold text-slate-900">3. Account Registration</h2>
         <p>
-          You must provide accurate registration information and keep your credentials secure.
-          You are responsible for all activity under your account. Registration may require an
+          You must provide accurate registration information and keep your credentials secure. You
+          are responsible for all activity under your account. Registration may require an
           invitation code at the administrator&apos;s discretion.
         </p>
       </section>
@@ -43,8 +43,8 @@ export function TermsOfServicePage() {
         <p>
           Connecting a Google Drive account requires you to authorize OmniDrive via Google OAuth.
           You grant OmniDrive permission to access your Google Drive data only to the extent of the
-          scopes you approve. You may revoke this access at any time through Google Account
-          settings or by disconnecting the drive in OmniDrive Settings.
+          scopes you approve. You may revoke this access at any time through Google Account settings
+          or by disconnecting the drive in OmniDrive Settings.
         </p>
         <p>
           You represent that you have the right to connect each Google Drive account you link and
@@ -78,8 +78,8 @@ export function TermsOfServicePage() {
         <p>
           You retain ownership of files stored in your connected Google Drive accounts. OmniDrive
           stores file metadata and encrypted OAuth tokens to provide the Service but does not claim
-          ownership of your files. You are solely responsible for the content you manage through
-          the Service.
+          ownership of your files. You are solely responsible for the content you manage through the
+          Service.
         </p>
       </section>
 
@@ -96,8 +96,8 @@ export function TermsOfServicePage() {
         <h2 className="text-xl font-semibold text-slate-900">8. Limitation of Liability</h2>
         <p>
           To the maximum extent permitted by law, OmniDrive and its operators shall not be liable
-          for any indirect, incidental, special, consequential, or punitive damages, or any loss
-          of data, profits, or goodwill, arising from your use of the Service.
+          for any indirect, incidental, special, consequential, or punitive damages, or any loss of
+          data, profits, or goodwill, arising from your use of the Service.
         </p>
       </section>
 

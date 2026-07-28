@@ -36,7 +36,13 @@ export function LandingPage() {
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4 sm:px-6">
           <div className="flex items-center gap-2.5">
             <img src="/logo.svg" alt="OmniDrive" className="w-10 h-auto sm:w-14 object-contain" />
-            <img src="/logowordmark.svg" alt="" aria-hidden="true" decoding="async" className="h-5 sm:h-6 w-auto" />
+            <img
+              src="/logowordmark.svg"
+              alt=""
+              aria-hidden="true"
+              decoding="async"
+              className="h-5 sm:h-6 w-auto"
+            />
           </div>
           <Link
             to="/login"
@@ -50,14 +56,18 @@ export function LandingPage() {
       <main>
         <section className="mx-auto max-w-5xl px-4 py-16 sm:px-6 sm:py-24">
           <div className="mx-auto max-w-2xl text-center">
-            <img src="/logo.svg" alt="OmniDrive" className="mx-auto mb-6 w-20 h-auto sm:w-24 object-contain" />
+            <img
+              src="/logo.svg"
+              alt="OmniDrive"
+              className="mx-auto mb-6 w-20 h-auto sm:w-24 object-contain"
+            />
             <h1 className="text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
               Unified multi-Google Drive storage gateway
             </h1>
             <p className="mt-6 text-lg text-slate-600">
               OmniDrive lets you connect multiple Google Drive accounts, manage files in team
-              workspaces, share links securely, and access storage via an S3-compatible API —
-              all from a single dashboard.
+              workspaces, share links securely, and access storage via an S3-compatible API — all
+              from a single dashboard.
             </p>
             <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
               <Link
@@ -83,10 +93,7 @@ export function LandingPage() {
             <h2 className="mb-10 text-center text-2xl font-semibold text-slate-900">Features</h2>
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {features.map(({ icon: Icon, title, description }) => (
-                <div
-                  key={title}
-                  className="rounded-2xl border border-slate-200 bg-surface p-6"
-                >
+                <div key={title} className="rounded-2xl border border-slate-200 bg-surface p-6">
                   <Icon className="mb-4 h-8 w-8 text-primary" aria-hidden />
                   <h3 className="mb-2 text-lg font-semibold text-slate-900">{title}</h3>
                   <p className="text-sm text-slate-600">{description}</p>
@@ -99,11 +106,16 @@ export function LandingPage() {
         <section className="border-t border-slate-200">
           <div className="mx-auto max-w-5xl px-4 py-12 text-center sm:px-6">
             <p className="text-sm text-slate-600">
-              OmniDrive uses Google OAuth to connect your Google Drive accounts.
-              By signing in and connecting a drive, you agree to our{' '}
-              <Link to="/terms" className="text-blue-700 underline hover:text-blue-800">Terms of Service</Link>
-              {' '}and{' '}
-              <Link to="/privacy" className="text-blue-700 underline hover:text-blue-800">Privacy Policy</Link>.
+              OmniDrive uses Google OAuth to connect your Google Drive accounts. By signing in and
+              connecting a drive, you agree to our{' '}
+              <Link to="/terms" className="text-blue-700 underline hover:text-blue-800">
+                Terms of Service
+              </Link>{' '}
+              and{' '}
+              <Link to="/privacy" className="text-blue-700 underline hover:text-blue-800">
+                Privacy Policy
+              </Link>
+              .
             </p>
           </div>
         </section>
@@ -113,9 +125,15 @@ export function LandingPage() {
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-4 py-6 text-sm text-slate-500 sm:px-6">
           <p>© {new Date().getFullYear()} OmniDrive</p>
           <nav className="flex flex-wrap gap-4">
-            <Link to="/privacy" className="hover:text-primary">Privacy Policy</Link>
-            <Link to="/terms" className="hover:text-primary">Terms of Service</Link>
-            <a href="mailto:admin@example.com" className="hover:text-primary">Contact</a>
+            <Link to="/privacy" className="hover:text-primary">
+              Privacy Policy
+            </Link>
+            <Link to="/terms" className="hover:text-primary">
+              Terms of Service
+            </Link>
+            <a href="mailto:admin@example.com" className="hover:text-primary">
+              Contact
+            </a>
           </nav>
         </div>
       </footer>

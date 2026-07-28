@@ -27,7 +27,10 @@ export function Breadcrumb({ items, driveId }: BreadcrumbProps) {
                 <ChevronRight size={14} className="text-slate-500 shrink-0" aria-hidden="true" />
               )}
               {isLast ? (
-                <span className="text-sm font-medium text-slate-900 px-1 py-0.5" aria-current="page">
+                <span
+                  className="text-sm font-medium text-slate-900 px-1 py-0.5"
+                  aria-current="page"
+                >
                   {item.name}
                 </span>
               ) : (

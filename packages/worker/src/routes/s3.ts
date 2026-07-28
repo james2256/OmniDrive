@@ -12,7 +12,16 @@ import { GoogleDriveService } from '../services/google-drive';
 import { generateId } from '../lib/id';
 import { getMD5HashingStream } from '../lib/crypto-s3';
 import { UploadRouter } from '../services/upload-router';
-import { mapDriveRow, type WorkspaceRow, type FileRow, type DriveAccountRow, type S3MultipartUploadRow, type S3MultipartPartRow, type WorkspaceFolderRow, type WorkspaceWithRoleRow } from '../types';
+import {
+  mapDriveRow,
+  type WorkspaceRow,
+  type FileRow,
+  type DriveAccountRow,
+  type S3MultipartUploadRow,
+  type S3MultipartPartRow,
+  type WorkspaceFolderRow,
+  type WorkspaceWithRoleRow,
+} from '../types';
 import type { DriveAccount } from '../types';
 import { createHash } from 'node:crypto';
 import { hasPermission } from '../lib/rbac';
@@ -25,7 +34,11 @@ export const s3Router = new Hono<AppContext>({ strict: false });
 
 // ponytail: S3 RBAC — read ops require viewer, write ops require editor.
 // Enforced here instead of middleware because workspace is resolved per-handler.
-function requireS3Role(c: Context, role: WorkspaceRole | null | undefined, write: boolean): Response | null {
+function requireS3Role(
+  c: Context,
+  role: WorkspaceRole | null | undefined,
+  write: boolean,
+): Response | null {
   const needed = write ? 'editor' : 'viewer';
   if (!role || !hasPermission(role, needed)) {
     return xmlError(c, 'AccessDenied', `Insufficient permissions: ${needed} role required`, 403);
@@ -72,13 +85,18 @@ s3Router.get('/', async (c) => {
   const s3WorkspaceId = c.get('s3WorkspaceId') || null;
   const db = c.env.DB;
 
-  const { results: workspaces } = await db.prepare(`
+  const { results: workspaces } = (await db
+    .prepare(
+      `
     SELECT w.id, w.name, w.created_at 
     FROM workspaces w
     JOIN workspace_members wm ON w.id = wm.workspace_id
     WHERE wm.user_id = ?
       AND (? IS NULL OR w.id = ?)
-  `).bind(userId, s3WorkspaceId, s3WorkspaceId).all() as { results: WorkspaceRow[] };
+  `,
+    )
+    .bind(userId, s3WorkspaceId, s3WorkspaceId)
+    .all()) as { results: WorkspaceRow[] };
 
   let bucketsXml = '';
   for (const ws of workspaces) {
@@ -109,12 +127,17 @@ s3Router.on(['GET', 'HEAD'], '/:bucket', async (c) => {
   const db = c.env.DB;
 
   // Resolve Workspace by Bucket Name
-  const workspace = await db.prepare(`
+  const workspace = (await db
+    .prepare(
+      `
     SELECT w.id, wm.role FROM workspaces w
     JOIN workspace_members wm ON w.id = wm.workspace_id
     WHERE w.name = ? AND wm.user_id = ?
       AND (? IS NULL OR w.id = ?)
-  `).bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId).first() as WorkspaceWithRoleRow
+  `,
+    )
+    .bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId)
+    .first()) as WorkspaceWithRoleRow;
 
   if (!workspace) {
     const errorCode = 'NoSuchBucket';
@@ -123,7 +146,11 @@ s3Router.on(['GET', 'HEAD'], '/:bucket', async (c) => {
       c.header('Content-Type', 'application/xml');
       return c.body(null, 404);
     }
-    return c.text(`<?xml version="1.0" encoding="UTF-8"?><Error><Code>${escapeXml(errorCode)}</Code><Message>${escapeXml(errorMessage)}</Message></Error>`, 404, { 'Content-Type': 'application/xml' });
+    return c.text(
+      `<?xml version="1.0" encoding="UTF-8"?><Error><Code>${escapeXml(errorCode)}</Code><Message>${escapeXml(errorMessage)}</Message></Error>`,
+      404,
+      { 'Content-Type': 'application/xml' },
+    );
   }
 
   const rbacDenied = requireS3Role(c, workspace.role, false);
@@ -131,13 +158,25 @@ s3Router.on(['GET', 'HEAD'], '/:bucket', async (c) => {
 
   // GET /s3/:bucket?lifecycle -> GetBucketLifecycleConfiguration
   if (c.req.method === 'GET' && c.req.query('lifecycle') !== undefined) {
-    const { results } = await db.prepare(
-      'SELECT prefix, expiration_days, enabled FROM s3_lifecycle_rules WHERE workspace_id = ?'
-    ).bind(workspace.id).all() as { results: { prefix: string; expiration_days: number; enabled: number }[] };
+    const { results } = (await db
+      .prepare(
+        'SELECT prefix, expiration_days, enabled FROM s3_lifecycle_rules WHERE workspace_id = ?',
+      )
+      .bind(workspace.id)
+      .all()) as { results: { prefix: string; expiration_days: number; enabled: number }[] };
     if (!results?.length) {
-      return xmlError(c, 'NoSuchLifecycleConfiguration', 'The lifecycle configuration does not exist.', 404);
+      return xmlError(
+        c,
+        'NoSuchLifecycleConfiguration',
+        'The lifecycle configuration does not exist.',
+        404,
+      );
     }
-    const rules = results.map((r) => ({ prefix: r.prefix, days: r.expiration_days, enabled: r.enabled === 1 }));
+    const rules = results.map((r) => ({
+      prefix: r.prefix,
+      days: r.expiration_days,
+      enabled: r.enabled === 1,
+    }));
     return c.text(serializeLifecycleXml(rules), 200, { 'Content-Type': 'application/xml' });
   }
 
@@ -157,20 +196,26 @@ s3Router.on(['GET', 'HEAD'], '/:bucket', async (c) => {
   // s3_key (computed from folder path) changes — the cursor may skip/duplicate.
   let cursor: { key: string; id: string } | null = null;
   if (continuationToken) {
-    try { cursor = JSON.parse(atob(continuationToken)); } catch { cursor = null; }
+    try {
+      cursor = JSON.parse(atob(continuationToken));
+    } catch {
+      cursor = null;
+    }
   } else if (startAfter) {
     cursor = { key: startAfter, id: '' };
   }
 
   // Recursive SQLite CTE to assemble flat S3 keys for all workspace files.
   // ORDER BY s3_key, id ensures deterministic cursor pagination.
-  const escapedPrefix = prefix.replace(/[%_^]/g, ch => '^' + ch) + '%';
+  const escapedPrefix = prefix.replace(/[%_^]/g, (ch) => '^' + ch) + '%';
   const cursorClause = cursor ? " AND (COALESCE(fp.path, '') || f.name, f.id) > (?, ?)" : '';
   const binds: (string | number)[] = [workspace.id, workspace.id, workspace.id, escapedPrefix];
   if (cursor) binds.push(cursor.key, cursor.id);
-  binds.push(maxKeys + 1);  // +1 to detect truncation
+  binds.push(maxKeys + 1); // +1 to detect truncation
 
-  const { results: files } = await db.prepare(`
+  const { results: files } = (await db
+    .prepare(
+      `
     WITH RECURSIVE folder_path(id, path) AS (
         SELECT id, name || '/' FROM workspace_folders WHERE parent_id IS NULL AND workspace_id = ?
         UNION ALL
@@ -186,7 +231,10 @@ s3Router.on(['GET', 'HEAD'], '/:bucket', async (c) => {
       AND COALESCE(fp.path, '') || f.name LIKE ? ESCAPE '^'${cursorClause}
     ORDER BY COALESCE(fp.path, '') || f.name, f.id
     LIMIT ?
-  `).bind(...binds).all() as { results: FileRow[] };
+  `,
+    )
+    .bind(...binds)
+    .all()) as { results: FileRow[] };
 
   // Detect truncation: if we got more than maxKeys, there's another page.
   const truncated = files.length > maxKeys;
@@ -251,16 +299,23 @@ ${contentsXml}${prefixesXml}</ListBucketResult>`;
 });
 
 // Resolve a bucket (workspace) for bucket-level subresource ops.
-async function resolveBucket(c: Context, needWrite: boolean): Promise<{ workspace: WorkspaceRow } | Response> {
+async function resolveBucket(
+  c: Context,
+  needWrite: boolean,
+): Promise<{ workspace: WorkspaceRow } | Response> {
   const userId = c.get('userId');
   const s3WorkspaceId = c.get('s3WorkspaceId') || null;
   const bucketName = c.req.param('bucket');
-  const workspace = await c.env.DB.prepare(`
+  const workspace = (await c.env.DB.prepare(
+    `
     SELECT w.id, wm.role FROM workspaces w
     JOIN workspace_members wm ON w.id = wm.workspace_id
     WHERE w.name = ? AND wm.user_id = ?
       AND (? IS NULL OR w.id = ?)
-  `).bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId).first() as WorkspaceWithRoleRow
+  `,
+  )
+    .bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId)
+    .first()) as WorkspaceWithRoleRow;
   if (!workspace) return xmlError(c, 'NoSuchBucket', 'Bucket not found', 404);
   const denied = requireS3Role(c, workspace.role, needWrite);
   if (denied) return denied;
@@ -270,7 +325,12 @@ async function resolveBucket(c: Context, needWrite: boolean): Promise<{ workspac
 // PUT /s3/:bucket?lifecycle -> PutBucketLifecycleConfiguration (replaces all rules)
 s3Router.put('/:bucket', async (c) => {
   if (c.req.query('lifecycle') === undefined) {
-    return xmlError(c, 'NotImplemented', 'Only the ?lifecycle subresource is supported on buckets.', 501);
+    return xmlError(
+      c,
+      'NotImplemented',
+      'Only the ?lifecycle subresource is supported on buckets.',
+      501,
+    );
   }
   const resolved = await resolveBucket(c, true);
   if (resolved instanceof Response) return resolved;
@@ -278,11 +338,17 @@ s3Router.put('/:bucket', async (c) => {
 
   const rules = parseLifecycleXml(await c.req.text());
   const db = c.env.DB;
-  await db.prepare('DELETE FROM s3_lifecycle_rules WHERE workspace_id = ?').bind(workspace.id).run();
+  await db
+    .prepare('DELETE FROM s3_lifecycle_rules WHERE workspace_id = ?')
+    .bind(workspace.id)
+    .run();
   for (const r of rules) {
-    await db.prepare(
-      'INSERT OR REPLACE INTO s3_lifecycle_rules (id, workspace_id, prefix, expiration_days, enabled) VALUES (?, ?, ?, ?, ?)'
-    ).bind(generateId(), workspace.id, r.prefix, r.days, r.enabled ? 1 : 0).run();
+    await db
+      .prepare(
+        'INSERT OR REPLACE INTO s3_lifecycle_rules (id, workspace_id, prefix, expiration_days, enabled) VALUES (?, ?, ?, ?, ?)',
+      )
+      .bind(generateId(), workspace.id, r.prefix, r.days, r.enabled ? 1 : 0)
+      .run();
   }
   return c.body(null, 200);
 });
@@ -290,49 +356,79 @@ s3Router.put('/:bucket', async (c) => {
 // DELETE /s3/:bucket?lifecycle -> DeleteBucketLifecycleConfiguration
 s3Router.delete('/:bucket', async (c) => {
   if (c.req.query('lifecycle') === undefined) {
-    return xmlError(c, 'NotImplemented', 'Only the ?lifecycle subresource is supported on buckets.', 501);
+    return xmlError(
+      c,
+      'NotImplemented',
+      'Only the ?lifecycle subresource is supported on buckets.',
+      501,
+    );
   }
   const resolved = await resolveBucket(c, true);
   if (resolved instanceof Response) return resolved;
-  await c.env.DB.prepare('DELETE FROM s3_lifecycle_rules WHERE workspace_id = ?').bind(resolved.workspace.id).run();
+  await c.env.DB.prepare('DELETE FROM s3_lifecycle_rules WHERE workspace_id = ?')
+    .bind(resolved.workspace.id)
+    .run();
   return c.body(null, 204);
 });
 
 // Helpers to resolve virtual folders dynamically
-async function getWorkspaceFolder(db: D1Database, workspaceId: string, folderPath: string): Promise<string | null | undefined> {
+async function getWorkspaceFolder(
+  db: D1Database,
+  workspaceId: string,
+  folderPath: string,
+): Promise<string | null | undefined> {
   if (!folderPath) return null;
   const segments = folderPath.split('/').filter(Boolean);
   let parentId: string | null = null;
   for (const name of segments) {
-    const existing = await db.prepare(`
+    const existing = (await db
+      .prepare(
+        `
       SELECT id FROM workspace_folders 
       WHERE workspace_id = ? AND name = ? AND (parent_id = ? OR (parent_id IS NULL AND ? IS NULL))
-    `).bind(workspaceId, name, parentId, parentId).first() as WorkspaceFolderRow
+    `,
+      )
+      .bind(workspaceId, name, parentId, parentId)
+      .first()) as WorkspaceFolderRow;
     if (!existing) return undefined;
     parentId = existing.id;
   }
   return parentId;
 }
 
-async function getOrCreateWorkspaceFolder(db: D1Database, workspaceId: string, folderPath: string): Promise<string | null> {
+async function getOrCreateWorkspaceFolder(
+  db: D1Database,
+  workspaceId: string,
+  folderPath: string,
+): Promise<string | null> {
   if (!folderPath) return null;
   const segments = folderPath.split('/').filter(Boolean);
   let parentId: string | null = null;
 
   for (const name of segments) {
-    const existing = await db.prepare(`
+    const existing = (await db
+      .prepare(
+        `
       SELECT id FROM workspace_folders 
       WHERE workspace_id = ? AND name = ? AND (parent_id = ? OR (parent_id IS NULL AND ? IS NULL))
-    `).bind(workspaceId, name, parentId, parentId).first() as WorkspaceFolderRow
+    `,
+      )
+      .bind(workspaceId, name, parentId, parentId)
+      .first()) as WorkspaceFolderRow;
 
     if (existing) {
       parentId = existing.id;
     } else {
       const newId = generateId();
-      await db.prepare(`
+      await db
+        .prepare(
+          `
         INSERT INTO workspace_folders (id, workspace_id, name, parent_id)
         VALUES (?, ?, ?, ?)
-      `).bind(newId, workspaceId, name, parentId).run();
+      `,
+        )
+        .bind(newId, workspaceId, name, parentId)
+        .run();
       parentId = newId;
     }
   }
@@ -348,12 +444,17 @@ s3Router.on('HEAD', '/:bucket/:key{.+}', async (c) => {
   const key = c.req.param('key');
   const db = c.env.DB;
 
-  const workspace = await db.prepare(`
+  const workspace = (await db
+    .prepare(
+      `
     SELECT w.id, wm.role FROM workspaces w
     JOIN workspace_members wm ON w.id = wm.workspace_id
     WHERE w.name = ? AND wm.user_id = ?
       AND (? IS NULL OR w.id = ?)
-  `).bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId).first() as WorkspaceWithRoleRow
+  `,
+    )
+    .bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId)
+    .first()) as WorkspaceWithRoleRow;
 
   if (!workspace) return c.text('Not Found', 404);
 
@@ -367,11 +468,16 @@ s3Router.on('HEAD', '/:bucket/:key{.+}', async (c) => {
   const folderId = await getWorkspaceFolder(db, workspace.id, folderPath);
   if (folderId === undefined) return c.text('Not Found', 404);
 
-  const file = await db.prepare(`
+  const file = (await db
+    .prepare(
+      `
     SELECT * FROM files 
     WHERE workspace_id = ? AND name = ? AND (workspace_folder_id = ? OR (workspace_folder_id IS NULL AND ? IS NULL))
       AND is_trashed = 0
-  `).bind(workspace.id, fileName, folderId, folderId).first() as FileRow
+  `,
+    )
+    .bind(workspace.id, fileName, folderId, folderId)
+    .first()) as FileRow;
 
   if (!file) return c.text('Not Found', 404);
 
@@ -389,12 +495,17 @@ s3Router.get('/:bucket/:key{.+}', async (c) => {
   const key = c.req.param('key');
   const db = c.env.DB;
 
-  const workspace = await db.prepare(`
+  const workspace = (await db
+    .prepare(
+      `
     SELECT w.id, wm.role FROM workspaces w
     JOIN workspace_members wm ON w.id = wm.workspace_id
     WHERE w.name = ? AND wm.user_id = ?
       AND (? IS NULL OR w.id = ?)
-  `).bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId).first() as WorkspaceWithRoleRow
+  `,
+    )
+    .bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId)
+    .first()) as WorkspaceWithRoleRow;
 
   if (!workspace) return c.text('Bucket not found', 404);
 
@@ -407,13 +518,20 @@ s3Router.get('/:bucket/:key{.+}', async (c) => {
   const folderPath = pathParts.join('/');
 
   const folderId = await getWorkspaceFolder(db, workspace.id, folderPath);
-  if (folderId === undefined) return xmlError(c, 'NoSuchKey', `The specified key does not exist.`, 404);
+  if (folderId === undefined) {
+    return xmlError(c, 'NoSuchKey', `The specified key does not exist.`, 404);
+  }
 
-  const file = await db.prepare(`
+  const file = (await db
+    .prepare(
+      `
     SELECT * FROM files 
     WHERE workspace_id = ? AND name = ? AND (workspace_folder_id = ? OR (workspace_folder_id IS NULL AND ? IS NULL))
       AND is_trashed = 0
-  `).bind(workspace.id, fileName, folderId, folderId).first() as FileRow
+  `,
+    )
+    .bind(workspace.id, fileName, folderId, folderId)
+    .first()) as FileRow;
 
   if (!file) return xmlError(c, 'NoSuchKey', `The specified key does not exist.`, 404);
 
@@ -428,13 +546,13 @@ s3Router.get('/:bucket/:key{.+}', async (c) => {
     c.env.DB,
     c.env.GOOGLE_CLIENT_ID,
     c.env.GOOGLE_CLIENT_SECRET,
-    c.env.TOKEN_ENCRYPTION_KEY
+    c.env.TOKEN_ENCRYPTION_KEY,
   );
 
   const { stream, exportedMimeType } = await driveService.downloadFile(
     file.drive_account_id,
     file.google_file_id,
-    file.mime_type || undefined
+    file.mime_type || undefined,
   );
   // Google Docs (vnd.google-apps.*) are exported to a different format with a
   // different size — file.size (D1) is the Google-side size, not the export size.
@@ -457,12 +575,17 @@ s3Router.delete('/:bucket/:key{.+}', async (c) => {
   const key = c.req.param('key');
   const db = c.env.DB;
 
-  const workspace = await db.prepare(`
+  const workspace = (await db
+    .prepare(
+      `
     SELECT w.id, wm.role FROM workspaces w
     JOIN workspace_members wm ON w.id = wm.workspace_id
     WHERE w.name = ? AND wm.user_id = ?
       AND (? IS NULL OR w.id = ?)
-  `).bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId).first() as WorkspaceWithRoleRow
+  `,
+    )
+    .bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId)
+    .first()) as WorkspaceWithRoleRow;
 
   if (!workspace) return c.text('Bucket not found', 404);
 
@@ -471,19 +594,27 @@ s3Router.delete('/:bucket/:key{.+}', async (c) => {
 
   const uploadId = c.req.query('uploadId');
   if (uploadId) {
-    const upload = await db.prepare('SELECT * FROM s3_multipart_uploads WHERE upload_id = ? AND user_id = ? AND workspace_id = ?')
-      .bind(uploadId, userId, workspace.id).first<S3MultipartUploadRow>()
+    const upload = await db
+      .prepare(
+        'SELECT * FROM s3_multipart_uploads WHERE upload_id = ? AND user_id = ? AND workspace_id = ?',
+      )
+      .bind(uploadId, userId, workspace.id)
+      .first<S3MultipartUploadRow>();
     if (!upload) {
       const errorCode = 'NoSuchUpload';
       const errorMessage = 'The specified multipart upload does not exist.';
-      return c.text(`<?xml version="1.0" encoding="UTF-8"?><Error><Code>${escapeXml(errorCode)}</Code><Message>${escapeXml(errorMessage)}</Message></Error>`, 404, { 'Content-Type': 'application/xml' });
+      return c.text(
+        `<?xml version="1.0" encoding="UTF-8"?><Error><Code>${escapeXml(errorCode)}</Code><Message>${escapeXml(errorMessage)}</Message></Error>`,
+        404,
+        { 'Content-Type': 'application/xml' },
+      );
     }
 
     const driveService = new GoogleDriveService(
       c.env.DB,
       c.env.GOOGLE_CLIENT_ID,
       c.env.GOOGLE_CLIENT_SECRET,
-      c.env.TOKEN_ENCRYPTION_KEY
+      c.env.TOKEN_ENCRYPTION_KEY,
     );
 
     try {
@@ -501,13 +632,20 @@ s3Router.delete('/:bucket/:key{.+}', async (c) => {
   const folderPath = pathParts.join('/');
 
   const folderId = await getWorkspaceFolder(db, workspace.id, folderPath);
-  if (folderId === undefined) return xmlError(c, 'NoSuchKey', `The specified key does not exist.`, 404);
+  if (folderId === undefined) {
+    return xmlError(c, 'NoSuchKey', `The specified key does not exist.`, 404);
+  }
 
-  const file = await db.prepare(`
+  const file = (await db
+    .prepare(
+      `
     SELECT * FROM files 
     WHERE workspace_id = ? AND name = ? AND (workspace_folder_id = ? OR (workspace_folder_id IS NULL AND ? IS NULL))
       AND is_trashed = 0
-  `).bind(workspace.id, fileName, folderId, folderId).first() as FileRow
+  `,
+    )
+    .bind(workspace.id, fileName, folderId, folderId)
+    .first()) as FileRow;
 
   if (!file) return xmlError(c, 'NoSuchKey', `The specified key does not exist.`, 404);
 
@@ -515,13 +653,16 @@ s3Router.delete('/:bucket/:key{.+}', async (c) => {
     c.env.DB,
     c.env.GOOGLE_CLIENT_ID,
     c.env.GOOGLE_CLIENT_SECRET,
-    c.env.TOKEN_ENCRYPTION_KEY
+    c.env.TOKEN_ENCRYPTION_KEY,
   );
 
   // Trash file in Google Drive (recoverable ~30 days) and mark as trashed in D1.
   // Matches s3-lifecycle.ts pattern — S3 DELETE trashes, not hard-deletes.
   await driveService.trashFile(file.drive_account_id, file.google_file_id);
-  await db.prepare('UPDATE files SET is_trashed = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(file.id).run();
+  await db
+    .prepare('UPDATE files SET is_trashed = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+    .bind(file.id)
+    .run();
 
   return c.body(null, 204);
 });
@@ -542,12 +683,17 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
   const key = c.req.param('key');
   const db = c.env.DB;
 
-  const workspace = await db.prepare(`
+  const workspace = (await db
+    .prepare(
+      `
     SELECT w.id, wm.role FROM workspaces w
     JOIN workspace_members wm ON w.id = wm.workspace_id
     WHERE w.name = ? AND wm.user_id = ?
       AND (? IS NULL OR w.id = ?)
-  `).bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId).first() as WorkspaceWithRoleRow
+  `,
+    )
+    .bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId)
+    .first()) as WorkspaceWithRoleRow;
 
   if (!workspace) return c.text('Bucket not found', 404);
 
@@ -558,14 +704,19 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
   const mimeType = c.req.header('Content-Type') || 'application/octet-stream';
 
   // 1. Select target Drive using UploadRouter
-  const { results: driveRows } = await db.prepare('SELECT * FROM drive_accounts WHERE user_id = ?').bind(userId).all() as { results: Record<string, unknown>[] };
+  const { results: driveRows } = (await db
+    .prepare('SELECT * FROM drive_accounts WHERE user_id = ?')
+    .bind(userId)
+    .all()) as { results: Record<string, unknown>[] };
   if (driveRows.length === 0) return c.text('No connected drives', 400);
 
-  const drives = driveRows.map((r) => mapDriveRow(r)).map((d: DriveAccount) => ({
-    ...d,
-    freeSpace: Math.max(0, d.totalQuota - d.usedQuota),
-    usagePercent: d.totalQuota > 0 ? (d.usedQuota / d.totalQuota) * 100 : 0
-  }));
+  const drives = driveRows
+    .map((r) => mapDriveRow(r))
+    .map((d: DriveAccount) => ({
+      ...d,
+      freeSpace: Math.max(0, d.totalQuota - d.usedQuota),
+      usagePercent: d.totalQuota > 0 ? (d.usedQuota / d.totalQuota) * 100 : 0,
+    }));
 
   const router = new UploadRouter(drives);
   const targetDrive = router.selectDriveForUpload(contentLength);
@@ -582,7 +733,7 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
     c.env.DB,
     c.env.GOOGLE_CLIENT_ID,
     c.env.GOOGLE_CLIENT_SECRET,
-    c.env.TOKEN_ENCRYPTION_KEY
+    c.env.TOKEN_ENCRYPTION_KEY,
   );
 
   const pathParts = key.split('/');
@@ -591,18 +742,23 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
   const folderId = await getOrCreateWorkspaceFolder(db, workspace.id, folderPath);
 
   // Check if file already exists in D1 under the same folder/name/workspace
-  const existingFile = await db.prepare(`
+  const existingFile = (await db
+    .prepare(
+      `
     SELECT id, drive_account_id, google_file_id FROM files
     WHERE workspace_id = ? AND name = ? AND (workspace_folder_id = ? OR (workspace_folder_id IS NULL AND ? IS NULL))
       AND is_trashed = 0
-  `).bind(workspace.id, fileName, folderId || null, folderId || null).first() as FileRow
+  `,
+    )
+    .bind(workspace.id, fileName, folderId || null, folderId || null)
+    .first()) as FileRow;
 
   // Initiate resumable session
   const uploadUrl = await driveService.initiateResumableUpload(
     targetDrive.id,
     fileName || '',
     mimeType,
-    targetDrive.rootFolderId || 'root'
+    targetDrive.rootFolderId || 'root',
   );
 
   // Pipe the hashed stream
@@ -618,7 +774,11 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
   // Get Google File ID from response headers / body
   const rawBody = await response.text();
   let gFile: { id?: string; md5Checksum?: string } = {};
-  try { gFile = JSON.parse(rawBody); } catch { /* non-JSON Google response */ }
+  try {
+    gFile = JSON.parse(rawBody);
+  } catch {
+    /* non-JSON Google response */
+  }
 
   // Get the calculated MD5 hash after the stream has been fully consumed
   const md5Hex = getHash();
@@ -634,31 +794,53 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
   }
 
   const fileId = generateId();
-  await db.prepare(`
+  await db
+    .prepare(
+      `
     INSERT INTO files (
       id, user_id, drive_account_id, workspace_id, workspace_folder_id, 
       google_file_id, name, mime_type, size, metadata, google_created_at, google_modified_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-  `).bind(
-    fileId, userId, targetDrive.id, workspace.id, folderId || null,
-    gFile.id, fileName, mimeType, contentLength, JSON.stringify({ md5: md5Hex })
-  ).run();
+  `,
+    )
+    .bind(
+      fileId,
+      userId,
+      targetDrive.id,
+      workspace.id,
+      folderId || null,
+      gFile.id,
+      fileName,
+      mimeType,
+      contentLength,
+      JSON.stringify({ md5: md5Hex }),
+    )
+    .run();
 
   c.header('ETag', `"${md5Hex}"`);
   return c.text('', 200);
 });
 
 // Helper to upload a part
-async function handleUploadPart(c: Context, uploadId: string, partNumber: number): Promise<Response> {
+async function handleUploadPart(
+  c: Context,
+  uploadId: string,
+  partNumber: number,
+): Promise<Response> {
   const userId = c.get('userId');
   const s3WorkspaceId = c.get('s3WorkspaceId') || null;
   const db = c.env.DB;
 
-  const upload = await db.prepare(`
+  const upload = (await db
+    .prepare(
+      `
     SELECT * FROM s3_multipart_uploads 
     WHERE upload_id = ? AND user_id = ?
       AND (? IS NULL OR workspace_id = ?)
-  `).bind(uploadId, userId, s3WorkspaceId, s3WorkspaceId).first() as S3MultipartUploadRow
+  `,
+    )
+    .bind(uploadId, userId, s3WorkspaceId, s3WorkspaceId)
+    .first()) as S3MultipartUploadRow;
   if (!upload) return c.text('Invalid uploadId', 404);
 
   const contentLength = parseInt(c.req.header('Content-Length') || '0', 10);
@@ -673,7 +855,7 @@ async function handleUploadPart(c: Context, uploadId: string, partNumber: number
     c.env.DB,
     c.env.GOOGLE_CLIENT_ID,
     c.env.GOOGLE_CLIENT_SECRET,
-    c.env.TOKEN_ENCRYPTION_KEY
+    c.env.TOKEN_ENCRYPTION_KEY,
   );
 
   // Upload part as a separate temporary file inside temp_folder_id in Google Drive
@@ -682,7 +864,7 @@ async function handleUploadPart(c: Context, uploadId: string, partNumber: number
     upload.drive_account_id,
     partFileName,
     'application/octet-stream',
-    upload.temp_folder_id
+    upload.temp_folder_id,
   );
 
   const response = await fetch(uploadUrl, {
@@ -696,15 +878,24 @@ async function handleUploadPart(c: Context, uploadId: string, partNumber: number
 
   const rawBody = await response.text();
   let gFile: { id?: string; md5Checksum?: string } = {};
-  try { gFile = JSON.parse(rawBody); } catch { /* non-JSON Google response */ }
+  try {
+    gFile = JSON.parse(rawBody);
+  } catch {
+    /* non-JSON Google response */
+  }
 
   const md5Hex = getHash();
 
   // Store part state in DB (replace if already exists)
-  await db.prepare(`
+  await db
+    .prepare(
+      `
     INSERT OR REPLACE INTO s3_multipart_parts (upload_id, part_number, google_file_id, etag, size)
     VALUES (?, ?, ?, ?, ?)
-  `).bind(uploadId, partNumber, gFile.id, `"${md5Hex}"`, contentLength).run();
+  `,
+    )
+    .bind(uploadId, partNumber, gFile.id, `"${md5Hex}"`, contentLength)
+    .run();
 
   c.header('ETag', `"${md5Hex}"`);
   return c.text('', 200);
@@ -720,12 +911,17 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
   const uploadId = c.req.query('uploadId');
   const db = c.env.DB;
 
-  const workspace = await db.prepare(`
+  const workspace = (await db
+    .prepare(
+      `
     SELECT w.id, wm.role FROM workspaces w
     JOIN workspace_members wm ON w.id = wm.workspace_id
     WHERE w.name = ? AND wm.user_id = ?
       AND (? IS NULL OR w.id = ?)
-  `).bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId).first() as WorkspaceWithRoleRow
+  `,
+    )
+    .bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId)
+    .first()) as WorkspaceWithRoleRow;
 
   if (!workspace) return c.text('Bucket not found', 404);
 
@@ -736,26 +932,38 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
     c.env.DB,
     c.env.GOOGLE_CLIENT_ID,
     c.env.GOOGLE_CLIENT_SECRET,
-    c.env.TOKEN_ENCRYPTION_KEY
+    c.env.TOKEN_ENCRYPTION_KEY,
   );
 
   // 1. Initiate Multipart Upload
   if (uploadsParam !== undefined) {
     const uploadId = generateId();
-    
+
     // Choose target drive
-    const { results: driveRows } = await db.prepare('SELECT * FROM drive_accounts WHERE user_id = ?').bind(userId).all() as { results: DriveAccountRow[] };
+    const { results: driveRows } = (await db
+      .prepare('SELECT * FROM drive_accounts WHERE user_id = ?')
+      .bind(userId)
+      .all()) as { results: DriveAccountRow[] };
     if (driveRows.length === 0) return c.text('No connected drives', 400);
     const targetDrive = mapDriveRow(driveRows[0] as unknown as Record<string, unknown>);
 
     // Create temp folder inside Google Drive
     const tempFolderName = `.omnidrive_multipart_${uploadId}`;
-    const tempFolderId = await driveService.createFolder(targetDrive.id, tempFolderName, targetDrive.rootFolderId || undefined);
+    const tempFolderId = await driveService.createFolder(
+      targetDrive.id,
+      tempFolderName,
+      targetDrive.rootFolderId || undefined,
+    );
 
-    await db.prepare(`
+    await db
+      .prepare(
+        `
       INSERT INTO s3_multipart_uploads (upload_id, user_id, workspace_id, key, drive_account_id, temp_folder_id)
       VALUES (?, ?, ?, ?, ?, ?)
-    `).bind(uploadId, userId, workspace.id, key, targetDrive.id, tempFolderId).run();
+    `,
+      )
+      .bind(uploadId, userId, workspace.id, key, targetDrive.id, tempFolderId)
+      .run();
 
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <InitiateMultipartUploadResult>
@@ -770,18 +978,28 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
 
   // 2. Complete Multipart Upload
   if (uploadId) {
-    const upload = await db.prepare(`
+    const upload = await db
+      .prepare(
+        `
       SELECT * FROM s3_multipart_uploads 
       WHERE upload_id = ? AND user_id = ?
         AND (? IS NULL OR workspace_id = ?)
-    `).bind(uploadId, userId, s3WorkspaceId, s3WorkspaceId).first<S3MultipartUploadRow>()
+    `,
+      )
+      .bind(uploadId, userId, s3WorkspaceId, s3WorkspaceId)
+      .first<S3MultipartUploadRow>();
     if (!upload) return c.text('Upload session not found', 404);
 
     // Get all parts ordered by part_number
-    const { results: parts } = await db.prepare(`
+    const { results: parts } = (await db
+      .prepare(
+        `
       SELECT * FROM s3_multipart_parts 
       WHERE upload_id = ? ORDER BY part_number ASC
-    `).bind(uploadId).all() as { results: S3MultipartPartRow[] };
+    `,
+      )
+      .bind(uploadId)
+      .all()) as { results: S3MultipartPartRow[] };
 
     if (parts.length === 0) return c.text('No parts found to complete upload', 400);
 
@@ -794,7 +1012,10 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
     const totalSize = parts.reduce((acc, p) => acc + p.size, 0);
 
     // Fetch drive account to get its root folder ID
-    const driveAccount = await db.prepare('SELECT * FROM drive_accounts WHERE id = ?').bind(upload.drive_account_id).first() as DriveAccountRow
+    const driveAccount = (await db
+      .prepare('SELECT * FROM drive_accounts WHERE id = ?')
+      .bind(upload.drive_account_id)
+      .first()) as DriveAccountRow;
     const destFolderId = driveAccount?.root_folder_id || 'root';
 
     // Initiate final file upload in Google Drive
@@ -802,7 +1023,7 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
       upload.drive_account_id,
       fileName || '',
       'application/octet-stream',
-      destFolderId
+      destFolderId,
     );
 
     // Stream concatenate all parts
@@ -817,7 +1038,10 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
             return;
           }
           const part = parts[currentPartIndex];
-          const { stream: partStream } = await driveService.downloadFile(upload.drive_account_id, part.google_file_id);
+          const { stream: partStream } = await driveService.downloadFile(
+            upload.drive_account_id,
+            part.google_file_id,
+          );
           currentReader = partStream.getReader();
         }
         const { done, value } = await currentReader.read();
@@ -830,7 +1054,7 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
       },
       cancel() {
         if (currentReader) currentReader.cancel();
-      }
+      },
     });
 
     const response = await fetch(finalUploadUrl, {
@@ -844,14 +1068,23 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
 
     const rawBody = await response.text();
     let gFile: { id?: string; md5Checksum?: string } = {};
-    try { gFile = JSON.parse(rawBody); } catch { /* non-JSON Google response */ }
+    try {
+      gFile = JSON.parse(rawBody);
+    } catch {
+      /* non-JSON Google response */
+    }
 
     // Check if file already exists in D1 under the same folder/name/workspace
-    const existingFile = await db.prepare(`
+    const existingFile = (await db
+      .prepare(
+        `
       SELECT id, drive_account_id, google_file_id FROM files
       WHERE workspace_id = ? AND name = ? AND (workspace_folder_id = ? OR (workspace_folder_id IS NULL AND ? IS NULL))
         AND is_trashed = 0
-    `).bind(workspace.id, fileName, folderId || null, folderId || null).first() as FileRow
+    `,
+      )
+      .bind(workspace.id, fileName, folderId || null, folderId || null)
+      .first()) as FileRow;
 
     // If the file exists, delete it from Google Drive and remove its D1 row to prevent duplicates
     if (existingFile) {
@@ -865,22 +1098,35 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
 
     // Calculate S3-compliant ETag
     const concatenatedMd5s = Buffer.concat(
-      parts.map((p) => Buffer.from(p.etag.replace(/"/g, ''), 'hex'))
+      parts.map((p) => Buffer.from(p.etag.replace(/"/g, ''), 'hex')),
     );
     const finalMd5 = createHash('md5').update(concatenatedMd5s).digest('hex');
     const s3Etag = `${finalMd5}-${parts.length}`;
 
     // Insert completed file record into database
     const fileId = generateId();
-    await db.prepare(`
+    await db
+      .prepare(
+        `
       INSERT INTO files (
         id, user_id, drive_account_id, workspace_id, workspace_folder_id, 
         google_file_id, name, mime_type, size, metadata, google_created_at, google_modified_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-    `).bind(
-      fileId, userId, upload.drive_account_id, workspace.id, folderId || null,
-      gFile.id, fileName, 'application/octet-stream', totalSize, JSON.stringify({ md5: s3Etag })
-    ).run();
+    `,
+      )
+      .bind(
+        fileId,
+        userId,
+        upload.drive_account_id,
+        workspace.id,
+        folderId || null,
+        gFile.id,
+        fileName,
+        'application/octet-stream',
+        totalSize,
+        JSON.stringify({ md5: s3Etag }),
+      )
+      .run();
 
     // Cleanup: Delete temp parts folder from Google Drive & clean SQLite state
     await driveService.deleteFile(upload.drive_account_id, upload.temp_folder_id);
@@ -900,4 +1146,3 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
 
   return c.text('Invalid query parameter sequence', 400);
 });
-

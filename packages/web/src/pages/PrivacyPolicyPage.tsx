@@ -34,8 +34,14 @@ export function PrivacyPolicyPage() {
         </p>
         <ul className="list-disc space-y-1 pl-6">
           <li>Your Google account email address and basic profile information</li>
-          <li>Google Drive file metadata (names, sizes, MIME types, folder structure, modification dates)</li>
-          <li>Google Drive file content when you upload, download, move, or share files through the Service</li>
+          <li>
+            Google Drive file metadata (names, sizes, MIME types, folder structure, modification
+            dates)
+          </li>
+          <li>
+            Google Drive file content when you upload, download, move, or share files through the
+            Service
+          </li>
           <li>Google Drive storage quota information</li>
         </ul>
         <p>
@@ -55,7 +61,9 @@ export function PrivacyPolicyPage() {
         <ul className="list-disc space-y-1 pl-6">
           <li>Authenticate you and maintain your session</li>
           <li>Connect and sync your Google Drive accounts as you request</li>
-          <li>Display, search, upload, download, move, and share files across your connected drives</li>
+          <li>
+            Display, search, upload, download, move, and share files across your connected drives
+          </li>
           <li>Enforce workspace permissions, quotas, and automation rules you configure</li>
           <li>Provide shared links and S3-compatible API access you explicitly enable</li>
           <li>Protect the Service against abuse, fraud, and unauthorized access</li>
@@ -103,19 +111,19 @@ export function PrivacyPolicyPage() {
       <section className="space-y-4">
         <h2 className="text-xl font-semibold text-slate-900">5. Data Storage and Security</h2>
         <p>
-          Data is stored on Cloudflare&apos;s edge infrastructure (D1 database and KV store).
-          OAuth tokens are encrypted before storage. We use HTTPS for all communications, CSRF
-          protection on mutating API requests, rate limiting, and PKCE for the OAuth flow.
+          Data is stored on Cloudflare&apos;s edge infrastructure (D1 database and KV store). OAuth
+          tokens are encrypted before storage. We use HTTPS for all communications, CSRF protection
+          on mutating API requests, rate limiting, and PKCE for the OAuth flow.
         </p>
       </section>
 
       <section className="space-y-4">
         <h2 className="text-xl font-semibold text-slate-900">6. Data Retention and Deletion</h2>
         <p>
-          We retain your account data and synced file metadata while your account is active.
-          When you disconnect a Google Drive account, we delete the associated OAuth tokens.
-          You may request account deletion by contacting us; we will remove your account data and
-          connected drive tokens within a reasonable timeframe.
+          We retain your account data and synced file metadata while your account is active. When
+          you disconnect a Google Drive account, we delete the associated OAuth tokens. You may
+          request account deletion by contacting us; we will remove your account data and connected
+          drive tokens within a reasonable timeframe.
         </p>
       </section>
 

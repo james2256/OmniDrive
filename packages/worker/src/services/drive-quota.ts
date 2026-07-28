@@ -9,7 +9,7 @@ export async function resolveDrivesWithQuota(
   env: Env,
   db: D1Database,
   userId: string,
-  onQuotaPersist?: (driveId: string, total: number, used: number) => void
+  onQuotaPersist?: (driveId: string, total: number, used: number) => void,
 ): Promise<DriveWithQuota[]> {
   const { results } = await db
     .prepare('SELECT * FROM drive_accounts WHERE user_id = ?')
@@ -20,7 +20,10 @@ export async function resolveDrivesWithQuota(
 
   return Promise.all(
     drives.map(async (drive) => {
-      const tokenRow = await db.prepare('SELECT 1 as ok FROM drive_tokens WHERE drive_account_id = ?').bind(drive.id).first();
+      const tokenRow = await db
+        .prepare('SELECT 1 as ok FROM drive_tokens WHERE drive_account_id = ?')
+        .bind(drive.id)
+        .first();
       if (!tokenRow) {
         const { freeSpace, usagePercent } = computeDriveQuota(drive);
         return { ...drive, freeSpace, usagePercent };
@@ -31,7 +34,7 @@ export async function resolveDrivesWithQuota(
           db,
           env.GOOGLE_CLIENT_ID,
           env.GOOGLE_CLIENT_SECRET,
-          env.TOKEN_ENCRYPTION_KEY
+          env.TOKEN_ENCRYPTION_KEY,
         );
         const quota = await driveService.getQuota(drive.id);
         onQuotaPersist?.(drive.id, quota.total, quota.used);
@@ -40,9 +43,12 @@ export async function resolveDrivesWithQuota(
       } catch (e) {
         logErrorNoCtx('Failed to fetch quota for drive', e, { driveId: drive.id });
         // Tokens exist but quota API failed — treat unknown stored quota as unlimited for routing
-        const computed = computeDriveQuota({ totalQuota: drive.totalQuota, usedQuota: drive.usedQuota });
+        const computed = computeDriveQuota({
+          totalQuota: drive.totalQuota,
+          usedQuota: drive.usedQuota,
+        });
         return { ...drive, ...computed };
       }
-    })
+    }),
   );
 }

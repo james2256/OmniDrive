@@ -3,7 +3,14 @@ import { useToastStore } from '../stores/useToastStore';
 import { api } from '../lib/api';
 import type { DriveFolder, BreadcrumbItem } from '../types';
 import type { SelectedItem } from '../stores/useSelectionStore';
-import { Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogTitle } from './ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogBody,
+  DialogFooter,
+  DialogTitle,
+} from './ui/dialog';
 import { Button } from './ui/Button';
 import { Folder, ChevronRight, FolderInput } from 'lucide-react';
 
@@ -19,7 +26,9 @@ export function MoveModal({ open, items, driveId, onClose, onSuccess }: MoveModa
   const { addToast } = useToastStore();
   const [currentFolderId, setCurrentFolderId] = useState('root');
   const [subfolders, setSubfolders] = useState<DriveFolder[]>([]);
-  const [breadcrumb, setBreadcrumb] = useState<BreadcrumbItem[]>([{ id: 'root', name: 'My Drive' }]);
+  const [breadcrumb, setBreadcrumb] = useState<BreadcrumbItem[]>([
+    { id: 'root', name: 'My Drive' },
+  ]);
   const [isMoving, setIsMoving] = useState(false);
 
   const fetchFolders = useCallback(async () => {
@@ -55,11 +64,23 @@ export function MoveModal({ open, items, driveId, onClose, onSuccess }: MoveModa
       try {
         if (item.type === 'file') {
           const file = item.item as { id: string; googleParentId?: string | null };
-          await api.moveToFolder(driveId, file.id, currentFolderId, file.googleParentId ?? null, false);
+          await api.moveToFolder(
+            driveId,
+            file.id,
+            currentFolderId,
+            file.googleParentId ?? null,
+            false,
+          );
         } else {
           const folder = item.item;
           if ('googleFolderId' in folder) {
-            await api.moveToFolder(driveId, folder.googleFolderId, currentFolderId, folder.googleParentId ?? null, true);
+            await api.moveToFolder(
+              driveId,
+              folder.googleFolderId,
+              currentFolderId,
+              folder.googleParentId ?? null,
+              true,
+            );
           }
         }
         success++;
@@ -80,7 +101,7 @@ export function MoveModal({ open, items, driveId, onClose, onSuccess }: MoveModa
 
   const handleFolderClick = (folderId: string, folderName: string) => {
     setCurrentFolderId(folderId);
-    setBreadcrumb(prev => [...prev, { id: folderId, name: folderName }]);
+    setBreadcrumb((prev) => [...prev, { id: folderId, name: folderName }]);
   };
 
   const handleBreadcrumbClick = (index: number) => {
@@ -102,11 +123,17 @@ export function MoveModal({ open, items, driveId, onClose, onSuccess }: MoveModa
           {/* Breadcrumb */}
           <div className="flex items-center gap-1 px-4 py-1.5 text-xs text-slate-600 border-b border-slate-100 shrink-0 overflow-x-auto">
             {breadcrumb.map((item, i) => (
-              <span key={item.id ?? `bc-${i}`} className="flex items-center gap-1 whitespace-nowrap">
+              <span
+                key={item.id ?? `bc-${i}`}
+                className="flex items-center gap-1 whitespace-nowrap"
+              >
                 {i > 0 && <ChevronRight size={12} className="text-slate-500" />}
                 {i < breadcrumb.length - 1 ? (
                   // eslint-disable-next-line no-restricted-syntax -- breadcrumb navigation link
-                  <button onClick={() => handleBreadcrumbClick(i)} className="hover:text-slate-900 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2">
+                  <button
+                    onClick={() => handleBreadcrumbClick(i)}
+                    className="hover:text-slate-900 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                  >
                     {item.name}
                   </button>
                 ) : (
@@ -144,8 +171,12 @@ export function MoveModal({ open, items, driveId, onClose, onSuccess }: MoveModa
             Destination: {breadcrumb[breadcrumb.length - 1]?.name || 'My Drive'}
           </span>
           <div className="flex gap-3 flex-shrink-0">
-            <Button variant="secondary" onClick={onClose} disabled={isMoving}>Cancel</Button>
-            <Button onClick={handleMove} loading={isMoving}>{isMoving ? 'Moving...' : 'Move here'}</Button>
+            <Button variant="secondary" onClick={onClose} disabled={isMoving}>
+              Cancel
+            </Button>
+            <Button onClick={handleMove} loading={isMoving}>
+              {isMoving ? 'Moving...' : 'Move here'}
+            </Button>
           </div>
         </DialogFooter>
       </DialogContent>

@@ -84,7 +84,9 @@ export function DashboardPage() {
   const isTargetShared = useIsTargetSharedCallback(sharedLinks);
   const getDriveInfo = useGetDriveInfo(drives);
 
-  const [shareTarget, setShareTarget] = useState<{ id: string; type: 'file' | 'folder' } | null>(null);
+  const [shareTarget, setShareTarget] = useState<{ id: string; type: 'file' | 'folder' } | null>(
+    null,
+  );
   const [moveDriveFiles, setMoveDriveFiles] = useState<FileEntry[]>([]);
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
 
@@ -98,8 +100,11 @@ export function DashboardPage() {
   const { data: category } = useQuery<CategoryOverview | null>({
     queryKey: qk.category,
     queryFn: async () => {
-      try { return await api.getFileCategoryOverview(); }
-      catch { return null; }
+      try {
+        return await api.getFileCategoryOverview();
+      } catch {
+        return null;
+      }
     },
   });
 
@@ -116,8 +121,11 @@ export function DashboardPage() {
   // Donut data — only categories with bytes, sorted desc. Others folded in.
   const donutData = useMemo(() => {
     if (!category) return [];
-    const rows = CATEGORY_META
-      .map((m) => ({ name: m.label, value: category[m.key], color: m.color }))
+    const rows = CATEGORY_META.map((m) => ({
+      name: m.label,
+      value: category[m.key],
+      color: m.color,
+    }))
       .filter((c) => c.value > 0)
       .sort((a, b) => b.value - a.value);
     if ((category.others ?? 0) > 0) {
@@ -143,7 +151,8 @@ export function DashboardPage() {
       <div className="flex items-center justify-between gap-2 sm:gap-3">
         <div>
           <h1 className="text-xl sm:text-2xl font-semibold text-slate-800">
-            {greeting()}{user ? `, ${firstName(user.name)}` : ''}
+            {greeting()}
+            {user ? `, ${firstName(user.name)}` : ''}
           </h1>
           <p className="text-sm text-slate-500 mt-0.5">
             {hasDrives
@@ -174,7 +183,8 @@ export function DashboardPage() {
           </div>
           <h2 className="text-lg font-semibold text-slate-800">No drives connected</h2>
           <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">
-            Connect your first Google Drive to start syncing, browsing, and sharing files from one place.
+            Connect your first Google Drive to start syncing, browsing, and sharing files from one
+            place.
           </p>
           <Button
             variant="primary"
@@ -211,7 +221,8 @@ export function DashboardPage() {
             </div>
             <div className="my-4">
               <div className="text-4xl sm:text-5xl lg:text-6xl font-semibold text-slate-800 tracking-tight leading-none">
-                {usedPercent.toFixed(1)}<span className="text-2xl text-slate-500 ml-1">%</span>
+                {usedPercent.toFixed(1)}
+                <span className="text-2xl text-slate-500 ml-1">%</span>
               </div>
               <p className="text-sm text-slate-500 mt-2">
                 {formatFileSize(totalUsed)} of {formatFileSize(totalQuota)} used
@@ -278,7 +289,10 @@ export function DashboardPage() {
                     return (
                       <li key={c.name} className="flex items-center justify-between text-sm gap-2">
                         <span className="flex items-center gap-2 text-slate-600 min-w-0">
-                          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c.color }} />
+                          <span
+                            className="w-2 h-2 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: c.color }}
+                          />
                           <span className="truncate">{c.name}</span>
                         </span>
                         <span className="text-slate-500 text-xs flex-shrink-0">
@@ -312,8 +326,14 @@ export function DashboardPage() {
                   className="group bg-surface border-slate-200/70 rounded-xl p-3 text-left hover:border-primary/40 hover:-translate-y-[1px] hover:shadow-sm hover:bg-card flex-col items-stretch gap-0"
                 >
                   <div className="flex items-center justify-between mb-1.5">
-                    <Icon size={18} className="text-slate-500 group-hover:text-primary transition-colors" />
-                    <ArrowRight size={14} className="text-slate-300 group-hover:text-primary transition-colors" />
+                    <Icon
+                      size={18}
+                      className="text-slate-500 group-hover:text-primary transition-colors"
+                    />
+                    <ArrowRight
+                      size={14}
+                      className="text-slate-300 group-hover:text-primary transition-colors"
+                    />
                   </div>
                   <div className="text-sm font-medium text-slate-800">{label}</div>
                   <div className="text-xs text-slate-500 mt-0.5 truncate">{hint}</div>
@@ -342,14 +362,23 @@ export function DashboardPage() {
                       <HardDrive size={16} color="white" />
                     </div>
                     <div className="min-w-0">
-                      <div className="text-sm font-medium text-slate-800 truncate">{drive.email}</div>
+                      <div className="text-sm font-medium text-slate-800 truncate">
+                        {drive.email}
+                      </div>
                       <div className="text-xs text-slate-500">
                         {drive.type === 'service_account' ? 'Service Account' : 'OAuth'}
-                        {drive.isPrimary && <span className="ml-1.5 text-primary font-medium">· Primary</span>}
+                        {drive.isPrimary && (
+                          <span className="ml-1.5 text-primary font-medium">· Primary</span>
+                        )}
                       </div>
                     </div>
                   </div>
-                  <QuotaBar used={drive.usedQuota} total={drive.totalQuota} color={getDriveColor(i)} showLabel={false} />
+                  <QuotaBar
+                    used={drive.usedQuota}
+                    total={drive.totalQuota}
+                    color={getDriveColor(i)}
+                    showLabel={false}
+                  />
                   <div className="flex justify-between mt-2 text-xs text-slate-500">
                     <span>{formatFileSize(drive.usedQuota)} used</span>
                     <span>{Math.min(drive.usagePercent, 100).toFixed(1)}%</span>

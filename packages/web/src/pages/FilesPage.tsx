@@ -16,7 +16,11 @@ import { useSharedLinks, useIsTargetSharedCallback } from '../hooks/useSharedLin
 import { useItemModals } from '../hooks/useItemModals';
 import { useMergedDrive } from '../hooks/useMergedDrive';
 import { useUIStore } from '../stores/useUIStore';
-import { useSelectionStore, useClearSelectionOnRouteChange, type SelectedItem } from '../stores/useSelectionStore';
+import {
+  useSelectionStore,
+  useClearSelectionOnRouteChange,
+  type SelectedItem,
+} from '../stores/useSelectionStore';
 import { BulkActionBar } from '../components/layout/BulkActionBar';
 import type { FileEntry } from '../types';
 
@@ -56,7 +60,10 @@ export function FilesPage() {
   const { data: sharedLinks = [] } = useSharedLinks();
   const isTargetShared = useIsTargetSharedCallback(sharedLinks);
 
-  const { subfolders, files, breadcrumb, isLoading, errorDrives, refresh } = useMergedDrive(folderId, driveIdParam);
+  const { subfolders, files, breadcrumb, isLoading, errorDrives, refresh } = useMergedDrive(
+    folderId,
+    driveIdParam,
+  );
 
   // Shared modal state + handlers for file/folder item interactions
   const itemModals = useItemModals({
@@ -67,8 +74,12 @@ export function FilesPage() {
 
   const getDriveInfo = useGetDriveInfo(drives);
 
-  const filteredSubfolders = subfolders.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()));
-  const filteredFiles = files.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredSubfolders = subfolders.filter((f) =>
+    f.name.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
+  const filteredFiles = files.filter((f) =>
+    f.name.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
 
   return (
     <DropZone>
@@ -77,94 +88,118 @@ export function FilesPage() {
         <BulkActionBar
           onActionComplete={() => refresh()}
           onMoveRequested={() => itemModals.setMoveTarget(selectedItems)}
-          onWorkspaceRequested={() => itemModals.setWorkspaceTarget(selectedItems[0].item as FileEntry)}
+          onWorkspaceRequested={() =>
+            itemModals.setWorkspaceTarget(selectedItems[0].item as FileEntry)
+          }
           onMoveDriveRequested={() => {
-            const fileItems = selectedItems.filter(i => i.type === 'file').map(i => i.item as FileEntry);
+            const fileItems = selectedItems
+              .filter((i) => i.type === 'file')
+              .map((i) => i.item as FileEntry);
             itemModals.setMoveDriveFiles(fileItems);
           }}
         />
 
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3 px-4 pt-4 mb-4">
-            {/* Mobile Row 1: filter + view toggle + info | Desktop: right side */}
-            <div className="flex gap-2 items-center order-1 sm:order-2 sm:ml-auto w-full sm:w-auto">
-              <div className="relative flex-1 sm:w-48 sm:flex-initial flex-shrink-0 sm:flex-shrink">
-                <input
-                  type="text"
-                  placeholder="Filter..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-3 pr-8 py-2 text-sm border border-slate-400 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                />
-                {searchQuery && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-600 hover:bg-transparent p-1"
-                    onClick={() => setSearchQuery('')}
-                    aria-label="Clear filter"
-                  >
-                    <X size={14} />
-                  </Button>
-                )}
-              </div>
-
-              <div className="flex items-center border border-slate-400 rounded-md overflow-hidden bg-card flex-shrink-0">
+          {/* Mobile Row 1: filter + view toggle + info | Desktop: right side */}
+          <div className="flex gap-2 items-center order-1 sm:order-2 sm:ml-auto w-full sm:w-auto">
+            <div className="relative flex-1 sm:w-48 sm:flex-initial flex-shrink-0 sm:flex-shrink">
+              <input
+                type="text"
+                placeholder="Filter..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-3 pr-8 py-2 text-sm border border-slate-400 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              />
+              {searchQuery && (
                 <Button
+                  type="button"
                   variant="ghost"
-                  onClick={() => setViewMode('list')}
-                  className={`p-2 ${viewMode === 'list' ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'}`}
-                  title="List layout"
-                  aria-label="List layout"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-600 hover:bg-transparent p-1"
+                  onClick={() => setSearchQuery('')}
+                  aria-label="Clear filter"
                 >
-                  <List size={18} />
+                  <X size={14} />
                 </Button>
-                <Button
-                  variant="ghost"
-                  onClick={() => setViewMode('grid')}
-                  className={`p-2 ${viewMode === 'grid' ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'}`}
-                  title="Grid layout"
-                  aria-label="Grid layout"
-                >
-                  <LayoutGrid size={18} />
-                </Button>
-              </div>
+              )}
+            </div>
 
+            <div className="flex items-center border border-slate-400 rounded-md overflow-hidden bg-card flex-shrink-0">
               <Button
                 variant="ghost"
-                onClick={toggleInfoPanel}
-                className={`p-2 rounded-full flex-shrink-0 ${isInfoPanelOpen ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-100'}`}
-                title="View details"
-                aria-label="View details"
+                onClick={() => setViewMode('list')}
+                className={`p-2 ${viewMode === 'list' ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'}`}
+                title="List layout"
+                aria-label="List layout"
               >
-                <Info size={20} />
+                <List size={18} />
               </Button>
-
-              {/* Desktop: folder + upload inline with filter row */}
-              <div className="hidden sm:flex gap-2">
-                <Button variant="secondary" size="md" className="rounded-md gap-1 hover:bg-slate-50 flex-shrink-0" onClick={() => setShowCreateFolder(true)}>
-                  <FolderPlus size={16} /> <span>New Folder</span>
-                </Button>
-                <Button variant="primary" size="md" className="rounded-md gap-1 flex-shrink-0" onClick={() => setShowModal(true)}>
-                  <Upload size={16} /> <span>Upload</span>
-                </Button>
-              </div>
-            </div>
-
-            {/* Mobile Row 2: folder + upload */}
-            <div className="flex gap-2 sm:hidden order-2">
-              <Button variant="secondary" className="rounded-md gap-1 p-2 hover:bg-slate-50 flex-shrink-0 flex-1 justify-center" onClick={() => setShowCreateFolder(true)} title="New Folder">
-                <FolderPlus size={18} /> <span>New Folder</span>
-              </Button>
-              <Button variant="primary" className="rounded-md gap-1 p-2 flex-shrink-0 flex-1 justify-center" onClick={() => setShowModal(true)} title="Upload">
-                <Upload size={18} /> <span>Upload</span>
+              <Button
+                variant="ghost"
+                onClick={() => setViewMode('grid')}
+                className={`p-2 ${viewMode === 'grid' ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'}`}
+                title="Grid layout"
+                aria-label="Grid layout"
+              >
+                <LayoutGrid size={18} />
               </Button>
             </div>
 
-            {/* Breadcrumb — below on mobile, left side on desktop */}
-            <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden order-3 sm:order-1">
-              <Breadcrumb items={breadcrumb} driveId={driveIdParam || undefined} />
+            <Button
+              variant="ghost"
+              onClick={toggleInfoPanel}
+              className={`p-2 rounded-full flex-shrink-0 ${isInfoPanelOpen ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-100'}`}
+              title="View details"
+              aria-label="View details"
+            >
+              <Info size={20} />
+            </Button>
+
+            {/* Desktop: folder + upload inline with filter row */}
+            <div className="hidden sm:flex gap-2">
+              <Button
+                variant="secondary"
+                size="md"
+                className="rounded-md gap-1 hover:bg-slate-50 flex-shrink-0"
+                onClick={() => setShowCreateFolder(true)}
+              >
+                <FolderPlus size={16} /> <span>New Folder</span>
+              </Button>
+              <Button
+                variant="primary"
+                size="md"
+                className="rounded-md gap-1 flex-shrink-0"
+                onClick={() => setShowModal(true)}
+              >
+                <Upload size={16} /> <span>Upload</span>
+              </Button>
             </div>
           </div>
+
+          {/* Mobile Row 2: folder + upload */}
+          <div className="flex gap-2 sm:hidden order-2">
+            <Button
+              variant="secondary"
+              className="rounded-md gap-1 p-2 hover:bg-slate-50 flex-shrink-0 flex-1 justify-center"
+              onClick={() => setShowCreateFolder(true)}
+              title="New Folder"
+            >
+              <FolderPlus size={18} /> <span>New Folder</span>
+            </Button>
+            <Button
+              variant="primary"
+              className="rounded-md gap-1 p-2 flex-shrink-0 flex-1 justify-center"
+              onClick={() => setShowModal(true)}
+              title="Upload"
+            >
+              <Upload size={18} /> <span>Upload</span>
+            </Button>
+          </div>
+
+          {/* Breadcrumb — below on mobile, left side on desktop */}
+          <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden order-3 sm:order-1">
+            <Breadcrumb items={breadcrumb} driveId={driveIdParam || undefined} />
+          </div>
+        </div>
 
         {isLoading || isDrivesLoading ? (
           <div className="flex flex-col items-center justify-center p-16">
@@ -174,10 +209,12 @@ export function FilesPage() {
         ) : drives.length === 0 ? (
           <div className="text-center p-12 text-slate-500 border rounded-lg bg-card m-4 flex flex-col items-center shadow-sm">
             <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-               <Info size={24} className="text-slate-500" />
+              <Info size={24} className="text-slate-500" />
             </div>
             <h3 className="text-lg font-medium text-slate-900 mb-2">No Google Drive Connected</h3>
-            <p className="mb-6 max-w-sm text-center">You need to connect at least one Google Drive account to start using OmniDrive.</p>
+            <p className="mb-6 max-w-sm text-center">
+              You need to connect at least one Google Drive account to start using OmniDrive.
+            </p>
             <Button
               variant="primary"
               size="md"
@@ -197,15 +234,18 @@ export function FilesPage() {
               isTargetShared={isTargetShared}
               errorDrives={errorDrives}
               actions={{
-                onNavigateFolder: (id: string, driveId: string) => navigate(`/files/${id}?driveId=${driveId}`),
+                onNavigateFolder: (id: string, driveId: string) =>
+                  navigate(`/files/${id}?driveId=${driveId}`),
                 onPreviewFile: itemModals.setPreviewFile,
-                onShare: (id: string, type: 'file' | 'folder') => itemModals.setShareTarget({ id, type }),
+                onShare: (id: string, type: 'file' | 'folder') =>
+                  itemModals.setShareTarget({ id, type }),
                 onRenameFileRequest: itemModals.handleRenameFileRequest,
                 onRenameFolderRequest: itemModals.handleRenameFolderRequest,
                 onDeleteFile: itemModals.handleDeleteFile,
                 onDeleteFolder: itemModals.handleDeleteFolder,
                 onMoveDrive: (file: FileEntry) => itemModals.setMoveDriveFiles([file]),
-                onDownloadFolder: (driveId: string, folderId: string, name: string) => itemModals.setFolderDownloadTarget({ driveId, folderId, name }),
+                onDownloadFolder: (driveId: string, folderId: string, name: string) =>
+                  itemModals.setFolderDownloadTarget({ driveId, folderId, name }),
                 onMove: (items: SelectedItem[]) => itemModals.setMoveTarget(items),
                 onAddToWorkspace: itemModals.setWorkspaceTarget,
                 onViewInfo: itemModals.handleViewInfo,
@@ -225,8 +265,17 @@ export function FilesPage() {
           onClose={() => setShowCreateFolder(false)}
           onSuccess={refresh}
         />
-        <UploadModal open={showModal} folderId={folderId} onClose={() => setShowModal(false)} onSuccess={refresh} />
-        <ItemModals modals={itemModals} driveId={driveIdParam || drives[0]?.id || ''} onRefresh={refresh} />
+        <UploadModal
+          open={showModal}
+          folderId={folderId}
+          onClose={() => setShowModal(false)}
+          onSuccess={refresh}
+        />
+        <ItemModals
+          modals={itemModals}
+          driveId={driveIdParam || drives[0]?.id || ''}
+          onRefresh={refresh}
+        />
       </div>
     </DropZone>
   );

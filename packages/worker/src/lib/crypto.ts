@@ -13,14 +13,19 @@ async function getKey(secret: string): Promise<CryptoKey> {
     encoder.encode(secret),
     { name: 'HKDF' },
     false,
-    ['deriveKey']
+    ['deriveKey'],
   );
   return crypto.subtle.deriveKey(
-    { name: 'HKDF', hash: 'SHA-256', salt: encoder.encode('omnidrive-token-v1'), info: new Uint8Array(0) },
+    {
+      name: 'HKDF',
+      hash: 'SHA-256',
+      salt: encoder.encode('omnidrive-token-v1'),
+      info: new Uint8Array(0),
+    },
     baseKey,
     { name: ALGORITHM, length: 256 },
     false,
-    ['encrypt', 'decrypt']
+    ['encrypt', 'decrypt'],
   );
 }
 
@@ -32,7 +37,7 @@ export async function encrypt(plaintext: string, secret: string): Promise<string
   const ciphertext = await crypto.subtle.encrypt(
     { name: ALGORITHM, iv },
     key,
-    encoder.encode(plaintext)
+    encoder.encode(plaintext),
   );
 
   // Format: version:base64(iv + ciphertext)
@@ -47,16 +52,12 @@ export async function decrypt(encoded: string, secret: string): Promise<string> 
   const key = await getKey(secret);
   // Strip version prefix if present (v1:), otherwise treat as legacy base64
   const raw = encoded.includes(':') ? encoded.split(':').slice(1).join(':') : encoded;
-  const combined = Uint8Array.from(atob(raw), c => c.charCodeAt(0));
+  const combined = Uint8Array.from(atob(raw), (c) => c.charCodeAt(0));
 
   const iv = combined.slice(0, IV_LENGTH);
   const ciphertext = combined.slice(IV_LENGTH);
 
-  const plaintext = await crypto.subtle.decrypt(
-    { name: ALGORITHM, iv },
-    key,
-    ciphertext
-  );
+  const plaintext = await crypto.subtle.decrypt({ name: ALGORITHM, iv }, key, ciphertext);
 
   return new TextDecoder().decode(plaintext);
 }

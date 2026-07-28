@@ -7,7 +7,7 @@ describe('Workspaces API', () => {
     const app = new Hono();
     app.onError((err: any, c) => c.json({ error: err.message }, err.status || 500));
     app.route('/workspaces', workspacesRouter);
-    
+
     const res = await app.request('/workspaces');
     expect(res.status).toBe(401);
   });

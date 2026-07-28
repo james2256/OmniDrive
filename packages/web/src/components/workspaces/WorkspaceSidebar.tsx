@@ -13,13 +13,18 @@ interface WorkspaceSidebarProps {
   onNewSubfolder: (parentId: string | null) => void;
 }
 
-export function WorkspaceSidebar({ 
-  folders, activeFolderId, onSelect, onRename, onDelete, onNewSubfolder 
+export function WorkspaceSidebar({
+  folders,
+  activeFolderId,
+  onSelect,
+  onRename,
+  onDelete,
+  onNewSubfolder,
 }: WorkspaceSidebarProps) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   const handleToggle = useCallback((id: string) => {
-    setExpandedIds(prev => {
+    setExpandedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -27,14 +32,17 @@ export function WorkspaceSidebar({
     });
   }, []);
 
-  const handleSelect = useCallback((id: string) => {
-    onSelect(id);
-    setExpandedIds(prev => new Set([...prev, id])); // Auto-expand on select
-  }, [onSelect]);
+  const handleSelect = useCallback(
+    (id: string) => {
+      onSelect(id);
+      setExpandedIds((prev) => new Set([...prev, id])); // Auto-expand on select
+    },
+    [onSelect],
+  );
 
   const childrenMap = useMemo(() => {
     const map = new Map<string | null, WorkspaceFolder[]>();
-    folders.forEach(f => {
+    folders.forEach((f) => {
       const parentId = f.parentId || null;
       if (!map.has(parentId)) {
         map.set(parentId, []);
@@ -49,7 +57,9 @@ export function WorkspaceSidebar({
   return (
     <div className="w-64 border-r border-slate-200 bg-slate-50/50 flex flex-col h-full overflow-y-auto py-4">
       <div className="px-4 mb-2 flex items-center justify-between group">
-        <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Workspaces</h3>
+        <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+          Workspaces
+        </h3>
         <Button
           onClick={() => onNewSubfolder(null)}
           variant="ghost"
@@ -64,7 +74,7 @@ export function WorkspaceSidebar({
         {rootFolders.length === 0 ? (
           <p className="px-4 text-sm text-slate-500 italic">No workspaces yet.</p>
         ) : (
-          rootFolders.map(folder => (
+          rootFolders.map((folder) => (
             <WorkspaceTreeNode
               key={folder.id}
               folder={folder}

@@ -4,7 +4,14 @@ import type { FileEntry } from '../types';
 import { formatFileSize, formatRelativeTime } from '../lib/utils';
 import { fetchFilePreviewBlob } from '../lib/api';
 import { FileIcon, getFileTypeName } from './files/FileIcon';
-import { Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogTitle } from './ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogBody,
+  DialogFooter,
+  DialogTitle,
+} from './ui/dialog';
 import { Button } from './ui/Button';
 
 interface FilePreviewModalProps {
@@ -14,7 +21,8 @@ interface FilePreviewModalProps {
 }
 
 export function FilePreviewModal({ open, file, onClose }: FilePreviewModalProps) {
-  const isImage = file?.mimeType?.startsWith('image/') || file?.mimeType === 'application/vnd.google-apps.photo';
+  const isImage =
+    file?.mimeType?.startsWith('image/') || file?.mimeType === 'application/vnd.google-apps.photo';
   const isGoogleDoc = file?.mimeType?.startsWith('application/vnd.google-apps.');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -94,23 +102,34 @@ export function FilePreviewModal({ open, file, onClose }: FilePreviewModalProps)
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm bg-slate-50 p-4 rounded-xl border border-slate-100">
               <div>
-                <div className="text-slate-500 text-xs uppercase tracking-wide font-medium mb-1">Size</div>
+                <div className="text-slate-500 text-xs uppercase tracking-wide font-medium mb-1">
+                  Size
+                </div>
                 <div className="text-slate-800 font-medium">{formatFileSize(file.size)}</div>
               </div>
               <div>
-                <div className="text-slate-500 text-xs uppercase tracking-wide font-medium mb-1">Type</div>
-                <div className="text-slate-800 font-medium truncate" title={file.mimeType ?? 'File'}>
+                <div className="text-slate-500 text-xs uppercase tracking-wide font-medium mb-1">
+                  Type
+                </div>
+                <div
+                  className="text-slate-800 font-medium truncate"
+                  title={file.mimeType ?? 'File'}
+                >
                   {getFileTypeName(file.mimeType)}
                 </div>
               </div>
               <div>
-                <div className="text-slate-500 text-xs uppercase tracking-wide font-medium mb-1">Modified</div>
+                <div className="text-slate-500 text-xs uppercase tracking-wide font-medium mb-1">
+                  Modified
+                </div>
                 <div className="text-slate-800 font-medium truncate">
                   {file.googleModifiedAt ? formatRelativeTime(file.googleModifiedAt) : '—'}
                 </div>
               </div>
               <div>
-                <div className="text-slate-500 text-xs uppercase tracking-wide font-medium mb-1">Created</div>
+                <div className="text-slate-500 text-xs uppercase tracking-wide font-medium mb-1">
+                  Created
+                </div>
                 <div className="text-slate-800 font-medium truncate">
                   {file.googleCreatedAt ? formatRelativeTime(file.googleCreatedAt) : '—'}
                 </div>
@@ -123,7 +142,12 @@ export function FilePreviewModal({ open, file, onClose }: FilePreviewModalProps)
           <DialogFooter>
             {file.webViewLink && (
               <Button asChild variant="secondary">
-                <a href={file.webViewLink} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}>
+                <a
+                  href={file.webViewLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ textDecoration: 'none' }}
+                >
                   <ExternalLink size={18} /> Open in Drive
                 </a>
               </Button>

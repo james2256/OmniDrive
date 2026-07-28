@@ -26,22 +26,34 @@ const ORIGIN = 'http://localhost:5173';
  * need a pre-authenticated user without consuming a register call.
  * Uses a real password hash so verifyPassword works in change-password tests.
  */
-async function insertUserAndSession(username: string, password = 'TestPass123!'): Promise<{ userId: string; cookie: string }> {
+async function insertUserAndSession(
+  username: string,
+  password = 'TestPass123!',
+): Promise<{ userId: string; cookie: string }> {
   const userId = `user-${username}`;
   const passwordHash = await hashPassword(password);
   await env.DB.prepare(
-    'INSERT INTO users (id, username, password_hash, is_super_admin) VALUES (?, ?, ?, ?)'
-  ).bind(userId, username, passwordHash, 1).run();
+    'INSERT INTO users (id, username, password_hash, is_super_admin) VALUES (?, ?, ?, ?)',
+  )
+    .bind(userId, username, passwordHash, 1)
+    .run();
 
   const now = Date.now();
   const sessionData: SessionData = {
-    userId, username, email: null, name: username, avatarUrl: null,
-    role: 'super_admin', createdAt: now,
+    userId,
+    username,
+    email: null,
+    name: username,
+    avatarUrl: null,
+    role: 'super_admin',
+    createdAt: now,
   };
   const sessionId = `session-${username}-${now}`;
   await env.DB.prepare(
-    'INSERT INTO sessions (id, user_id, data, expires_at, touched_at) VALUES (?, ?, ?, ?, ?)'
-  ).bind(sessionId, userId, JSON.stringify(sessionData), now + 7 * 24 * 60 * 60 * 1000, now).run();
+    'INSERT INTO sessions (id, user_id, data, expires_at, touched_at) VALUES (?, ?, ?, ?, ?)',
+  )
+    .bind(sessionId, userId, JSON.stringify(sessionData), now + 7 * 24 * 60 * 60 * 1000, now)
+    .run();
 
   return { userId, cookie: `omnidrive_sid=${sessionId}` };
 }
@@ -56,13 +68,21 @@ describe('Auth flow (integration)', () => {
   });
 
   it('registers a new user and returns SessionData', async () => {
-    const res = await app.request('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
-      body: JSON.stringify({ username: 'alice', password: 'TestPass123!' }),
-    }, env);
+    const res = await app.request(
+      '/api/auth/register',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
+        body: JSON.stringify({ username: 'alice', password: 'TestPass123!' }),
+      },
+      env,
+    );
     expect(res.status).toBe(200);
-    const body = await res.json() as { success: boolean; user: { userId: string; username: string; role: string }; isSuperAdmin: boolean };
+    const body = (await res.json()) as {
+      success: boolean;
+      user: { userId: string; username: string; role: string };
+      isSuperAdmin: boolean;
+    };
     expect(body.success).toBe(true);
     expect(body.user.username).toBe('alice');
     expect(body.user.role).toBe('super_admin');
@@ -70,65 +90,99 @@ describe('Auth flow (integration)', () => {
   });
 
   it('response includes x-request-id header', async () => {
-    const res = await app.request('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
-      body: JSON.stringify({ username: 'bob', password: 'TestPass123!' }),
-    }, env);
+    const res = await app.request(
+      '/api/auth/register',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
+        body: JSON.stringify({ username: 'bob', password: 'TestPass123!' }),
+      },
+      env,
+    );
     expect(res.status).toBe(200);
     expect(res.headers.get('x-request-id')).toBeTruthy();
   });
 
   it('logs in with registered credentials', async () => {
-    await app.request('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
-      body: JSON.stringify({ username: 'carol', password: 'TestPass123!' }),
-    }, env);
+    await app.request(
+      '/api/auth/register',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
+        body: JSON.stringify({ username: 'carol', password: 'TestPass123!' }),
+      },
+      env,
+    );
 
-    const res = await app.request('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
-      body: JSON.stringify({ username: 'carol', password: 'TestPass123!' }),
-    }, env);
+    const res = await app.request(
+      '/api/auth/login',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
+        body: JSON.stringify({ username: 'carol', password: 'TestPass123!' }),
+      },
+      env,
+    );
     expect(res.status).toBe(200);
     expect(res.headers.get('set-cookie')).toContain('omnidrive_sid=');
   });
 
   it('GET /me returns the logged-in user', async () => {
-    await app.request('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
-      body: JSON.stringify({ username: 'dave', password: 'TestPass123!' }),
-    }, env);
-    const loginRes = await app.request('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
-      body: JSON.stringify({ username: 'dave', password: 'TestPass123!' }),
-    }, env);
+    await app.request(
+      '/api/auth/register',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
+        body: JSON.stringify({ username: 'dave', password: 'TestPass123!' }),
+      },
+      env,
+    );
+    const loginRes = await app.request(
+      '/api/auth/login',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
+        body: JSON.stringify({ username: 'dave', password: 'TestPass123!' }),
+      },
+      env,
+    );
     const cookie = loginRes.headers.get('set-cookie')?.split(';')[0];
 
-    const meRes = await app.request('/api/auth/me', {
-      headers: { Cookie: cookie, Origin: ORIGIN },
-    }, env);
+    const meRes = await app.request(
+      '/api/auth/me',
+      {
+        headers: { Cookie: cookie, Origin: ORIGIN },
+      },
+      env,
+    );
     expect(meRes.status).toBe(200);
-    const meBody = await meRes.json() as { user: { userId: string; username: string; role: string } };
+    const meBody = (await meRes.json()) as {
+      user: { userId: string; username: string; role: string };
+    };
     expect(meBody.user.username).toBe('dave');
     expect(meBody.user.role).toBe('super_admin');
   });
 
   it('rejects login with wrong password', async () => {
-    await app.request('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
-      body: JSON.stringify({ username: 'eve', password: 'TestPass123!' }),
-    }, env);
+    await app.request(
+      '/api/auth/register',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
+        body: JSON.stringify({ username: 'eve', password: 'TestPass123!' }),
+      },
+      env,
+    );
 
-    const res = await app.request('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
-      body: JSON.stringify({ username: 'eve', password: 'WrongPassword!' }),
-    }, env);
+    const res = await app.request(
+      '/api/auth/login',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
+        body: JSON.stringify({ username: 'eve', password: 'WrongPassword!' }),
+      },
+      env,
+    );
     expect(res.status).toBe(401);
   });
 });
@@ -151,28 +205,53 @@ describe('Auth session security (integration)', () => {
     const now = Date.now();
     const sessionId2 = `session-frank-2-${now}`;
     await env.DB.prepare(
-      'INSERT INTO sessions (id, user_id, data, expires_at, touched_at) VALUES (?, ?, ?, ?, ?)'
-    ).bind(sessionId2, user.userId, JSON.stringify({ userId: user.userId, username: 'frank', role: 'super_admin', createdAt: now }), now + 7 * 24 * 60 * 60 * 1000, now).run();
+      'INSERT INTO sessions (id, user_id, data, expires_at, touched_at) VALUES (?, ?, ?, ?, ?)',
+    )
+      .bind(
+        sessionId2,
+        user.userId,
+        JSON.stringify({
+          userId: user.userId,
+          username: 'frank',
+          role: 'super_admin',
+          createdAt: now,
+        }),
+        now + 7 * 24 * 60 * 60 * 1000,
+        now,
+      )
+      .run();
     const cookie2 = `omnidrive_sid=${sessionId2}`;
 
     // Change password using cookie (the "current" session)
-    const changeRes = await app.request('/api/auth/change-password', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Cookie: user.cookie, Origin: ORIGIN },
-      body: JSON.stringify({ currentPassword: 'TestPass123!', newPassword: 'NewPass456!' }),
-    }, env);
+    const changeRes = await app.request(
+      '/api/auth/change-password',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Cookie: user.cookie, Origin: ORIGIN },
+        body: JSON.stringify({ currentPassword: 'TestPass123!', newPassword: 'NewPass456!' }),
+      },
+      env,
+    );
     expect(changeRes.status).toBe(200);
 
     // The other session should be revoked (401)
-    const me1 = await app.request('/api/auth/me', {
-      headers: { Cookie: cookie2, Origin: ORIGIN },
-    }, env);
+    const me1 = await app.request(
+      '/api/auth/me',
+      {
+        headers: { Cookie: cookie2, Origin: ORIGIN },
+      },
+      env,
+    );
     expect(me1.status).toBe(401);
 
     // The current session should still work (200)
-    const me2 = await app.request('/api/auth/me', {
-      headers: { Cookie: user.cookie, Origin: ORIGIN },
-    }, env);
+    const me2 = await app.request(
+      '/api/auth/me',
+      {
+        headers: { Cookie: user.cookie, Origin: ORIGIN },
+      },
+      env,
+    );
     expect(me2.status).toBe(200);
   });
 
@@ -180,11 +259,15 @@ describe('Auth session security (integration)', () => {
   it('change password with wrong current password fails', async () => {
     const user = await insertUserAndSession('grace');
 
-    const res = await app.request('/api/auth/change-password', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Cookie: user.cookie, Origin: ORIGIN },
-      body: JSON.stringify({ currentPassword: 'WrongPassword!', newPassword: 'NewPass456!' }),
-    }, env);
+    const res = await app.request(
+      '/api/auth/change-password',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Cookie: user.cookie, Origin: ORIGIN },
+        body: JSON.stringify({ currentPassword: 'WrongPassword!', newPassword: 'NewPass456!' }),
+      },
+      env,
+    );
     expect(res.status).toBe(401);
   });
 
@@ -192,15 +275,23 @@ describe('Auth session security (integration)', () => {
   it('logout deletes the session', async () => {
     const user = await insertUserAndSession('henry');
 
-    const logoutRes = await app.request('/api/auth/logout', {
-      method: 'POST',
-      headers: { Cookie: user.cookie, Origin: ORIGIN },
-    }, env);
+    const logoutRes = await app.request(
+      '/api/auth/logout',
+      {
+        method: 'POST',
+        headers: { Cookie: user.cookie, Origin: ORIGIN },
+      },
+      env,
+    );
     expect(logoutRes.status).toBe(200);
 
-    const me = await app.request('/api/auth/me', {
-      headers: { Cookie: user.cookie, Origin: ORIGIN },
-    }, env);
+    const me = await app.request(
+      '/api/auth/me',
+      {
+        headers: { Cookie: user.cookie, Origin: ORIGIN },
+      },
+      env,
+    );
     expect(me.status).toBe(401);
   });
 
@@ -212,25 +303,50 @@ describe('Auth session security (integration)', () => {
     const now = Date.now();
     const sessionId2 = `session-ivan-2-${now}`;
     await env.DB.prepare(
-      'INSERT INTO sessions (id, user_id, data, expires_at, touched_at) VALUES (?, ?, ?, ?, ?)'
-    ).bind(sessionId2, user.userId, JSON.stringify({ userId: user.userId, username: 'ivan', role: 'super_admin', createdAt: now }), now + 7 * 24 * 60 * 60 * 1000, now).run();
+      'INSERT INTO sessions (id, user_id, data, expires_at, touched_at) VALUES (?, ?, ?, ?, ?)',
+    )
+      .bind(
+        sessionId2,
+        user.userId,
+        JSON.stringify({
+          userId: user.userId,
+          username: 'ivan',
+          role: 'super_admin',
+          createdAt: now,
+        }),
+        now + 7 * 24 * 60 * 60 * 1000,
+        now,
+      )
+      .run();
     const cookie2 = `omnidrive_sid=${sessionId2}`;
 
-    const revokeRes = await app.request('/api/auth/sessions/revoke', {
-      method: 'POST',
-      headers: { Cookie: user.cookie, Origin: ORIGIN },
-    }, env);
+    const revokeRes = await app.request(
+      '/api/auth/sessions/revoke',
+      {
+        method: 'POST',
+        headers: { Cookie: user.cookie, Origin: ORIGIN },
+      },
+      env,
+    );
     expect(revokeRes.status).toBe(200);
 
     // Both sessions should be revoked
-    const me1 = await app.request('/api/auth/me', {
-      headers: { Cookie: user.cookie, Origin: ORIGIN },
-    }, env);
+    const me1 = await app.request(
+      '/api/auth/me',
+      {
+        headers: { Cookie: user.cookie, Origin: ORIGIN },
+      },
+      env,
+    );
     expect(me1.status).toBe(401);
 
-    const me2 = await app.request('/api/auth/me', {
-      headers: { Cookie: cookie2, Origin: ORIGIN },
-    }, env);
+    const me2 = await app.request(
+      '/api/auth/me',
+      {
+        headers: { Cookie: cookie2, Origin: ORIGIN },
+      },
+      env,
+    );
     expect(me2.status).toBe(401);
   });
 
@@ -239,24 +355,37 @@ describe('Auth session security (integration)', () => {
     // Insert first user directly (bypasses register route's rate limiter)
     const firstHash = await hashPassword('TestPass123!');
     await env.DB.prepare(
-      'INSERT INTO users (id, username, password_hash, is_super_admin) VALUES (?, ?, ?, ?)'
-    ).bind('user-first', 'first', firstHash, 1).run();
+      'INSERT INTO users (id, username, password_hash, is_super_admin) VALUES (?, ?, ?, ?)',
+    )
+      .bind('user-first', 'first', firstHash, 1)
+      .run();
 
     // Create an invitation code
     await env.DB.prepare(
-      'INSERT INTO invitation_codes (id, code, created_by, max_uses, used_count) VALUES (?, ?, ?, ?, ?)'
-    ).bind('inv-1', 'TESTCODE123456', 'user-first', 1, 0).run();
+      'INSERT INTO invitation_codes (id, code, created_by, max_uses, used_count) VALUES (?, ?, ?, ?, ?)',
+    )
+      .bind('inv-1', 'TESTCODE123456', 'user-first', 1, 0)
+      .run();
 
-    const res = await app.request('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
-      body: JSON.stringify({ username: 'second', password: 'TestPass123!', invitation_code: 'TESTCODE123456' }),
-    }, env);
+    const res = await app.request(
+      '/api/auth/register',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
+        body: JSON.stringify({
+          username: 'second',
+          password: 'TestPass123!',
+          invitation_code: 'TESTCODE123456',
+        }),
+      },
+      env,
+    );
     expect(res.status).toBe(200);
 
     // Verify the code was consumed (used_count = 1)
     const code = await env.DB.prepare('SELECT used_count FROM invitation_codes WHERE code = ?')
-      .bind('TESTCODE123456').first<{ used_count: number }>();
+      .bind('TESTCODE123456')
+      .first<{ used_count: number }>();
     expect(code?.used_count).toBe(1);
   });
 
@@ -264,19 +393,31 @@ describe('Auth session security (integration)', () => {
   it('register with exhausted invitation code fails', async () => {
     const firstHash = await hashPassword('TestPass123!');
     await env.DB.prepare(
-      'INSERT INTO users (id, username, password_hash, is_super_admin) VALUES (?, ?, ?, ?)'
-    ).bind('user-first2', 'first2', firstHash, 1).run();
+      'INSERT INTO users (id, username, password_hash, is_super_admin) VALUES (?, ?, ?, ?)',
+    )
+      .bind('user-first2', 'first2', firstHash, 1)
+      .run();
 
     // Create an invitation code with max_uses = 1, already used once
     await env.DB.prepare(
-      'INSERT INTO invitation_codes (id, code, created_by, max_uses, used_count) VALUES (?, ?, ?, ?, ?)'
-    ).bind('inv-2', 'EXHAUSTEDCODE1', 'user-first2', 1, 1).run();
+      'INSERT INTO invitation_codes (id, code, created_by, max_uses, used_count) VALUES (?, ?, ?, ?, ?)',
+    )
+      .bind('inv-2', 'EXHAUSTEDCODE1', 'user-first2', 1, 1)
+      .run();
 
-    const res = await app.request('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
-      body: JSON.stringify({ username: 'second2', password: 'TestPass123!', invitation_code: 'EXHAUSTEDCODE1' }),
-    }, env);
+    const res = await app.request(
+      '/api/auth/register',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
+        body: JSON.stringify({
+          username: 'second2',
+          password: 'TestPass123!',
+          invitation_code: 'EXHAUSTEDCODE1',
+        }),
+      },
+      env,
+    );
     expect(res.status).toBe(400);
   });
 });
@@ -295,13 +436,23 @@ describe('Admin delete user — last-super-admin protection (integration)', () =
     const userId = `user-${username}`;
     const passwordHash = await hashPassword('TestPass123!');
     await env.DB.prepare(
-      'INSERT INTO users (id, username, password_hash, is_super_admin) VALUES (?, ?, ?, ?)'
-    ).bind(userId, username, passwordHash, 1).run();
+      'INSERT INTO users (id, username, password_hash, is_super_admin) VALUES (?, ?, ?, ?)',
+    )
+      .bind(userId, username, passwordHash, 1)
+      .run();
     const now = Date.now();
     const sessionId = `session-${username}-${now}`;
     await env.DB.prepare(
-      'INSERT INTO sessions (id, user_id, data, expires_at, touched_at) VALUES (?, ?, ?, ?, ?)'
-    ).bind(sessionId, userId, JSON.stringify({ userId, username, role: 'super_admin', createdAt: now }), now + 7 * 24 * 60 * 60 * 1000, now).run();
+      'INSERT INTO sessions (id, user_id, data, expires_at, touched_at) VALUES (?, ?, ?, ?, ?)',
+    )
+      .bind(
+        sessionId,
+        userId,
+        JSON.stringify({ userId, username, role: 'super_admin', createdAt: now }),
+        now + 7 * 24 * 60 * 60 * 1000,
+        now,
+      )
+      .run();
     return { userId, cookie: `omnidrive_sid=${sessionId}` };
   }
 
@@ -310,28 +461,38 @@ describe('Admin delete user — last-super-admin protection (integration)', () =
     const userId = `user-${username}`;
     const passwordHash = await hashPassword('TestPass123!');
     await env.DB.prepare(
-      'INSERT INTO users (id, username, password_hash, is_super_admin) VALUES (?, ?, ?, ?)'
-    ).bind(userId, username, passwordHash, 0).run();
+      'INSERT INTO users (id, username, password_hash, is_super_admin) VALUES (?, ?, ?, ?)',
+    )
+      .bind(userId, username, passwordHash, 0)
+      .run();
     return userId;
   }
 
   it('self-delete guard: admin cannot delete their own account', async () => {
     const alice = await insertAdmin('alice');
-    const res = await app.request(`/api/admin/users/${alice.userId}`, {
-      method: 'DELETE',
-      headers: { Cookie: alice.cookie, Origin: ORIGIN },
-    }, env);
+    const res = await app.request(
+      `/api/admin/users/${alice.userId}`,
+      {
+        method: 'DELETE',
+        headers: { Cookie: alice.cookie, Origin: ORIGIN },
+      },
+      env,
+    );
     expect(res.status).toBe(400);
-    expect((await res.json() as { error: string }).error).toContain('own account');
+    expect(((await res.json()) as { error: string }).error).toContain('own account');
   });
 
   it('admin can delete another super admin when >1 remain', async () => {
     const alice = await insertAdmin('alice');
     const bob = await insertAdmin('bob');
-    const res = await app.request(`/api/admin/users/${bob.userId}`, {
-      method: 'DELETE',
-      headers: { Cookie: alice.cookie, Origin: ORIGIN },
-    }, env);
+    const res = await app.request(
+      `/api/admin/users/${bob.userId}`,
+      {
+        method: 'DELETE',
+        headers: { Cookie: alice.cookie, Origin: ORIGIN },
+      },
+      env,
+    );
     expect(res.status).toBe(200);
   });
 
@@ -341,27 +502,39 @@ describe('Admin delete user — last-super-admin protection (integration)', () =
     const alice = await insertAdmin('alice');
     const bob = await insertAdmin('bob');
     // Alice deletes bob (2→1, allowed)
-    await app.request(`/api/admin/users/${bob.userId}`, {
-      method: 'DELETE',
-      headers: { Cookie: alice.cookie, Origin: ORIGIN },
-    }, env);
+    await app.request(
+      `/api/admin/users/${bob.userId}`,
+      {
+        method: 'DELETE',
+        headers: { Cookie: alice.cookie, Origin: ORIGIN },
+      },
+      env,
+    );
     // Now alice is the only super admin. Insert a 2nd admin (carol) to delete alice.
     const carol = await insertAdmin('carol');
     // Carol deletes alice (2→1, allowed)
-    const res = await app.request(`/api/admin/users/${alice.userId}`, {
-      method: 'DELETE',
-      headers: { Cookie: carol.cookie, Origin: ORIGIN },
-    }, env);
+    const res = await app.request(
+      `/api/admin/users/${alice.userId}`,
+      {
+        method: 'DELETE',
+        headers: { Cookie: carol.cookie, Origin: ORIGIN },
+      },
+      env,
+    );
     expect(res.status).toBe(200);
   });
 
   it('admin can delete a non-admin member (last-admin guard does not apply)', async () => {
     const alice = await insertAdmin('alice');
     const frankId = await insertMember('frank');
-    const res = await app.request(`/api/admin/users/${frankId}`, {
-      method: 'DELETE',
-      headers: { Cookie: alice.cookie, Origin: ORIGIN },
-    }, env);
+    const res = await app.request(
+      `/api/admin/users/${frankId}`,
+      {
+        method: 'DELETE',
+        headers: { Cookie: alice.cookie, Origin: ORIGIN },
+      },
+      env,
+    );
     expect(res.status).toBe(200);
   });
 });

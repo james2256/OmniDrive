@@ -44,18 +44,24 @@ export default tseslint.config(
     rules: {
       // ── TypeScript ────────────────────────────────────────
       '@typescript-eslint/no-explicit-any': 'warn',
-      '@typescript-eslint/no-unused-vars': ['warn', {
-        argsIgnorePattern: '^_',
-        varsIgnorePattern: '^_',
-        destructuredArrayIgnorePattern: '^_',
-      }],
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          destructuredArrayIgnorePattern: '^_',
+        },
+      ],
       '@typescript-eslint/no-non-null-assertion': 'warn',
       '@typescript-eslint/ban-ts-comment': ['warn', { minimumDescriptionLength: 5 }],
       '@typescript-eslint/prefer-as-const': 'warn',
-      '@typescript-eslint/consistent-type-imports': ['warn', {
-        prefer: 'type-imports',
-        fixStyle: 'inline-type-imports',
-      }],
+      '@typescript-eslint/consistent-type-imports': [
+        'warn',
+        {
+          prefer: 'type-imports',
+          fixStyle: 'inline-type-imports',
+        },
+      ],
 
       // ── General JS ────────────────────────────────────────
       eqeqeq: ['warn', 'always', { null: 'ignore' }],
@@ -123,10 +129,14 @@ export default tseslint.config(
       'packages/web/src/components/workspaces/*Dialog*.tsx',
     ],
     rules: {
-      'no-restricted-syntax': ['error', {
-        selector: "JSXOpeningElement[name.name='button']",
-        message: 'Use <Button> from components/ui/Button instead of raw <button>. If this is a truly custom button (folder picker row, breadcrumb link, password toggle), add an eslint-disable-next-line comment.',
-      }],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "JSXOpeningElement[name.name='button']",
+          message:
+            'Use <Button> from components/ui/Button instead of raw <button>. If this is a truly custom button (folder picker row, breadcrumb link, password toggle), add an eslint-disable-next-line comment.',
+        },
+      ],
     },
   },
 

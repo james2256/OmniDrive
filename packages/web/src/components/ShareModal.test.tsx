@@ -30,7 +30,12 @@ vi.mock('lucide-react', () => ({
 
 vi.mock('./ui/dialog', () => ({
   Dialog: ({ open, children, onOpenChange }: any) =>
-    open ? <div data-testid="dialog"><button data-testid="dialog-backdrop" onClick={() => onOpenChange?.(false)} />{children}</div> : null,
+    open ? (
+      <div data-testid="dialog">
+        <button data-testid="dialog-backdrop" onClick={() => onOpenChange?.(false)} />
+        {children}
+      </div>
+    ) : null,
   DialogContent: ({ children }: any) => <div>{children}</div>,
   DialogHeader: ({ children }: any) => <div>{children}</div>,
   DialogBody: ({ children }: any) => <div>{children}</div>,
@@ -49,9 +54,7 @@ describe('ShareModal', () => {
   it('submits form with correct payload and displays generated URL', async () => {
     (createSharedLink as Mock).mockResolvedValue({ url: 'https://example.com/s/abc123' });
 
-    render(
-      <ShareModal open targetType="file" targetId="file-1" onClose={vi.fn()} />
-    );
+    render(<ShareModal open targetType="file" targetId="file-1" onClose={vi.fn()} />);
 
     // Fill password
     fireEvent.change(screen.getByPlaceholderText('Leave blank for no password'), {
@@ -82,9 +85,7 @@ describe('ShareModal', () => {
   it('displays error message when API call fails', async () => {
     (createSharedLink as Mock).mockRejectedValue(new Error('Rate limit exceeded'));
 
-    render(
-      <ShareModal open targetType="folder" targetId="folder-1" onClose={vi.fn()} />
-    );
+    render(<ShareModal open targetType="folder" targetId="folder-1" onClose={vi.fn()} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Create Link' }));
 
@@ -96,9 +97,7 @@ describe('ShareModal', () => {
   it('shows copy button and toggles to check icon after copying', async () => {
     (createSharedLink as Mock).mockResolvedValue({ url: 'https://example.com/s/xyz' });
 
-    render(
-      <ShareModal open targetType="file" targetId="file-1" onClose={vi.fn()} />
-    );
+    render(<ShareModal open targetType="file" targetId="file-1" onClose={vi.fn()} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Create Link' }));
 
@@ -124,9 +123,7 @@ describe('ShareModal', () => {
   it('sends advanced settings when expanded and filled', async () => {
     (createSharedLink as Mock).mockResolvedValue({ url: 'https://example.com/s/adv' });
 
-    render(
-      <ShareModal open targetType="file" targetId="file-1" onClose={vi.fn()} />
-    );
+    render(<ShareModal open targetType="file" targetId="file-1" onClose={vi.fn()} />);
 
     // Expand advanced
     fireEvent.click(screen.getByText('Advanced'));

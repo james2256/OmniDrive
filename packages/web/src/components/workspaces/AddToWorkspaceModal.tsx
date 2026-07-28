@@ -2,7 +2,14 @@ import { useState, useEffect } from 'react';
 import { api } from '../../lib/api';
 import type { WorkspaceFolder, FileEntry } from '../../types';
 import { Folder } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogTitle } from '../ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogBody,
+  DialogFooter,
+  DialogTitle,
+} from '../ui/dialog';
 import { Button } from '../ui/Button';
 
 interface Props {
@@ -19,7 +26,7 @@ export function AddToWorkspaceModal({ open, file, onClose, onSuccess }: Props) {
   useEffect(() => {
     if (open) {
       setSelectedId(null);
-      api.getWorkspaceTree().then(res => setFolders(res.folders));
+      api.getWorkspaceTree().then((res) => setFolders(res.folders));
     }
   }, [open]);
 
@@ -41,7 +48,7 @@ export function AddToWorkspaceModal({ open, file, onClose, onSuccess }: Props) {
         </DialogHeader>
         <DialogBody>
           <div className="overflow-y-auto flex-1 space-y-1.5 max-h-[50vh]">
-            {folders.map(folder => (
+            {folders.map((folder) => (
               // eslint-disable-next-line no-restricted-syntax -- folder picker row (custom list item, not an action button)
               <button
                 key={folder.id}
@@ -55,8 +62,12 @@ export function AddToWorkspaceModal({ open, file, onClose, onSuccess }: Props) {
           </div>
         </DialogBody>
         <DialogFooter>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleAdd} disabled={!selectedId}>Add</Button>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={handleAdd} disabled={!selectedId}>
+            Add
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

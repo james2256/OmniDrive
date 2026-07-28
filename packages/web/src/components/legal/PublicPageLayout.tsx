@@ -12,7 +12,13 @@ export function PublicPageLayout({ title, children }: PublicPageLayoutProps) {
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4 sm:px-6">
           <Link to="/home" className="flex items-center gap-2.5 text-slate-900 hover:opacity-80">
             <img src="/logo.svg" alt="OmniDrive" className="w-10 h-auto sm:w-14 object-contain" />
-            <img src="/logowordmark.svg" alt="" aria-hidden="true" decoding="async" className="h-5 sm:h-6 w-auto" />
+            <img
+              src="/logowordmark.svg"
+              alt=""
+              aria-hidden="true"
+              decoding="async"
+              className="h-5 sm:h-6 w-auto"
+            />
           </Link>
           <Link
             to="/login"
@@ -32,9 +38,15 @@ export function PublicPageLayout({ title, children }: PublicPageLayoutProps) {
         <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-4 px-4 py-6 text-sm text-slate-600 sm:px-6">
           <p>© {new Date().getFullYear()} OmniDrive</p>
           <nav className="flex flex-wrap gap-4" aria-label="Legal">
-            <Link to="/home" className="underline hover:text-slate-900">Home</Link>
-            <Link to="/privacy" className="underline hover:text-slate-900">Privacy Policy</Link>
-            <Link to="/terms" className="underline hover:text-slate-900">Terms of Service</Link>
+            <Link to="/home" className="underline hover:text-slate-900">
+              Home
+            </Link>
+            <Link to="/privacy" className="underline hover:text-slate-900">
+              Privacy Policy
+            </Link>
+            <Link to="/terms" className="underline hover:text-slate-900">
+              Terms of Service
+            </Link>
           </nav>
         </div>
       </footer>

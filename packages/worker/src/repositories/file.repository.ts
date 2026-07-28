@@ -18,8 +18,7 @@ export class FileRepository {
   // ─── Reads ───
 
   findById(fileId: string): Promise<FileRow | null> {
-    return this.db.prepare('SELECT * FROM files WHERE id = ?')
-      .bind(fileId).first<FileRow>();
+    return this.db.prepare('SELECT * FROM files WHERE id = ?').bind(fileId).first<FileRow>();
   }
 
   /**
@@ -35,7 +34,9 @@ export class FileRepository {
    * the correct syntax for per-branch LIMIT.
    */
   findRecent(userId: string, limit = 20) {
-    return this.db.prepare(`
+    return this.db
+      .prepare(
+        `
       WITH branch1 AS (
         SELECT f.*, d.email as driveEmail
         FROM files f JOIN drive_accounts d ON f.drive_account_id = d.id
@@ -54,17 +55,25 @@ export class FileRepository {
       SELECT * FROM (SELECT * FROM branch1 UNION SELECT * FROM branch2)
       ORDER BY COALESCE(google_modified_at, synced_at, updated_at) DESC
       LIMIT ?
-    `).bind(userId, limit, userId, limit, limit).all();
+    `,
+      )
+      .bind(userId, limit, userId, limit, limit)
+      .all();
   }
 
   /** Find files grouped by mime_type for category overview. */
   findCategoryOverview(userId: string) {
-    return this.db.prepare(`
+    return this.db
+      .prepare(
+        `
       SELECT mime_type, SUM(size) as total_size
       FROM files
       WHERE user_id = ? AND is_trashed = 0
       GROUP BY mime_type
-    `).bind(userId).all<{ mime_type: string; total_size: number }>();
+    `,
+      )
+      .bind(userId)
+      .all<{ mime_type: string; total_size: number }>();
   }
 
   /**
@@ -77,13 +86,17 @@ export class FileRepository {
    */
   static readonly CATEGORY_CACHE_TTL_MS = 5 * 60 * 1000;
 
-  async getCategoryOverviewCached(userId: string): Promise<{ results: { mime_type: string; total_size: number }[] }> {
+  async getCategoryOverviewCached(
+    userId: string,
+  ): Promise<{ results: { mime_type: string; total_size: number }[] }> {
     const cacheRow = await this.db
       .prepare('SELECT payload, updated_at FROM category_cache WHERE user_id = ?')
       .bind(userId)
       .first<{ payload: string; updated_at: number }>();
     if (cacheRow && Date.now() - cacheRow.updated_at < FileRepository.CATEGORY_CACHE_TTL_MS) {
-      return { results: JSON.parse(cacheRow.payload) as { mime_type: string; total_size: number }[] };
+      return {
+        results: JSON.parse(cacheRow.payload) as { mime_type: string; total_size: number }[],
+      };
     }
 
     const { results } = await this.findCategoryOverview(userId);
@@ -91,7 +104,7 @@ export class FileRepository {
     await this.db
       .prepare(
         'INSERT INTO category_cache (user_id, payload, updated_at) VALUES (?, ?, ?) ' +
-          'ON CONFLICT(user_id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at'
+          'ON CONFLICT(user_id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at',
       )
       .bind(userId, JSON.stringify(results), Date.now())
       .run();
@@ -158,32 +171,44 @@ export class FileRepository {
     `;
     const binds: (string | number)[] = [userId, ...filterBinds, userId, ...filterBinds, limit];
 
-    const { results } = await this.db.prepare(sql).bind(...binds).all();
+    const { results } = await this.db
+      .prepare(sql)
+      .bind(...binds)
+      .all();
     return { results };
   }
 
   /** Find starred files for a user. */
   findStarred(userId: string) {
-    return this.db.prepare(
-      'SELECT f.*, d.email as driveEmail FROM files f JOIN drive_accounts d ON f.drive_account_id = d.id WHERE f.user_id = ? AND f.is_starred = 1 AND f.is_trashed = 0 ORDER BY f.created_at DESC'
-    ).bind(userId).all();
+    return this.db
+      .prepare(
+        'SELECT f.*, d.email as driveEmail FROM files f JOIN drive_accounts d ON f.drive_account_id = d.id WHERE f.user_id = ? AND f.is_starred = 1 AND f.is_trashed = 0 ORDER BY f.created_at DESC',
+      )
+      .bind(userId)
+      .all();
   }
 
   /** Find trashed files for a user. */
   findTrashed(userId: string) {
-    return this.db.prepare(
-      `SELECT f.*, d.email as driveEmail FROM files f
+    return this.db
+      .prepare(
+        `SELECT f.*, d.email as driveEmail FROM files f
        JOIN drive_accounts d ON f.drive_account_id = d.id
        WHERE f.user_id = ? AND f.is_trashed = 1
-       ORDER BY f.updated_at DESC`
-    ).bind(userId).all();
+       ORDER BY f.updated_at DESC`,
+      )
+      .bind(userId)
+      .all();
   }
 
   /** Find a file with drive email + source drive ID for move-drive operation. */
   findForMoveDrive(fileId: string, userId: string) {
-    return this.db.prepare(
-      `SELECT f.*, d.email as driveEmail, d.id as sourceDriveId FROM files f JOIN drive_accounts d ON f.drive_account_id = d.id WHERE f.id = ? AND f.user_id = ?`
-    ).bind(fileId, userId).first();
+    return this.db
+      .prepare(
+        `SELECT f.*, d.email as driveEmail, d.id as sourceDriveId FROM files f JOIN drive_accounts d ON f.drive_account_id = d.id WHERE f.id = ? AND f.user_id = ?`,
+      )
+      .bind(fileId, userId)
+      .first();
   }
 
   /** Insert an uploaded file. Returns the created file row. */
@@ -204,64 +229,103 @@ export class FileRepository {
     googleCreatedAt: string | null;
     googleModifiedAt: string | null;
   }): Promise<unknown> {
-    await this.db.prepare(`
+    await this.db
+      .prepare(
+        `
       INSERT INTO files (id, user_id, drive_account_id, workspace_id, workspace_folder_id, google_file_id, google_parent_id, name, mime_type, size, thumbnail_url, web_view_link, web_content_link, google_created_at, google_modified_at, synced_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-    `).bind(
-      params.id, params.userId, params.driveAccountId, params.workspaceId, params.workspaceFolderId,
-      params.googleFileId, params.googleParentId, params.name, params.mimeType, params.size,
-      params.thumbnailUrl, params.webViewLink, params.webContentLink,
-      params.googleCreatedAt, params.googleModifiedAt,
-    ).run();
+    `,
+      )
+      .bind(
+        params.id,
+        params.userId,
+        params.driveAccountId,
+        params.workspaceId,
+        params.workspaceFolderId,
+        params.googleFileId,
+        params.googleParentId,
+        params.name,
+        params.mimeType,
+        params.size,
+        params.thumbnailUrl,
+        params.webViewLink,
+        params.webContentLink,
+        params.googleCreatedAt,
+        params.googleModifiedAt,
+      )
+      .run();
     return this.db.prepare('SELECT * FROM files WHERE id = ?').bind(params.id).first();
   }
 
   // ─── Mutations ───
 
   markTrashed(fileId: string, userId: string) {
-    return this.db.prepare('UPDATE files SET is_trashed = 1 WHERE id = ? AND user_id = ?')
-      .bind(fileId, userId).run();
+    return this.db
+      .prepare('UPDATE files SET is_trashed = 1 WHERE id = ? AND user_id = ?')
+      .bind(fileId, userId)
+      .run();
   }
 
   markUntrashed(fileId: string, userId: string) {
-    return this.db.prepare('UPDATE files SET is_trashed = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?')
-      .bind(fileId, userId).run();
+    return this.db
+      .prepare(
+        'UPDATE files SET is_trashed = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?',
+      )
+      .bind(fileId, userId)
+      .run();
   }
 
   rename(fileId: string, userId: string, name: string) {
-    return this.db.prepare('UPDATE files SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?')
-      .bind(name, fileId, userId).run();
+    return this.db
+      .prepare(
+        'UPDATE files SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?',
+      )
+      .bind(name, fileId, userId)
+      .run();
   }
 
   async star(fileId: string, userId: string): Promise<boolean> {
-    const { meta } = await this.db.prepare('UPDATE files SET is_starred = 1 WHERE id = ? AND user_id = ?')
-      .bind(fileId, userId).run();
+    const { meta } = await this.db
+      .prepare('UPDATE files SET is_starred = 1 WHERE id = ? AND user_id = ?')
+      .bind(fileId, userId)
+      .run();
     return meta.changes > 0;
   }
 
   async unstar(fileId: string, userId: string): Promise<boolean> {
-    const { meta } = await this.db.prepare('UPDATE files SET is_starred = 0 WHERE id = ? AND user_id = ?')
-      .bind(fileId, userId).run();
+    const { meta } = await this.db
+      .prepare('UPDATE files SET is_starred = 0 WHERE id = ? AND user_id = ?')
+      .bind(fileId, userId)
+      .run();
     return meta.changes > 0;
   }
 
   delete(fileId: string, userId: string) {
-    return this.db.prepare('DELETE FROM files WHERE id = ? AND user_id = ?')
-      .bind(fileId, userId).run();
+    return this.db
+      .prepare('DELETE FROM files WHERE id = ? AND user_id = ?')
+      .bind(fileId, userId)
+      .run();
   }
 
   updateMetadata(fileId: string, metadata: string) {
-    return this.db.prepare('UPDATE files SET metadata = ? WHERE id = ?')
-      .bind(metadata, fileId).run();
+    return this.db
+      .prepare('UPDATE files SET metadata = ? WHERE id = ?')
+      .bind(metadata, fileId)
+      .run();
   }
 
   moveToWorkspaceFolder(
-    fileId: string, userId: string,
-    workspaceFolderId: string | null, workspaceId: string | null,
+    fileId: string,
+    userId: string,
+    workspaceFolderId: string | null,
+    workspaceId: string | null,
   ) {
-    return this.db.prepare(
-      'UPDATE files SET workspace_folder_id = ?, workspace_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?'
-    ).bind(workspaceFolderId, workspaceId, fileId, userId).run();
+    return this.db
+      .prepare(
+        'UPDATE files SET workspace_folder_id = ?, workspace_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?',
+      )
+      .bind(workspaceFolderId, workspaceId, fileId, userId)
+      .run();
   }
 
   /**
@@ -279,24 +343,34 @@ export class FileRepository {
     for (let i = 0; i < fileIds.length; i += CHUNK_SIZE) {
       const chunk = fileIds.slice(i, i + CHUNK_SIZE);
       const placeholders = chunk.map(() => '?').join(',');
-      await this.db.prepare(
-        `UPDATE files SET workspace_id = ?, workspace_folder_id = ?, updated_at = datetime('now') WHERE user_id = ? AND id IN (${placeholders})`
-      ).bind(workspaceId, workspaceFolderId, userId, ...chunk).run();
+      await this.db
+        .prepare(
+          `UPDATE files SET workspace_id = ?, workspace_folder_id = ?, updated_at = datetime('now') WHERE user_id = ? AND id IN (${placeholders})`,
+        )
+        .bind(workspaceId, workspaceFolderId, userId, ...chunk)
+        .run();
     }
   }
 
   /** Detach all files from a workspace (set workspace_id + workspace_folder_id to NULL). */
   detachFromWorkspace(workspaceId: string) {
-    return this.db.prepare(
-      'UPDATE files SET workspace_id = NULL, workspace_folder_id = NULL WHERE workspace_id = ?'
-    ).bind(workspaceId).run();
+    return this.db
+      .prepare(
+        'UPDATE files SET workspace_id = NULL, workspace_folder_id = NULL WHERE workspace_id = ?',
+      )
+      .bind(workspaceId)
+      .run();
   }
 
   /**
    * Find files in a workspace root (workspace_folder_id IS NULL), with cursor pagination.
    * Returns files with drive email via JOIN. Used by GET /:id? (workspace case).
    */
-  async findFilesInWorkspaceRoot(workspaceId: string, cursor: { name: string; id: string } | null, limit: number) {
+  async findFilesInWorkspaceRoot(
+    workspaceId: string,
+    cursor: { name: string; id: string } | null,
+    limit: number,
+  ) {
     let sql = `
       SELECT f.*, d.email as driveEmail
       FROM files f JOIN drive_accounts d ON f.drive_account_id = d.id
@@ -309,7 +383,10 @@ export class FileRepository {
     }
     sql += ` ORDER BY f.name ASC, f.id ASC LIMIT ?`;
     binds.push(limit + 1);
-    const { results } = await this.db.prepare(sql).bind(...binds).all();
+    const { results } = await this.db
+      .prepare(sql)
+      .bind(...binds)
+      .all();
     return { results };
   }
 
@@ -317,7 +394,11 @@ export class FileRepository {
    * Find files in a workspace folder, with cursor pagination.
    * Returns files with drive email via JOIN. Used by GET /:id? (folder case).
    */
-  async findFilesInFolder(folderId: string, cursor: { name: string; id: string } | null, limit: number) {
+  async findFilesInFolder(
+    folderId: string,
+    cursor: { name: string; id: string } | null,
+    limit: number,
+  ) {
     let sql = `
       SELECT f.*, d.email as driveEmail
       FROM files f JOIN drive_accounts d ON f.drive_account_id = d.id
@@ -330,7 +411,10 @@ export class FileRepository {
     }
     sql += ` ORDER BY f.name ASC, f.id ASC LIMIT ?`;
     binds.push(limit + 1);
-    const { results } = await this.db.prepare(sql).bind(...binds).all();
+    const { results } = await this.db
+      .prepare(sql)
+      .bind(...binds)
+      .all();
     return { results };
   }
 
@@ -341,12 +425,17 @@ export class FileRepository {
    * Used by GET /:id? and POST /:id/force-sync for drive lookup.
    */
   findDriveIdForFolder(folderId: string, userId: string) {
-    return this.db.prepare(`
+    return this.db
+      .prepare(
+        `
       SELECT DISTINCT d.id
       FROM files f
       JOIN drive_accounts d ON f.drive_account_id = d.id
       WHERE (f.workspace_folder_id = ? OR f.workspace_id = ?) AND f.user_id = ? LIMIT 1
-    `).bind(folderId, folderId, userId).first<{ id: string }>();
+    `,
+      )
+      .bind(folderId, folderId, userId)
+      .first<{ id: string }>();
   }
 
   /**
@@ -354,11 +443,14 @@ export class FileRepository {
    * Sets the new drive_account_id, google_file_id, and resets parent to 'root'.
    */
   updateDriveAssignment(fileId: string, driveAccountId: string, googleFileId: string) {
-    return this.db.prepare(
-      `UPDATE files
+    return this.db
+      .prepare(
+        `UPDATE files
        SET drive_account_id = ?, google_file_id = ?, google_parent_id = 'root', updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`
-    ).bind(driveAccountId, googleFileId, fileId).run();
+       WHERE id = ?`,
+      )
+      .bind(driveAccountId, googleFileId, fileId)
+      .run();
   }
 
   static readonly UPSERT_FILE_SQL = `INSERT INTO files
@@ -394,22 +486,24 @@ export class FileRepository {
     googleParentId: string | null,
     ownedByMe: boolean,
   ): D1PreparedStatement {
-    return this.db.prepare(FileRepository.UPSERT_FILE_SQL).bind(
-      generateId(),
-      drive.userId,
-      drive.id,
-      file.id,
-      googleParentId,
-      file.name,
-      file.mimeType,
-      parseInt(file.size ?? '0', 10),
-      file.thumbnailLink ?? null,
-      file.webViewLink ?? null,
-      file.webContentLink ?? null,
-      file.createdTime,
-      file.modifiedTime,
-      ownedByMe ? 1 : 0,
-    );
+    return this.db
+      .prepare(FileRepository.UPSERT_FILE_SQL)
+      .bind(
+        generateId(),
+        drive.userId,
+        drive.id,
+        file.id,
+        googleParentId,
+        file.name,
+        file.mimeType,
+        parseInt(file.size ?? '0', 10),
+        file.thumbnailLink ?? null,
+        file.webViewLink ?? null,
+        file.webContentLink ?? null,
+        file.createdTime,
+        file.modifiedTime,
+        ownedByMe ? 1 : 0,
+      );
   }
 
   async upsertMany(stmts: D1PreparedStatement[]): Promise<void> {

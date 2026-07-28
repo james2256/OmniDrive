@@ -11,10 +11,7 @@ export function QuotaBar({ used, total, color, showLabel = true }: QuotaBarProps
   const percent = total > 0 ? (used / total) * 100 : 0;
   const level = getQuotaLevel(percent);
 
-  const defaultColor =
-    level === 'danger'  ? '#ef4444' :
-    level === 'warning' ? '#f59e0b' :
-    '#2563EB';
+  const defaultColor = level === 'danger' ? '#ef4444' : level === 'warning' ? '#f59e0b' : '#2563EB';
 
   const barColor = color ?? defaultColor;
 

@@ -25,7 +25,11 @@ function getFolderModifiedTime(folder: FolderItem): number {
   return 0;
 }
 
-export function sortFolders(folders: FolderItem[], field: SortField, direction: SortDirection): FolderItem[] {
+export function sortFolders(
+  folders: FolderItem[],
+  field: SortField,
+  direction: SortDirection,
+): FolderItem[] {
   const sorted = [...folders];
   sorted.sort((a, b) => {
     if (field === 'name') return compareStrings(a.name, b.name, direction);
@@ -36,7 +40,11 @@ export function sortFolders(folders: FolderItem[], field: SortField, direction: 
   return sorted;
 }
 
-export function sortFiles(files: FileEntry[], field: SortField, direction: SortDirection): FileEntry[] {
+export function sortFiles(
+  files: FileEntry[],
+  field: SortField,
+  direction: SortDirection,
+): FileEntry[] {
   const sorted = [...files];
   sorted.sort((a, b) => {
     if (field === 'name') return compareStrings(a.name, b.name, direction);

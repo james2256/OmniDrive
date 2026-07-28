@@ -23,29 +23,31 @@ const USER_ID = 'test-user-1';
 
 async function ensureSchema() {
   await env.DB.prepare(
-    `CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, google_id TEXT UNIQUE, email TEXT UNIQUE, name TEXT, avatar_url TEXT, is_super_admin INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')))`
+    `CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, google_id TEXT UNIQUE, email TEXT UNIQUE, name TEXT, avatar_url TEXT, is_super_admin INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')))`,
   ).run();
   await env.DB.prepare(
-    `CREATE TABLE IF NOT EXISTS shared_links (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, target_type TEXT NOT NULL CHECK (target_type IN ('file', 'folder')), target_id TEXT NOT NULL, password_hash TEXT, expires_at TEXT, allow_downloads INTEGER NOT NULL DEFAULT 1, allow_uploads INTEGER NOT NULL DEFAULT 0, max_downloads INTEGER, require_email INTEGER NOT NULL DEFAULT 0, webhook_url TEXT, view_count INTEGER NOT NULL DEFAULT 0, download_count INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')))`
+    `CREATE TABLE IF NOT EXISTS shared_links (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, target_type TEXT NOT NULL CHECK (target_type IN ('file', 'folder')), target_id TEXT NOT NULL, password_hash TEXT, expires_at TEXT, allow_downloads INTEGER NOT NULL DEFAULT 1, allow_uploads INTEGER NOT NULL DEFAULT 0, max_downloads INTEGER, require_email INTEGER NOT NULL DEFAULT 0, webhook_url TEXT, view_count INTEGER NOT NULL DEFAULT 0, download_count INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')))`,
   ).run();
 }
 
 async function createUser() {
-  await env.DB.prepare(
-    'INSERT OR IGNORE INTO users (id, username, password_hash) VALUES (?, ?, ?)'
-  ).bind(USER_ID, 'testuser', 'fakehash').run();
+  await env.DB.prepare('INSERT OR IGNORE INTO users (id, username, password_hash) VALUES (?, ?, ?)')
+    .bind(USER_ID, 'testuser', 'fakehash')
+    .run();
 }
 
 async function createLink(id: string, maxDownloads: number | null) {
   await env.DB.prepare(
-    `INSERT INTO shared_links (id, user_id, target_type, target_id, max_downloads) VALUES (?, ?, 'file', 'file-1', ?)`
-  ).bind(id, USER_ID, maxDownloads).run();
+    `INSERT INTO shared_links (id, user_id, target_type, target_id, max_downloads) VALUES (?, ?, 'file', 'file-1', ?)`,
+  )
+    .bind(id, USER_ID, maxDownloads)
+    .run();
 }
 
 async function getDownloadCount(id: string): Promise<number> {
-  const row = await env.DB.prepare(
-    'SELECT download_count FROM shared_links WHERE id = ?'
-  ).bind(id).first<{ download_count: number }>();
+  const row = await env.DB.prepare('SELECT download_count FROM shared_links WHERE id = ?')
+    .bind(id)
+    .first<{ download_count: number }>();
   return row?.download_count ?? -1;
 }
 

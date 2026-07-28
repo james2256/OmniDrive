@@ -1,5 +1,15 @@
 import { useState } from 'react';
-import { Link as LinkIcon, Folder, Eye, Download, Trash2, Copy, Check, Clock, Settings } from 'lucide-react';
+import {
+  Link as LinkIcon,
+  Folder,
+  Eye,
+  Download,
+  Trash2,
+  Copy,
+  Check,
+  Clock,
+  Settings,
+} from 'lucide-react';
 import { useToastStore } from '../stores/useToastStore';
 import { EditShareModal } from '../components/EditShareModal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -64,12 +74,22 @@ export function SharedLinksPage() {
               <div className="p-4 sm:p-5 border-b border-slate-100 flex-1">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3 overflow-hidden">
-                    <div className={`p-3 rounded-xl flex-shrink-0 text-2xl ${link.targetType === 'folder' ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-50'}`}>
-                      {link.targetType === 'folder' ? <Folder size={24} /> : <FileIcon mimeType={link.targetMimeType} />}
+                    <div
+                      className={`p-3 rounded-xl flex-shrink-0 text-2xl ${link.targetType === 'folder' ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-50'}`}
+                    >
+                      {link.targetType === 'folder' ? (
+                        <Folder size={24} />
+                      ) : (
+                        <FileIcon mimeType={link.targetMimeType} />
+                      )}
                     </div>
                     <div className="min-w-0">
-                      <h3 className="text-slate-900 font-semibold truncate text-lg" title={link.targetName || link.targetId}>
-                        {link.targetName || 'Unknown ' + (link.targetType === 'folder' ? 'Folder' : 'File')}
+                      <h3
+                        className="text-slate-900 font-semibold truncate text-lg"
+                        title={link.targetName || link.targetId}
+                      >
+                        {link.targetName ||
+                          'Unknown ' + (link.targetType === 'folder' ? 'Folder' : 'File')}
                       </h3>
                       <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1">
                         <Clock size={12} />

@@ -47,9 +47,7 @@ export function rateLimiter(opts: RateLimitOptions) {
 
     const key = opts.keyFn
       ? opts.keyFn(c)
-      : c.req.header('CF-Connecting-IP') ??
-        c.req.header('X-Real-IP') ??
-        'unknown';
+      : (c.req.header('CF-Connecting-IP') ?? c.req.header('X-Real-IP') ?? 'unknown');
 
     const now = Date.now();
     const entry = store.map.get(key) ?? { timestamps: [] };
@@ -57,9 +55,7 @@ export function rateLimiter(opts: RateLimitOptions) {
     entry.timestamps = entry.timestamps.filter((t) => now - t < opts.windowMs);
 
     if (entry.timestamps.length >= opts.maxRequests) {
-      const retryAfter = Math.ceil(
-        (entry.timestamps[0] + opts.windowMs - now) / 1000
-      );
+      const retryAfter = Math.ceil((entry.timestamps[0] + opts.windowMs - now) / 1000);
       c.header('Retry-After', String(retryAfter));
       return c.json({ error: 'Too many requests' }, 429);
     }

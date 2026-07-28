@@ -56,6 +56,10 @@ describe('sortFiles', () => {
 describe('sortFolders', () => {
   it('sorts folders by name', () => {
     const folders = [{ name: 'Zeta' }, { name: 'Alpha' }, { name: 'Beta' }];
-    expect(sortFolders(folders, 'name', 'asc').map((f) => f.name)).toEqual(['Alpha', 'Beta', 'Zeta']);
+    expect(sortFolders(folders, 'name', 'asc').map((f) => f.name)).toEqual([
+      'Alpha',
+      'Beta',
+      'Zeta',
+    ]);
   });
 });

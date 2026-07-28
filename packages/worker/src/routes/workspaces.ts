@@ -28,15 +28,21 @@ workspacesRouter.post('/', zValidator('json', createWorkspaceSchema, zodErrorHoo
 });
 
 // POST /:id/members — add a member (manager + role-escalation check)
-workspacesRouter.post('/:id/members', zValidator('json', addWorkspaceMemberSchema, zodErrorHook), async (c) => {
-  const { email, role } = c.req.valid('json');
-  await c.get('workspaceService').addMember(c.get('userId'), c.req.param('id'), email, role);
-  return c.json({ success: true }, 201);
-});
+workspacesRouter.post(
+  '/:id/members',
+  zValidator('json', addWorkspaceMemberSchema, zodErrorHook),
+  async (c) => {
+    const { email, role } = c.req.valid('json');
+    await c.get('workspaceService').addMember(c.get('userId'), c.req.param('id'), email, role);
+    return c.json({ success: true }, 201);
+  },
+);
 
 // DELETE /:id/members/:targetUserId — remove a member (self-removal + manager + owner-removal + last-owner checks)
 workspacesRouter.delete('/:id/members/:targetUserId', async (c) => {
-  await c.get('workspaceService').removeMember(c.get('userId'), c.req.param('id'), c.req.param('targetUserId'));
+  await c
+    .get('workspaceService')
+    .removeMember(c.get('userId'), c.req.param('id'), c.req.param('targetUserId'));
   return c.json({ success: true });
 });
 
@@ -53,23 +59,40 @@ workspacesRouter.get('/:id/policies', async (c) => {
 });
 
 // POST /:id/policies — manager required
-workspacesRouter.post('/:id/policies', zValidator('json', workspacePolicySchema, zodErrorHook), async (c) => {
-  const { targetType, targetId, policyType, config } = c.req.valid('json');
-  const policy = await c.get('workspaceService').createPolicy(c.get('userId'), c.req.param('id'), {
-    targetType, targetId: targetId || null, policyType, config,
-  });
-  return c.json({ policy }, 201);
-});
+workspacesRouter.post(
+  '/:id/policies',
+  zValidator('json', workspacePolicySchema, zodErrorHook),
+  async (c) => {
+    const { targetType, targetId, policyType, config } = c.req.valid('json');
+    const policy = await c
+      .get('workspaceService')
+      .createPolicy(c.get('userId'), c.req.param('id'), {
+        targetType,
+        targetId: targetId || null,
+        policyType,
+        config,
+      });
+    return c.json({ policy }, 201);
+  },
+);
 
 // DELETE /:id/policies/:policyId — manager required
 workspacesRouter.delete('/:id/policies/:policyId', async (c) => {
-  await c.get('workspaceService').deletePolicy(c.get('userId'), c.req.param('id'), c.req.param('policyId'));
+  await c
+    .get('workspaceService')
+    .deletePolicy(c.get('userId'), c.req.param('id'), c.req.param('policyId'));
   return c.json({ success: true });
 });
 
 // PATCH /:id/folders/:folderId/metadata — editor required
-workspacesRouter.patch('/:id/folders/:folderId/metadata', zValidator('json', updateWorkspaceMetadataSchema, zodErrorHook), async (c) => {
-  const { metadata } = c.req.valid('json');
-  await c.get('workspaceService').updateFolderMetadata(c.get('userId'), c.req.param('id'), c.req.param('folderId'), metadata);
-  return c.json({ success: true });
-});
+workspacesRouter.patch(
+  '/:id/folders/:folderId/metadata',
+  zValidator('json', updateWorkspaceMetadataSchema, zodErrorHook),
+  async (c) => {
+    const { metadata } = c.req.valid('json');
+    await c
+      .get('workspaceService')
+      .updateFolderMetadata(c.get('userId'), c.req.param('id'), c.req.param('folderId'), metadata);
+    return c.json({ success: true });
+  },
+);

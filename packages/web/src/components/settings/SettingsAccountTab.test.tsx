@@ -36,7 +36,9 @@ describe('SettingsAccountTab', () => {
 
     fireEvent.change(screen.getByLabelText('Current password'), { target: { value: 'OldPass1!' } });
     fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'NewPass1!' } });
-    fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'Different1!' } });
+    fireEvent.change(screen.getByLabelText('Confirm new password'), {
+      target: { value: 'Different1!' },
+    });
 
     fireEvent.click(screen.getByRole('button', { name: /change password/i }));
 
@@ -51,7 +53,9 @@ describe('SettingsAccountTab', () => {
 
     fireEvent.change(screen.getByLabelText('Current password'), { target: { value: 'OldPass1!' } });
     fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'NewPass1!' } });
-    fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'NewPass1!' } });
+    fireEvent.change(screen.getByLabelText('Confirm new password'), {
+      target: { value: 'NewPass1!' },
+    });
 
     fireEvent.click(screen.getByRole('button', { name: /change password/i }));
 
@@ -59,7 +63,10 @@ describe('SettingsAccountTab', () => {
       expect(api.changePassword).toHaveBeenCalledWith('OldPass1!', 'NewPass1!');
     });
 
-    expect(addToast).toHaveBeenCalledWith('success', 'Password updated. Other sessions were signed out.');
+    expect(addToast).toHaveBeenCalledWith(
+      'success',
+      'Password updated. Other sessions were signed out.',
+    );
 
     // Fields cleared after success
     expect((screen.getByLabelText('Current password') as HTMLInputElement).value).toBe('');
@@ -72,9 +79,13 @@ describe('SettingsAccountTab', () => {
 
     render(<SettingsAccountTab />);
 
-    fireEvent.change(screen.getByLabelText('Current password'), { target: { value: 'WrongPass1!' } });
+    fireEvent.change(screen.getByLabelText('Current password'), {
+      target: { value: 'WrongPass1!' },
+    });
     fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'NewPass1!' } });
-    fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'NewPass1!' } });
+    fireEvent.change(screen.getByLabelText('Confirm new password'), {
+      target: { value: 'NewPass1!' },
+    });
 
     fireEvent.click(screen.getByRole('button', { name: /change password/i }));
 

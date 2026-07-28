@@ -51,7 +51,9 @@ export const useUploadStore = create<UploadState>((set, get) => ({
       try {
         // Update status
         set((state) => ({
-          queue: state.queue.map((q) => (q.id === item.id ? { ...q, status: 'uploading' as const } : q)),
+          queue: state.queue.map((q) =>
+            q.id === item.id ? { ...q, status: 'uploading' as const } : q,
+          ),
         }));
 
         // 1. Initiate upload — get resumable URL from Worker
@@ -72,7 +74,9 @@ export const useUploadStore = create<UploadState>((set, get) => ({
 
         // 3. Confirm upload with Worker
         set((state) => ({
-          queue: state.queue.map((q) => (q.id === item.id ? { ...q, status: 'confirming' as const, progress: 100 } : q)),
+          queue: state.queue.map((q) =>
+            q.id === item.id ? { ...q, status: 'confirming' as const, progress: 100 } : q,
+          ),
         }));
 
         await api.confirmUpload({
@@ -87,7 +91,9 @@ export const useUploadStore = create<UploadState>((set, get) => ({
       } catch (err) {
         set((state) => ({
           queue: state.queue.map((q) =>
-            q.id === item.id ? { ...q, status: 'error' as const, error: (err as Error).message } : q
+            q.id === item.id
+              ? { ...q, status: 'error' as const, error: (err as Error).message }
+              : q,
           ),
         }));
       }
@@ -98,4 +104,3 @@ export const useUploadStore = create<UploadState>((set, get) => ({
 
   setShowModal: (show: boolean) => set({ showModal: show }),
 }));
-

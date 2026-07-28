@@ -59,7 +59,7 @@ export class GoogleDriveService {
     private db: D1Database,
     private clientId: string,
     private clientSecret: string,
-    encryptionKey?: string
+    encryptionKey?: string,
   ) {
     this.encryptionKey = encryptionKey;
   }
@@ -97,9 +97,13 @@ export class GoogleDriveService {
   // ─── Token Management ───
 
   private async loadTokens(driveAccountId: string): Promise<OAuthTokens> {
-    const row = await this.db.prepare('SELECT encrypted_tokens FROM drive_tokens WHERE drive_account_id = ?')
-      .bind(driveAccountId).first<{ encrypted_tokens: string }>();
-    if (!row?.encrypted_tokens) throw new NotFoundError(`No tokens found for drive ${driveAccountId}`);
+    const row = await this.db
+      .prepare('SELECT encrypted_tokens FROM drive_tokens WHERE drive_account_id = ?')
+      .bind(driveAccountId)
+      .first<{ encrypted_tokens: string }>();
+    if (!row?.encrypted_tokens) {
+      throw new NotFoundError(`No tokens found for drive ${driveAccountId}`);
+    }
 
     let tokensJson = row.encrypted_tokens;
     if (this.encryptionKey) {
@@ -120,22 +124,34 @@ export class GoogleDriveService {
     const tokens = await this.loadTokens(driveAccountId);
     if (tokens.authType === 'service_account' && tokens.serviceAccount) {
       if (tokens.expiresAt > Date.now() + 60_000) {
-        this.tokenCache.set(driveAccountId, { token: tokens.accessToken, expiresAt: tokens.expiresAt });
+        this.tokenCache.set(driveAccountId, {
+          token: tokens.accessToken,
+          expiresAt: tokens.expiresAt,
+        });
         return tokens.accessToken;
       }
       const refreshed = await this.refreshServiceAccountToken(driveAccountId, tokens);
-      this.tokenCache.set(driveAccountId, { token: refreshed.accessToken, expiresAt: refreshed.expiresAt });
+      this.tokenCache.set(driveAccountId, {
+        token: refreshed.accessToken,
+        expiresAt: refreshed.expiresAt,
+      });
       return refreshed.accessToken;
     }
     if (tokens.expiresAt > Date.now() + 60_000) {
-      this.tokenCache.set(driveAccountId, { token: tokens.accessToken, expiresAt: tokens.expiresAt });
+      this.tokenCache.set(driveAccountId, {
+        token: tokens.accessToken,
+        expiresAt: tokens.expiresAt,
+      });
       return tokens.accessToken;
     }
     if (!tokens.refreshToken) {
       throw new AuthError(`No refresh token for drive ${driveAccountId}`);
     }
     const refreshed = await this.refreshToken(driveAccountId, tokens.refreshToken);
-    this.tokenCache.set(driveAccountId, { token: refreshed.accessToken, expiresAt: refreshed.expiresAt });
+    this.tokenCache.set(driveAccountId, {
+      token: refreshed.accessToken,
+      expiresAt: refreshed.expiresAt,
+    });
     return refreshed.accessToken;
   }
 
@@ -144,15 +160,18 @@ export class GoogleDriveService {
     const encryptedTokens = this.encryptionKey
       ? await (await import('../lib/crypto')).encrypt(serialized, this.encryptionKey)
       : serialized;
-    await this.db.prepare(
-      'INSERT INTO drive_tokens (drive_account_id, encrypted_tokens, updated_at) VALUES (?, ?, ?) ' +
-      'ON CONFLICT(drive_account_id) DO UPDATE SET encrypted_tokens = excluded.encrypted_tokens, updated_at = excluded.updated_at'
-    ).bind(driveAccountId, encryptedTokens, Date.now()).run();
+    await this.db
+      .prepare(
+        'INSERT INTO drive_tokens (drive_account_id, encrypted_tokens, updated_at) VALUES (?, ?, ?) ' +
+          'ON CONFLICT(drive_account_id) DO UPDATE SET encrypted_tokens = excluded.encrypted_tokens, updated_at = excluded.updated_at',
+      )
+      .bind(driveAccountId, encryptedTokens, Date.now())
+      .run();
   }
 
   private async refreshServiceAccountToken(
     driveAccountId: string,
-    tokens: OAuthTokens
+    tokens: OAuthTokens,
   ): Promise<RefreshedTokens> {
     if (!tokens.serviceAccount) {
       throw new AuthError(`No service account credentials for drive ${driveAccountId}`);
@@ -174,24 +193,34 @@ export class GoogleDriveService {
       const tokens = await this.loadTokens(driveAccountId);
       const token = tokens.refreshToken || tokens.accessToken;
       if (!token) return;
-      await this.driveFetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(token)}`, { method: 'POST' });
+      await this.driveFetch(
+        `https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(token)}`,
+        { method: 'POST' },
+      );
     } catch {
       // disconnect still proceeds if revoke fails
     }
   }
 
   // ponytail: last-write-wins refresh — sync is mostly serial (activeSyncs guard); add single-flight lock if races become a problem
-  private async refreshToken(driveAccountId: string, refreshToken: string): Promise<RefreshedTokens> {
-    const response = await this.driveFetch(TOKEN_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: this.clientId,
-        client_secret: this.clientSecret,
-        refresh_token: refreshToken,
-        grant_type: 'refresh_token',
-      }),
-    }, { context: `Token refresh failed for ${driveAccountId}` });
+  private async refreshToken(
+    driveAccountId: string,
+    refreshToken: string,
+  ): Promise<RefreshedTokens> {
+    const response = await this.driveFetch(
+      TOKEN_URL,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: this.clientId,
+          client_secret: this.clientSecret,
+          refresh_token: refreshToken,
+          grant_type: 'refresh_token',
+        }),
+      },
+      { context: `Token refresh failed for ${driveAccountId}` },
+    );
 
     const data: { access_token: string; expires_in: number } = await response.json();
 
@@ -219,12 +248,14 @@ export class GoogleDriveService {
    * ceiling when Google provides no real limit.
    */
   async getQuota(
-    driveAccountId: string
+    driveAccountId: string,
   ): Promise<{ total: number; used: number; hasLimit: boolean }> {
     // Check D1 cache first. Cache entries carry the schema version so stale
     // pre-usageInDrive entries (which stored account-wide usage) are ignored.
-    const cacheRow = await this.db.prepare('SELECT payload, updated_at FROM quota_cache WHERE drive_account_id = ?')
-      .bind(driveAccountId).first<{ payload: string; updated_at: number }>();
+    const cacheRow = await this.db
+      .prepare('SELECT payload, updated_at FROM quota_cache WHERE drive_account_id = ?')
+      .bind(driveAccountId)
+      .first<{ payload: string; updated_at: number }>();
     if (cacheRow && Date.now() - cacheRow.updated_at < QUOTA_CACHE_TTL_MS) {
       const quota: QuotaCache = JSON.parse(cacheRow.payload);
       if (quota.v === QUOTA_CACHE_VERSION && quota.total > 0) {
@@ -234,9 +265,13 @@ export class GoogleDriveService {
 
     // Fetch from Google Drive API
     const token = await this.getValidToken(driveAccountId);
-    const response = await this.driveFetch(`${DRIVE_API}/about?fields=storageQuota`, {
-      headers: { Authorization: `Bearer ${token}` },
-    }, { context: 'Failed to fetch quota' });
+    const response = await this.driveFetch(
+      `${DRIVE_API}/about?fields=storageQuota`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      },
+      { context: 'Failed to fetch quota' },
+    );
 
     const data: {
       storageQuota: { limit?: string; usageInDrive?: string; usage?: string };
@@ -246,21 +281,24 @@ export class GoogleDriveService {
     const { total, used } = parseStorageQuota(
       data.storageQuota.limit,
       data.storageQuota.usageInDrive,
-      data.storageQuota.usage
+      data.storageQuota.usage,
     );
 
     // Cache in D1 (5-min TTL enforced by updated_at check above)
     const payload = JSON.stringify({
-        v: QUOTA_CACHE_VERSION,
-        total,
-        used,
-        hasLimit,
-        updatedAt: new Date().toISOString(),
-      } satisfies QuotaCache);
-    await this.db.prepare(
-      'INSERT INTO quota_cache (drive_account_id, payload, updated_at) VALUES (?, ?, ?) ' +
-      'ON CONFLICT(drive_account_id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at'
-    ).bind(driveAccountId, payload, Date.now()).run();
+      v: QUOTA_CACHE_VERSION,
+      total,
+      used,
+      hasLimit,
+      updatedAt: new Date().toISOString(),
+    } satisfies QuotaCache);
+    await this.db
+      .prepare(
+        'INSERT INTO quota_cache (drive_account_id, payload, updated_at) VALUES (?, ?, ?) ' +
+          'ON CONFLICT(drive_account_id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at',
+      )
+      .bind(driveAccountId, payload, Date.now())
+      .run();
 
     return { total, used, hasLimit };
   }
@@ -269,18 +307,18 @@ export class GoogleDriveService {
 
   async getRootFolderId(driveAccountId: string): Promise<string> {
     const token = await this.getValidToken(driveAccountId);
-    const response = await this.driveFetch(`${DRIVE_API}/files/root?fields=id`, {
-      headers: { Authorization: `Bearer ${token}` },
-    }, { context: 'Failed to get root folder ID' });
+    const response = await this.driveFetch(
+      `${DRIVE_API}/files/root?fields=id`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      },
+      { context: 'Failed to get root folder ID' },
+    );
     const data: { id: string } = await response.json();
     return data.id;
   }
 
-  async createFolder(
-    driveAccountId: string,
-    name: string,
-    parentId?: string
-  ): Promise<string> {
+  async createFolder(driveAccountId: string, name: string, parentId?: string): Promise<string> {
     const token = await this.getValidToken(driveAccountId);
 
     const metadata: Record<string, unknown> = {
@@ -291,14 +329,18 @@ export class GoogleDriveService {
       metadata.parents = [parentId];
     }
 
-    const response = await this.driveFetch(`${DRIVE_API}/files`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
+    const response = await this.driveFetch(
+      `${DRIVE_API}/files`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(metadata),
       },
-      body: JSON.stringify(metadata),
-    }, { context: 'Failed to create folder' });
+      { context: 'Failed to create folder' },
+    );
 
     const folder: { id: string } = await response.json();
     return folder.id;
@@ -310,7 +352,7 @@ export class GoogleDriveService {
     driveAccountId: string,
     fileName: string,
     mimeType: string,
-    parentFolderId: string
+    parentFolderId: string,
   ): Promise<string> {
     const token = await this.getValidToken(driveAccountId);
 
@@ -328,7 +370,7 @@ export class GoogleDriveService {
           parents: [parentFolderId],
         }),
       },
-      { context: 'Failed to initiate upload' }
+      { context: 'Failed to initiate upload' },
     );
 
     const uploadUrl = response.headers.get('Location');
@@ -341,16 +383,18 @@ export class GoogleDriveService {
 
   // ─── File Operations ───
 
-  async getFile(
-    driveAccountId: string,
-    googleFileId: string
-  ): Promise<GDriveFile> {
+  async getFile(driveAccountId: string, googleFileId: string): Promise<GDriveFile> {
     const token = await this.getValidToken(driveAccountId);
-    const fields = 'id,name,mimeType,size,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum';
+    const fields =
+      'id,name,mimeType,size,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum';
 
-    const response = await this.driveFetch(`${DRIVE_API}/files/${googleFileId}?fields=${fields}&supportsAllDrives=true`, {
-      headers: { Authorization: `Bearer ${token}` },
-    }, { context: 'Failed to get file' });
+    const response = await this.driveFetch(
+      `${DRIVE_API}/files/${googleFileId}?fields=${fields}&supportsAllDrives=true`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      },
+      { context: 'Failed to get file' },
+    );
 
     return response.json();
   }
@@ -366,11 +410,19 @@ export class GoogleDriveService {
       { headers: { Authorization: `Bearer ${token}` } },
       { context: 'Failed to get file parents' },
     );
-    const data = await response.json() as { parents?: string[] };
+    const data = (await response.json()) as { parents?: string[] };
     return data.parents ?? [];
   }
 
-  async downloadFile(driveAccountId: string, googleFileId: string, mimeType?: string): Promise<{stream: ReadableStream<Uint8Array>, exportedMimeType?: string, exportedExtension?: string}> {
+  async downloadFile(
+    driveAccountId: string,
+    googleFileId: string,
+    mimeType?: string,
+  ): Promise<{
+    stream: ReadableStream<Uint8Array>;
+    exportedMimeType?: string;
+    exportedExtension?: string;
+  }> {
     const token = await this.getValidToken(driveAccountId);
 
     let url = `${DRIVE_API}/files/${googleFileId}?alt=media`;
@@ -396,9 +448,13 @@ export class GoogleDriveService {
       url = `${DRIVE_API}/files/${googleFileId}/export?mimeType=${exportedMimeType}`;
     }
 
-    const response = await this.driveFetch(url, {
-      headers: { Authorization: `Bearer ${token}` },
-    }, { context: 'Failed to download file' });
+    const response = await this.driveFetch(
+      url,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      },
+      { context: 'Failed to download file' },
+    );
 
     if (!response.body) {
       throw new UpstreamError('Response body is null');
@@ -406,7 +462,7 @@ export class GoogleDriveService {
     return {
       stream: response.body as ReadableStream<Uint8Array>,
       exportedMimeType,
-      exportedExtension
+      exportedExtension,
     };
   }
 
@@ -414,38 +470,56 @@ export class GoogleDriveService {
     const token = await this.getValidToken(driveAccountId);
 
     // 404 = already deleted; treat as success (idempotent delete)
-    await this.driveFetch(`${DRIVE_API}/files/${googleFileId}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    }, { isSuccess: (r) => r.ok || r.status === 404, context: 'Failed to delete file' });
+    await this.driveFetch(
+      `${DRIVE_API}/files/${googleFileId}`,
+      {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      },
+      { isSuccess: (r) => r.ok || r.status === 404, context: 'Failed to delete file' },
+    );
   }
 
   async renameFile(driveAccountId: string, googleFileId: string, newName: string): Promise<void> {
     const token = await this.getValidToken(driveAccountId);
 
-    await this.driveFetch(`${DRIVE_API}/files/${googleFileId}`, {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
+    await this.driveFetch(
+      `${DRIVE_API}/files/${googleFileId}`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: newName }),
       },
-      body: JSON.stringify({ name: newName }),
-    }, { context: 'Failed to rename file' });
+      { context: 'Failed to rename file' },
+    );
   }
 
   // ─── Move To Another Drive Operations ───
 
-  async shareFile(driveAccountId: string, fileId: string, emailAddress: string, role = 'writer', type = 'user'): Promise<string> {
+  async shareFile(
+    driveAccountId: string,
+    fileId: string,
+    emailAddress: string,
+    role = 'writer',
+    type = 'user',
+  ): Promise<string> {
     const token = await this.getValidToken(driveAccountId);
 
-    const response = await this.driveFetch(`${DRIVE_API}/files/${fileId}/permissions?sendNotificationEmail=false`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
+    const response = await this.driveFetch(
+      `${DRIVE_API}/files/${fileId}/permissions?sendNotificationEmail=false`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ role, type, emailAddress }),
       },
-      body: JSON.stringify({ role, type, emailAddress }),
-    }, { context: 'Failed to share file' });
+      { context: 'Failed to share file' },
+    );
 
     const data: { id: string } = await response.json();
     return data.id;
@@ -454,21 +528,30 @@ export class GoogleDriveService {
   async revokeShare(driveAccountId: string, fileId: string, permissionId: string): Promise<void> {
     const token = await this.getValidToken(driveAccountId);
 
-    await this.driveFetch(`${DRIVE_API}/files/${fileId}/permissions/${permissionId}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    }, { context: 'Failed to revoke share' });
+    await this.driveFetch(
+      `${DRIVE_API}/files/${fileId}/permissions/${permissionId}`,
+      {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      },
+      { context: 'Failed to revoke share' },
+    );
   }
 
   async copyFile(driveAccountId: string, fileId: string, name?: string): Promise<GDriveFile> {
     const token = await this.getValidToken(driveAccountId);
-    const fields = 'id,name,mimeType,size,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum';
+    const fields =
+      'id,name,mimeType,size,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum';
 
-    const response = await this.driveFetch(`${DRIVE_API}/files/${fileId}/copy?fields=${fields}&supportsAllDrives=true`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(name ? { name } : {}),
-    }, { context: 'Failed to copy file' });
+    const response = await this.driveFetch(
+      `${DRIVE_API}/files/${fileId}/copy?fields=${fields}&supportsAllDrives=true`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(name ? { name } : {}),
+      },
+      { context: 'Failed to copy file' },
+    );
 
     return response.json();
   }
@@ -488,62 +571,82 @@ export class GoogleDriveService {
       params.set('removeParents', oldParentId);
     }
 
-    await this.driveFetch(`${DRIVE_API}/files/${fileId}?${params}`, {
-      method: 'PATCH',
-      headers: { Authorization: `Bearer ${token}` },
-    }, { context: 'Failed to move item' });
+    await this.driveFetch(
+      `${DRIVE_API}/files/${fileId}?${params}`,
+      {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      },
+      { context: 'Failed to move item' },
+    );
   }
 
   async trashFile(driveAccountId: string, fileId: string): Promise<void> {
     const token = await this.getValidToken(driveAccountId);
 
-    await this.driveFetch(`${DRIVE_API}/files/${fileId}`, {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
+    await this.driveFetch(
+      `${DRIVE_API}/files/${fileId}`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ trashed: true }),
       },
-      body: JSON.stringify({ trashed: true }),
-    }, { context: 'Failed to trash file' });
+      { context: 'Failed to trash file' },
+    );
   }
 
   async trashFolder(driveAccountId: string, folderId: string): Promise<void> {
     const token = await this.getValidToken(driveAccountId);
 
-    await this.driveFetch(`${DRIVE_API}/files/${folderId}?supportsAllDrives=true`, {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
+    await this.driveFetch(
+      `${DRIVE_API}/files/${folderId}?supportsAllDrives=true`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ trashed: true }),
       },
-      body: JSON.stringify({ trashed: true }),
-    }, { context: 'Failed to trash folder' });
+      { context: 'Failed to trash folder' },
+    );
   }
 
   async untrashFolder(driveAccountId: string, folderId: string): Promise<void> {
     const token = await this.getValidToken(driveAccountId);
 
-    await this.driveFetch(`${DRIVE_API}/files/${folderId}?supportsAllDrives=true`, {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
+    await this.driveFetch(
+      `${DRIVE_API}/files/${folderId}?supportsAllDrives=true`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ trashed: false }),
       },
-      body: JSON.stringify({ trashed: false }),
-    }, { context: 'Failed to untrash folder' });
+      { context: 'Failed to untrash folder' },
+    );
   }
 
   async untrashFile(driveAccountId: string, fileId: string): Promise<void> {
     const token = await this.getValidToken(driveAccountId);
 
-    await this.driveFetch(`${DRIVE_API}/files/${fileId}`, {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
+    await this.driveFetch(
+      `${DRIVE_API}/files/${fileId}`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ trashed: false }),
       },
-      body: JSON.stringify({ trashed: false }),
-    }, { context: 'Failed to untrash file' });
+      { context: 'Failed to untrash file' },
+    );
   }
 
   // ─── Changes API (for sync) ───
@@ -551,9 +654,13 @@ export class GoogleDriveService {
   async getStartPageToken(driveAccountId: string): Promise<string> {
     const token = await this.getValidToken(driveAccountId);
 
-    const response = await this.driveFetch(`${DRIVE_API}/changes/startPageToken`, {
-      headers: { Authorization: `Bearer ${token}` },
-    }, { context: 'Failed to get start page token' });
+    const response = await this.driveFetch(
+      `${DRIVE_API}/changes/startPageToken`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      },
+      { context: 'Failed to get start page token' },
+    );
 
     const data: { startPageToken: string } = await response.json();
     return data.startPageToken;
@@ -561,7 +668,7 @@ export class GoogleDriveService {
 
   async listChanges(
     driveAccountId: string,
-    pageToken: string
+    pageToken: string,
   ): Promise<{
     changes: Array<{
       fileId: string;
@@ -591,7 +698,7 @@ export class GoogleDriveService {
     const response = await this.driveFetch(
       `${DRIVE_API}/changes?pageToken=${encodeURIComponent(pageToken)}&fields=${fields}&spaces=drive&includeRemoved=true`,
       { headers: { Authorization: `Bearer ${token}` } },
-      { context: 'Failed to list changes' }
+      { context: 'Failed to list changes' },
     );
 
     return response.json();
@@ -599,7 +706,7 @@ export class GoogleDriveService {
 
   async listFilesInFolder(
     driveAccountId: string,
-    folderId: string
+    folderId: string,
   ): Promise<
     Array<{
       id: string;
@@ -613,7 +720,8 @@ export class GoogleDriveService {
       modifiedTime: string;
     }>
   > {
-    const fields = 'files(id,name,mimeType,size,owners(me,displayName),thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum)';
+    const fields =
+      'files(id,name,mimeType,size,owners(me,displayName),thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum)';
     const q = encodeURIComponent(`'${folderId}' in parents and trashed = false`);
 
     const allFiles: Array<GDriveFile> = [];
@@ -622,9 +730,13 @@ export class GoogleDriveService {
     do {
       const token = await this.getValidToken(driveAccountId);
       const url = `${DRIVE_API}/files?q=${q}&fields=nextPageToken,${fields}${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
-      const response = await this.driveFetch(url, {
-        headers: { Authorization: `Bearer ${token}` },
-      }, { context: 'Failed to list files' });
+      const response = await this.driveFetch(
+        url,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+        { context: 'Failed to list files' },
+      );
 
       const data: { files: GDriveFile[]; nextPageToken?: string } = await response.json();
       allFiles.push(...data.files);
@@ -638,7 +750,7 @@ export class GoogleDriveService {
 
   async listFolderContents(
     driveAccountId: string,
-    folderId: string
+    folderId: string,
   ): Promise<{ files: GDriveFile[]; folders: GDriveFolder[] }> {
     const fields =
       'nextPageToken,files(id,name,mimeType,size,parents,owners(me,displayName),trashed,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum)';
@@ -651,12 +763,16 @@ export class GoogleDriveService {
     do {
       const token = await this.getValidToken(driveAccountId);
       const url = `${DRIVE_API}/files?q=${q}&fields=${fields}&supportsAllDrives=true&includeItemsFromAllDrives=true${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
-      const response = await this.driveFetch(url, {
-        headers: { Authorization: `Bearer ${token}` },
-      }, { context: 'Failed to list folder contents' });
+      const response = await this.driveFetch(
+        url,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+        { context: 'Failed to list folder contents' },
+      );
 
       const data: { files: GDriveFile[]; nextPageToken?: string } = await response.json();
-      
+
       for (const file of data.files) {
         if (file.mimeType === 'application/vnd.google-apps.shortcut') continue;
         if (file.mimeType === 'application/vnd.google-apps.folder') {
@@ -665,7 +781,7 @@ export class GoogleDriveService {
           allFiles.push(file);
         }
       }
-      
+
       pageToken = data.nextPageToken;
     } while (pageToken);
 
@@ -674,8 +790,12 @@ export class GoogleDriveService {
 
   async *iterateAllFilesAndFolders(
     driveAccountId: string,
-    startPageToken?: string
-  ): AsyncGenerator<{ files: GDriveFile[]; folders: GDriveFolder[]; nextPageToken?: string }, void, unknown> {
+    startPageToken?: string,
+  ): AsyncGenerator<
+    { files: GDriveFile[]; folders: GDriveFolder[]; nextPageToken?: string },
+    void,
+    unknown
+  > {
     const fields =
       'nextPageToken,files(id,name,mimeType,size,parents,owners(me,displayName),trashed,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum)';
     const q = encodeURIComponent(`trashed = false`);
@@ -685,9 +805,13 @@ export class GoogleDriveService {
     do {
       const token = await this.getValidToken(driveAccountId);
       const url = `${DRIVE_API}/files?q=${q}&fields=${fields}&supportsAllDrives=true&includeItemsFromAllDrives=true&pageSize=1000${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
-      const response = await this.driveFetch(url, {
-        headers: { Authorization: `Bearer ${token}` },
-      }, { context: 'Failed to list folder contents' });
+      const response = await this.driveFetch(
+        url,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+        { context: 'Failed to list folder contents' },
+      );
 
       const data: { files: GDriveFile[]; nextPageToken?: string } = await response.json();
 
@@ -696,14 +820,19 @@ export class GoogleDriveService {
 
       for (const item of data.files) {
         if (item.mimeType === 'application/vnd.google-apps.folder') {
-          chunkFolders.push({ id: item.id, name: item.name, parents: item.parents, owners: item.owners });
+          chunkFolders.push({
+            id: item.id,
+            name: item.name,
+            parents: item.parents,
+            owners: item.owners,
+          });
         } else if (item.mimeType !== 'application/vnd.google-apps.shortcut') {
           chunkFiles.push(item);
         }
       }
 
       yield { files: chunkFiles, folders: chunkFolders, nextPageToken: data.nextPageToken };
-      
+
       pageToken = data.nextPageToken;
     } while (pageToken);
   }

@@ -86,10 +86,6 @@ export function logError(
 }
 
 /** Convenience: log error without request context. */
-export function logErrorNoCtx(
-  msg: string,
-  err?: unknown,
-  ctx?: Record<string, unknown>,
-): void {
+export function logErrorNoCtx(msg: string, err?: unknown, ctx?: Record<string, unknown>): void {
   logNoCtx('error', msg, ctx, err);
 }

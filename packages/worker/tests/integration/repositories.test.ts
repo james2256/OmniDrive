@@ -23,17 +23,31 @@ declare module 'cloudflare:workers' {
   }
 }
 
-async function insertUser(id: string, username: string, isSuperAdmin = 0, email: string | null = null): Promise<void> {
+async function insertUser(
+  id: string,
+  username: string,
+  isSuperAdmin = 0,
+  email: string | null = null,
+): Promise<void> {
   const passwordHash = await hashPassword('TestPass123!');
   await env.DB.prepare(
-    'INSERT INTO users (id, username, password_hash, is_super_admin, email) VALUES (?, ?, ?, ?, ?)'
-  ).bind(id, username, passwordHash, isSuperAdmin, email).run();
+    'INSERT INTO users (id, username, password_hash, is_super_admin, email) VALUES (?, ?, ?, ?, ?)',
+  )
+    .bind(id, username, passwordHash, isSuperAdmin, email)
+    .run();
 }
 
-async function insertDrive(driveId: string, userId: string, email: string, isPrimary = 0): Promise<void> {
+async function insertDrive(
+  driveId: string,
+  userId: string,
+  email: string,
+  isPrimary = 0,
+): Promise<void> {
   await env.DB.prepare(
-    'INSERT INTO drive_accounts (id, user_id, google_account_id, email, name, is_primary, root_folder_id) VALUES (?, ?, ?, ?, ?, ?, ?)'
-  ).bind(driveId, userId, `g-${driveId}`, email, email, isPrimary, null).run();
+    'INSERT INTO drive_accounts (id, user_id, google_account_id, email, name, is_primary, root_folder_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+  )
+    .bind(driveId, userId, `g-${driveId}`, email, email, isPrimary, null)
+    .run();
 }
 
 describe('Repositories (integration)', () => {
@@ -65,8 +79,10 @@ describe('Repositories (integration)', () => {
     it('findAllInvitations returns invitation codes', async () => {
       await insertUser('u1', 'admin', 1);
       await env.DB.prepare(
-        'INSERT INTO invitation_codes (id, code, created_by, max_uses) VALUES (?, ?, ?, ?)'
-      ).bind('inv1', 'CODE123', 'u1', 5).run();
+        'INSERT INTO invitation_codes (id, code, created_by, max_uses) VALUES (?, ?, ?, ?)',
+      )
+        .bind('inv1', 'CODE123', 'u1', 5)
+        .run();
 
       const repo = new AdminRepository(env.DB);
       const { results } = await repo.findAllInvitations();
@@ -78,12 +94,14 @@ describe('Repositories (integration)', () => {
 
     it('findRecentAuditLogs joins actor email + workspace name', async () => {
       await insertUser('u1', 'admin', 1, 'admin@example.com');
+      await env.DB.prepare('INSERT INTO workspaces (id, name, owner_id) VALUES (?, ?, ?)')
+        .bind('ws1', 'Team Project', 'u1')
+        .run();
       await env.DB.prepare(
-        'INSERT INTO workspaces (id, name, owner_id) VALUES (?, ?, ?)'
-      ).bind('ws1', 'Team Project', 'u1').run();
-      await env.DB.prepare(
-        'INSERT INTO audit_logs (id, workspace_id, actor_id, action_type, resource_id, resource_name) VALUES (?, ?, ?, ?, ?, ?)'
-      ).bind('log1', 'ws1', 'u1', 'file.delete', 'file-1', 'report.pdf').run();
+        'INSERT INTO audit_logs (id, workspace_id, actor_id, action_type, resource_id, resource_name) VALUES (?, ?, ?, ?, ?, ?)',
+      )
+        .bind('log1', 'ws1', 'u1', 'file.delete', 'file-1', 'report.pdf')
+        .run();
 
       const repo = new AdminRepository(env.DB);
       const { results } = await repo.findRecentAuditLogs();
@@ -165,14 +183,18 @@ describe('Repositories (integration)', () => {
 
     it('findAllByUser with workspace scope joins workspace name', async () => {
       await insertUser('u1', 'alice', 1);
-      await env.DB.prepare(
-        'INSERT INTO workspaces (id, name, owner_id) VALUES (?, ?, ?)'
-      ).bind('ws1', 'Scoped Workspace', 'u1').run();
+      await env.DB.prepare('INSERT INTO workspaces (id, name, owner_id) VALUES (?, ?, ?)')
+        .bind('ws1', 'Scoped Workspace', 'u1')
+        .run();
 
       const repo = new S3CredentialsRepository(env.DB);
       await repo.insert({
-        id: 'k1', userId: 'u1', accessKeyId: 'OMNISCOPED',
-        secretKeyEnc: 'enc', description: 'scoped key', workspaceId: 'ws1',
+        id: 'k1',
+        userId: 'u1',
+        accessKeyId: 'OMNISCOPED',
+        secretKeyEnc: 'enc',
+        description: 'scoped key',
+        workspaceId: 'ws1',
       });
 
       const { results } = await repo.findAllByUser('u1');
@@ -185,8 +207,22 @@ describe('Repositories (integration)', () => {
       await insertUser('u2', 'bob', 1);
       const repo = new S3CredentialsRepository(env.DB);
 
-      await repo.insert({ id: 'k1', userId: 'u1', accessKeyId: 'OMNI1', secretKeyEnc: 'e1', description: null, workspaceId: null });
-      await repo.insert({ id: 'k2', userId: 'u2', accessKeyId: 'OMNI2', secretKeyEnc: 'e2', description: null, workspaceId: null });
+      await repo.insert({
+        id: 'k1',
+        userId: 'u1',
+        accessKeyId: 'OMNI1',
+        secretKeyEnc: 'e1',
+        description: null,
+        workspaceId: null,
+      });
+      await repo.insert({
+        id: 'k2',
+        userId: 'u2',
+        accessKeyId: 'OMNI2',
+        secretKeyEnc: 'e2',
+        description: null,
+        workspaceId: null,
+      });
 
       // bob tries to delete alice's key
       await repo.delete('k1', 'u2');
@@ -206,9 +242,13 @@ describe('Repositories (integration)', () => {
 
       // Insert
       await repo.insert({
-        id: 'r1', userId: 'u1', name: 'Auto-move PDFs',
-        triggerType: 'file_create', triggerConfig: '{}',
-        conditions: '{}', actions: '{}',
+        id: 'r1',
+        userId: 'u1',
+        name: 'Auto-move PDFs',
+        triggerType: 'file_create',
+        triggerConfig: '{}',
+        conditions: '{}',
+        actions: '{}',
       });
 
       // Toggle off (alice's own rule)
@@ -236,8 +276,10 @@ describe('Repositories (integration)', () => {
 
       // Add sync_state for d1 only (d2 has no row → LEFT JOIN yields nulls)
       await env.DB.prepare(
-        "INSERT INTO sync_state (drive_account_id, status, last_synced_at) VALUES (?, 'syncing', ?)"
-      ).bind('d1', '2026-01-01 10:00:00').run();
+        "INSERT INTO sync_state (drive_account_id, status, last_synced_at) VALUES (?, 'syncing', ?)",
+      )
+        .bind('d1', '2026-01-01 10:00:00')
+        .run();
 
       const repo = new DriveRepository(env.DB);
       const { results } = await repo.findAllWithSyncState('u1');
@@ -266,8 +308,10 @@ describe('Repositories (integration)', () => {
       await insertUser('u1', 'alice', 1);
       await insertDrive('d1', 'u1', 'alice@gmail.com', 1);
       await env.DB.prepare(
-        'INSERT INTO drive_tokens (drive_account_id, encrypted_tokens, updated_at) VALUES (?, ?, ?)'
-      ).bind('d1', 'encrypted-token-blob', Date.now()).run();
+        'INSERT INTO drive_tokens (drive_account_id, encrypted_tokens, updated_at) VALUES (?, ?, ?)',
+      )
+        .bind('d1', 'encrypted-token-blob', Date.now())
+        .run();
 
       const repo = new DriveRepository(env.DB);
       const status = await repo.findTokenStatus('d1');
@@ -281,48 +325,66 @@ describe('Repositories (integration)', () => {
 
       // Computer backup root (parent='__shared__', owned_by_me=1) — TOP LEVEL, should show
       await env.DB.prepare(
-        'INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?)'
-      ).bind('df1', 'd1', 'gfolder1', '__shared__', 'My Laptop', 1, 0).run();
+        'INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      )
+        .bind('df1', 'd1', 'gfolder1', '__shared__', 'My Laptop', 1, 0)
+        .run();
 
       // Folder shared WITH me by someone else (parent='__shared__', owned_by_me=0) — should NOT show (not mine)
       await env.DB.prepare(
-        'INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?)'
-      ).bind('df3', 'd1', 'gfolder3', '__shared__', 'A Shared Folder', 0, 0).run();
+        'INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      )
+        .bind('df3', 'd1', 'gfolder3', '__shared__', 'A Shared Folder', 0, 0)
+        .run();
 
       // Subfolder inside My Laptop (parent=gfolder1, NOT __shared__) — should NOT show at top level
       await env.DB.prepare(
-        'INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?)'
-      ).bind('df4', 'd1', 'gfolder4', 'gfolder1', 'DRIVE BACKUP', 1, 0).run();
+        'INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      )
+        .bind('df4', 'd1', 'gfolder4', 'gfolder1', 'DRIVE BACKUP', 1, 0)
+        .run();
 
       // Deeper subfolder (parent=gfolder4) — should NOT show at top level
       await env.DB.prepare(
-        'INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?)'
-      ).bind('df5', 'd1', 'gfolder5', 'gfolder4', 'BY', 1, 0).run();
+        'INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      )
+        .bind('df5', 'd1', 'gfolder5', 'gfolder4', 'BY', 1, 0)
+        .run();
 
       // My Drive folder (parent='root') — should NOT show
       await env.DB.prepare(
-        'INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?)'
-      ).bind('df2', 'd1', 'gfolder2', 'root', 'My Folder', 1, 0).run();
+        'INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      )
+        .bind('df2', 'd1', 'gfolder2', 'root', 'My Folder', 1, 0)
+        .run();
 
       // File at shared root (parent='__shared__', owned_by_me=1) — should show
       await env.DB.prepare(
-        'INSERT INTO files (id, user_id, drive_account_id, google_file_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-      ).bind('f1', 'u1', 'd1', 'gfile1', '__shared__', 'loose-shared.pdf', 1, 0).run();
+        'INSERT INTO files (id, user_id, drive_account_id, google_file_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      )
+        .bind('f1', 'u1', 'd1', 'gfile1', '__shared__', 'loose-shared.pdf', 1, 0)
+        .run();
 
       // File shared WITH me at shared root (parent='__shared__', owned_by_me=0) — should NOT show (not mine)
       await env.DB.prepare(
-        'INSERT INTO files (id, user_id, drive_account_id, google_file_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-      ).bind('f4', 'u1', 'd1', 'gfile4', '__shared__', 'someone-elses.pdf', 0, 0).run();
+        'INSERT INTO files (id, user_id, drive_account_id, google_file_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      )
+        .bind('f4', 'u1', 'd1', 'gfile4', '__shared__', 'someone-elses.pdf', 0, 0)
+        .run();
 
       // File inside My Laptop (parent=gfolder1) — should NOT show at top level
       await env.DB.prepare(
-        'INSERT INTO files (id, user_id, drive_account_id, google_file_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-      ).bind('f3', 'u1', 'd1', 'gfile3', 'gfolder1', 'backup-config.txt', 1, 0).run();
+        'INSERT INTO files (id, user_id, drive_account_id, google_file_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      )
+        .bind('f3', 'u1', 'd1', 'gfile3', 'gfolder1', 'backup-config.txt', 1, 0)
+        .run();
 
       // My Drive file (parent='root') — should NOT show
       await env.DB.prepare(
-        'INSERT INTO files (id, user_id, drive_account_id, google_file_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-      ).bind('f2', 'u1', 'd1', 'gfile2', 'root', 'mine.docx', 1, 0).run();
+        'INSERT INTO files (id, user_id, drive_account_id, google_file_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      )
+        .bind('f2', 'u1', 'd1', 'gfile2', 'root', 'mine.docx', 1, 0)
+        .run();
 
       const repo = new DriveRepository(env.DB);
       const { results: folders } = await repo.findExternalFolders('u1');
@@ -345,52 +407,103 @@ describe('Repositories (integration)', () => {
   describe('FolderRepository.delete (cascade)', () => {
     it('cascades to subfolders at arbitrary depth (recursive CTE in DELETE context)', async () => {
       await insertUser('u1', 'alice');
-      await env.DB.prepare('INSERT INTO workspaces (id, name, owner_id) VALUES (?, ?, ?)').bind('ws1', 'WS', 'u1').run();
+      await env.DB.prepare('INSERT INTO workspaces (id, name, owner_id) VALUES (?, ?, ?)')
+        .bind('ws1', 'WS', 'u1')
+        .run();
       // Build a 4-level folder tree: L1 → L2 → L3 → L4 (tests arbitrary-depth recursion)
-      await env.DB.prepare('INSERT INTO workspace_folders (id, workspace_id, name, parent_id) VALUES (?, ?, ?, ?)').bind('f1', 'ws1', 'L1', null).run();
-      await env.DB.prepare('INSERT INTO workspace_folders (id, workspace_id, name, parent_id) VALUES (?, ?, ?, ?)').bind('f2', 'ws1', 'L2', 'f1').run();
-      await env.DB.prepare('INSERT INTO workspace_folders (id, workspace_id, name, parent_id) VALUES (?, ?, ?, ?)').bind('f3', 'ws1', 'L3', 'f2').run();
-      await env.DB.prepare('INSERT INTO workspace_folders (id, workspace_id, name, parent_id) VALUES (?, ?, ?, ?)').bind('f4', 'ws1', 'L4', 'f3').run();
+      await env.DB.prepare(
+        'INSERT INTO workspace_folders (id, workspace_id, name, parent_id) VALUES (?, ?, ?, ?)',
+      )
+        .bind('f1', 'ws1', 'L1', null)
+        .run();
+      await env.DB.prepare(
+        'INSERT INTO workspace_folders (id, workspace_id, name, parent_id) VALUES (?, ?, ?, ?)',
+      )
+        .bind('f2', 'ws1', 'L2', 'f1')
+        .run();
+      await env.DB.prepare(
+        'INSERT INTO workspace_folders (id, workspace_id, name, parent_id) VALUES (?, ?, ?, ?)',
+      )
+        .bind('f3', 'ws1', 'L3', 'f2')
+        .run();
+      await env.DB.prepare(
+        'INSERT INTO workspace_folders (id, workspace_id, name, parent_id) VALUES (?, ?, ?, ?)',
+      )
+        .bind('f4', 'ws1', 'L4', 'f3')
+        .run();
 
       const repo = new FolderRepository(env.DB);
       await repo.delete('f1');
 
       // All 4 folders must be gone (recursive CTE walked parent_id chain)
-      const remaining = await env.DB.prepare('SELECT COUNT(*) as count FROM workspace_folders WHERE workspace_id = ?').bind('ws1').first<{ count: number }>();
+      const remaining = await env.DB.prepare(
+        'SELECT COUNT(*) as count FROM workspace_folders WHERE workspace_id = ?',
+      )
+        .bind('ws1')
+        .first<{ count: number }>();
       expect(remaining!.count).toBe(0);
     });
 
     it('detaches files from deleted folder (workspace_folder_id → NULL)', async () => {
       await insertUser('u1', 'alice');
       await insertDrive('d1', 'u1', 'alice@gmail.com');
-      await env.DB.prepare('INSERT INTO workspaces (id, name, owner_id) VALUES (?, ?, ?)').bind('ws1', 'WS', 'u1').run();
-      await env.DB.prepare('INSERT INTO workspace_folders (id, workspace_id, name, parent_id) VALUES (?, ?, ?, ?)').bind('f1', 'ws1', 'Folder', null).run();
+      await env.DB.prepare('INSERT INTO workspaces (id, name, owner_id) VALUES (?, ?, ?)')
+        .bind('ws1', 'WS', 'u1')
+        .run();
       await env.DB.prepare(
-        'INSERT INTO files (id, user_id, drive_account_id, google_file_id, workspace_id, workspace_folder_id, name) VALUES (?, ?, ?, ?, ?, ?, ?)'
-      ).bind('file1', 'u1', 'd1', 'gfile1', 'ws1', 'f1', 'doc.pdf').run();
+        'INSERT INTO workspace_folders (id, workspace_id, name, parent_id) VALUES (?, ?, ?, ?)',
+      )
+        .bind('f1', 'ws1', 'Folder', null)
+        .run();
+      await env.DB.prepare(
+        'INSERT INTO files (id, user_id, drive_account_id, google_file_id, workspace_id, workspace_folder_id, name) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      )
+        .bind('file1', 'u1', 'd1', 'gfile1', 'ws1', 'f1', 'doc.pdf')
+        .run();
 
       const repo = new FolderRepository(env.DB);
       await repo.delete('f1');
 
       // File survives but workspace_folder_id is NULL (ON DELETE SET NULL intent)
-      const file = await env.DB.prepare('SELECT workspace_folder_id FROM files WHERE id = ?').bind('file1').first<{ workspace_folder_id: string | null }>();
+      const file = await env.DB.prepare('SELECT workspace_folder_id FROM files WHERE id = ?')
+        .bind('file1')
+        .first<{ workspace_folder_id: string | null }>();
       expect(file).toBeTruthy();
       expect(file!.workspace_folder_id).toBeNull();
     });
 
     it('deletes folder-scoped policies (workspace_policies.target_id)', async () => {
       await insertUser('u1', 'alice');
-      await env.DB.prepare('INSERT INTO workspaces (id, name, owner_id) VALUES (?, ?, ?)').bind('ws1', 'WS', 'u1').run();
-      await env.DB.prepare('INSERT INTO workspace_folders (id, workspace_id, name, parent_id) VALUES (?, ?, ?, ?)').bind('f1', 'ws1', 'Folder', null).run();
+      await env.DB.prepare('INSERT INTO workspaces (id, name, owner_id) VALUES (?, ?, ?)')
+        .bind('ws1', 'WS', 'u1')
+        .run();
       await env.DB.prepare(
-        'INSERT INTO workspace_policies (id, workspace_id, target_type, target_id, policy_type, config) VALUES (?, ?, ?, ?, ?, ?)'
-      ).bind('p1', 'ws1', 'folder', 'f1', 'data_retention', JSON.stringify({ action: 'prevent_deletion' })).run();
+        'INSERT INTO workspace_folders (id, workspace_id, name, parent_id) VALUES (?, ?, ?, ?)',
+      )
+        .bind('f1', 'ws1', 'Folder', null)
+        .run();
+      await env.DB.prepare(
+        'INSERT INTO workspace_policies (id, workspace_id, target_type, target_id, policy_type, config) VALUES (?, ?, ?, ?, ?, ?)',
+      )
+        .bind(
+          'p1',
+          'ws1',
+          'folder',
+          'f1',
+          'data_retention',
+          JSON.stringify({ action: 'prevent_deletion' }),
+        )
+        .run();
 
       const repo = new FolderRepository(env.DB);
       await repo.delete('f1');
 
       // Folder-scoped policy must be gone (cascade)
-      const policy = await env.DB.prepare('SELECT COUNT(*) as count FROM workspace_policies WHERE target_id = ?').bind('f1').first<{ count: number }>();
+      const policy = await env.DB.prepare(
+        'SELECT COUNT(*) as count FROM workspace_policies WHERE target_id = ?',
+      )
+        .bind('f1')
+        .first<{ count: number }>();
       expect(policy!.count).toBe(0);
     });
   });
@@ -399,50 +512,120 @@ describe('Repositories (integration)', () => {
     it('cascades to all dependent tables', async () => {
       await insertUser('u1', 'alice');
       await insertDrive('d1', 'u1', 'alice@gmail.com');
-      await env.DB.prepare('INSERT INTO workspaces (id, name, owner_id) VALUES (?, ?, ?)').bind('ws1', 'WS', 'u1').run();
-      await env.DB.prepare('INSERT INTO workspace_members (id, workspace_id, user_id, role) VALUES (?, ?, ?, ?)').bind('m1', 'ws1', 'u1', 'owner').run();
-      await env.DB.prepare('INSERT INTO workspace_folders (id, workspace_id, name, parent_id) VALUES (?, ?, ?, ?)').bind('f1', 'ws1', 'Folder', null).run();
-      await env.DB.prepare('INSERT INTO s3_lifecycle_rules (id, workspace_id, prefix, expiration_days) VALUES (?, ?, ?, ?)').bind('lr1', 'ws1', '', 30).run();
-      await env.DB.prepare('INSERT INTO workspace_policies (id, workspace_id, target_type, policy_type, config) VALUES (?, ?, ?, ?, ?)').bind('p1', 'ws1', 'workspace', 'storage_quota', '{}').run();
-      await env.DB.prepare('INSERT INTO s3_credentials (id, user_id, access_key_id, secret_key_enc, workspace_id) VALUES (?, ?, ?, ?, ?)').bind('sc1', 'u1', 'AKIA1', 'enc1', 'ws1').run();
-      await env.DB.prepare('INSERT INTO s3_multipart_uploads (upload_id, user_id, workspace_id, key, drive_account_id, temp_folder_id) VALUES (?, ?, ?, ?, ?, ?)').bind('mu1', 'u1', 'ws1', 'key1', 'd1', 'temp1').run();
-      await env.DB.prepare('INSERT INTO s3_multipart_parts (upload_id, part_number, google_file_id, etag, size) VALUES (?, ?, ?, ?, ?)').bind('mu1', 1, 'gfile1', 'etag1', 100).run();
-      await env.DB.prepare('INSERT INTO audit_logs (id, workspace_id, actor_id, action_type) VALUES (?, ?, ?, ?)').bind('al1', 'ws1', 'u1', 'create').run();
+      await env.DB.prepare('INSERT INTO workspaces (id, name, owner_id) VALUES (?, ?, ?)')
+        .bind('ws1', 'WS', 'u1')
+        .run();
       await env.DB.prepare(
-        'INSERT INTO files (id, user_id, drive_account_id, google_file_id, workspace_id, name) VALUES (?, ?, ?, ?, ?, ?)'
-      ).bind('file1', 'u1', 'd1', 'gfile1', 'ws1', 'doc.pdf').run();
+        'INSERT INTO workspace_members (id, workspace_id, user_id, role) VALUES (?, ?, ?, ?)',
+      )
+        .bind('m1', 'ws1', 'u1', 'owner')
+        .run();
+      await env.DB.prepare(
+        'INSERT INTO workspace_folders (id, workspace_id, name, parent_id) VALUES (?, ?, ?, ?)',
+      )
+        .bind('f1', 'ws1', 'Folder', null)
+        .run();
+      await env.DB.prepare(
+        'INSERT INTO s3_lifecycle_rules (id, workspace_id, prefix, expiration_days) VALUES (?, ?, ?, ?)',
+      )
+        .bind('lr1', 'ws1', '', 30)
+        .run();
+      await env.DB.prepare(
+        'INSERT INTO workspace_policies (id, workspace_id, target_type, policy_type, config) VALUES (?, ?, ?, ?, ?)',
+      )
+        .bind('p1', 'ws1', 'workspace', 'storage_quota', '{}')
+        .run();
+      await env.DB.prepare(
+        'INSERT INTO s3_credentials (id, user_id, access_key_id, secret_key_enc, workspace_id) VALUES (?, ?, ?, ?, ?)',
+      )
+        .bind('sc1', 'u1', 'AKIA1', 'enc1', 'ws1')
+        .run();
+      await env.DB.prepare(
+        'INSERT INTO s3_multipart_uploads (upload_id, user_id, workspace_id, key, drive_account_id, temp_folder_id) VALUES (?, ?, ?, ?, ?, ?)',
+      )
+        .bind('mu1', 'u1', 'ws1', 'key1', 'd1', 'temp1')
+        .run();
+      await env.DB.prepare(
+        'INSERT INTO s3_multipart_parts (upload_id, part_number, google_file_id, etag, size) VALUES (?, ?, ?, ?, ?)',
+      )
+        .bind('mu1', 1, 'gfile1', 'etag1', 100)
+        .run();
+      await env.DB.prepare(
+        'INSERT INTO audit_logs (id, workspace_id, actor_id, action_type) VALUES (?, ?, ?, ?)',
+      )
+        .bind('al1', 'ws1', 'u1', 'create')
+        .run();
+      await env.DB.prepare(
+        'INSERT INTO files (id, user_id, drive_account_id, google_file_id, workspace_id, name) VALUES (?, ?, ?, ?, ?, ?)',
+      )
+        .bind('file1', 'u1', 'd1', 'gfile1', 'ws1', 'doc.pdf')
+        .run();
 
       const repo = new WorkspaceRepository(env.DB);
       await repo.delete('ws1');
 
       // workspace row gone
-      const ws = await env.DB.prepare('SELECT COUNT(*) as count FROM workspaces WHERE id = ?').bind('ws1').first<{ count: number }>();
+      const ws = await env.DB.prepare('SELECT COUNT(*) as count FROM workspaces WHERE id = ?')
+        .bind('ws1')
+        .first<{ count: number }>();
       expect(ws!.count).toBe(0);
       // workspace_members gone
-      const members = await env.DB.prepare('SELECT COUNT(*) as count FROM workspace_members WHERE workspace_id = ?').bind('ws1').first<{ count: number }>();
+      const members = await env.DB.prepare(
+        'SELECT COUNT(*) as count FROM workspace_members WHERE workspace_id = ?',
+      )
+        .bind('ws1')
+        .first<{ count: number }>();
       expect(members!.count).toBe(0);
       // workspace_folders gone
-      const folders = await env.DB.prepare('SELECT COUNT(*) as count FROM workspace_folders WHERE workspace_id = ?').bind('ws1').first<{ count: number }>();
+      const folders = await env.DB.prepare(
+        'SELECT COUNT(*) as count FROM workspace_folders WHERE workspace_id = ?',
+      )
+        .bind('ws1')
+        .first<{ count: number }>();
       expect(folders!.count).toBe(0);
       // s3_lifecycle_rules gone
-      const rules = await env.DB.prepare('SELECT COUNT(*) as count FROM s3_lifecycle_rules WHERE workspace_id = ?').bind('ws1').first<{ count: number }>();
+      const rules = await env.DB.prepare(
+        'SELECT COUNT(*) as count FROM s3_lifecycle_rules WHERE workspace_id = ?',
+      )
+        .bind('ws1')
+        .first<{ count: number }>();
       expect(rules!.count).toBe(0);
       // workspace_policies gone
-      const policies = await env.DB.prepare('SELECT COUNT(*) as count FROM workspace_policies WHERE workspace_id = ?').bind('ws1').first<{ count: number }>();
+      const policies = await env.DB.prepare(
+        'SELECT COUNT(*) as count FROM workspace_policies WHERE workspace_id = ?',
+      )
+        .bind('ws1')
+        .first<{ count: number }>();
       expect(policies!.count).toBe(0);
       // s3_credentials gone
-      const creds = await env.DB.prepare('SELECT COUNT(*) as count FROM s3_credentials WHERE workspace_id = ?').bind('ws1').first<{ count: number }>();
+      const creds = await env.DB.prepare(
+        'SELECT COUNT(*) as count FROM s3_credentials WHERE workspace_id = ?',
+      )
+        .bind('ws1')
+        .first<{ count: number }>();
       expect(creds!.count).toBe(0);
       // s3_multipart_uploads + parts gone
-      const uploads = await env.DB.prepare('SELECT COUNT(*) as count FROM s3_multipart_uploads WHERE workspace_id = ?').bind('ws1').first<{ count: number }>();
+      const uploads = await env.DB.prepare(
+        'SELECT COUNT(*) as count FROM s3_multipart_uploads WHERE workspace_id = ?',
+      )
+        .bind('ws1')
+        .first<{ count: number }>();
       expect(uploads!.count).toBe(0);
-      const parts = await env.DB.prepare('SELECT COUNT(*) as count FROM s3_multipart_parts WHERE upload_id = ?').bind('mu1').first<{ count: number }>();
+      const parts = await env.DB.prepare(
+        'SELECT COUNT(*) as count FROM s3_multipart_parts WHERE upload_id = ?',
+      )
+        .bind('mu1')
+        .first<{ count: number }>();
       expect(parts!.count).toBe(0);
       // audit_logs: workspace_id NULLed (ON DELETE SET NULL intent)
-      const audit = await env.DB.prepare('SELECT workspace_id FROM audit_logs WHERE id = ?').bind('al1').first<{ workspace_id: string | null }>();
+      const audit = await env.DB.prepare('SELECT workspace_id FROM audit_logs WHERE id = ?')
+        .bind('al1')
+        .first<{ workspace_id: string | null }>();
       expect(audit!.workspace_id).toBeNull();
       // files: workspace_id NULLed (files survive, detached)
-      const file = await env.DB.prepare('SELECT workspace_id FROM files WHERE id = ?').bind('file1').first<{ workspace_id: string | null }>();
+      const file = await env.DB.prepare('SELECT workspace_id FROM files WHERE id = ?')
+        .bind('file1')
+        .first<{ workspace_id: string | null }>();
       expect(file!.workspace_id).toBeNull();
     });
   });
@@ -452,45 +635,105 @@ describe('Repositories (integration)', () => {
       await insertUser('u1', 'alice');
       await insertDrive('d1', 'u1', 'alice@gmail.com');
       // drive_tokens
-      await env.DB.prepare('INSERT INTO drive_tokens (drive_account_id, encrypted_tokens, updated_at) VALUES (?, ?, ?)').bind('d1', 'enc', Date.now()).run();
+      await env.DB.prepare(
+        'INSERT INTO drive_tokens (drive_account_id, encrypted_tokens, updated_at) VALUES (?, ?, ?)',
+      )
+        .bind('d1', 'enc', Date.now())
+        .run();
       // sync_state
-      await env.DB.prepare('INSERT INTO sync_state (drive_account_id, status) VALUES (?, ?)').bind('d1', 'idle').run();
+      await env.DB.prepare('INSERT INTO sync_state (drive_account_id, status) VALUES (?, ?)')
+        .bind('d1', 'idle')
+        .run();
       // quota_cache
-      await env.DB.prepare('INSERT INTO quota_cache (drive_account_id, payload, updated_at) VALUES (?, ?, ?)').bind('d1', '{}', Date.now()).run();
+      await env.DB.prepare(
+        'INSERT INTO quota_cache (drive_account_id, payload, updated_at) VALUES (?, ?, ?)',
+      )
+        .bind('d1', '{}', Date.now())
+        .run();
       // drive_folders
-      await env.DB.prepare('INSERT INTO drive_folders (id, drive_account_id, google_folder_id, name) VALUES (?, ?, ?, ?)').bind('df1', 'd1', 'gfolder1', 'Folder').run();
+      await env.DB.prepare(
+        'INSERT INTO drive_folders (id, drive_account_id, google_folder_id, name) VALUES (?, ?, ?, ?)',
+      )
+        .bind('df1', 'd1', 'gfolder1', 'Folder')
+        .run();
       // files
-      await env.DB.prepare('INSERT INTO files (id, user_id, drive_account_id, google_file_id, name) VALUES (?, ?, ?, ?, ?)').bind('file1', 'u1', 'd1', 'gfile1', 'doc.pdf').run();
+      await env.DB.prepare(
+        'INSERT INTO files (id, user_id, drive_account_id, google_file_id, name) VALUES (?, ?, ?, ?, ?)',
+      )
+        .bind('file1', 'u1', 'd1', 'gfile1', 'doc.pdf')
+        .run();
       // s3_multipart_uploads (drive_account_id FK)
-      await env.DB.prepare('INSERT INTO workspaces (id, name, owner_id) VALUES (?, ?, ?)').bind('ws1', 'WS', 'u1').run();
-      await env.DB.prepare('INSERT INTO s3_multipart_uploads (upload_id, user_id, workspace_id, key, drive_account_id, temp_folder_id) VALUES (?, ?, ?, ?, ?, ?)').bind('mu1', 'u1', 'ws1', 'key1', 'd1', 'temp1').run();
-      await env.DB.prepare('INSERT INTO s3_multipart_parts (upload_id, part_number, google_file_id, etag, size) VALUES (?, ?, ?, ?, ?)').bind('mu1', 1, 'gfile1', 'etag1', 100).run();
+      await env.DB.prepare('INSERT INTO workspaces (id, name, owner_id) VALUES (?, ?, ?)')
+        .bind('ws1', 'WS', 'u1')
+        .run();
+      await env.DB.prepare(
+        'INSERT INTO s3_multipart_uploads (upload_id, user_id, workspace_id, key, drive_account_id, temp_folder_id) VALUES (?, ?, ?, ?, ?, ?)',
+      )
+        .bind('mu1', 'u1', 'ws1', 'key1', 'd1', 'temp1')
+        .run();
+      await env.DB.prepare(
+        'INSERT INTO s3_multipart_parts (upload_id, part_number, google_file_id, etag, size) VALUES (?, ?, ?, ?, ?)',
+      )
+        .bind('mu1', 1, 'gfile1', 'etag1', 100)
+        .run();
 
       const repo = new DriveRepository(env.DB);
       await repo.deleteDrive('d1', 'u1');
 
       // drive_accounts gone
-      const drive = await env.DB.prepare('SELECT COUNT(*) as count FROM drive_accounts WHERE id = ?').bind('d1').first<{ count: number }>();
+      const drive = await env.DB.prepare(
+        'SELECT COUNT(*) as count FROM drive_accounts WHERE id = ?',
+      )
+        .bind('d1')
+        .first<{ count: number }>();
       expect(drive!.count).toBe(0);
       // drive_tokens gone
-      const tokens = await env.DB.prepare('SELECT COUNT(*) as count FROM drive_tokens WHERE drive_account_id = ?').bind('d1').first<{ count: number }>();
+      const tokens = await env.DB.prepare(
+        'SELECT COUNT(*) as count FROM drive_tokens WHERE drive_account_id = ?',
+      )
+        .bind('d1')
+        .first<{ count: number }>();
       expect(tokens!.count).toBe(0);
       // sync_state gone
-      const sync = await env.DB.prepare('SELECT COUNT(*) as count FROM sync_state WHERE drive_account_id = ?').bind('d1').first<{ count: number }>();
+      const sync = await env.DB.prepare(
+        'SELECT COUNT(*) as count FROM sync_state WHERE drive_account_id = ?',
+      )
+        .bind('d1')
+        .first<{ count: number }>();
       expect(sync!.count).toBe(0);
       // quota_cache gone
-      const quota = await env.DB.prepare('SELECT COUNT(*) as count FROM quota_cache WHERE drive_account_id = ?').bind('d1').first<{ count: number }>();
+      const quota = await env.DB.prepare(
+        'SELECT COUNT(*) as count FROM quota_cache WHERE drive_account_id = ?',
+      )
+        .bind('d1')
+        .first<{ count: number }>();
       expect(quota!.count).toBe(0);
       // drive_folders gone
-      const folders = await env.DB.prepare('SELECT COUNT(*) as count FROM drive_folders WHERE drive_account_id = ?').bind('d1').first<{ count: number }>();
+      const folders = await env.DB.prepare(
+        'SELECT COUNT(*) as count FROM drive_folders WHERE drive_account_id = ?',
+      )
+        .bind('d1')
+        .first<{ count: number }>();
       expect(folders!.count).toBe(0);
       // files gone
-      const files = await env.DB.prepare('SELECT COUNT(*) as count FROM files WHERE drive_account_id = ?').bind('d1').first<{ count: number }>();
+      const files = await env.DB.prepare(
+        'SELECT COUNT(*) as count FROM files WHERE drive_account_id = ?',
+      )
+        .bind('d1')
+        .first<{ count: number }>();
       expect(files!.count).toBe(0);
       // s3_multipart_uploads + parts gone
-      const uploads = await env.DB.prepare('SELECT COUNT(*) as count FROM s3_multipart_uploads WHERE drive_account_id = ?').bind('d1').first<{ count: number }>();
+      const uploads = await env.DB.prepare(
+        'SELECT COUNT(*) as count FROM s3_multipart_uploads WHERE drive_account_id = ?',
+      )
+        .bind('d1')
+        .first<{ count: number }>();
       expect(uploads!.count).toBe(0);
-      const parts = await env.DB.prepare('SELECT COUNT(*) as count FROM s3_multipart_parts WHERE upload_id = ?').bind('mu1').first<{ count: number }>();
+      const parts = await env.DB.prepare(
+        'SELECT COUNT(*) as count FROM s3_multipart_parts WHERE upload_id = ?',
+      )
+        .bind('mu1')
+        .first<{ count: number }>();
       expect(parts!.count).toBe(0);
     });
   });
@@ -499,23 +742,31 @@ describe('Repositories (integration)', () => {
     it('cascades to shared_link_logs', async () => {
       await insertUser('u1', 'alice');
       await env.DB.prepare(
-        'INSERT INTO shared_links (id, user_id, target_type, target_id) VALUES (?, ?, ?, ?)'
-      ).bind('sl1', 'u1', 'file', 'file1').run();
-      await env.DB.prepare(
-        'INSERT INTO shared_link_logs (shared_link_id, action) VALUES (?, ?)'
-      ).bind('sl1', 'view').run();
-      await env.DB.prepare(
-        'INSERT INTO shared_link_logs (shared_link_id, action) VALUES (?, ?)'
-      ).bind('sl1', 'download').run();
+        'INSERT INTO shared_links (id, user_id, target_type, target_id) VALUES (?, ?, ?, ?)',
+      )
+        .bind('sl1', 'u1', 'file', 'file1')
+        .run();
+      await env.DB.prepare('INSERT INTO shared_link_logs (shared_link_id, action) VALUES (?, ?)')
+        .bind('sl1', 'view')
+        .run();
+      await env.DB.prepare('INSERT INTO shared_link_logs (shared_link_id, action) VALUES (?, ?)')
+        .bind('sl1', 'download')
+        .run();
 
       const repo = new SharedRepository(env.DB);
       await repo.delete('sl1', 'u1');
 
       // shared_links row gone
-      const link = await env.DB.prepare('SELECT COUNT(*) as count FROM shared_links WHERE id = ?').bind('sl1').first<{ count: number }>();
+      const link = await env.DB.prepare('SELECT COUNT(*) as count FROM shared_links WHERE id = ?')
+        .bind('sl1')
+        .first<{ count: number }>();
       expect(link!.count).toBe(0);
       // shared_link_logs rows gone (cascade)
-      const logs = await env.DB.prepare('SELECT COUNT(*) as count FROM shared_link_logs WHERE shared_link_id = ?').bind('sl1').first<{ count: number }>();
+      const logs = await env.DB.prepare(
+        'SELECT COUNT(*) as count FROM shared_link_logs WHERE shared_link_id = ?',
+      )
+        .bind('sl1')
+        .first<{ count: number }>();
       expect(logs!.count).toBe(0);
     });
   });

@@ -43,57 +43,106 @@ const DATE_STR = `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.
 async function insertUserAndS3Cred(username: string): Promise<{ userId: string }> {
   const userId = `user-${username}`;
   await env.DB.prepare(
-    'INSERT INTO users (id, username, password_hash, is_super_admin) VALUES (?, ?, ?, ?)'
-  ).bind(userId, username, '$2a$10$dummyhash', 1).run();
+    'INSERT INTO users (id, username, password_hash, is_super_admin) VALUES (?, ?, ?, ?)',
+  )
+    .bind(userId, username, '$2a$10$dummyhash', 1)
+    .run();
 
   // Each call gets a unique access key ID so multiple users in the same test
   // don't collide on the UNIQUE constraint.
   currentAccessKeyId = nextAccessKeyId();
   const secretEnc = await encrypt(SECRET_ACCESS_KEY, env.TOKEN_ENCRYPTION_KEY);
   await env.DB.prepare(
-    'INSERT INTO s3_credentials (id, user_id, access_key_id, secret_key_enc, description, workspace_id) VALUES (?, ?, ?, ?, ?, ?)'
-  ).bind(`cred-${username}`, userId, currentAccessKeyId, secretEnc, 'integration test', null).run();
+    'INSERT INTO s3_credentials (id, user_id, access_key_id, secret_key_enc, description, workspace_id) VALUES (?, ?, ?, ?, ?, ?)',
+  )
+    .bind(`cred-${username}`, userId, currentAccessKeyId, secretEnc, 'integration test', null)
+    .run();
 
   return { userId };
 }
 
 async function insertWorkspace(userId: string, name: string): Promise<string> {
   const wsId = `ws-${name}`;
+  await env.DB.prepare('INSERT INTO workspaces (id, name, owner_id) VALUES (?, ?, ?)')
+    .bind(wsId, name, userId)
+    .run();
   await env.DB.prepare(
-    'INSERT INTO workspaces (id, name, owner_id) VALUES (?, ?, ?)'
-  ).bind(wsId, name, userId).run();
-  await env.DB.prepare(
-    'INSERT INTO workspace_members (id, workspace_id, user_id, role) VALUES (?, ?, ?, ?)'
-  ).bind(`wm-${name}`, wsId, userId, 'owner').run();
+    'INSERT INTO workspace_members (id, workspace_id, user_id, role) VALUES (?, ?, ?, ?)',
+  )
+    .bind(`wm-${name}`, wsId, userId, 'owner')
+    .run();
   return wsId;
 }
 
 async function insertDrive(userId: string, driveId: string, email: string): Promise<void> {
   await env.DB.prepare(
-    'INSERT INTO drive_accounts (id, user_id, google_account_id, email, name, is_primary, root_folder_id, total_quota, used_quota) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-  ).bind(driveId, userId, `g-${driveId}`, email, email, 1, 'root-folder-id', 15_000_000_000, 5_000_000_000).run();
+    'INSERT INTO drive_accounts (id, user_id, google_account_id, email, name, is_primary, root_folder_id, total_quota, used_quota) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+  )
+    .bind(
+      driveId,
+      userId,
+      `g-${driveId}`,
+      email,
+      email,
+      1,
+      'root-folder-id',
+      15_000_000_000,
+      5_000_000_000,
+    )
+    .run();
 
   // Insert encrypted tokens so GoogleDriveService can "getTokens" without error
-  const tokenEnc = await encrypt(JSON.stringify({
-    accessToken: 'fake-access-token',
-    refreshToken: 'fake-refresh-token',
-    expiresAt: Date.now() + 3600_000,
-  }), env.TOKEN_ENCRYPTION_KEY);
+  const tokenEnc = await encrypt(
+    JSON.stringify({
+      accessToken: 'fake-access-token',
+      refreshToken: 'fake-refresh-token',
+      expiresAt: Date.now() + 3600_000,
+    }),
+    env.TOKEN_ENCRYPTION_KEY,
+  );
   await env.DB.prepare(
-    'INSERT INTO drive_tokens (drive_account_id, encrypted_tokens, updated_at) VALUES (?, ?, ?)'
-  ).bind(driveId, tokenEnc, Date.now()).run();
+    'INSERT INTO drive_tokens (drive_account_id, encrypted_tokens, updated_at) VALUES (?, ?, ?)',
+  )
+    .bind(driveId, tokenEnc, Date.now())
+    .run();
 }
 
-async function insertFile(userId: string, driveId: string, wsId: string, folderId: string | null, name: string, googleFileId: string): Promise<void> {
+async function insertFile(
+  userId: string,
+  driveId: string,
+  wsId: string,
+  folderId: string | null,
+  name: string,
+  googleFileId: string,
+): Promise<void> {
   await env.DB.prepare(
-    'INSERT INTO files (id, user_id, drive_account_id, workspace_id, workspace_folder_id, google_file_id, google_parent_id, name, mime_type, size, is_trashed, is_starred) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-  ).bind(`file-${name}`, userId, driveId, wsId, folderId, googleFileId, null, name, 'text/plain', 100, 0, 0).run();
+    'INSERT INTO files (id, user_id, drive_account_id, workspace_id, workspace_folder_id, google_file_id, google_parent_id, name, mime_type, size, is_trashed, is_starred) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+  )
+    .bind(
+      `file-${name}`,
+      userId,
+      driveId,
+      wsId,
+      folderId,
+      googleFileId,
+      null,
+      name,
+      'text/plain',
+      100,
+      0,
+      0,
+    )
+    .run();
 }
 
-function signedRequest(method: string, path: string, opts: { queryParams?: Record<string, string>; body?: string; accessKeyId?: string } = {}) {
+function signedRequest(
+  method: string,
+  path: string,
+  opts: { queryParams?: Record<string, string>; body?: string; accessKeyId?: string } = {},
+) {
   const accessKeyId = opts.accessKeyId || currentAccessKeyId;
   const headers: Record<string, string> = {
-    'host': HOST,
+    host: HOST,
     'x-amz-date': AMZ_DATE,
     'x-amz-content-sha256': sha256(opts.body || ''),
   };
@@ -109,15 +158,27 @@ function signedRequest(method: string, path: string, opts: { queryParams?: Recor
     amzDate: AMZ_DATE,
   });
 
-  const fullPath = opts.queryParams && Object.keys(opts.queryParams).length > 0
-    ? path + '?' + Object.entries(opts.queryParams).map(([k, v]) => `${k}=${v}`).join('&')
-    : path;
+  const fullPath =
+    opts.queryParams && Object.keys(opts.queryParams).length > 0
+      ? path +
+        '?' +
+        Object.entries(opts.queryParams)
+          .map(([k, v]) => `${k}=${v}`)
+          .join('&')
+      : path;
 
-  return app.request(fullPath, {
-    method,
-    headers: { ...headers, Authorization: buildAuthHeader(accessKeyId, DATE_STR, signedHeaders, signature) },
-    body: opts.body,
-  }, env);
+  return app.request(
+    fullPath,
+    {
+      method,
+      headers: {
+        ...headers,
+        Authorization: buildAuthHeader(accessKeyId, DATE_STR, signedHeaders, signature),
+      },
+      body: opts.body,
+    },
+    env,
+  );
 }
 
 describe('S3 Protocol (integration)', () => {
@@ -197,7 +258,9 @@ describe('S3 Protocol (integration)', () => {
     }
 
     // Page 1: max-keys=2 → 2 files, IsTruncated=true, NextContinuationToken
-    const res1 = await signedRequest('GET', '/s3/page-bucket', { queryParams: { 'max-keys': '2' } });
+    const res1 = await signedRequest('GET', '/s3/page-bucket', {
+      queryParams: { 'max-keys': '2' },
+    });
     expect(res1.status).toBe(200);
     const body1 = await res1.text();
     expect(body1).toContain('<MaxKeys>2</MaxKeys>');
@@ -211,7 +274,9 @@ describe('S3 Protocol (integration)', () => {
     expect(body1.match(/<Contents>/g)?.length).toBe(2);
 
     // Page 2: use continuation-token → 2 more files, IsTruncated=true
-    const res2 = await signedRequest('GET', '/s3/page-bucket', { queryParams: { 'max-keys': '2', 'continuation-token': token1 } });
+    const res2 = await signedRequest('GET', '/s3/page-bucket', {
+      queryParams: { 'max-keys': '2', 'continuation-token': token1 },
+    });
     expect(res2.status).toBe(200);
     const body2 = await res2.text();
     expect(body2).toContain('<IsTruncated>true</IsTruncated>');
@@ -220,7 +285,9 @@ describe('S3 Protocol (integration)', () => {
     expect(body2.match(/<Contents>/g)?.length).toBe(2);
 
     // Page 3: final page → 1 file, IsTruncated=false, no NextContinuationToken
-    const res3 = await signedRequest('GET', '/s3/page-bucket', { queryParams: { 'max-keys': '2', 'continuation-token': token2 } });
+    const res3 = await signedRequest('GET', '/s3/page-bucket', {
+      queryParams: { 'max-keys': '2', 'continuation-token': token2 },
+    });
     expect(res3.status).toBe(200);
     const body3 = await res3.text();
     expect(body3).toContain('<IsTruncated>false</IsTruncated>');
@@ -260,8 +327,9 @@ describe('S3 Protocol (integration)', () => {
     expect(res.status).toBe(204);
 
     // File row soft-deleted (is_trashed = 1) — S3 DELETE trashes, not hard-deletes
-    const row = await env.DB.prepare('SELECT is_trashed FROM files WHERE id = ?')
-      .bind('file-to-delete.txt').first() as { is_trashed: number } | null;
+    const row = (await env.DB.prepare('SELECT is_trashed FROM files WHERE id = ?')
+      .bind('file-to-delete.txt')
+      .first()) as { is_trashed: number } | null;
     expect(row).toBeTruthy();
     expect(row!.is_trashed).toBe(1);
   });
@@ -274,21 +342,40 @@ describe('S3 Protocol (integration)', () => {
 
     // Mock Google Drive API — initiateResumableUpload + createFolder for temp folder
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
-      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+      const url =
+        typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
       // Google Drive file.create (for temp folder) — return a folder ID
-      if (url.includes('https://www.googleapis.com/drive/v3/files') && !url.includes('uploadType=resumable')) {
-        return new Response(JSON.stringify({ id: 'temp-folder-id-123', mimeType: 'application/vnd.google-apps.folder' }), {
-          status: 200, headers: { 'Content-Type': 'application/json' },
-        });
+      if (
+        url.includes('https://www.googleapis.com/drive/v3/files') &&
+        !url.includes('uploadType=resumable')
+      ) {
+        return new Response(
+          JSON.stringify({
+            id: 'temp-folder-id-123',
+            mimeType: 'application/vnd.google-apps.folder',
+          }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        );
       }
       // Resumable upload session initiation — return Location header
       if (url.includes('uploadType=resumable')) {
-        return new Response('', { status: 200, headers: { Location: 'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&upload_id=abc' } });
+        return new Response('', {
+          status: 200,
+          headers: {
+            Location:
+              'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&upload_id=abc',
+          },
+        });
       }
       return new Response('{}', { status: 200 });
     });
 
-    const res = await signedRequest('POST', '/s3/my-bucket/folder/large-file.bin', { queryParams: { uploads: '' } });
+    const res = await signedRequest('POST', '/s3/my-bucket/folder/large-file.bin', {
+      queryParams: { uploads: '' },
+    });
 
     expect(res.status).toBe(200);
     const body = await res.text();
@@ -301,9 +388,17 @@ describe('S3 Protocol (integration)', () => {
     const uploadId = uploadIdMatch![1];
 
     // s3_multipart_uploads row created in D1
-    const upload = await env.DB.prepare(
-      'SELECT user_id, workspace_id, key, drive_account_id, temp_folder_id FROM s3_multipart_uploads WHERE upload_id = ?'
-    ).bind(uploadId).first() as { user_id: string; workspace_id: string; key: string; drive_account_id: string; temp_folder_id: string } | null;
+    const upload = (await env.DB.prepare(
+      'SELECT user_id, workspace_id, key, drive_account_id, temp_folder_id FROM s3_multipart_uploads WHERE upload_id = ?',
+    )
+      .bind(uploadId)
+      .first()) as {
+      user_id: string;
+      workspace_id: string;
+      key: string;
+      drive_account_id: string;
+      temp_folder_id: string;
+    } | null;
     expect(upload).toBeTruthy();
     expect(upload!.user_id).toBe(userId);
     expect(upload!.workspace_id).toBe(wsId);
@@ -318,24 +413,43 @@ describe('S3 Protocol (integration)', () => {
     await insertDrive(userId, 'drive-1', 'alice@gmail.com');
 
     // Mock Google Drive API — initiateResumableUpload returns Location, then upload PUT returns file metadata
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
-      // Resumable upload session initiation
-      if (url.includes('uploadType=resumable') && init?.method !== 'PUT') {
-        return new Response('', { status: 200, headers: { Location: 'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&upload_id=def' } });
-      }
-      // Upload PUT — return file metadata with id + md5
-      if (url.includes('uploadType=resumable') && init?.method === 'PUT') {
-        return new Response(JSON.stringify({ id: 'gfile-new-123', md5Checksum: 'd41d8cd98f00b204e9800998ecf8427e' }), {
-          status: 200, headers: { 'Content-Type': 'application/json' },
-        });
-      }
-      // Google Drive file.create (for folder creation)
-      if (url.includes('https://www.googleapis.com/drive/v3/files')) {
-        return new Response(JSON.stringify({ id: 'folder-id-456' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-      }
-      return new Response('{}', { status: 200 });
-    });
+    vi.spyOn(globalThis, 'fetch').mockImplementation(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url =
+          typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+        // Resumable upload session initiation
+        if (url.includes('uploadType=resumable') && init?.method !== 'PUT') {
+          return new Response('', {
+            status: 200,
+            headers: {
+              Location:
+                'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&upload_id=def',
+            },
+          });
+        }
+        // Upload PUT — return file metadata with id + md5
+        if (url.includes('uploadType=resumable') && init?.method === 'PUT') {
+          return new Response(
+            JSON.stringify({
+              id: 'gfile-new-123',
+              md5Checksum: 'd41d8cd98f00b204e9800998ecf8427e',
+            }),
+            {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          );
+        }
+        // Google Drive file.create (for folder creation)
+        if (url.includes('https://www.googleapis.com/drive/v3/files')) {
+          return new Response(JSON.stringify({ id: 'folder-id-456' }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        return new Response('{}', { status: 200 });
+      },
+    );
 
     const body = 'Hello S3';
     const res = await signedRequest('PUT', '/s3/my-bucket/uploaded-file.txt', { body });
@@ -343,9 +457,11 @@ describe('S3 Protocol (integration)', () => {
     expect(res.status).toBe(200);
 
     // File row created in D1
-    const file = await env.DB.prepare(
-      'SELECT name, google_file_id, workspace_id FROM files WHERE workspace_id = ? AND name = ?'
-    ).bind(wsId, 'uploaded-file.txt').first() as { name: string; google_file_id: string; workspace_id: string } | null;
+    const file = (await env.DB.prepare(
+      'SELECT name, google_file_id, workspace_id FROM files WHERE workspace_id = ? AND name = ?',
+    )
+      .bind(wsId, 'uploaded-file.txt')
+      .first()) as { name: string; google_file_id: string; workspace_id: string } | null;
     expect(file).toBeTruthy();
     expect(file!.google_file_id).toBe('gfile-new-123');
     expect(file!.workspace_id).toBe(wsId);

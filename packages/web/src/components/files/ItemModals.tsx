@@ -92,7 +92,11 @@ export function ItemModals({ modals, driveId, onRefresh }: Props) {
       <ConfirmDialog
         open={modals.confirmFileDelete !== null}
         title="Delete File"
-        message={modals.confirmFileDelete ? `Delete "${modals.confirmFileDelete.name}" permanently from Google Drive?` : ''}
+        message={
+          modals.confirmFileDelete
+            ? `Delete "${modals.confirmFileDelete.name}" permanently from Google Drive?`
+            : ''
+        }
         confirmText="Delete"
         cancelText="Cancel"
         variant="danger"
@@ -103,7 +107,11 @@ export function ItemModals({ modals, driveId, onRefresh }: Props) {
       <ConfirmDialog
         open={modals.confirmFolderDelete !== null}
         title="Delete Folder"
-        message={modals.confirmFolderDelete ? `Delete "${modals.confirmFolderDelete.name}" and ALL its contents from Google Drive?` : ''}
+        message={
+          modals.confirmFolderDelete
+            ? `Delete "${modals.confirmFolderDelete.name}" and ALL its contents from Google Drive?`
+            : ''
+        }
         confirmText="Delete"
         cancelText="Cancel"
         variant="danger"

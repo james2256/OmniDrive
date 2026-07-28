@@ -2,7 +2,12 @@ import { NotFoundError } from '../lib/errors';
 import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types';
 import type { DriveAccount } from '../types/index';
 import { mapDriveRow } from '../types/index';
-import { GoogleDriveService, type GDriveFile, type GDriveFolder, type GDriveOwner } from './google-drive';
+import {
+  GoogleDriveService,
+  type GDriveFile,
+  type GDriveFolder,
+  type GDriveOwner,
+} from './google-drive';
 import { resolveSyncRootFolderId } from '../lib/drive-folder';
 import type { Env } from '../types/env';
 import { FileRepository } from '../repositories/file.repository';
@@ -33,7 +38,11 @@ const EXTERNAL_SUBREQUEST_BUDGET = 45;
 
 const SHARED_PARENT_MARKER = '__shared__';
 
-function resolveParentId(parents: string[] | undefined | null, rootFolderId: string, isFolder: boolean): string | null {
+function resolveParentId(
+  parents: string[] | undefined | null,
+  rootFolderId: string,
+  isFolder: boolean,
+): string | null {
   if (!parents || parents.length === 0) {
     return SHARED_PARENT_MARKER;
   }
@@ -65,8 +74,12 @@ export async function batchUpsertFolderContents(
   // queries (which filter by user_id, not owned_by_me). The live Google API is
   // used for folder drill-in, so non-owned children are still visible transiently.
   const stmts: D1PreparedStatement[] = [
-    ...folders.filter((f) => isOwnedByMe(f.owners)).map((f) => folderRepo.buildDriveFolderUpsertStmt(drive, f, googleParentId, true)),
-    ...files.filter((f) => isOwnedByMe(f.owners)).map((f) => fileRepo.buildUpsertStmt(drive, f, googleParentId, true)),
+    ...folders
+      .filter((f) => isOwnedByMe(f.owners))
+      .map((f) => folderRepo.buildDriveFolderUpsertStmt(drive, f, googleParentId, true)),
+    ...files
+      .filter((f) => isOwnedByMe(f.owners))
+      .map((f) => fileRepo.buildUpsertStmt(drive, f, googleParentId, true)),
   ];
   await batchInChunks(db, stmts);
 }
@@ -106,10 +119,12 @@ export async function syncDriveFolder(
 export async function syncDriveAccount(
   drive: DriveAccount,
   db: D1Database,
-  driveService: GoogleDriveService
+  driveService: GoogleDriveService,
 ): Promise<void> {
   await db
-    .prepare("INSERT INTO sync_state (drive_account_id, status) VALUES (?, 'syncing') ON CONFLICT(drive_account_id) DO UPDATE SET status = 'syncing', error_message = NULL")
+    .prepare(
+      "INSERT INTO sync_state (drive_account_id, status) VALUES (?, 'syncing') ON CONFLICT(drive_account_id) DO UPDATE SET status = 'syncing', error_message = NULL",
+    )
     .bind(drive.id)
     .run();
 
@@ -123,7 +138,12 @@ export async function syncDriveAccount(
     const nextPageToken = syncState?.next_page_token;
 
     if (!changeToken) {
-      const completed = await performInitialSync(drive, db, driveService, nextPageToken ?? undefined);
+      const completed = await performInitialSync(
+        drive,
+        db,
+        driveService,
+        nextPageToken ?? undefined,
+      );
       if (!completed) {
         // Paused (subrequest budget hit) or shutting down — next_page_token was already
         // saved per-page by performInitialSync, so the next cron cycle resumes from there.
@@ -141,7 +161,7 @@ export async function syncDriveAccount(
 
     await db
       .prepare(
-        "INSERT INTO sync_state (drive_account_id, status, last_synced_at, change_token, next_page_token) VALUES (?, 'idle', CURRENT_TIMESTAMP, ?, NULL) ON CONFLICT(drive_account_id) DO UPDATE SET status = 'idle', last_synced_at = CURRENT_TIMESTAMP, change_token = excluded.change_token, next_page_token = NULL"
+        "INSERT INTO sync_state (drive_account_id, status, last_synced_at, change_token, next_page_token) VALUES (?, 'idle', CURRENT_TIMESTAMP, ?, NULL) ON CONFLICT(drive_account_id) DO UPDATE SET status = 'idle', last_synced_at = CURRENT_TIMESTAMP, change_token = excluded.change_token, next_page_token = NULL",
       )
       .bind(drive.id, changeToken)
       .run();
@@ -153,10 +173,16 @@ export async function syncDriveAccount(
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
-    logErrorNoCtx('Sync failed for drive', undefined, { driveId: drive.id, driveEmail: drive.email, message });
+    logErrorNoCtx('Sync failed for drive', undefined, {
+      driveId: drive.id,
+      driveEmail: drive.email,
+      message,
+    });
 
     await db
-      .prepare("INSERT INTO sync_state (drive_account_id, status, error_message) VALUES (?, 'error', ?) ON CONFLICT(drive_account_id) DO UPDATE SET status = 'error', error_message = excluded.error_message")
+      .prepare(
+        "INSERT INTO sync_state (drive_account_id, status, error_message) VALUES (?, 'error', ?) ON CONFLICT(drive_account_id) DO UPDATE SET status = 'error', error_message = excluded.error_message",
+      )
       .bind(drive.id, message)
       .run();
   }
@@ -166,9 +192,11 @@ async function performInitialSync(
   drive: DriveAccount,
   db: D1Database,
   driveService: GoogleDriveService,
-  startPageToken?: string
+  startPageToken?: string,
 ): Promise<boolean> {
-  const rootFolderId = await resolveSyncRootFolderId(drive, () => driveService.getRootFolderId(drive.id));
+  const rootFolderId = await resolveSyncRootFolderId(drive, () =>
+    driveService.getRootFolderId(drive.id),
+  );
   const iterator = driveService.iterateAllFilesAndFolders(drive.id, startPageToken);
   // One external call so far: getRootFolderId. D1 calls (sync_state, loadTokens) don't
   // count toward the 50 external limit — they have their own 1,000 limit.
@@ -221,9 +249,11 @@ async function performIncrementalSync(
   drive: DriveAccount,
   db: D1Database,
   pageToken: string,
-  driveService: GoogleDriveService
+  driveService: GoogleDriveService,
 ): Promise<string> {
-  const rootFolderId = await resolveSyncRootFolderId(drive, () => driveService.getRootFolderId(drive.id));
+  const rootFolderId = await resolveSyncRootFolderId(drive, () =>
+    driveService.getRootFolderId(drive.id),
+  );
   // One external call so far: getRootFolderId. Track to stay within Free tier.
   let externalCount = 1;
 
@@ -252,12 +282,16 @@ async function performIncrementalSync(
         // Permanently deleted from Google Drive — remove from D1
         if (isFolder) {
           stmts.push(
-            db.prepare('DELETE FROM drive_folders WHERE drive_account_id = ? AND google_folder_id = ?')
+            db
+              .prepare(
+                'DELETE FROM drive_folders WHERE drive_account_id = ? AND google_folder_id = ?',
+              )
               .bind(drive.id, change.fileId),
           );
         } else {
           stmts.push(
-            db.prepare('DELETE FROM files WHERE drive_account_id = ? AND google_file_id = ?')
+            db
+              .prepare('DELETE FROM files WHERE drive_account_id = ? AND google_file_id = ?')
               .bind(drive.id, change.fileId),
           );
         }
@@ -274,12 +308,16 @@ async function performIncrementalSync(
       if (!isOwnedByMe(file.owners)) {
         if (isFolder) {
           stmts.push(
-            db.prepare('DELETE FROM drive_folders WHERE drive_account_id = ? AND google_folder_id = ?')
+            db
+              .prepare(
+                'DELETE FROM drive_folders WHERE drive_account_id = ? AND google_folder_id = ?',
+              )
               .bind(drive.id, change.fileId),
           );
         } else {
           stmts.push(
-            db.prepare('DELETE FROM files WHERE drive_account_id = ? AND google_file_id = ?')
+            db
+              .prepare('DELETE FROM files WHERE drive_account_id = ? AND google_file_id = ?')
               .bind(drive.id, change.fileId),
           );
         }
@@ -290,12 +328,18 @@ async function performIncrementalSync(
         // Owned + trashed → mark as trashed (recoverable via /trash → restore)
         if (isFolder) {
           stmts.push(
-            db.prepare('UPDATE drive_folders SET is_trashed = 1 WHERE drive_account_id = ? AND google_folder_id = ?')
+            db
+              .prepare(
+                'UPDATE drive_folders SET is_trashed = 1 WHERE drive_account_id = ? AND google_folder_id = ?',
+              )
               .bind(drive.id, change.fileId),
           );
         } else {
           stmts.push(
-            db.prepare('UPDATE files SET is_trashed = 1 WHERE drive_account_id = ? AND google_file_id = ?')
+            db
+              .prepare(
+                'UPDATE files SET is_trashed = 1 WHERE drive_account_id = ? AND google_file_id = ?',
+              )
               .bind(drive.id, change.fileId),
           );
         }
@@ -305,7 +349,14 @@ async function performIncrementalSync(
       // Owned + not trashed → upsert
       if (isFolder) {
         const parentId = resolveParentId(file.parents, rootFolderId, true);
-        stmts.push(folderRepo.buildDriveFolderUpsertStmt(drive, { id: file.id, name: file.name, parents: file.parents, owners: file.owners }, parentId, true));
+        stmts.push(
+          folderRepo.buildDriveFolderUpsertStmt(
+            drive,
+            { id: file.id, name: file.name, parents: file.parents, owners: file.owners },
+            parentId,
+            true,
+          ),
+        );
       } else {
         const parentId = resolveParentId(file.parents, rootFolderId, false);
         stmts.push(fileRepo.buildUpsertStmt(drive, file as unknown as GDriveFile, parentId, true));
@@ -335,10 +386,15 @@ export async function runScheduledSync(env: {
 }): Promise<void> {
   if (getIsShuttingDown()) return;
 
-  const driveService = new GoogleDriveService(env.DB, env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, env.TOKEN_ENCRYPTION_KEY);
+  const driveService = new GoogleDriveService(
+    env.DB,
+    env.GOOGLE_CLIENT_ID,
+    env.GOOGLE_CLIENT_SECRET,
+    env.TOKEN_ENCRYPTION_KEY,
+  );
 
   const rows = await env.DB.prepare(
-    "SELECT * FROM drive_accounts WHERE type IN ('oauth', 'service_account')"
+    "SELECT * FROM drive_accounts WHERE type IN ('oauth', 'service_account')",
   ).all();
   const driveAccounts = (rows.results ?? []).map(mapDriveRow);
 

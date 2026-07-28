@@ -35,8 +35,10 @@ export function calculateSigV4({
   amzDate = '20260621T120000Z',
 }: SigV4Params) {
   function awsEncode(str: string): string {
-    return encodeURIComponent(str)
-      .replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+    return encodeURIComponent(str).replace(
+      /[!'()*]/g,
+      (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase(),
+    );
   }
 
   const queryParamsList: [string, string][] = Object.entries(queryParams);
@@ -95,6 +97,11 @@ export function calculateSigV4({
   return { signature, signedHeaders };
 }
 
-export function buildAuthHeader(accessKeyId: string, dateStr: string, signedHeaders: string, signature: string): string {
+export function buildAuthHeader(
+  accessKeyId: string,
+  dateStr: string,
+  signedHeaders: string,
+  signature: string,
+): string {
   return `AWS4-HMAC-SHA256 Credential=${accessKeyId}/${dateStr}/us-east-1/s3/aws4_request, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 }

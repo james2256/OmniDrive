@@ -26,9 +26,7 @@ interface SchemaObject {
 // would cascade-delete dependent data).
 function dumpSchema(db: Database.Database): SchemaObject[] {
   const rows = db
-    .prepare(
-      "SELECT type, name, sql FROM sqlite_master WHERE sql IS NOT NULL ORDER BY type, name"
-    )
+    .prepare('SELECT type, name, sql FROM sqlite_master WHERE sql IS NOT NULL ORDER BY type, name')
     .all() as SchemaObject[];
   return rows.map((r) => ({
     type: r.type,

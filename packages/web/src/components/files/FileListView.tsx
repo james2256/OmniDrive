@@ -76,12 +76,17 @@ export function FileListView(props: FileListViewProps) {
   return (
     <div className="w-full overflow-x-auto">
       {/* Table header */}
-      <div className={`grid ${listGridClass} gap-0 bg-surface border-b-2 border-slate-200 px-2 sm:px-4 py-2.5 text-xs font-semibold text-slate-600 uppercase tracking-wide sticky top-0 z-10 group min-w-[500px]`}>
+      <div
+        className={`grid ${listGridClass} gap-0 bg-surface border-b-2 border-slate-200 px-2 sm:px-4 py-2.5 text-xs font-semibold text-slate-600 uppercase tracking-wide sticky top-0 z-10 group min-w-[500px]`}
+      >
         <div className="flex items-center justify-center">
           <input
             type="checkbox"
             className={`w-4 h-4 cursor-pointer ${hasSelection ? 'opacity-100' : 'opacity-30 group-hover:opacity-100 transition-opacity'}`}
-            checked={selectedItems.length > 0 && selectedItems.length === sortedSubfolders.length + sortedFiles.length}
+            checked={
+              selectedItems.length > 0 &&
+              selectedItems.length === sortedSubfolders.length + sortedFiles.length
+            }
             onChange={(e) => {
               if (e.target.checked) {
                 selectAll(allItems);
@@ -105,12 +110,19 @@ export function FileListView(props: FileListViewProps) {
         const driveAccountId = 'driveAccountId' in folder ? folder.driveAccountId : undefined;
         const { drive } = getDriveInfo(driveAccountId);
         const hasError = drive ? errorDrives?.has(drive.id) : false;
-        const shared = folderId ? isTargetShared?.(folderId, 'folder') ?? false : false;
+        const shared = folderId ? (isTargetShared?.(folderId, 'folder') ?? false) : false;
         const isStarred = 'isStarred' in folder ? folder.isStarred : false;
         const isSelected = folderId ? selectedKeys.has(folderId) : false;
 
         return (
-          <ItemContextMenu key={folderId} type="folder" item={folder} actions={actions} isTrashView={isTrashView} isStarred={isStarred}>
+          <ItemContextMenu
+            key={folderId}
+            type="folder"
+            item={folder}
+            actions={actions}
+            isTrashView={isTrashView}
+            isStarred={isStarred}
+          >
             <div
               onClick={(e) => interactions.handleClick(e, { type: 'folder', item: folder })}
               onDoubleClick={() => interactions.handleFolderDoubleClick(folder)}
@@ -120,8 +132,8 @@ export function FileListView(props: FileListViewProps) {
                 isSelected
                   ? 'bg-blue-100 hover:bg-blue-200'
                   : hasError
-                  ? 'bg-red-50 hover:bg-red-100'
-                  : 'hover:bg-slate-50'
+                    ? 'bg-red-50 hover:bg-red-100'
+                    : 'hover:bg-slate-50'
               }`}
             >
               <div className="flex items-center justify-center">
@@ -139,13 +151,18 @@ export function FileListView(props: FileListViewProps) {
               <div className="flex items-center gap-2 min-w-0 pl-1">
                 <Folder size={18} className="text-blue-500 flex-shrink-0" fill="currentColor" />
                 <span className="text-sm text-slate-800 font-medium truncate">{folder.name}</span>
-                {isStarred && <Star className="fill-yellow-400 text-yellow-400 flex-shrink-0" size={14} />}
+                {isStarred && (
+                  <Star className="fill-yellow-400 text-yellow-400 flex-shrink-0" size={14} />
+                )}
                 {shared && <Share2 size={12} className="text-blue-400 flex-shrink-0" />}
                 <MetadataBadges metadata={'metadata' in folder ? folder.metadata : undefined} />
               </div>
               {showDriveColumn && (
                 <div className="flex items-center min-w-0">
-                  {renderDriveBadge(driveAccountId, 'driveEmail' in folder ? folder.driveEmail : undefined)}
+                  {renderDriveBadge(
+                    driveAccountId,
+                    'driveEmail' in folder ? folder.driveEmail : undefined,
+                  )}
                 </div>
               )}
               <div className="text-right text-xs text-slate-500">—</div>
@@ -163,7 +180,14 @@ export function FileListView(props: FileListViewProps) {
         const isSelected = selectedKeys.has(file.id);
 
         return (
-          <ItemContextMenu key={file.id} type="file" item={file} actions={actions} isTrashView={isTrashView} isStarred={file.isStarred}>
+          <ItemContextMenu
+            key={file.id}
+            type="file"
+            item={file}
+            actions={actions}
+            isTrashView={isTrashView}
+            isStarred={file.isStarred}
+          >
             <div
               onClick={(e) => interactions.handleClick(e, { type: 'file', item: file })}
               onDoubleClick={() => interactions.handleFileDoubleClick(file)}
@@ -186,9 +210,15 @@ export function FileListView(props: FileListViewProps) {
                 />
               </div>
               <div className="flex items-center gap-2 min-w-0 pl-1">
-                <span className="text-lg sm:text-xl flex-shrink-0"><FileIcon mimeType={file.mimeType} /></span>
-                <span className="text-sm text-slate-800 truncate" title={file.name}>{file.name}</span>
-                {file.isStarred && <Star className="fill-yellow-400 text-yellow-400 flex-shrink-0" size={14} />}
+                <span className="text-lg sm:text-xl flex-shrink-0">
+                  <FileIcon mimeType={file.mimeType} />
+                </span>
+                <span className="text-sm text-slate-800 truncate" title={file.name}>
+                  {file.name}
+                </span>
+                {file.isStarred && (
+                  <Star className="fill-yellow-400 text-yellow-400 flex-shrink-0" size={14} />
+                )}
                 {shared && <Share2 size={12} className="text-blue-400 flex-shrink-0" />}
                 <MetadataBadges metadata={file.metadata} />
               </div>

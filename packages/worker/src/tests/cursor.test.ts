@@ -6,12 +6,12 @@ describe('cursor utils', () => {
     const cursorObj = { name: 'file.txt', id: '123' };
     const encoded = encodeCursor(cursorObj);
     expect(typeof encoded).toBe('string');
-    
+
     // Ensure URL safety
     expect(encoded).not.toContain('+');
     expect(encoded).not.toContain('/');
     expect(encoded).not.toContain('=');
-    
+
     const decoded = decodeCursor(encoded);
     expect(decoded).toEqual(cursorObj);
   });

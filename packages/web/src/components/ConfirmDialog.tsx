@@ -1,4 +1,11 @@
-import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from './ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+} from './ui/dialog';
 import { Button } from './ui/Button';
 import { TriangleAlert } from 'lucide-react';
 
@@ -25,8 +32,14 @@ export function ConfirmDialog({
   variant = 'danger',
   loading = false,
 }: ConfirmDialogProps) {
-  const iconColor = variant === 'danger' ? 'text-red-500' : variant === 'warning' ? 'text-amber-500' : 'text-blue-500';
-  const buttonVariant = variant === 'danger' ? 'danger' : variant === 'warning' ? 'warning' : 'primary';
+  const iconColor =
+    variant === 'danger'
+      ? 'text-red-500'
+      : variant === 'warning'
+        ? 'text-amber-500'
+        : 'text-blue-500';
+  const buttonVariant =
+    variant === 'danger' ? 'danger' : variant === 'warning' ? 'warning' : 'primary';
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !loading && onClose()}>
@@ -38,8 +51,12 @@ export function ConfirmDialog({
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="secondary" onClick={onClose} disabled={loading}>{cancelText}</Button>
-          <Button variant={buttonVariant} onClick={onConfirm} loading={loading}>{confirmText}</Button>
+          <Button variant="secondary" onClick={onClose} disabled={loading}>
+            {cancelText}
+          </Button>
+          <Button variant={buttonVariant} onClick={onConfirm} loading={loading}>
+            {confirmText}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

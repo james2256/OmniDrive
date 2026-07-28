@@ -76,7 +76,9 @@ export class FileService {
     await this.assertCanMutate(file, userId, 'editor');
 
     if (file.workspace_folder_id) {
-      const protectedRet = await this.policyService.checkRetentionProtection(file.workspace_folder_id);
+      const protectedRet = await this.policyService.checkRetentionProtection(
+        file.workspace_folder_id,
+      );
       if (protectedRet) {
         throw new AppError(403, 'Retention policy prevents deletion');
       }
@@ -137,7 +139,9 @@ export class FileService {
    *   to personal storage (prevents editors from exfiltrating shared files)
    */
   async moveToWorkspaceFolder(
-    userId: string, fileId: string, workspaceFolderId: string | null,
+    userId: string,
+    fileId: string,
+    workspaceFolderId: string | null,
   ): Promise<void> {
     const file = await this.fileRepo.findById(fileId);
     if (!file) throw new AppError(404, 'File not found');
@@ -168,7 +172,11 @@ export class FileService {
   }
 
   /** Update file metadata. RBAC: editor. */
-  async updateMetadata(userId: string, fileId: string, metadata: Record<string, string>): Promise<void> {
+  async updateMetadata(
+    userId: string,
+    fileId: string,
+    metadata: Record<string, string>,
+  ): Promise<void> {
     const file = await this.fileRepo.findById(fileId);
     if (!file) throw new AppError(404, 'File not found');
 
@@ -218,14 +226,19 @@ export class FileService {
   /** List recent files + folders for the dashboard. */
   async listRecent(userId: string) {
     const { results: fileRows } = await this.fileRepo.findRecent(userId);
-    const { results: folderRows } = await this.db.prepare(`
+    const { results: folderRows } = await this.db
+      .prepare(
+        `
       SELECT f.*, w.name as ws_name
       FROM workspace_folders f
       JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ?
       LEFT JOIN workspaces w ON f.workspace_id = w.id
       ORDER BY f.updated_at DESC
       LIMIT 20
-    `).bind(userId).all();
+    `,
+      )
+      .bind(userId)
+      .all();
 
     const folders = folderRows.map((f: Record<string, unknown>) => ({
       id: f.id,
@@ -237,12 +250,15 @@ export class FileService {
       isStarred: !!f.is_starred,
       metadata: f.metadata,
       createdAt: f.created_at,
-      updatedAt: f.updated_at
+      updatedAt: f.updated_at,
     }));
 
     return {
-      files: fileRows.map((r: Record<string, unknown>) => ({ ...mapFileRow(r), driveEmail: r.driveEmail })),
-      folders
+      files: fileRows.map((r: Record<string, unknown>) => ({
+        ...mapFileRow(r),
+        driveEmail: r.driveEmail,
+      })),
+      folders,
     };
   }
 
@@ -295,7 +311,10 @@ export class FileService {
         mime === 'application/x-zip-compressed'
       ) {
         overview.archives += size;
-      } else if (mime === 'application/vnd.google-apps.folder' || mime === 'application/vnd.google-apps.shortcut') {
+      } else if (
+        mime === 'application/vnd.google-apps.folder' ||
+        mime === 'application/vnd.google-apps.shortcut'
+      ) {
         // ignore folders and shortcuts
       } else {
         overview.others += size;
@@ -306,7 +325,12 @@ export class FileService {
   }
 
   /** Search files + folders by name, workspace, and metadata. */
-  async searchFiles(userId: string, query: string | null, workspaceId: string | null, metadataRaw: string | null) {
+  async searchFiles(
+    userId: string,
+    query: string | null,
+    workspaceId: string | null,
+    metadataRaw: string | null,
+  ) {
     let metadata: Record<string, string> | null = null;
     if (metadataRaw) {
       try {
@@ -316,7 +340,12 @@ export class FileService {
       }
     }
 
-    const { results: fileRows } = await this.fileRepo.searchFiles(userId, query, workspaceId, metadata);
+    const { results: fileRows } = await this.fileRepo.searchFiles(
+      userId,
+      query,
+      workspaceId,
+      metadata,
+    );
 
     // Folders are only searched when there's a text query — metadata-only
     // search doesn't apply to folders.
@@ -350,16 +379,25 @@ export class FileService {
   async getStarred(userId: string) {
     const { results: fileRows } = await this.fileRepo.findStarred(userId);
 
-    const { results: folderRows } = await this.db.prepare(
-      'SELECT f.*, w.name as ws_name FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id JOIN workspaces w ON f.workspace_id = w.id WHERE wm.user_id = ? AND f.is_starred = 1 ORDER BY f.updated_at DESC'
-    ).bind(userId).all();
+    const { results: folderRows } = await this.db
+      .prepare(
+        'SELECT f.*, w.name as ws_name FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id JOIN workspaces w ON f.workspace_id = w.id WHERE wm.user_id = ? AND f.is_starred = 1 ORDER BY f.updated_at DESC',
+      )
+      .bind(userId)
+      .all();
 
-    const { results: driveFolderRows } = await this.db.prepare(
-      'SELECT df.*, d.email as driveEmail FROM drive_folders df JOIN drive_accounts d ON df.drive_account_id = d.id WHERE d.user_id = ? AND df.is_starred = 1 AND df.is_trashed = 0 ORDER BY df.synced_at DESC'
-    ).bind(userId).all();
+    const { results: driveFolderRows } = await this.db
+      .prepare(
+        'SELECT df.*, d.email as driveEmail FROM drive_folders df JOIN drive_accounts d ON df.drive_account_id = d.id WHERE d.user_id = ? AND df.is_starred = 1 AND df.is_trashed = 0 ORDER BY df.synced_at DESC',
+      )
+      .bind(userId)
+      .all();
 
     return {
-      files: fileRows.map((r: Record<string, unknown>) => ({ ...mapFileRow(r), driveEmail: r.driveEmail })),
+      files: fileRows.map((r: Record<string, unknown>) => ({
+        ...mapFileRow(r),
+        driveEmail: r.driveEmail,
+      })),
       folders: folderRows.map(mapFolderRow),
       driveFolders: driveFolderRows.map((r: Record<string, unknown>) => ({
         ...mapDriveFolderRow(r),
@@ -373,12 +411,15 @@ export class FileService {
   async getTrash(userId: string) {
     const { results: fileRows } = await this.fileRepo.findTrashed(userId);
 
-    const { results: folderRows } = await this.db.prepare(
-      `SELECT df.*, d.email as driveEmail FROM drive_folders df
+    const { results: folderRows } = await this.db
+      .prepare(
+        `SELECT df.*, d.email as driveEmail FROM drive_folders df
        JOIN drive_accounts d ON df.drive_account_id = d.id
        WHERE d.user_id = ? AND df.is_trashed = 1
-       ORDER BY df.created_at DESC`
-    ).bind(userId).all();
+       ORDER BY df.created_at DESC`,
+      )
+      .bind(userId)
+      .all();
 
     return {
       files: fileRows.map((r: Record<string, unknown>) => ({
@@ -404,22 +445,25 @@ export class FileService {
    * Finalize upload: insert the uploaded file into D1.
    * Returns the created file row.
    */
-  async finalizeUpload(userId: string, params: {
-    id: string;
-    driveAccountId: string;
-    workspaceId: string | null;
-    workspaceFolderId: string | null;
-    googleFileId: string;
-    googleParentId: string | null;
-    name: string;
-    mimeType: string | null;
-    size: number;
-    thumbnailUrl: string | null;
-    webViewLink: string | null;
-    webContentLink: string | null;
-    googleCreatedAt: string | null;
-    googleModifiedAt: string | null;
-  }): Promise<unknown> {
+  async finalizeUpload(
+    userId: string,
+    params: {
+      id: string;
+      driveAccountId: string;
+      workspaceId: string | null;
+      workspaceFolderId: string | null;
+      googleFileId: string;
+      googleParentId: string | null;
+      name: string;
+      mimeType: string | null;
+      size: number;
+      thumbnailUrl: string | null;
+      webViewLink: string | null;
+      webContentLink: string | null;
+      googleCreatedAt: string | null;
+      googleModifiedAt: string | null;
+    },
+  ): Promise<unknown> {
     const created = await this.fileRepo.insertUploaded({
       ...params,
       userId,
@@ -433,7 +477,11 @@ export class FileService {
    * - If file is in a workspace: caller must have the required role
    * - If file is personal: caller must be the owner
    */
-  private async assertCanMutate(file: FileRow, userId: string, permission: 'viewer' | 'editor'): Promise<void> {
+  private async assertCanMutate(
+    file: FileRow,
+    userId: string,
+    permission: 'viewer' | 'editor',
+  ): Promise<void> {
     if (file.workspace_id) {
       const role = await getWorkspaceRole(this.db, file.workspace_id, userId);
       if (!role || !hasPermission(role, permission)) {

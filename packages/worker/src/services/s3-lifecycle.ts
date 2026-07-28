@@ -36,7 +36,7 @@ export function serializeLifecycleXml(rules: LifecycleRule[]): string {
     <Filter><Prefix>${r.prefix}</Prefix></Filter>
     <Status>${r.enabled ? 'Enabled' : 'Disabled'}</Status>
     <Expiration><Days>${r.days}</Days></Expiration>
-  </Rule>`
+  </Rule>`,
     )
     .join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -52,7 +52,7 @@ ${rulesXml}
  */
 export async function runLifecycleExpiration(env: Env): Promise<void> {
   const { results: rules } = await env.DB.prepare(
-    'SELECT id, workspace_id, prefix, expiration_days FROM s3_lifecycle_rules WHERE enabled = 1'
+    'SELECT id, workspace_id, prefix, expiration_days FROM s3_lifecycle_rules WHERE enabled = 1',
   ).all<{ id: string; workspace_id: string; prefix: string; expiration_days: number }>();
 
   if (!rules?.length) return;
@@ -61,13 +61,14 @@ export async function runLifecycleExpiration(env: Env): Promise<void> {
     env.DB,
     env.GOOGLE_CLIENT_ID,
     env.GOOGLE_CLIENT_SECRET,
-    env.TOKEN_ENCRYPTION_KEY
+    env.TOKEN_ENCRYPTION_KEY,
   );
 
   for (const rule of rules) {
     // Reuse the ListObjects CTE to build S3 keys, then filter by prefix + age.
     const modifier = `-${rule.expiration_days} days`;
-    const { results: expired } = await env.DB.prepare(`
+    const { results: expired } = await env.DB.prepare(
+      `
       WITH RECURSIVE folder_path(id, path) AS (
           SELECT id, name || '/' FROM workspace_folders WHERE parent_id IS NULL AND workspace_id = ?
           UNION ALL
@@ -82,14 +83,19 @@ export async function runLifecycleExpiration(env: Env): Promise<void> {
       WHERE f.workspace_id = ? AND f.is_trashed = 0
         AND COALESCE(fp.path, '') || f.name LIKE ?
         AND f.updated_at <= datetime('now', ?)
-    `).bind(rule.workspace_id, rule.workspace_id, rule.workspace_id, rule.prefix + '%', modifier)
+    `,
+    )
+      .bind(rule.workspace_id, rule.workspace_id, rule.workspace_id, rule.prefix + '%', modifier)
       .all<{ id: string; drive_account_id: string; google_file_id: string }>();
 
     for (const file of expired ?? []) {
       try {
         await driveService.trashFile(file.drive_account_id, file.google_file_id);
-        await env.DB.prepare('UPDATE files SET is_trashed = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-          .bind(file.id).run();
+        await env.DB.prepare(
+          'UPDATE files SET is_trashed = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        )
+          .bind(file.id)
+          .run();
       } catch (e) {
         // Best-effort: skip this file, keep processing the rest.
         logErrorNoCtx('Lifecycle expire failed for file', e, { fileId: file.id });
@@ -110,7 +116,7 @@ export async function runLifecycleExpiration(env: Env): Promise<void> {
  */
 export async function cleanupOrphanMultipartUploads(env: Env): Promise<void> {
   const { results: orphans } = await env.DB.prepare(
-    "SELECT upload_id, drive_account_id, temp_folder_id FROM s3_multipart_uploads WHERE created_at < datetime('now','-1 day')"
+    "SELECT upload_id, drive_account_id, temp_folder_id FROM s3_multipart_uploads WHERE created_at < datetime('now','-1 day')",
   ).all<{ upload_id: string; drive_account_id: string; temp_folder_id: string }>();
 
   if (!orphans?.length) return;
@@ -119,7 +125,7 @@ export async function cleanupOrphanMultipartUploads(env: Env): Promise<void> {
     env.DB,
     env.GOOGLE_CLIENT_ID,
     env.GOOGLE_CLIENT_SECRET,
-    env.TOKEN_ENCRYPTION_KEY
+    env.TOKEN_ENCRYPTION_KEY,
   );
 
   for (const upload of orphans) {
@@ -130,6 +136,7 @@ export async function cleanupOrphanMultipartUploads(env: Env): Promise<void> {
       logErrorNoCtx('Failed to delete orphan multipart temp folder from Google Drive', err);
     }
     await env.DB.prepare('DELETE FROM s3_multipart_uploads WHERE upload_id = ?')
-      .bind(upload.upload_id).run();
+      .bind(upload.upload_id)
+      .run();
   }
 }

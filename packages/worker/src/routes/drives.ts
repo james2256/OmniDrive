@@ -29,7 +29,11 @@ import {
   verifySharedFolderAccess,
 } from '../lib/google-service-account';
 
-export async function buildDriveBreadcrumb(db: D1Database, driveId: string, googleFolderId: string): Promise<BreadcrumbItem[]> {
+export async function buildDriveBreadcrumb(
+  db: D1Database,
+  driveId: string,
+  googleFolderId: string,
+): Promise<BreadcrumbItem[]> {
   const path: BreadcrumbItem[] = [];
 
   if (googleFolderId && googleFolderId !== 'root') {
@@ -57,7 +61,10 @@ drivesRouter.get('/connect', async (c) => {
   const userId = c.get('userId');
 
   if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
-    throw new AppError(400, 'Google OAuth is not configured. Please use a Service Account JSON to connect your drives.');
+    throw new AppError(
+      400,
+      'Google OAuth is not configured. Please use a Service Account JSON to connect your drives.',
+    );
   }
 
   const redirectUri = `${env.WORKER_URL}/api/auth/callback`;
@@ -75,11 +82,19 @@ drivesRouter.get('/connect', async (c) => {
   const { codeVerifier, codeChallenge } = await generatePKCE();
 
   await env.DB.prepare(
-    'INSERT INTO oauth_states (state, code_verifier, user_id, created_at) VALUES (?, ?, ?, ?)'
-  ).bind(state, codeVerifier, userId, Date.now()).run();
+    'INSERT INTO oauth_states (state, code_verifier, user_id, created_at) VALUES (?, ?, ?, ?)',
+  )
+    .bind(state, codeVerifier, userId, Date.now())
+    .run();
   const isSecure = env.WORKER_URL.startsWith('https://');
-  setCookie(c, 'oauth_state', state, { path: '/', httpOnly: true, secure: isSecure, sameSite: isSecure ? 'None' : 'Lax', maxAge: 60 * 5 });
-  
+  setCookie(c, 'oauth_state', state, {
+    path: '/',
+    httpOnly: true,
+    secure: isSecure,
+    sameSite: isSecure ? 'None' : 'Lax',
+    maxAge: 60 * 5,
+  });
+
   authUrl.searchParams.append('state', state);
   authUrl.searchParams.append('code_challenge', codeChallenge);
   authUrl.searchParams.append('code_challenge_method', 'S256');
@@ -109,8 +124,16 @@ drivesRouter.get('/:driveId/external-folders/:googleFolderId', async (c) => {
   if (!driveRow) return c.json({ error: 'Drive not found' }, 404);
 
   const drive = mapDriveRow(driveRow as Record<string, unknown>);
-  const driveService = new GoogleDriveService(db, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
-  const { files: gFiles, folders: gFolders } = await driveService.listFolderContents(driveId, googleFolderId);
+  const driveService = new GoogleDriveService(
+    db,
+    c.env.GOOGLE_CLIENT_ID,
+    c.env.GOOGLE_CLIENT_SECRET,
+    c.env.TOKEN_ENCRYPTION_KEY,
+  );
+  const { files: gFiles, folders: gFolders } = await driveService.listFolderContents(
+    driveId,
+    googleFolderId,
+  );
 
   // Persist live Google data to D1 so file actions (star/rename/share/delete/move)
   // work — they query D1 primary key (files.id), not Google IDs. Same pattern as
@@ -143,53 +166,62 @@ drivesRouter.get('/', async (c) => {
 
   const drives = await driveService.listDrives(userId);
 
-  const drivesWithQuota = await Promise.all(drives.map(async (drive) => {
-    const hasTokens = await driveService.hasValidTokens(drive.id);
-    if (!hasTokens) {
-      const computed = computeDriveQuota(drive);
-      return { ...drive, ...computed, health: 'auth_expired' as const };
-    }
-
-    // Skip live quota fetch for drives already in sync error — the token refresh
-    // will fail and hang the entire Promise.all for 10-30s (withBackoff retries).
-    // Return cached quota with 'error' health so the UI shows the broken state
-    // without freezing. The user must reconnect to fix the token.
-    if (drive.syncStatus === 'error') {
-      const computed = computeDriveQuota(drive);
-      return { ...drive, ...computed, health: 'error' as const };
-    }
-
-    try {
-      const googleDriveService = driveService.getGoogleDriveService();
-      const quota = await googleDriveService.getQuota(drive.id);
-
-      // Only persist the total quota Google actually reports. Google omits
-      // storageQuota.limit for Google Workspace pooled storage and service
-      // accounts (it is returned only "if applicable"); persisting the 1 TiB
-      // fallback there would clobber a user-set override on next refresh.
-      // Skip the write entirely when nothing changed — saves D1 rows-written quota.
-      const quotaChanged = quota.hasLimit
-        ? (drive.totalQuota !== quota.total || drive.usedQuota !== quota.used)
-        : (drive.usedQuota !== quota.used);
-
-      if (quotaChanged) {
-        const driveRepo = new DriveRepository(db);
-        if (quota.hasLimit) {
-          c.executionCtx.waitUntil(driveRepo.updateQuota(drive.id, quota.total, quota.used));
-        } else {
-          c.executionCtx.waitUntil(driveRepo.updateUsedQuota(drive.id, quota.used));
-        }
+  const drivesWithQuota = await Promise.all(
+    drives.map(async (drive) => {
+      const hasTokens = await driveService.hasValidTokens(drive.id);
+      if (!hasTokens) {
+        const computed = computeDriveQuota(drive);
+        return { ...drive, ...computed, health: 'auth_expired' as const };
       }
 
-      const computed = computeDriveQuota(drive, { total: quota.hasLimit ? quota.total : 0, used: quota.used, hasLimit: quota.hasLimit });
-      return { ...drive, ...computed, health: 'connected' as const };
+      // Skip live quota fetch for drives already in sync error — the token refresh
+      // will fail and hang the entire Promise.all for 10-30s (withBackoff retries).
+      // Return cached quota with 'error' health so the UI shows the broken state
+      // without freezing. The user must reconnect to fix the token.
+      if (drive.syncStatus === 'error') {
+        const computed = computeDriveQuota(drive);
+        return { ...drive, ...computed, health: 'error' as const };
+      }
 
-    } catch (e) {
-      logError(c, 'Failed to fetch quota for drive', e, { driveId: drive.id });
-      const computed = computeDriveQuota({ totalQuota: drive.totalQuota, usedQuota: drive.usedQuota, quotaOverride: drive.quotaOverride });
-      return { ...drive, ...computed, health: 'error' as const };
-    }
-  }));
+      try {
+        const googleDriveService = driveService.getGoogleDriveService();
+        const quota = await googleDriveService.getQuota(drive.id);
+
+        // Only persist the total quota Google actually reports. Google omits
+        // storageQuota.limit for Google Workspace pooled storage and service
+        // accounts (it is returned only "if applicable"); persisting the 1 TiB
+        // fallback there would clobber a user-set override on next refresh.
+        // Skip the write entirely when nothing changed — saves D1 rows-written quota.
+        const quotaChanged = quota.hasLimit
+          ? drive.totalQuota !== quota.total || drive.usedQuota !== quota.used
+          : drive.usedQuota !== quota.used;
+
+        if (quotaChanged) {
+          const driveRepo = new DriveRepository(db);
+          if (quota.hasLimit) {
+            c.executionCtx.waitUntil(driveRepo.updateQuota(drive.id, quota.total, quota.used));
+          } else {
+            c.executionCtx.waitUntil(driveRepo.updateUsedQuota(drive.id, quota.used));
+          }
+        }
+
+        const computed = computeDriveQuota(drive, {
+          total: quota.hasLimit ? quota.total : 0,
+          used: quota.used,
+          hasLimit: quota.hasLimit,
+        });
+        return { ...drive, ...computed, health: 'connected' as const };
+      } catch (e) {
+        logError(c, 'Failed to fetch quota for drive', e, { driveId: drive.id });
+        const computed = computeDriveQuota({
+          totalQuota: drive.totalQuota,
+          usedQuota: drive.usedQuota,
+          quotaOverride: drive.quotaOverride,
+        });
+        return { ...drive, ...computed, health: 'error' as const };
+      }
+    }),
+  );
 
   const aggregate = {
     totalQuota: drivesWithQuota.reduce((sum, d) => sum + d.totalQuota, 0),
@@ -201,78 +233,92 @@ drivesRouter.get('/', async (c) => {
   return c.json({ drives: drivesWithQuota, aggregate });
 });
 
-drivesRouter.post('/service-account', zValidator('json', serviceAccountSchema, zodErrorHook), async (c) => {
-  const userId = c.get('userId');
-  const { credentials: rawCredentials, folderId: rawFolderId } = c.req.valid('json');
-  const credentials = rawCredentials.trim();
-  const folderId = rawFolderId.trim();
+drivesRouter.post(
+  '/service-account',
+  zValidator('json', serviceAccountSchema, zodErrorHook),
+  async (c) => {
+    const userId = c.get('userId');
+    const { credentials: rawCredentials, folderId: rawFolderId } = c.req.valid('json');
+    const credentials = rawCredentials.trim();
+    const folderId = rawFolderId.trim();
 
-  let sa;
-  try {
-    sa = parseServiceAccountJson(credentials);
-  } catch (err) {
-    logError(c, 'Service account JSON parse error', err);
-    throw new ValidationError('Invalid service account JSON');
-  }
+    let sa;
+    try {
+      sa = parseServiceAccountJson(credentials);
+    } catch (err) {
+      logError(c, 'Service account JSON parse error', err);
+      throw new ValidationError('Invalid service account JSON');
+    }
 
-  const serviceAccount = { clientEmail: sa.client_email, privateKey: sa.private_key };
+    const serviceAccount = { clientEmail: sa.client_email, privateKey: sa.private_key };
 
-  let accessToken: string;
-  let expiresAt: number;
-  try {
-    ({ accessToken, expiresAt } = await fetchServiceAccountAccessToken(serviceAccount));
-  } catch (err) {
-    logError(c, 'Service account auth error', err);
-    throw new AppError(400, 'Failed to connect Google Drive account');
-  }
+    let accessToken: string;
+    let expiresAt: number;
+    try {
+      ({ accessToken, expiresAt } = await fetchServiceAccountAccessToken(serviceAccount));
+    } catch (err) {
+      logError(c, 'Service account auth error', err);
+      throw new AppError(400, 'Failed to connect Google Drive account');
+    }
 
-  let folderInfo: { id: string; name: string };
-  try {
-    folderInfo = await verifySharedFolderAccess(accessToken, folderId);
-  } catch (err) {
-    logError(c, 'Shared folder access error', err);
-    throw new AppError(400, 'Cannot access the specified shared folder');
-  }
+    let folderInfo: { id: string; name: string };
+    try {
+      folderInfo = await verifySharedFolderAccess(accessToken, folderId);
+    } catch (err) {
+      logError(c, 'Shared folder access error', err);
+      throw new AppError(400, 'Cannot access the specified shared folder');
+    }
 
-  const db = c.env.DB;
+    const db = c.env.DB;
 
-  const driveRepo = new DriveRepository(db);
-  const existing = await driveRepo.findDriveByGoogleAccountId(userId, sa.client_email);
+    const driveRepo = new DriveRepository(db);
+    const existing = await driveRepo.findDriveByGoogleAccountId(userId, sa.client_email);
 
-  if (existing) throw new ConflictError('This service account is already connected');
+    if (existing) throw new ConflictError('This service account is already connected');
 
-  const driveId = generateId();
-  const countRow = await driveRepo.countDrivesByUser(userId);
-  const isPrimary = (countRow?.count ?? 0) === 0 ? 1 : 0;
+    const driveId = generateId();
+    const countRow = await driveRepo.countDrivesByUser(userId);
+    const isPrimary = (countRow?.count ?? 0) === 0 ? 1 : 0;
 
-  await driveRepo.insertDriveAccount({
-    id: driveId, userId, googleAccountId: sa.client_email,
-    email: sa.client_email, name: folderInfo.name || sa.project_id || sa.client_email,
-    isPrimary, rootFolderId: folderId,
-  });
+    await driveRepo.insertDriveAccount({
+      id: driveId,
+      userId,
+      googleAccountId: sa.client_email,
+      email: sa.client_email,
+      name: folderInfo.name || sa.project_id || sa.client_email,
+      isPrimary,
+      rootFolderId: folderId,
+    });
 
-  const tokens = {
-    authType: 'service_account' as const,
-    accessToken,
-    expiresAt,
-    serviceAccount,
-  };
-  await c.get('driveService').upsertTokens(driveId, await encrypt(JSON.stringify(tokens), c.env.TOKEN_ENCRYPTION_KEY), Date.now());
+    const tokens = {
+      authType: 'service_account' as const,
+      accessToken,
+      expiresAt,
+      serviceAccount,
+    };
+    await c
+      .get('driveService')
+      .upsertTokens(
+        driveId,
+        await encrypt(JSON.stringify(tokens), c.env.TOKEN_ENCRYPTION_KEY),
+        Date.now(),
+      );
 
-  const driveRow = await c.get('driveService').findById(driveId);
-  if (driveRow) {
-    const driveObj = mapDriveRow(driveRow as Record<string, unknown>);
-    const driveService = new GoogleDriveService(
-      db,
-      c.env.GOOGLE_CLIENT_ID,
-      c.env.GOOGLE_CLIENT_SECRET,
-      c.env.TOKEN_ENCRYPTION_KEY
-    );
-    c.executionCtx.waitUntil(syncDriveAccount(driveObj, db, driveService));
-  }
+    const driveRow = await c.get('driveService').findById(driveId);
+    if (driveRow) {
+      const driveObj = mapDriveRow(driveRow as Record<string, unknown>);
+      const driveService = new GoogleDriveService(
+        db,
+        c.env.GOOGLE_CLIENT_ID,
+        c.env.GOOGLE_CLIENT_SECRET,
+        c.env.TOKEN_ENCRYPTION_KEY,
+      );
+      c.executionCtx.waitUntil(syncDriveAccount(driveObj, db, driveService));
+    }
 
-  return c.json({ success: true, driveId });
-});
+    return c.json({ success: true, driveId });
+  },
+);
 
 // ─── Folder read endpoint (from DB, no Google API call) ───
 
@@ -284,13 +330,15 @@ drivesRouter.get('/:driveId/folders/:googleFolderId', async (c) => {
   const drive = await driveRepo.findByIdAndUser(driveId, userId);
   if (!drive) return c.json({ error: 'Drive not found' }, 404);
 
-  const folder = googleFolderId === 'root'
-    ? null
-    : await driveRepo.findDriveFolderByGoogleId(driveId, googleFolderId);
+  const folder =
+    googleFolderId === 'root'
+      ? null
+      : await driveRepo.findDriveFolderByGoogleId(driveId, googleFolderId);
 
-  const subfolderResult = googleFolderId === 'root'
-    ? await driveRepo.findDriveFoldersByParent(driveId, null)
-    : await driveRepo.findDriveFoldersByParent(driveId, googleFolderId);
+  const subfolderResult =
+    googleFolderId === 'root'
+      ? await driveRepo.findDriveFoldersByParent(driveId, null)
+      : await driveRepo.findDriveFoldersByParent(driveId, googleFolderId);
 
   const filesResult = await driveRepo.findFilesByParent(driveId, googleFolderId);
 
@@ -300,8 +348,8 @@ drivesRouter.get('/:driveId/folders/:googleFolderId', async (c) => {
     folder: folder
       ? mapDriveFolderRow(folder as Record<string, unknown>)
       : { googleFolderId: 'root', name: 'My Drive', isSynced: true },
-    subfolders: subfolderResult.results.map(r => mapDriveFolderRow(r as Record<string, unknown>)),
-    files: filesResult.results.map(r => mapFileRow(r as Record<string, unknown>)),
+    subfolders: subfolderResult.results.map((r) => mapDriveFolderRow(r as Record<string, unknown>)),
+    files: filesResult.results.map((r) => mapFileRow(r as Record<string, unknown>)),
     breadcrumb,
   });
 });
@@ -318,12 +366,17 @@ drivesRouter.post('/:id/sync', async (c) => {
   if (!row) return c.json({ error: 'Drive not found' }, 404);
 
   const drive = mapDriveRow(row as Record<string, unknown>);
-  const driveService = new GoogleDriveService(c.env.DB, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
-  
+  const driveService = new GoogleDriveService(
+    c.env.DB,
+    c.env.GOOGLE_CLIENT_ID,
+    c.env.GOOGLE_CLIENT_SECRET,
+    c.env.TOKEN_ENCRYPTION_KEY,
+  );
+
   // Run the sync process in the background via c.executionCtx.waitUntil
   // so the user doesn't have to wait for the entire sync to complete
   c.executionCtx.waitUntil(syncDriveAccount(drive, c.env.DB, driveService));
-  
+
   return c.json({ success: true });
 });
 
@@ -346,8 +399,8 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/sync', async (c) => {
 
     return c.json({
       folder: mapDriveFolderRow(folder as Record<string, unknown>),
-      subfolders: subfolders.results.map(r => mapDriveFolderRow(r as Record<string, unknown>)),
-      files: files.results.map(r => mapFileRow(r as Record<string, unknown>)),
+      subfolders: subfolders.results.map((r) => mapDriveFolderRow(r as Record<string, unknown>)),
+      files: files.results.map((r) => mapFileRow(r as Record<string, unknown>)),
       breadcrumb,
     });
   }
@@ -356,9 +409,17 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/sync', async (c) => {
   if (!hasTokens) return c.json({ error: 'No tokens for drive' }, 400);
 
   const drive = mapDriveRow(driveRow as Record<string, unknown>);
-  const driveService = new GoogleDriveService(c.env.DB, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+  const driveService = new GoogleDriveService(
+    c.env.DB,
+    c.env.GOOGLE_CLIENT_ID,
+    c.env.GOOGLE_CLIENT_SECRET,
+    c.env.TOKEN_ENCRYPTION_KEY,
+  );
   const effectiveFolderId = resolveGoogleFolderId(drive, googleFolderId);
-  const { files: gFiles, folders: gFolders } = await driveService.listFolderContents(driveId, effectiveFolderId);
+  const { files: gFiles, folders: gFolders } = await driveService.listFolderContents(
+    driveId,
+    effectiveFolderId,
+  );
 
   await batchUpsertFolderContents(c.env.DB, drive, gFolders, gFiles, googleFolderId);
 
@@ -374,8 +435,8 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/sync', async (c) => {
 
   return c.json({
     folder: folder ? mapDriveFolderRow(folder as Record<string, unknown>) : null,
-    subfolders: newSubfolders.results.map(r => mapDriveFolderRow(r as Record<string, unknown>)),
-    files: newFiles.results.map(r => mapFileRow(r as Record<string, unknown>)),
+    subfolders: newSubfolders.results.map((r) => mapDriveFolderRow(r as Record<string, unknown>)),
+    files: newFiles.results.map((r) => mapFileRow(r as Record<string, unknown>)),
     breadcrumb,
   });
 });
@@ -383,64 +444,115 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/sync', async (c) => {
 // Move a Google Drive folder to trash (Google Drive trash + DB is_trashed=1)
 drivesRouter.delete('/:driveId/folders/:googleFolderId', async (c) => {
   const driveService = c.get('driveService');
-  await driveService.trashDriveFolder(c.get('userId'), c.req.param('driveId'), c.req.param('googleFolderId'));
+  await driveService.trashDriveFolder(
+    c.get('userId'),
+    c.req.param('driveId'),
+    c.req.param('googleFolderId'),
+  );
   return c.json({ success: true });
 });
 
 // Restore a trashed Google Drive folder (Google Drive untrash + DB is_trashed=0)
 drivesRouter.post('/:driveId/folders/:googleFolderId/restore', async (c) => {
   const driveService = c.get('driveService');
-  await driveService.restoreDriveFolder(c.get('userId'), c.req.param('driveId'), c.req.param('googleFolderId'));
+  await driveService.restoreDriveFolder(
+    c.get('userId'),
+    c.req.param('driveId'),
+    c.req.param('googleFolderId'),
+  );
   return c.json({ success: true });
 });
 
 // Permanently delete a Google Drive folder (cannot be undone)
 drivesRouter.delete('/:driveId/folders/:googleFolderId/permanent', async (c) => {
   const driveService = c.get('driveService');
-  await driveService.permanentDeleteDriveFolder(c.get('userId'), c.req.param('driveId'), c.req.param('googleFolderId'));
+  await driveService.permanentDeleteDriveFolder(
+    c.get('userId'),
+    c.req.param('driveId'),
+    c.req.param('googleFolderId'),
+  );
   return c.json({ success: true });
 });
 
 // Create a Google Drive folder (optionally inside a parent folder)
-drivesRouter.post('/:driveId/folders', zValidator('json', createDriveFolderSchema, zodErrorHook), async (c) => {
-  const driveService = c.get('driveService');
-  const { name, parentId } = c.req.valid('json');
-  const googleFolderId = await driveService.createDriveFolder(c.get('userId'), c.req.param('driveId'), name.trim(), parentId || undefined);
-  return c.json({ success: true, googleFolderId });
-});
+drivesRouter.post(
+  '/:driveId/folders',
+  zValidator('json', createDriveFolderSchema, zodErrorHook),
+  async (c) => {
+    const driveService = c.get('driveService');
+    const { name, parentId } = c.req.valid('json');
+    const googleFolderId = await driveService.createDriveFolder(
+      c.get('userId'),
+      c.req.param('driveId'),
+      name.trim(),
+      parentId || undefined,
+    );
+    return c.json({ success: true, googleFolderId });
+  },
+);
 
 // Star a Google Drive folder
 drivesRouter.post('/:driveId/folders/:googleFolderId/star', async (c) => {
   const driveService = c.get('driveService');
-  await driveService.starDriveFolder(c.get('userId'), c.req.param('driveId'), c.req.param('googleFolderId'));
+  await driveService.starDriveFolder(
+    c.get('userId'),
+    c.req.param('driveId'),
+    c.req.param('googleFolderId'),
+  );
   return c.json({ success: true });
 });
 
 // Unstar a Google Drive folder
 drivesRouter.post('/:driveId/folders/:googleFolderId/unstar', async (c) => {
   const driveService = c.get('driveService');
-  await driveService.unstarDriveFolder(c.get('userId'), c.req.param('driveId'), c.req.param('googleFolderId'));
+  await driveService.unstarDriveFolder(
+    c.get('userId'),
+    c.req.param('driveId'),
+    c.req.param('googleFolderId'),
+  );
   return c.json({ success: true });
 });
 
 // Rename a Google Drive folder
-drivesRouter.patch('/:driveId/folders/:googleFolderId/rename', zValidator('json', renameDriveFolderSchema, zodErrorHook), async (c) => {
-  const driveService = c.get('driveService');
-  const { name } = c.req.valid('json');
-  await driveService.renameDriveFolder(c.get('userId'), c.req.param('driveId'), c.req.param('googleFolderId'), name);
-  return c.json({ success: true });
-});
+drivesRouter.patch(
+  '/:driveId/folders/:googleFolderId/rename',
+  zValidator('json', renameDriveFolderSchema, zodErrorHook),
+  async (c) => {
+    const driveService = c.get('driveService');
+    const { name } = c.req.valid('json');
+    await driveService.renameDriveFolder(
+      c.get('userId'),
+      c.req.param('driveId'),
+      c.req.param('googleFolderId'),
+      name,
+    );
+    return c.json({ success: true });
+  },
+);
 
 // Move a file or folder to a different folder within the same drive
-drivesRouter.patch('/:driveId/move/:googleFileId', zValidator('json', moveWithinDriveSchema, zodErrorHook), async (c) => {
-  const userId = c.get('userId');
-  const { driveId, googleFileId } = c.req.param();
-  const { targetFolderId, oldParentId, isFolder } = c.req.valid('json');
+drivesRouter.patch(
+  '/:driveId/move/:googleFileId',
+  zValidator('json', moveWithinDriveSchema, zodErrorHook),
+  async (c) => {
+    const userId = c.get('userId');
+    const { driveId, googleFileId } = c.req.param();
+    const { targetFolderId, oldParentId, isFolder } = c.req.valid('json');
 
-  await c.get('driveService').moveItemWithinDrive(userId, driveId, googleFileId, targetFolderId, oldParentId || null, isFolder);
+    await c
+      .get('driveService')
+      .moveItemWithinDrive(
+        userId,
+        driveId,
+        googleFileId,
+        targetFolderId,
+        oldParentId || null,
+        isFolder,
+      );
 
-  return c.json({ success: true });
-});
+    return c.json({ success: true });
+  },
+);
 
 drivesRouter.delete('/:id', async (c) => {
   await c.get('driveService').disconnectDrive(c.get('userId'), c.req.param('id'));
@@ -462,14 +574,25 @@ drivesRouter.get('/:driveId/folders/:googleFolderId/download-tree', async (c) =>
   if (!driveRow) return c.json({ error: 'Drive not found' }, 404);
 
   const drive = mapDriveRow(driveRow as Record<string, unknown>);
-  const driveService = new GoogleDriveService(db, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+  const driveService = new GoogleDriveService(
+    db,
+    c.env.GOOGLE_CLIENT_ID,
+    c.env.GOOGLE_CLIENT_SECRET,
+    c.env.TOKEN_ENCRYPTION_KEY,
+  );
 
   const MAX_FILES = 500;
   const MAX_API_CALLS = 40;
   let apiCallCount = 0;
   let truncated = false;
 
-  const tree: Array<{ id: string; name: string; path: string; size: number; mimeType: string | null }> = [];
+  const tree: Array<{
+    id: string;
+    name: string;
+    path: string;
+    size: number;
+    mimeType: string | null;
+  }> = [];
 
   async function walk(folderId: string, pathPrefix: string): Promise<void> {
     if (tree.length >= MAX_FILES || apiCallCount >= MAX_API_CALLS) {
@@ -478,19 +601,34 @@ drivesRouter.get('/:driveId/folders/:googleFolderId/download-tree', async (c) =>
     }
     apiCallCount++;
 
-    const { files: gFiles, folders: gFolders } = await driveService.listFolderContents(driveId, folderId);
+    const { files: gFiles, folders: gFolders } = await driveService.listFolderContents(
+      driveId,
+      folderId,
+    );
     await batchUpsertFolderContents(db, drive, gFolders, gFiles, folderId);
 
     const fileRows = await driveRepo.findFilesByParent(driveId, folderId);
     for (const row of fileRows.results) {
-      if (tree.length >= MAX_FILES) { truncated = true; break; }
+      if (tree.length >= MAX_FILES) {
+        truncated = true;
+        break;
+      }
       const file = mapFileRow(row as Record<string, unknown>);
       if (file.userId !== userId) continue;
-      tree.push({ id: file.id, name: file.name, path: pathPrefix + file.name, size: file.size, mimeType: file.mimeType });
+      tree.push({
+        id: file.id,
+        name: file.name,
+        path: pathPrefix + file.name,
+        size: file.size,
+        mimeType: file.mimeType,
+      });
     }
 
     for (const folder of gFolders) {
-      if (tree.length >= MAX_FILES || apiCallCount >= MAX_API_CALLS) { truncated = true; break; }
+      if (tree.length >= MAX_FILES || apiCallCount >= MAX_API_CALLS) {
+        truncated = true;
+        break;
+      }
       await walk(folder.id, `${pathPrefix}${folder.name}/`);
     }
   }

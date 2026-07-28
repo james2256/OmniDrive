@@ -9,23 +9,57 @@ import { api } from './lib/api';
 import { lazyWithRetry } from './lib/lazyWithRetry';
 
 // ponytail: lazy-load pages so login/public shells don't pull recharts + file UI (~900KB) into LCP path
-const LoginPage = lazyWithRetry(() => import('./pages/LoginPage').then((m) => ({ default: m.LoginPage })));
-const DashboardPage = lazyWithRetry(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
-const FilesPage = lazyWithRetry(() => import('./pages/FilesPage').then((m) => ({ default: m.FilesPage })));
-const SettingsPage = lazyWithRetry(() => import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
-const SharedLinksPage = lazyWithRetry(() => import('./pages/SharedLinksPage').then((m) => ({ default: m.SharedLinksPage })));
-const ExternalPage = lazyWithRetry(() => import('./pages/ExternalPage').then((m) => ({ default: m.ExternalPage })));
-const PublicSharedPage = lazyWithRetry(() => import('./pages/PublicSharedPage').then((m) => ({ default: m.PublicSharedPage })));
-const AutomationsPage = lazyWithRetry(() => import('./pages/AutomationsPage').then((m) => ({ default: m.AutomationsPage })));
-const SearchPage = lazyWithRetry(() => import('./pages/SearchPage').then((m) => ({ default: m.SearchPage })));
-const TrashPage = lazyWithRetry(() => import('./pages/TrashPage').then((m) => ({ default: m.TrashPage })));
-const StarredPage = lazyWithRetry(() => import('./pages/StarredPage').then((m) => ({ default: m.StarredPage })));
-const WorkspacesPage = lazyWithRetry(() => import('./pages/WorkspacesPage').then((m) => ({ default: m.WorkspacesPage })));
-const SetupPage = lazyWithRetry(() => import('./pages/SetupPage').then((m) => ({ default: m.SetupPage })));
-const AdminUsersPage = lazyWithRetry(() => import('./pages/AdminUsersPage').then((m) => ({ default: m.AdminUsersPage })));
-const LandingPage = lazyWithRetry(() => import('./pages/LandingPage').then((m) => ({ default: m.LandingPage })));
-const PrivacyPolicyPage = lazyWithRetry(() => import('./pages/PrivacyPolicyPage').then((m) => ({ default: m.PrivacyPolicyPage })));
-const TermsOfServicePage = lazyWithRetry(() => import('./pages/TermsOfServicePage').then((m) => ({ default: m.TermsOfServicePage })));
+const LoginPage = lazyWithRetry(() =>
+  import('./pages/LoginPage').then((m) => ({ default: m.LoginPage })),
+);
+const DashboardPage = lazyWithRetry(() =>
+  import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })),
+);
+const FilesPage = lazyWithRetry(() =>
+  import('./pages/FilesPage').then((m) => ({ default: m.FilesPage })),
+);
+const SettingsPage = lazyWithRetry(() =>
+  import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })),
+);
+const SharedLinksPage = lazyWithRetry(() =>
+  import('./pages/SharedLinksPage').then((m) => ({ default: m.SharedLinksPage })),
+);
+const ExternalPage = lazyWithRetry(() =>
+  import('./pages/ExternalPage').then((m) => ({ default: m.ExternalPage })),
+);
+const PublicSharedPage = lazyWithRetry(() =>
+  import('./pages/PublicSharedPage').then((m) => ({ default: m.PublicSharedPage })),
+);
+const AutomationsPage = lazyWithRetry(() =>
+  import('./pages/AutomationsPage').then((m) => ({ default: m.AutomationsPage })),
+);
+const SearchPage = lazyWithRetry(() =>
+  import('./pages/SearchPage').then((m) => ({ default: m.SearchPage })),
+);
+const TrashPage = lazyWithRetry(() =>
+  import('./pages/TrashPage').then((m) => ({ default: m.TrashPage })),
+);
+const StarredPage = lazyWithRetry(() =>
+  import('./pages/StarredPage').then((m) => ({ default: m.StarredPage })),
+);
+const WorkspacesPage = lazyWithRetry(() =>
+  import('./pages/WorkspacesPage').then((m) => ({ default: m.WorkspacesPage })),
+);
+const SetupPage = lazyWithRetry(() =>
+  import('./pages/SetupPage').then((m) => ({ default: m.SetupPage })),
+);
+const AdminUsersPage = lazyWithRetry(() =>
+  import('./pages/AdminUsersPage').then((m) => ({ default: m.AdminUsersPage })),
+);
+const LandingPage = lazyWithRetry(() =>
+  import('./pages/LandingPage').then((m) => ({ default: m.LandingPage })),
+);
+const PrivacyPolicyPage = lazyWithRetry(() =>
+  import('./pages/PrivacyPolicyPage').then((m) => ({ default: m.PrivacyPolicyPage })),
+);
+const TermsOfServicePage = lazyWithRetry(() =>
+  import('./pages/TermsOfServicePage').then((m) => ({ default: m.TermsOfServicePage })),
+);
 
 function PageFallback() {
   return (
@@ -39,7 +73,13 @@ function PageFallback() {
   );
 }
 
-export const SetupGuard = ({ children, isSetup }: { children: React.ReactNode; isSetup: boolean }) => {
+export const SetupGuard = ({
+  children,
+  isSetup,
+}: {
+  children: React.ReactNode;
+  isSetup: boolean;
+}) => {
   if (isSetup === false) return <Navigate to="/setup" replace />;
   return <>{children}</>;
 };
@@ -51,9 +91,12 @@ export const App = () => {
   const checkSetupStatus = () => {
     setSetupError(null);
     setIsSetup(null);
-    api.getSetupStatus()
+    api
+      .getSetupStatus()
       .then((res) => setIsSetup(res.isSetup))
-      .catch((err) => setSetupError((err instanceof Error ? err.message : 'Failed to connect to server')));
+      .catch((err) =>
+        setSetupError(err instanceof Error ? err.message : 'Failed to connect to server'),
+      );
   };
 
   useEffect(() => {
@@ -83,38 +126,38 @@ export const App = () => {
       <ErrorBoundary>
         <Suspense fallback={<PageFallback />}>
           <Routes>
-          <Route path="/home" element={<LandingPage />} />
-          <Route path="/privacy" element={<PrivacyPolicyPage />} />
-          <Route path="/terms" element={<TermsOfServicePage />} />
-          <Route path="/setup" element={isSetup ? <Navigate to="/login" /> : <SetupPage />} />
-          <Route path="/login" element={!isSetup ? <Navigate to="/setup" /> : <LoginPage />} />
-          <Route path="/shared/:id" element={<PublicSharedPage />} />
-          <Route
-            element={
-              <SetupGuard isSetup={isSetup}>
-                <AuthGuard>
-                  <AppLayout />
-                  <ToastContainer />
-                </AuthGuard>
-              </SetupGuard>
-            }
-          >
-            <Route path="/" element={<DashboardPage />} />
-            <Route path="/search" element={<SearchPage />} />
-            <Route path="/files" element={<FilesPage />} />
-            <Route path="/files/:folderId" element={<FilesPage />} />
-            <Route path="/workspaces" element={<WorkspacesPage />} />
-            <Route path="/automations" element={<AutomationsPage />} />
-            <Route path="/settings/drives" element={<SettingsPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/shared" element={<SharedLinksPage />} />
-            <Route path="/external" element={<ExternalPage />} />
-            <Route path="/external/:folderId" element={<ExternalPage />} />
-            <Route path="/trash" element={<TrashPage />} />
-            <Route path="/starred" element={<StarredPage />} />
-            <Route path="/admin/users" element={<AdminUsersPage />} />
-          </Route>
-        </Routes>
+            <Route path="/home" element={<LandingPage />} />
+            <Route path="/privacy" element={<PrivacyPolicyPage />} />
+            <Route path="/terms" element={<TermsOfServicePage />} />
+            <Route path="/setup" element={isSetup ? <Navigate to="/login" /> : <SetupPage />} />
+            <Route path="/login" element={!isSetup ? <Navigate to="/setup" /> : <LoginPage />} />
+            <Route path="/shared/:id" element={<PublicSharedPage />} />
+            <Route
+              element={
+                <SetupGuard isSetup={isSetup}>
+                  <AuthGuard>
+                    <AppLayout />
+                    <ToastContainer />
+                  </AuthGuard>
+                </SetupGuard>
+              }
+            >
+              <Route path="/" element={<DashboardPage />} />
+              <Route path="/search" element={<SearchPage />} />
+              <Route path="/files" element={<FilesPage />} />
+              <Route path="/files/:folderId" element={<FilesPage />} />
+              <Route path="/workspaces" element={<WorkspacesPage />} />
+              <Route path="/automations" element={<AutomationsPage />} />
+              <Route path="/settings/drives" element={<SettingsPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/shared" element={<SharedLinksPage />} />
+              <Route path="/external" element={<ExternalPage />} />
+              <Route path="/external/:folderId" element={<ExternalPage />} />
+              <Route path="/trash" element={<TrashPage />} />
+              <Route path="/starred" element={<StarredPage />} />
+              <Route path="/admin/users" element={<AdminUsersPage />} />
+            </Route>
+          </Routes>
         </Suspense>
       </ErrorBoundary>
     </BrowserRouter>

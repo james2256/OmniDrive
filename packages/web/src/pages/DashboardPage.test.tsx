@@ -8,7 +8,10 @@ import { useSharedLinks } from '../hooks/useSharedLinks';
 import { useAuthStore } from '../stores/useAuthStore';
 
 vi.mock('../hooks/useDrives', () => ({ useDrives: vi.fn(), useGetDriveInfo: () => vi.fn() }));
-vi.mock('../hooks/useSharedLinks', () => ({ useSharedLinks: vi.fn(), useIsTargetSharedCallback: () => vi.fn() }));
+vi.mock('../hooks/useSharedLinks', () => ({
+  useSharedLinks: vi.fn(),
+  useIsTargetSharedCallback: () => vi.fn(),
+}));
 vi.mock('../hooks/useFileMutations', () => ({
   useStarFile: () => ({ mutate: vi.fn() }),
   useUnstarFile: () => ({ mutate: vi.fn() }),
@@ -35,12 +38,20 @@ vi.mock('../lib/queryKeys', () => ({
 }));
 
 vi.mock('../components/QuotaBar', () => ({
-  QuotaBar: ({ used, total }: any) => <div data-testid="quota-bar">{used}/{total}</div>,
+  QuotaBar: ({ used, total }: any) => (
+    <div data-testid="quota-bar">
+      {used}/{total}
+    </div>
+  ),
 }));
 
 vi.mock('../components/files/FileGrid', () => ({
   FileGrid: ({ files }: any) => (
-    <div data-testid="file-grid">{files.map((f: any) => <span key={f.id}>{f.name}</span>)}</div>
+    <div data-testid="file-grid">
+      {files.map((f: any) => (
+        <span key={f.id}>{f.name}</span>
+      ))}
+    </div>
   ),
 }));
 
@@ -62,7 +73,9 @@ vi.mock('recharts', () => ({
   PieChart: ({ children }: any) => <div data-testid="pie-chart">{children}</div>,
   Pie: ({ children }: any) => <div data-testid="pie">{children}</div>,
   Cell: () => <div data-testid="cell" />,
-  ResponsiveContainer: ({ children }: any) => <div data-testid="responsive-container">{children}</div>,
+  ResponsiveContainer: ({ children }: any) => (
+    <div data-testid="responsive-container">{children}</div>
+  ),
 }));
 
 vi.mock('lucide-react', () => ({
@@ -87,14 +100,19 @@ vi.mock('lucide-react', () => ({
 describe('DashboardPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (useAuthStore as unknown as Mock).mockReturnValue({ user: { id: 'u1', name: 'Alice', role: 'member' } });
+    (useAuthStore as unknown as Mock).mockReturnValue({
+      user: { id: 'u1', name: 'Alice', role: 'member' },
+    });
     (useSharedLinks as Mock).mockReturnValue({ data: [] });
   });
 
   afterEach(() => cleanup());
 
   it('renders empty state with connect-drive CTA when no drives connected', async () => {
-    (useDrives as Mock).mockReturnValue({ data: { drives: [], aggregate: { totalQuota: 0, totalUsed: 0, totalFree: 0, driveCount: 0 } }, isLoading: false });
+    (useDrives as Mock).mockReturnValue({
+      data: { drives: [], aggregate: { totalQuota: 0, totalUsed: 0, totalFree: 0, driveCount: 0 } },
+      isLoading: false,
+    });
     const { useQuery } = await import('@tanstack/react-query');
     (useQuery as Mock).mockReturnValue({ data: null });
 
@@ -108,7 +126,15 @@ describe('DashboardPage', () => {
     (useDrives as Mock).mockReturnValue({
       data: {
         drives: [
-          { id: 'd1', email: 'alice@gmail.com', type: 'oauth', isPrimary: true, usedQuota: 30, totalQuota: 100, usagePercent: 30 },
+          {
+            id: 'd1',
+            email: 'alice@gmail.com',
+            type: 'oauth',
+            isPrimary: true,
+            usedQuota: 30,
+            totalQuota: 100,
+            usagePercent: 30,
+          },
         ],
         aggregate: { totalQuota: 100, totalUsed: 30, totalFree: 70, driveCount: 1 },
       },
@@ -133,7 +159,17 @@ describe('DashboardPage', () => {
   it('renders recent files section when recent files exist', async () => {
     (useDrives as Mock).mockReturnValue({
       data: {
-        drives: [{ id: 'd1', email: 'alice@gmail.com', type: 'oauth', isPrimary: true, usedQuota: 0, totalQuota: 100, usagePercent: 0 }],
+        drives: [
+          {
+            id: 'd1',
+            email: 'alice@gmail.com',
+            type: 'oauth',
+            isPrimary: true,
+            usedQuota: 0,
+            totalQuota: 100,
+            usagePercent: 0,
+          },
+        ],
         aggregate: { totalQuota: 100, totalUsed: 0, totalFree: 100, driveCount: 1 },
       },
       isLoading: false,
@@ -142,7 +178,9 @@ describe('DashboardPage', () => {
     const { useQuery } = await import('@tanstack/react-query');
     (useQuery as Mock)
       .mockReturnValueOnce({ data: { files: [{ id: 'f1', name: 'report.pdf' }], folders: [] } })
-      .mockReturnValueOnce({ data: { images: 0, videos: 0, documents: 100, audio: 0, archives: 0, others: 0 } });
+      .mockReturnValueOnce({
+        data: { images: 0, videos: 0, documents: 100, audio: 0, archives: 0, others: 0 },
+      });
 
     render(<DashboardPage />);
 
@@ -153,7 +191,17 @@ describe('DashboardPage', () => {
   it('renders category donut chart when category data exists', async () => {
     (useDrives as Mock).mockReturnValue({
       data: {
-        drives: [{ id: 'd1', email: 'alice@gmail.com', type: 'oauth', isPrimary: true, usedQuota: 0, totalQuota: 100, usagePercent: 0 }],
+        drives: [
+          {
+            id: 'd1',
+            email: 'alice@gmail.com',
+            type: 'oauth',
+            isPrimary: true,
+            usedQuota: 0,
+            totalQuota: 100,
+            usagePercent: 0,
+          },
+        ],
         aggregate: { totalQuota: 100, totalUsed: 0, totalFree: 100, driveCount: 1 },
       },
       isLoading: false,
@@ -162,7 +210,9 @@ describe('DashboardPage', () => {
     const { useQuery } = await import('@tanstack/react-query');
     (useQuery as Mock)
       .mockReturnValueOnce({ data: { files: [], folders: [] } })
-      .mockReturnValueOnce({ data: { images: 50, videos: 30, documents: 20, audio: 0, archives: 0, others: 0 } });
+      .mockReturnValueOnce({
+        data: { images: 50, videos: 30, documents: 20, audio: 0, archives: 0, others: 0 },
+      });
 
     render(<DashboardPage />);
 
@@ -173,10 +223,22 @@ describe('DashboardPage', () => {
   });
 
   it('renders admin tools section only for super_admin users', async () => {
-    (useAuthStore as unknown as Mock).mockReturnValue({ user: { id: 'u1', name: 'Admin', role: 'super_admin' } });
+    (useAuthStore as unknown as Mock).mockReturnValue({
+      user: { id: 'u1', name: 'Admin', role: 'super_admin' },
+    });
     (useDrives as Mock).mockReturnValue({
       data: {
-        drives: [{ id: 'd1', email: 'admin@gmail.com', type: 'oauth', isPrimary: true, usedQuota: 0, totalQuota: 100, usagePercent: 0 }],
+        drives: [
+          {
+            id: 'd1',
+            email: 'admin@gmail.com',
+            type: 'oauth',
+            isPrimary: true,
+            usedQuota: 0,
+            totalQuota: 100,
+            usagePercent: 0,
+          },
+        ],
         aggregate: { totalQuota: 100, totalUsed: 0, totalFree: 100, driveCount: 1 },
       },
       isLoading: false,

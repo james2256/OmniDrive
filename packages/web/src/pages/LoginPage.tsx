@@ -29,7 +29,7 @@ export function LoginPage() {
       }
       window.location.href = '/';
     } catch (err: unknown) {
-      setErrorMsg((err instanceof Error ? err.message : 'Authentication failed'));
+      setErrorMsg(err instanceof Error ? err.message : 'Authentication failed');
     } finally {
       setLoading(false);
     }
@@ -55,9 +55,7 @@ export function LoginPage() {
               className="h-7 sm:h-8 w-auto"
             />
           </div>
-          <p className="text-slate-600 text-sm mb-8">
-            Sign in to your account
-          </p>
+          <p className="text-slate-600 text-sm mb-8">Sign in to your account</p>
 
           {errorMsg && (
             <div
@@ -70,7 +68,10 @@ export function LoginPage() {
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4 text-left">
             <div>
-              <label htmlFor="login-username" className="block text-sm font-medium text-slate-700 mb-1">
+              <label
+                htmlFor="login-username"
+                className="block text-sm font-medium text-slate-700 mb-1"
+              >
                 Username
               </label>
               <input
@@ -80,7 +81,7 @@ export function LoginPage() {
                 autoComplete="username"
                 required
                 value={username}
-                onChange={e => setUsername(e.target.value)}
+                onChange={(e) => setUsername(e.target.value)}
                 className="w-full px-4 py-2 border border-slate-400 rounded-lg bg-card text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               />
             </div>
@@ -88,7 +89,10 @@ export function LoginPage() {
             {isRegister && (
               <>
                 <div>
-                  <label htmlFor="login-name" className="block text-sm font-medium text-slate-700 mb-1">
+                  <label
+                    htmlFor="login-name"
+                    className="block text-sm font-medium text-slate-700 mb-1"
+                  >
                     Name
                   </label>
                   <input
@@ -97,12 +101,15 @@ export function LoginPage() {
                     type="text"
                     autoComplete="name"
                     value={name}
-                    onChange={e => setName(e.target.value)}
+                    onChange={(e) => setName(e.target.value)}
                     className="w-full px-4 py-2 border border-slate-400 rounded-lg bg-card text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   />
                 </div>
                 <div>
-                  <label htmlFor="login-email" className="block text-sm font-medium text-slate-700 mb-1">
+                  <label
+                    htmlFor="login-email"
+                    className="block text-sm font-medium text-slate-700 mb-1"
+                  >
                     Email (Optional)
                   </label>
                   <input
@@ -111,12 +118,15 @@ export function LoginPage() {
                     type="email"
                     autoComplete="email"
                     value={email}
-                    onChange={e => setEmail(e.target.value)}
+                    onChange={(e) => setEmail(e.target.value)}
                     className="w-full px-4 py-2 border border-slate-400 rounded-lg bg-card text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   />
                 </div>
                 <div>
-                  <label htmlFor="login-invitation" className="block text-sm font-medium text-slate-700 mb-1">
+                  <label
+                    htmlFor="login-invitation"
+                    className="block text-sm font-medium text-slate-700 mb-1"
+                  >
                     Invitation Code (Required)
                   </label>
                   <input
@@ -126,7 +136,7 @@ export function LoginPage() {
                     autoComplete="off"
                     required
                     value={invitationCode}
-                    onChange={e => setInvitationCode(e.target.value)}
+                    onChange={(e) => setInvitationCode(e.target.value)}
                     className="w-full px-4 py-2 border border-slate-400 rounded-lg bg-card text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   />
                 </div>
@@ -134,7 +144,10 @@ export function LoginPage() {
             )}
 
             <div>
-              <label htmlFor="login-password" className="block text-sm font-medium text-slate-700 mb-1">
+              <label
+                htmlFor="login-password"
+                className="block text-sm font-medium text-slate-700 mb-1"
+              >
                 Password
               </label>
               <input
@@ -144,7 +157,7 @@ export function LoginPage() {
                 autoComplete={isRegister ? 'new-password' : 'current-password'}
                 required
                 value={password}
-                onChange={e => setPassword(e.target.value)}
+                onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-4 py-2 border border-slate-400 rounded-lg bg-card text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               />
             </div>
@@ -156,7 +169,7 @@ export function LoginPage() {
               className="w-full py-3 rounded-lg mt-2 hover:bg-primary/90"
               disabled={loading}
             >
-              {loading ? 'Signing in…' : (isRegister ? 'Create Account' : 'Sign In')}
+              {loading ? 'Signing in…' : isRegister ? 'Create Account' : 'Sign In'}
             </Button>
           </form>
 
@@ -173,9 +186,14 @@ export function LoginPage() {
 
           <p className="mt-8 text-xs text-slate-600">
             By signing in, you agree to our{' '}
-            <a href="/terms" className={linkClass}>Terms of Service</a>
-            {' '}and{' '}
-            <a href="/privacy" className={linkClass}>Privacy Policy</a>.
+            <a href="/terms" className={linkClass}>
+              Terms of Service
+            </a>{' '}
+            and{' '}
+            <a href="/privacy" className={linkClass}>
+              Privacy Policy
+            </a>
+            .
           </p>
         </div>
       </div>

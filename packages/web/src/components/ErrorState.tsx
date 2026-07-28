@@ -22,12 +22,7 @@ export function ErrorState({
       <h3 className="text-lg font-medium text-slate-800">{title}</h3>
       <p className="mt-1 text-sm text-slate-500 max-w-sm">{description}</p>
       {onRetry && (
-        <Button
-          variant="primary"
-          size="md"
-          className="mt-4 rounded-lg"
-          onClick={onRetry}
-        >
+        <Button variant="primary" size="md" className="mt-4 rounded-lg" onClick={onRetry}>
           Retry
         </Button>
       )}

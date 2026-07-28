@@ -189,7 +189,12 @@ export const createWorkspaceSchema = z.object({
 // between FE/BE or a 2nd consumer (CLI, mobile) appears. Until then, keep
 // shared role definitions here and import via relative path.
 export const WORKSPACE_ROLES = [
-  'viewer', 'commenter', 'editor', 'manager', 'auditor', 'owner',
+  'viewer',
+  'commenter',
+  'editor',
+  'manager',
+  'auditor',
+  'owner',
 ] as const;
 export type WorkspaceRole = (typeof WORKSPACE_ROLES)[number];
 
@@ -199,7 +204,11 @@ export type WorkspaceRole = (typeof WORKSPACE_ROLES)[number];
 // enforces at compile time that every assignable role is a valid WorkspaceRole,
 // so this list cannot drift from WORKSPACE_ROLES.
 const ASSIGNABLE_WORKSPACE_ROLES = [
-  'viewer', 'commenter', 'editor', 'manager', 'auditor',
+  'viewer',
+  'commenter',
+  'editor',
+  'manager',
+  'auditor',
 ] as const satisfies readonly WorkspaceRole[];
 
 export const workspaceRoleSchema = z.enum(ASSIGNABLE_WORKSPACE_ROLES);
@@ -221,8 +230,7 @@ export const workspacePolicySchema = z
     'storage_quota must target a workspace',
   )
   .refine(
-    (data) =>
-      !(data.policyType === 'storage_quota' && typeof data.config.max_bytes !== 'number'),
+    (data) => !(data.policyType === 'storage_quota' && typeof data.config.max_bytes !== 'number'),
     'config.max_bytes must be a number for storage_quota',
   )
   .refine(

@@ -24,7 +24,16 @@ export const sharedRouter = new Hono<AppContext>({ strict: false });
 
 // ─── Shared validation helper (no SQL — uses cookies + JWT only) ───
 
-async function validateSharedLink(c: Context<AppContext>, link: SharedLink): Promise<{ ok: boolean; status?: number; error?: string; requiresPassword?: boolean; requiresEmail?: boolean }> {
+async function validateSharedLink(
+  c: Context<AppContext>,
+  link: SharedLink,
+): Promise<{
+  ok: boolean;
+  status?: number;
+  error?: string;
+  requiresPassword?: boolean;
+  requiresEmail?: boolean;
+}> {
   if (link.expiresAt && new Date(link.expiresAt) < new Date()) {
     return { ok: false, status: 410, error: 'Link expired' };
   }
@@ -67,31 +76,36 @@ async function validateSharedLink(c: Context<AppContext>, link: SharedLink): Pro
 
 // ─── Management Endpoints (Require Auth) ───
 
-sharedRouter.post('/', authGuard, zValidator('json', createSharedLinkSchema, zodErrorHook), async (c) => {
-  const userId = c.get('userId');
-  const body = c.req.valid('json');
+sharedRouter.post(
+  '/',
+  authGuard,
+  zValidator('json', createSharedLinkSchema, zodErrorHook),
+  async (c) => {
+    const userId = c.get('userId');
+    const body = c.req.valid('json');
 
-  // ponytail: allowUploads not yet implemented — refuse to store a false promise
-  if (body.allowUploads) {
-    return c.json({ error: 'Uploads via shared links are not yet supported' }, 400);
-  }
+    // ponytail: allowUploads not yet implemented — refuse to store a false promise
+    if (body.allowUploads) {
+      return c.json({ error: 'Uploads via shared links are not yet supported' }, 400);
+    }
 
-  const sharedService = c.get('sharedService');
-  const id = await sharedService.createLink(userId, {
-    targetType: body.targetType,
-    targetId: body.targetId,
-    password: body.password,
-    expiresAt: body.expiresAt,
-    allowDownloads: body.allowDownloads,
-    allowUploads: body.allowUploads,
-    maxDownloads: body.maxDownloads,
-    requireEmail: body.requireEmail,
-    webhookUrl: body.webhookUrl,
-  });
+    const sharedService = c.get('sharedService');
+    const id = await sharedService.createLink(userId, {
+      targetType: body.targetType,
+      targetId: body.targetId,
+      password: body.password,
+      expiresAt: body.expiresAt,
+      allowDownloads: body.allowDownloads,
+      allowUploads: body.allowUploads,
+      maxDownloads: body.maxDownloads,
+      requireEmail: body.requireEmail,
+      webhookUrl: body.webhookUrl,
+    });
 
-  const baseUrl = c.env.FRONTEND_URL.replace(/\/$/, '');
-  return c.json({ id, url: `${baseUrl}/shared/${id}` });
-});
+    const baseUrl = c.env.FRONTEND_URL.replace(/\/$/, '');
+    return c.json({ id, url: `${baseUrl}/shared/${id}` });
+  },
+);
 
 sharedRouter.get('/', authGuard, async (c) => {
   const sharedService = c.get('sharedService');
@@ -99,11 +113,16 @@ sharedRouter.get('/', authGuard, async (c) => {
   return c.json({ links });
 });
 
-sharedRouter.put('/:id', authGuard, zValidator('json', updateSharedLinkSchema, zodErrorHook), async (c) => {
-  const sharedService = c.get('sharedService');
-  await sharedService.updateLink(c.get('userId'), c.req.param('id'), c.req.valid('json'));
-  return c.json({ success: true });
-});
+sharedRouter.put(
+  '/:id',
+  authGuard,
+  zValidator('json', updateSharedLinkSchema, zodErrorHook),
+  async (c) => {
+    const sharedService = c.get('sharedService');
+    await sharedService.updateLink(c.get('userId'), c.req.param('id'), c.req.valid('json'));
+    return c.json({ success: true });
+  },
+);
 
 sharedRouter.delete('/:id', authGuard, async (c) => {
   const sharedService = c.get('sharedService');
@@ -119,13 +138,22 @@ sharedRouter.get('/:id/meta', async (c) => {
 
   const validation = await validateSharedLink(c, link);
   if (!validation.ok) {
-    return c.json({ error: validation.error, requiresPassword: validation.requiresPassword, requiresEmail: validation.requiresEmail }, validation.status as 400 | 401 | 403 | 410 | 500);
+    return c.json(
+      {
+        error: validation.error,
+        requiresPassword: validation.requiresPassword,
+        requiresEmail: validation.requiresEmail,
+      },
+      validation.status as 400 | 401 | 403 | 410 | 500,
+    );
   }
 
-  c.executionCtx.waitUntil(Promise.all([
-    sharedService.incrementViewCount(link.id),
-    sharedService.logAction(link.id, 'view'),
-  ]));
+  c.executionCtx.waitUntil(
+    Promise.all([
+      sharedService.incrementViewCount(link.id),
+      sharedService.logAction(link.id, 'view'),
+    ]),
+  );
 
   if (link.targetType === 'file') {
     return c.json({ target, type: 'file' });
@@ -134,72 +162,82 @@ sharedRouter.get('/:id/meta', async (c) => {
 });
 
 // Password verification for password-protected links
-sharedRouter.post('/:id/verify', zValidator('json', sharedLinkVerifySchema, zodErrorHook), async (c) => {
-  const sharedService = c.get('sharedService');
-  const link = await sharedService.getLinkForValidation(c.req.param('id'));
-  if (!link) return c.json({ error: 'Link not found' }, 404);
+sharedRouter.post(
+  '/:id/verify',
+  zValidator('json', sharedLinkVerifySchema, zodErrorHook),
+  async (c) => {
+    const sharedService = c.get('sharedService');
+    const link = await sharedService.getLinkForValidation(c.req.param('id'));
+    if (!link) return c.json({ error: 'Link not found' }, 404);
 
-  // ponytail: check expiry before minting token — prevents password oracle on expired links
-  if (link.expiresAt && new Date(link.expiresAt) < new Date()) {
-    return c.json({ error: 'Link expired' }, 410);
-  }
-
-  if (!link.passwordHash) return c.json({ error: 'Link does not require password' }, 400);
-
-  const { password } = c.req.valid('json');
-
-  // ponytail: per-link lockout stops distributed brute-force beyond IP rate limit.
-  // KV lockout logic stays in the route (needs c.env.KV, which SharedService doesn't receive).
-  const lockKey = `shared_verify_lock:${link.id}`;
-  const failKey = `shared_verify_fail:${link.id}`;
-  if (await c.env.KV.get(lockKey)) {
-    return c.json({ error: 'Too many failed attempts. Try again later.' }, 429);
-  }
-
-  const valid = await verifySharedPassword(password, link.passwordHash);
-  if (!valid) {
-    const failed = Number(await c.env.KV.get(failKey) || '0') + 1;
-    if (failed >= 20) {
-      await c.env.KV.put(lockKey, '1', { expirationTtl: 15 * 60 });
-      await c.env.KV.delete(failKey);
-    } else {
-      await c.env.KV.put(failKey, String(failed), { expirationTtl: 15 * 60 });
+    // ponytail: check expiry before minting token — prevents password oracle on expired links
+    if (link.expiresAt && new Date(link.expiresAt) < new Date()) {
+      return c.json({ error: 'Link expired' }, 410);
     }
-    return c.json({ error: 'Invalid password' }, 401);
-  }
 
-  await c.env.KV.delete(failKey);
-  const token = await sign({ id: link.id, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 }, c.env.JWT_SECRET, 'HS256');
-  setCookie(c, `shared_session_${link.id}`, token, sharedLinkCookieOptions(c.env));
-  return c.json({ success: true });
-});
+    if (!link.passwordHash) return c.json({ error: 'Link does not require password' }, 400);
+
+    const { password } = c.req.valid('json');
+
+    // ponytail: per-link lockout stops distributed brute-force beyond IP rate limit.
+    // KV lockout logic stays in the route (needs c.env.KV, which SharedService doesn't receive).
+    const lockKey = `shared_verify_lock:${link.id}`;
+    const failKey = `shared_verify_fail:${link.id}`;
+    if (await c.env.KV.get(lockKey)) {
+      return c.json({ error: 'Too many failed attempts. Try again later.' }, 429);
+    }
+
+    const valid = await verifySharedPassword(password, link.passwordHash);
+    if (!valid) {
+      const failed = Number((await c.env.KV.get(failKey)) || '0') + 1;
+      if (failed >= 20) {
+        await c.env.KV.put(lockKey, '1', { expirationTtl: 15 * 60 });
+        await c.env.KV.delete(failKey);
+      } else {
+        await c.env.KV.put(failKey, String(failed), { expirationTtl: 15 * 60 });
+      }
+      return c.json({ error: 'Invalid password' }, 401);
+    }
+
+    await c.env.KV.delete(failKey);
+    const token = await sign(
+      { id: link.id, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 },
+      c.env.JWT_SECRET,
+      'HS256',
+    );
+    setCookie(c, `shared_session_${link.id}`, token, sharedLinkCookieOptions(c.env));
+    return c.json({ success: true });
+  },
+);
 
 // Email gate for requireEmail links — ponytail: no password needed, just record the email
-sharedRouter.post('/:id/email', zValidator('json', sharedLinkEmailSchema, zodErrorHook), async (c) => {
-  const sharedService = c.get('sharedService');
-  const link = await sharedService.getLinkForValidation(c.req.param('id'));
-  if (!link) return c.json({ error: 'Link not found' }, 404);
+sharedRouter.post(
+  '/:id/email',
+  zValidator('json', sharedLinkEmailSchema, zodErrorHook),
+  async (c) => {
+    const sharedService = c.get('sharedService');
+    const link = await sharedService.getLinkForValidation(c.req.param('id'));
+    if (!link) return c.json({ error: 'Link not found' }, 404);
 
-  if (!link.requireEmail) return c.json({ error: 'This link does not require email' }, 400);
-  if (link.expiresAt && new Date(link.expiresAt) < new Date()) {
-    return c.json({ error: 'Link expired' }, 410);
-  }
+    if (!link.requireEmail) return c.json({ error: 'This link does not require email' }, 400);
+    if (link.expiresAt && new Date(link.expiresAt) < new Date()) {
+      return c.json({ error: 'Link expired' }, 410);
+    }
 
-  const { email } = c.req.valid('json');
+    const { email } = c.req.valid('json');
 
-  // JWT signing + cookie logic stays in route (needs c.env.JWT_SECRET)
-  const emailToken = await sign(
-    { id: link.id, email, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 },
-    c.env.JWT_SECRET,
-    'HS256',
-  );
-  setCookie(c, `shared_email_${link.id}`, emailToken, sharedLinkCookieOptions(c.env));
+    // JWT signing + cookie logic stays in route (needs c.env.JWT_SECRET)
+    const emailToken = await sign(
+      { id: link.id, email, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 },
+      c.env.JWT_SECRET,
+      'HS256',
+    );
+    setCookie(c, `shared_email_${link.id}`, emailToken, sharedLinkCookieOptions(c.env));
 
-  c.executionCtx.waitUntil(
-    sharedService.logAction(link.id, 'email_access', email)
-  );
-  return c.json({ success: true });
-});
+    c.executionCtx.waitUntil(sharedService.logAction(link.id, 'email_access', email));
+    return c.json({ success: true });
+  },
+);
 
 // GET /:id/download — stream the file (for file links) or a specific file
 // inside the shared folder (for folder links, via ?fileId= query param).
@@ -210,7 +248,10 @@ sharedRouter.get('/:id/download', async (c) => {
 
   const validation = await validateSharedLink(c, link);
   if (!validation.ok) {
-    return c.text(validation.error || 'Unauthorized', validation.status as 400 | 401 | 403 | 410 | 500);
+    return c.text(
+      validation.error || 'Unauthorized',
+      validation.status as 400 | 401 | 403 | 410 | 500,
+    );
   }
 
   if (!link.allowDownloads) {
@@ -225,14 +266,23 @@ sharedRouter.get('/:id/download', async (c) => {
     if (!ctx) return c.text('File not found', 404);
     const { file, driveAccountId } = ctx;
 
-    const driveService = new GoogleDriveService(c.env.DB, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+    const driveService = new GoogleDriveService(
+      c.env.DB,
+      c.env.GOOGLE_CLIENT_ID,
+      c.env.GOOGLE_CLIENT_SECRET,
+      c.env.TOKEN_ENCRYPTION_KEY,
+    );
 
     let stream: ReadableStream<Uint8Array>;
     let finalMimeType = (file.mime_type as string) || 'application/octet-stream';
     let finalFileName = file.name as string;
 
     try {
-      const downloadResult = await driveService.downloadFile(driveAccountId, file.google_file_id, file.mime_type ?? undefined);
+      const downloadResult = await driveService.downloadFile(
+        driveAccountId,
+        file.google_file_id,
+        file.mime_type ?? undefined,
+      );
       stream = downloadResult.stream;
       if (downloadResult.exportedMimeType && downloadResult.exportedExtension) {
         finalMimeType = downloadResult.exportedMimeType;
@@ -254,12 +304,19 @@ sharedRouter.get('/:id/download', async (c) => {
 
     if (link.webhookUrl) {
       c.executionCtx.waitUntil(
-        fetch(link.webhookUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'download', linkId: link.id }) }).catch(() => {})
+        fetch(link.webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'download', linkId: link.id }),
+        }).catch(() => {}),
       );
     }
 
     c.header('Content-Type', finalMimeType);
-    c.header('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(finalFileName)}`);
+    c.header(
+      'Content-Disposition',
+      `attachment; filename*=UTF-8''${encodeURIComponent(finalFileName)}`,
+    );
     if (file.size && !finalFileName.endsWith('.pdf') && !finalFileName.endsWith('.xlsx')) {
       c.header('Content-Length', String(file.size));
     }
@@ -272,7 +329,12 @@ sharedRouter.get('/:id/download', async (c) => {
     if (!target) return c.text('Folder not found', 404);
     const { driveId, googleFolderId } = target;
 
-    const driveService = new GoogleDriveService(c.env.DB, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+    const driveService = new GoogleDriveService(
+      c.env.DB,
+      c.env.GOOGLE_CLIENT_ID,
+      c.env.GOOGLE_CLIENT_SECRET,
+      c.env.TOKEN_ENCRYPTION_KEY,
+    );
 
     // IDOR prevention: verify the file is inside the shared folder tree
     const isInside = await isFileInSharedFolder(driveService, driveId, fileId, googleFolderId);
@@ -286,7 +348,11 @@ sharedRouter.get('/:id/download', async (c) => {
     let finalFileName = fileMeta.name;
 
     try {
-      const downloadResult = await driveService.downloadFile(driveId, fileId, fileMeta.mimeType ?? undefined);
+      const downloadResult = await driveService.downloadFile(
+        driveId,
+        fileId,
+        fileMeta.mimeType ?? undefined,
+      );
       stream = downloadResult.stream;
       if (downloadResult.exportedMimeType && downloadResult.exportedExtension) {
         finalMimeType = downloadResult.exportedMimeType;
@@ -307,7 +373,10 @@ sharedRouter.get('/:id/download', async (c) => {
     c.executionCtx.waitUntil(sharedService.logAction(link.id, 'download'));
 
     c.header('Content-Type', finalMimeType);
-    c.header('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(finalFileName)}`);
+    c.header(
+      'Content-Disposition',
+      `attachment; filename*=UTF-8''${encodeURIComponent(finalFileName)}`,
+    );
     return c.body(stream);
   }
 
@@ -329,12 +398,23 @@ sharedRouter.get('/:id/folder-contents', async (c) => {
   if (!target) return c.text('Folder not found', 404);
   const { driveId, googleFolderId } = target;
 
-  const driveService = new GoogleDriveService(c.env.DB, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+  const driveService = new GoogleDriveService(
+    c.env.DB,
+    c.env.GOOGLE_CLIENT_ID,
+    c.env.GOOGLE_CLIENT_SECRET,
+    c.env.TOKEN_ENCRYPTION_KEY,
+  );
   const { files, folders } = await driveService.listFolderContents(driveId, googleFolderId);
 
   return c.json({
-    files: files.map(f => ({ id: f.id, name: f.name, mimeType: f.mimeType, size: parseInt(f.size ?? '0', 10), thumbnailUrl: f.thumbnailLink ?? null })),
-    folders: folders.map(f => ({ id: f.id, name: f.name })),
+    files: files.map((f) => ({
+      id: f.id,
+      name: f.name,
+      mimeType: f.mimeType,
+      size: parseInt(f.size ?? '0', 10),
+      thumbnailUrl: f.thumbnailLink ?? null,
+    })),
+    folders: folders.map((f) => ({ id: f.id, name: f.name })),
   });
 });
 
@@ -354,26 +434,55 @@ sharedRouter.get('/:id/download-tree', async (c) => {
   if (!target) return c.text('Folder not found', 404);
   const { driveId, googleFolderId, rootName } = target;
 
-  const driveService = new GoogleDriveService(c.env.DB, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+  const driveService = new GoogleDriveService(
+    c.env.DB,
+    c.env.GOOGLE_CLIENT_ID,
+    c.env.GOOGLE_CLIENT_SECRET,
+    c.env.TOKEN_ENCRYPTION_KEY,
+  );
 
   const MAX_FILES = 500;
   const MAX_API_CALLS = 40;
   let apiCallCount = 0;
   let truncated = false;
 
-  const tree: Array<{ googleFileId: string; name: string; path: string; size: number; mimeType: string | null }> = [];
+  const tree: Array<{
+    googleFileId: string;
+    name: string;
+    path: string;
+    size: number;
+    mimeType: string | null;
+  }> = [];
 
   async function walk(folderId: string, pathPrefix: string): Promise<void> {
-    if (tree.length >= MAX_FILES || apiCallCount >= MAX_API_CALLS) { truncated = true; return; }
+    if (tree.length >= MAX_FILES || apiCallCount >= MAX_API_CALLS) {
+      truncated = true;
+      return;
+    }
     apiCallCount++;
 
-    const { files: gFiles, folders: gFolders } = await driveService.listFolderContents(driveId, folderId);
+    const { files: gFiles, folders: gFolders } = await driveService.listFolderContents(
+      driveId,
+      folderId,
+    );
     for (const file of gFiles) {
-      if (tree.length >= MAX_FILES) { truncated = true; break; }
-      tree.push({ googleFileId: file.id, name: file.name, path: pathPrefix + file.name, size: parseInt(file.size ?? '0', 10), mimeType: file.mimeType ?? null });
+      if (tree.length >= MAX_FILES) {
+        truncated = true;
+        break;
+      }
+      tree.push({
+        googleFileId: file.id,
+        name: file.name,
+        path: pathPrefix + file.name,
+        size: parseInt(file.size ?? '0', 10),
+        mimeType: file.mimeType ?? null,
+      });
     }
     for (const folder of gFolders) {
-      if (tree.length >= MAX_FILES || apiCallCount >= MAX_API_CALLS) { truncated = true; break; }
+      if (tree.length >= MAX_FILES || apiCallCount >= MAX_API_CALLS) {
+        truncated = true;
+        break;
+      }
       await walk(folder.id, `${pathPrefix}${folder.name}/`);
     }
   }

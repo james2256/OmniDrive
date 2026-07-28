@@ -17,76 +17,103 @@ export class FolderRepository {
 
   /** Find the workspace_id for a folder, checking membership. */
   findParentWorkspace(parentId: string, userId: string) {
-    return this.db.prepare(
-      `SELECT f.workspace_id FROM workspace_folders f
+    return this.db
+      .prepare(
+        `SELECT f.workspace_id FROM workspace_folders f
        JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ?
-       WHERE f.id = ?`
-    ).bind(userId, parentId).first<{ workspace_id: string }>();
+       WHERE f.id = ?`,
+      )
+      .bind(userId, parentId)
+      .first<{ workspace_id: string }>();
   }
 
   /** Check membership (used by star/unstar/delete — RBAC is checked by the service). */
   findMembership(folderId: string, userId: string) {
-    return this.db.prepare(
-      `SELECT f.id, f.workspace_id FROM workspace_folders f
+    return this.db
+      .prepare(
+        `SELECT f.id, f.workspace_id FROM workspace_folders f
        JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ?
-       WHERE f.id = ?`
-    ).bind(userId, folderId).first<{ id: string; workspace_id: string }>();
+       WHERE f.id = ?`,
+      )
+      .bind(userId, folderId)
+      .first<{ id: string; workspace_id: string }>();
   }
 
   /** Search workspace folders by name (for global search). */
   searchFolders(userId: string, query: string, limit = 20) {
-    return this.db.prepare(
-      `SELECT f.*, w.name as workspaceName FROM workspace_folders f
+    return this.db
+      .prepare(
+        `SELECT f.*, w.name as workspaceName FROM workspace_folders f
        JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ?
        JOIN workspaces w ON f.workspace_id = w.id
        WHERE f.name LIKE ?
-       ORDER BY f.updated_at DESC LIMIT ?`
-    ).bind(userId, `%${query}%`, limit).all();
+       ORDER BY f.updated_at DESC LIMIT ?`,
+      )
+      .bind(userId, `%${query}%`, limit)
+      .all();
   }
 
   /** Find a folder by ID + user membership, with workspace name. */
   findByIdWithWorkspace(folderId: string, userId: string) {
-    return this.db.prepare(
-      `SELECT f.*, w.name as ws_name FROM workspace_folders f
+    return this.db
+      .prepare(
+        `SELECT f.*, w.name as ws_name FROM workspace_folders f
        JOIN workspaces w ON f.workspace_id = w.id
        JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ?
-       WHERE f.id = ?`
-    ).bind(userId, folderId).first();
+       WHERE f.id = ?`,
+      )
+      .bind(userId, folderId)
+      .first();
   }
 
   /** Find root folders in a workspace (parent_id IS NULL). */
   findRootFoldersByWorkspace(workspaceId: string) {
-    return this.db.prepare(
-      'SELECT * FROM workspace_folders WHERE workspace_id = ? AND parent_id IS NULL ORDER BY name ASC'
-    ).bind(workspaceId).all();
+    return this.db
+      .prepare(
+        'SELECT * FROM workspace_folders WHERE workspace_id = ? AND parent_id IS NULL ORDER BY name ASC',
+      )
+      .bind(workspaceId)
+      .all();
   }
 
   /** Find subfolders of a specific parent folder. */
   findSubfoldersByParent(parentId: string) {
-    return this.db.prepare(
-      'SELECT * FROM workspace_folders WHERE parent_id = ? ORDER BY name ASC'
-    ).bind(parentId).all();
+    return this.db
+      .prepare('SELECT * FROM workspace_folders WHERE parent_id = ? ORDER BY name ASC')
+      .bind(parentId)
+      .all();
   }
 
   /** Find all folders a user has access to (via workspace membership). */
   findAllByUser(userId: string) {
-    return this.db.prepare(
-      `SELECT f.* FROM workspace_folders f
+    return this.db
+      .prepare(
+        `SELECT f.* FROM workspace_folders f
        JOIN workspace_members wm ON f.workspace_id = wm.workspace_id
-       WHERE wm.user_id = ? ORDER BY f.name ASC`
-    ).bind(userId).all();
+       WHERE wm.user_id = ? ORDER BY f.name ASC`,
+      )
+      .bind(userId)
+      .all();
   }
 
   // ─── workspace_folders mutations ───
 
   star(folderId: string) {
-    return this.db.prepare('UPDATE workspace_folders SET is_starred = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-      .bind(folderId).run();
+    return this.db
+      .prepare(
+        'UPDATE workspace_folders SET is_starred = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      )
+      .bind(folderId)
+      .run();
   }
 
   unstar(folderId: string) {
-    return this.db.prepare('UPDATE workspace_folders SET is_starred = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-      .bind(folderId).run();
+    return this.db
+      .prepare(
+        'UPDATE workspace_folders SET is_starred = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      )
+      .bind(folderId)
+      .run();
   }
 
   /**
@@ -106,38 +133,44 @@ export class FolderRepository {
   async delete(folderId: string) {
     await this.db.batch([
       // 1. Recursively delete all descendant subfolders (arbitrary depth).
-      this.db.prepare(
-        `DELETE FROM workspace_folders WHERE id IN (
+      this.db
+        .prepare(
+          `DELETE FROM workspace_folders WHERE id IN (
           WITH RECURSIVE descendants(id) AS (
             SELECT id FROM workspace_folders WHERE parent_id = ?
             UNION ALL
             SELECT wf.id FROM workspace_folders wf JOIN descendants d ON wf.parent_id = d.id
           )
           SELECT id FROM descendants
-        )`
-      ).bind(folderId),
+        )`,
+        )
+        .bind(folderId),
       // 2. Delete folder-scoped policies pointing at this folder or its descendants.
-      this.db.prepare(
-        `DELETE FROM workspace_policies WHERE target_type = 'folder' AND target_id IN (
+      this.db
+        .prepare(
+          `DELETE FROM workspace_policies WHERE target_type = 'folder' AND target_id IN (
           WITH RECURSIVE descendants(id) AS (
             SELECT id FROM workspace_folders WHERE id = ?
             UNION ALL
             SELECT wf.id FROM workspace_folders wf JOIN descendants d ON wf.parent_id = d.id
           )
           SELECT id FROM descendants
-        )`
-      ).bind(folderId),
+        )`,
+        )
+        .bind(folderId),
       // 3. Detach files from this folder and all descendants (ON DELETE SET NULL intent).
-      this.db.prepare(
-        `UPDATE files SET workspace_folder_id = NULL WHERE workspace_folder_id IN (
+      this.db
+        .prepare(
+          `UPDATE files SET workspace_folder_id = NULL WHERE workspace_folder_id IN (
           WITH RECURSIVE descendants(id) AS (
             SELECT id FROM workspace_folders WHERE id = ?
             UNION ALL
             SELECT wf.id FROM workspace_folders wf JOIN descendants d ON wf.parent_id = d.id
           )
           SELECT id FROM descendants
-        )`
-      ).bind(folderId),
+        )`,
+        )
+        .bind(folderId),
       // 4. Delete the folder itself.
       this.db.prepare('DELETE FROM workspace_folders WHERE id = ?').bind(folderId),
     ]);
@@ -145,15 +178,20 @@ export class FolderRepository {
 
   /** Update sync status (syncing / idle / error). */
   updateSyncStatus(folderId: string, status: 'syncing' | 'idle' | 'error') {
-    return this.db.prepare('UPDATE workspace_folders SET sync_status = ? WHERE id = ?')
-      .bind(status, folderId).run();
+    return this.db
+      .prepare('UPDATE workspace_folders SET sync_status = ? WHERE id = ?')
+      .bind(status, folderId)
+      .run();
   }
 
   /** Mark sync complete (idle + last_synced_at). */
   updateSyncComplete(folderId: string) {
-    return this.db.prepare(
-      "UPDATE workspace_folders SET sync_status = 'idle', last_synced_at = datetime('now') WHERE id = ?"
-    ).bind(folderId).run();
+    return this.db
+      .prepare(
+        "UPDATE workspace_folders SET sync_status = 'idle', last_synced_at = datetime('now') WHERE id = ?",
+      )
+      .bind(folderId)
+      .run();
   }
 
   /** Insert a new workspace folder. */
@@ -165,31 +203,54 @@ export class FolderRepository {
     icon: string;
     color: string;
   }) {
-    return this.db.prepare(
-      'INSERT INTO workspace_folders (id, workspace_id, name, parent_id, icon, color) VALUES (?, ?, ?, ?, ?, ?)'
-    ).bind(params.id, params.workspaceId, params.name, params.parentId, params.icon, params.color).run();
+    return this.db
+      .prepare(
+        'INSERT INTO workspace_folders (id, workspace_id, name, parent_id, icon, color) VALUES (?, ?, ?, ?, ?, ?)',
+      )
+      .bind(params.id, params.workspaceId, params.name, params.parentId, params.icon, params.color)
+      .run();
   }
 
   /** Update folder fields (name, icon, color, parent_id, workspace_id). */
-  updateFields(folderId: string, fields: {
-    name?: string;
-    icon?: string;
-    color?: string;
-    parentId?: string | null;
-    workspaceId?: string;
-  }) {
+  updateFields(
+    folderId: string,
+    fields: {
+      name?: string;
+      icon?: string;
+      color?: string;
+      parentId?: string | null;
+      workspaceId?: string;
+    },
+  ) {
     const updateFields: string[] = [];
     const params: (string | null)[] = [];
-    if (fields.name !== undefined) { updateFields.push('name = ?'); params.push(fields.name); }
-    if (fields.icon !== undefined) { updateFields.push('icon = ?'); params.push(fields.icon); }
-    if (fields.color !== undefined) { updateFields.push('color = ?'); params.push(fields.color); }
-    if (fields.parentId !== undefined) { updateFields.push('parent_id = ?'); params.push(fields.parentId ?? null); }
-    if (fields.workspaceId !== undefined) { updateFields.push('workspace_id = ?'); params.push(fields.workspaceId); }
+    if (fields.name !== undefined) {
+      updateFields.push('name = ?');
+      params.push(fields.name);
+    }
+    if (fields.icon !== undefined) {
+      updateFields.push('icon = ?');
+      params.push(fields.icon);
+    }
+    if (fields.color !== undefined) {
+      updateFields.push('color = ?');
+      params.push(fields.color);
+    }
+    if (fields.parentId !== undefined) {
+      updateFields.push('parent_id = ?');
+      params.push(fields.parentId ?? null);
+    }
+    if (fields.workspaceId !== undefined) {
+      updateFields.push('workspace_id = ?');
+      params.push(fields.workspaceId);
+    }
     if (updateFields.length === 0) return Promise.resolve();
     updateFields.push('updated_at = CURRENT_TIMESTAMP');
     params.push(folderId);
-    return this.db.prepare(`UPDATE workspace_folders SET ${updateFields.join(', ')} WHERE id = ?`)
-      .bind(...params).run();
+    return this.db
+      .prepare(`UPDATE workspace_folders SET ${updateFields.join(', ')} WHERE id = ?`)
+      .bind(...params)
+      .run();
   }
 
   // ─── drive_folders UPSERT (sync engine) ───
@@ -212,7 +273,8 @@ export class FolderRepository {
     googleParentId: string | null,
     ownedByMe: boolean,
   ): D1PreparedStatement {
-    return this.db.prepare(FolderRepository.UPSERT_FOLDER_SQL)
+    return this.db
+      .prepare(FolderRepository.UPSERT_FOLDER_SQL)
       .bind(generateId(), drive.id, folder.id, googleParentId, folder.name, ownedByMe ? 1 : 0);
   }
 

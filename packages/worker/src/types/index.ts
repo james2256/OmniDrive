@@ -306,9 +306,18 @@ export function mapAutomationRuleRow(row: Record<string, unknown>): AutomationRu
     userId: row.user_id as string,
     name: row.name as string,
     triggerType: row.trigger_type as 'event' | 'cron',
-    triggerConfig: typeof row.trigger_config === 'string' ? JSON.parse(row.trigger_config) : (row.trigger_config as Record<string, unknown> || {}),
-    conditions: typeof row.conditions === 'string' ? JSON.parse(row.conditions) : (row.conditions as RuleCondition[] || []),
-    actions: typeof row.actions === 'string' ? JSON.parse(row.actions) : (row.actions as RuleAction[] || []),
+    triggerConfig:
+      typeof row.trigger_config === 'string'
+        ? JSON.parse(row.trigger_config)
+        : (row.trigger_config as Record<string, unknown>) || {},
+    conditions:
+      typeof row.conditions === 'string'
+        ? JSON.parse(row.conditions)
+        : (row.conditions as RuleCondition[]) || [],
+    actions:
+      typeof row.actions === 'string'
+        ? JSON.parse(row.actions)
+        : (row.actions as RuleAction[]) || [],
     isActive: row.is_active === 1,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,

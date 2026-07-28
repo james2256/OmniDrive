@@ -27,7 +27,10 @@ export function isSameSiteDeployment(env: { FRONTEND_URL: string; WORKER_URL: st
  * Direct cross-site fetch (SPA on omnidrive-7w1.pages.dev → *.workers.dev) with
  * SameSite=None is increasingly dropped by browsers after tabs close.
  */
-export function sessionCookieOptions(env: { FRONTEND_URL: string; WORKER_URL: string }): CookieOptions {
+export function sessionCookieOptions(env: {
+  FRONTEND_URL: string;
+  WORKER_URL: string;
+}): CookieOptions {
   const secure = new URL(env.FRONTEND_URL).protocol === 'https:';
   return {
     path: '/',
@@ -38,7 +41,10 @@ export function sessionCookieOptions(env: { FRONTEND_URL: string; WORKER_URL: st
   };
 }
 
-export function sessionDeleteCookieOptions(env: { FRONTEND_URL: string; WORKER_URL: string }): CookieOptions {
+export function sessionDeleteCookieOptions(env: {
+  FRONTEND_URL: string;
+  WORKER_URL: string;
+}): CookieOptions {
   return { ...sessionCookieOptions(env), maxAge: 0 };
 }
 

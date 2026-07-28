@@ -32,7 +32,12 @@ vi.mock('lucide-react', () => ({
 
 vi.mock('../ui/dialog', () => ({
   Dialog: ({ open, children, onOpenChange }: any) =>
-    open ? <div data-testid="dialog"><button data-testid="dialog-close" onClick={() => onOpenChange?.(false)} />{children}</div> : null,
+    open ? (
+      <div data-testid="dialog">
+        <button data-testid="dialog-close" onClick={() => onOpenChange?.(false)} />
+        {children}
+      </div>
+    ) : null,
   DialogContent: ({ children }: any) => <div>{children}</div>,
   DialogHeader: ({ children }: any) => <div>{children}</div>,
   DialogBody: ({ children }: any) => <div>{children}</div>,
@@ -43,7 +48,9 @@ vi.mock('../ui/dialog', () => ({
 
 vi.mock('../ui/Button', () => ({
   Button: ({ children, onClick, disabled, type, loading, ...props }: any) => (
-    <button onClick={onClick} disabled={disabled} type={type} {...props}>{loading ? 'Loading...' : children}</button>
+    <button onClick={onClick} disabled={disabled} type={type} {...props}>
+      {loading ? 'Loading...' : children}
+    </button>
   ),
 }));
 
@@ -52,13 +59,26 @@ vi.mock('../ui/Input', () => ({
 }));
 
 vi.mock('../ConfirmDialog', () => ({
-  ConfirmDialog: ({ open, onConfirm, onClose, title, message, confirmText, cancelText, loading }: any) =>
+  ConfirmDialog: ({
+    open,
+    onConfirm,
+    onClose,
+    title,
+    message,
+    confirmText,
+    cancelText,
+    loading,
+  }: any) =>
     open ? (
       <div data-testid="confirm-dialog">
         <h2>{title}</h2>
         <p>{message}</p>
-        <button data-testid="confirm-cancel" onClick={onClose} disabled={loading}>{cancelText}</button>
-        <button data-testid="confirm-ok" onClick={onConfirm} disabled={loading}>{confirmText}</button>
+        <button data-testid="confirm-cancel" onClick={onClose} disabled={loading}>
+          {cancelText}
+        </button>
+        <button data-testid="confirm-ok" onClick={onConfirm} disabled={loading}>
+          {confirmText}
+        </button>
       </div>
     ) : null,
 }));

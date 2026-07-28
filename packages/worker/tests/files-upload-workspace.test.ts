@@ -88,7 +88,7 @@ function makeApp(config: DbConfig) {
         headers: { 'Content-Type': 'application/json', Cookie: `omnidrive_sid=${SESSION_ID}` },
         body: JSON.stringify(body),
       },
-      env as any
+      env as any,
     );
   return { call, config };
 }

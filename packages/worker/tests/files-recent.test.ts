@@ -73,7 +73,7 @@ function seedWorkspaceWithMembers(memberCount: number) {
   `);
 
   const insertMember = db.prepare(
-    'INSERT INTO workspace_members (id, workspace_id, user_id) VALUES (?, ?, ?)'
+    'INSERT INTO workspace_members (id, workspace_id, user_id) VALUES (?, ?, ?)',
   );
   for (let i = 0; i < memberCount; i++) {
     const uid = i === 0 ? 'user-owner' : `user-member-${i}`;
@@ -98,13 +98,18 @@ describe('GET /api/files/recent', () => {
     expect(multiplied).toHaveLength(memberCount);
 
     // Fixed query: single row regardless of member count.
-    const fixed = db.prepare(RECENT_FILES_SQL).all('user-owner', 'user-owner') as Array<{ id: string; name: string }>;
+    const fixed = db.prepare(RECENT_FILES_SQL).all('user-owner', 'user-owner') as Array<{
+      id: string;
+      name: string;
+    }>;
     expect(fixed).toHaveLength(1);
     expect(fixed[0].id).toBe('file-1');
     expect(fixed[0].name).toBe('Report.pdf');
 
     // Member who does not own the file still sees it via EXISTS membership.
-    const asMember = db.prepare(RECENT_FILES_SQL).all('user-member-3', 'user-member-3') as Array<{ id: string }>;
+    const asMember = db.prepare(RECENT_FILES_SQL).all('user-member-3', 'user-member-3') as Array<{
+      id: string;
+    }>;
     expect(asMember).toHaveLength(1);
     expect(asMember[0].id).toBe('file-1');
 

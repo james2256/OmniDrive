@@ -15,7 +15,14 @@ interface DriveAccountCardProps {
   isSyncingOverride?: boolean;
 }
 
-export function DriveAccountCard({ drive, index, onSync, onDisconnect, onReconnect, isSyncingOverride }: DriveAccountCardProps) {
+export function DriveAccountCard({
+  drive,
+  index,
+  onSync,
+  onDisconnect,
+  onReconnect,
+  isSyncingOverride,
+}: DriveAccountCardProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const color = getDriveColor(index);
@@ -40,7 +47,9 @@ export function DriveAccountCard({ drive, index, onSync, onDisconnect, onReconne
 
   const confirmDisconnect = async () => {
     setIsDisconnecting(true);
-    try { await onDisconnect(drive.id); } finally {
+    try {
+      await onDisconnect(drive.id);
+    } finally {
       setIsDisconnecting(false);
       setConfirmOpen(false);
     }
@@ -67,12 +76,24 @@ export function DriveAccountCard({ drive, index, onSync, onDisconnect, onReconne
             <div className="text-sm font-semibold text-slate-800 truncate">{drive.email}</div>
             <div className="text-xs text-slate-500">
               {drive.type === 'service_account' ? 'Service Account' : 'OAuth'}
-              {drive.isPrimary && <span className="ml-1.5 text-blue-500 font-medium">· Primary</span>}
+              {drive.isPrimary && (
+                <span className="ml-1.5 text-blue-500 font-medium">· Primary</span>
+              )}
               {drive.health === 'auth_expired' && (
-                <span className="ml-1.5 text-red-600 font-medium" title="Google session expired — disconnect and reconnect this account">· reconnect needed</span>
+                <span
+                  className="ml-1.5 text-red-600 font-medium"
+                  title="Google session expired — disconnect and reconnect this account"
+                >
+                  · reconnect needed
+                </span>
               )}
               {drive.health === 'error' && (
-                <span className="ml-1.5 text-amber-600" title="Could not reach Google Drive on last check — usually temporary">· unreachable</span>
+                <span
+                  className="ml-1.5 text-amber-600"
+                  title="Could not reach Google Drive on last check — usually temporary"
+                >
+                  · unreachable
+                </span>
               )}
               {drive.syncStatus === 'error' && (
                 <span
@@ -132,10 +153,19 @@ export function DriveAccountCard({ drive, index, onSync, onDisconnect, onReconne
 
       {drive.hasLimit !== false ? (
         <>
-          <QuotaBar used={drive.usedQuota} total={drive.totalQuota} color={color} showLabel={false} />
+          <QuotaBar
+            used={drive.usedQuota}
+            total={drive.totalQuota}
+            color={color}
+            showLabel={false}
+          />
           <div className="flex justify-between mt-2 text-xs text-slate-500">
-            <span className="truncate">{formatFileSize(drive.freeSpace)} free of {formatFileSize(drive.totalQuota)}</span>
-            <span className="flex-shrink-0 ml-2">{Math.min(drive.usagePercent, 100).toFixed(1)}%</span>
+            <span className="truncate">
+              {formatFileSize(drive.freeSpace)} free of {formatFileSize(drive.totalQuota)}
+            </span>
+            <span className="flex-shrink-0 ml-2">
+              {Math.min(drive.usagePercent, 100).toFixed(1)}%
+            </span>
           </div>
         </>
       ) : (
@@ -143,7 +173,10 @@ export function DriveAccountCard({ drive, index, onSync, onDisconnect, onReconne
            Show used only; a subtle indicator bar replaces the fake 1 TiB total. */
         <div className="mt-2">
           <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-            <div className="h-full rounded-full" style={{ width: '100%', backgroundColor: color, opacity: 0.3 }} />
+            <div
+              className="h-full rounded-full"
+              style={{ width: '100%', backgroundColor: color, opacity: 0.3 }}
+            />
           </div>
           <div className="flex justify-between mt-2 text-xs text-slate-500">
             <span className="truncate">{formatFileSize(drive.usedQuota)} used</span>

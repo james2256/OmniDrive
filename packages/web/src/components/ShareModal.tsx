@@ -1,10 +1,28 @@
 import { useState, useEffect } from 'react';
 import { useClipboard } from '../hooks/useClipboard';
-import { Copy, Check, Share2, Calendar, Lock, Settings, ChevronDown, ChevronUp, Eye, EyeOff } from 'lucide-react';
+import {
+  Copy,
+  Check,
+  Share2,
+  Calendar,
+  Lock,
+  Settings,
+  ChevronDown,
+  ChevronUp,
+  Eye,
+  EyeOff,
+} from 'lucide-react';
 import { createSharedLink } from '../lib/api';
 import { useInvalidateSharedLinks } from '../hooks/useSharedLinks';
 import { toLocalDatetimeInput, cn } from '../lib/utils';
-import { Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogTitle } from './ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogBody,
+  DialogFooter,
+  DialogTitle,
+} from './ui/dialog';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 
@@ -67,12 +85,12 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
         allowDownloads,
         maxDownloads: maxDownloads ? parseInt(maxDownloads, 10) : null,
         requireEmail,
-        webhookUrl: webhookUrl || undefined
+        webhookUrl: webhookUrl || undefined,
       });
       setSharedUrl(resp.url);
       invalidateSharedLinks();
     } catch (err: unknown) {
-      setError((err instanceof Error ? err.message : 'Failed to create shared link'));
+      setError(err instanceof Error ? err.message : 'Failed to create shared link');
     } finally {
       setLoading(false);
     }
@@ -86,9 +104,7 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
     <Dialog open={open} onOpenChange={(o) => !o && !loading && onClose()}>
       <DialogContent className="max-w-md p-0 gap-0 flex flex-col overflow-hidden max-h-[85vh]">
         <DialogHeader icon={<Share2 size={20} className="text-primary" />}>
-          <DialogTitle>
-            Share {targetType === 'file' ? 'File' : 'Folder'}
-          </DialogTitle>
+          <DialogTitle>Share {targetType === 'file' ? 'File' : 'Folder'}</DialogTitle>
         </DialogHeader>
         <DialogBody>
           {error && (
@@ -111,15 +127,15 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
                     autoComplete="new-password"
                     className="pr-9"
                   />
-                <Button
+                  <Button
                     type="button"
                     variant="ghost"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
-                >
+                  >
                     {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
-                </Button>
+                  </Button>
                 </div>
               </div>
               <div className="flex flex-col gap-1">
@@ -141,9 +157,15 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
               >
                 <Settings size={12} className="mr-1" />
                 Advanced
-                {showAdvanced ? <ChevronUp size={12} className="ml-1" /> : <ChevronDown size={12} className="ml-1" />}
+                {showAdvanced ? (
+                  <ChevronUp size={12} className="ml-1" />
+                ) : (
+                  <ChevronDown size={12} className="ml-1" />
+                )}
               </Button>
-              <div className={`grid transition-[grid-template-rows] duration-200 ${showAdvanced ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+              <div
+                className={`grid transition-[grid-template-rows] duration-200 ${showAdvanced ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
+              >
                 <div className="overflow-hidden">
                   <div className="flex flex-col gap-2 pt-1">
                     <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
@@ -181,8 +203,12 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="secondary" type="button" onClick={onClose} disabled={loading}>Cancel</Button>
-                <Button type="submit" loading={loading}>Create Link</Button>
+                <Button variant="secondary" type="button" onClick={onClose} disabled={loading}>
+                  Cancel
+                </Button>
+                <Button type="submit" loading={loading}>
+                  Create Link
+                </Button>
               </DialogFooter>
             </form>
           ) : (
@@ -204,7 +230,11 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
                   onClick={handleCopy}
                   title="Copy to clipboard"
                 >
-                  {copiedId === 'share-modal' ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
+                  {copiedId === 'share-modal' ? (
+                    <Check size={16} className="text-green-500" />
+                  ) : (
+                    <Copy size={16} />
+                  )}
                 </Button>
               </div>
               <DialogFooter>

@@ -1,5 +1,5 @@
-import { type ClassValue, clsx } from "clsx";
-import { twMerge } from "tailwind-merge";
+import { type ClassValue, clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -27,8 +27,6 @@ export function formatRelativeTime(dateString: string): string {
   if (diffDays < 7) return `${diffDays}d ago`;
   return date.toLocaleDateString();
 }
-
-
 
 /** Short label for a connected drive account — local-part only (no @domain). */
 export function formatDriveLabel(email?: string | null): string {
@@ -77,9 +75,7 @@ export function toLocalDatetimeInput(date: Date): string {
  */
 export function formatAbsoluteDate(dateString: string | number): string {
   const d =
-    typeof dateString === 'number'
-      ? new Date(dateString)
-      : new Date(dateString.replace(' ', 'T'));
+    typeof dateString === 'number' ? new Date(dateString) : new Date(dateString.replace(' ', 'T'));
   return d.toLocaleString(undefined, {
     year: 'numeric',
     month: 'short',

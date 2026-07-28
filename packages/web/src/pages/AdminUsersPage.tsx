@@ -24,7 +24,11 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 
-const AddUserModal: React.FC<{ open: boolean, onClose: () => void, onSuccess: () => void }> = ({ open, onClose, onSuccess }) => {
+const AddUserModal: React.FC<{ open: boolean; onClose: () => void; onSuccess: () => void }> = ({
+  open,
+  onClose,
+  onSuccess,
+}) => {
   const [username, setUsername] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -43,11 +47,11 @@ const AddUserModal: React.FC<{ open: boolean, onClose: () => void, onSuccess: ()
         name: name.trim() || undefined,
         email: email.trim() || undefined,
         password,
-        role
+        role,
       });
       onSuccess();
     } catch (err: unknown) {
-      setError((err instanceof Error ? err.message : 'Failed to create user'));
+      setError(err instanceof Error ? err.message : 'Failed to create user');
     } finally {
       setLoading(false);
     }
@@ -61,27 +65,40 @@ const AddUserModal: React.FC<{ open: boolean, onClose: () => void, onSuccess: ()
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
           <DialogBody>
-            {error && <div className="mb-3 text-sm text-red-600 bg-red-50 p-2 rounded-lg border border-red-100">{error}</div>}
+            {error && (
+              <div className="mb-3 text-sm text-red-600 bg-red-50 p-2 rounded-lg border border-red-100">
+                {error}
+              </div>
+            )}
             <div className="space-y-2.5">
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Username *</label>
-                <Input required value={username} onChange={e => setUsername(e.target.value)} />
+                <Input required value={username} onChange={(e) => setUsername(e.target.value)} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Password *</label>
-                <Input required type="password" value={password} onChange={e => setPassword(e.target.value)} />
+                <Input
+                  required
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Name</label>
-                <Input value={name} onChange={e => setName(e.target.value)} />
+                <Input value={name} onChange={(e) => setName(e.target.value)} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Email</label>
-                <Input type="email" value={email} onChange={e => setEmail(e.target.value)} />
+                <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Role</label>
-                <select value={role} onChange={e => setRole(e.target.value as 'super_admin' | 'member')} className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-xl text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus:border-primary transition-shadow">
+                <select
+                  value={role}
+                  onChange={(e) => setRole(e.target.value as 'super_admin' | 'member')}
+                  className="w-full px-3 py-1.5 bg-card border border-slate-400 rounded-xl text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus:border-primary transition-shadow"
+                >
                   <option value="member">Member</option>
                   <option value="super_admin">Super Admin</option>
                 </select>
@@ -89,8 +106,12 @@ const AddUserModal: React.FC<{ open: boolean, onClose: () => void, onSuccess: ()
             </div>
           </DialogBody>
           <DialogFooter>
-            <Button variant="secondary" type="button" onClick={onClose} disabled={loading}>Cancel</Button>
-            <Button type="submit" loading={loading}>Create</Button>
+            <Button variant="secondary" type="button" onClick={onClose} disabled={loading}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={loading}>
+              Create
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -111,9 +132,19 @@ export const AdminUsersPage: React.FC = () => {
   const [isCreating, setIsCreating] = useState(false);
 
   // User management action state (role / status / delete)
-  const [roleTarget, setRoleTarget] = useState<{ id: string; role: 'super_admin' | 'member'; name: string } | null>(null);
-  const [statusTarget, setStatusTarget] = useState<{ id: string; status: 'active' | 'blocked'; name: string } | null>(null);
-  const [deleteUserTarget, setDeleteUserTarget] = useState<{ id: string; name: string } | null>(null);
+  const [roleTarget, setRoleTarget] = useState<{
+    id: string;
+    role: 'super_admin' | 'member';
+    name: string;
+  } | null>(null);
+  const [statusTarget, setStatusTarget] = useState<{
+    id: string;
+    status: 'active' | 'blocked';
+    name: string;
+  } | null>(null);
+  const [deleteUserTarget, setDeleteUserTarget] = useState<{ id: string; name: string } | null>(
+    null,
+  );
   const [isChangingRole, setIsChangingRole] = useState(false);
   const [isChangingStatus, setIsChangingStatus] = useState(false);
   const [isDeletingUser, setIsDeletingUser] = useState(false);
@@ -173,7 +204,10 @@ export const AdminUsersPage: React.FC = () => {
       setInviteMaxUses(1);
       loadInvitations();
     } catch (e: unknown) {
-      addToast('error', e instanceof Error ? e.message : 'An error occurred while creating invitation');
+      addToast(
+        'error',
+        e instanceof Error ? e.message : 'An error occurred while creating invitation',
+      );
       console.error(e);
     } finally {
       setIsCreating(false);
@@ -185,7 +219,10 @@ export const AdminUsersPage: React.FC = () => {
       await api.deleteInvitation(id);
       loadInvitations();
     } catch (e: unknown) {
-      addToast('error', e instanceof Error ? e.message : 'An error occurred while deleting invitation');
+      addToast(
+        'error',
+        e instanceof Error ? e.message : 'An error occurred while deleting invitation',
+      );
       console.error(e);
       throw e;
     }
@@ -200,7 +237,10 @@ export const AdminUsersPage: React.FC = () => {
       await api.updateUserRole(roleTarget.id, roleTarget.role);
       setRoleTarget(null);
       loadUsers();
-      addToast('success', `User ${roleTarget.role === 'super_admin' ? 'promoted to Super Admin' : 'demoted to Member'}`);
+      addToast(
+        'success',
+        `User ${roleTarget.role === 'super_admin' ? 'promoted to Super Admin' : 'demoted to Member'}`,
+      );
     } catch (e: unknown) {
       addToast('error', e instanceof Error ? e.message : 'Failed to update role');
       setRoleTarget(null);
@@ -283,11 +323,21 @@ export const AdminUsersPage: React.FC = () => {
               <table className="w-full text-left border-collapse min-w-[500px]">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="px-2 sm:px-6 py-3 text-xs font-medium text-slate-500 uppercase">Name</th>
-                    <th className="px-2 sm:px-6 py-3 text-xs font-medium text-slate-500 uppercase">Email</th>
-                    <th className="px-2 sm:px-6 py-3 text-xs font-medium text-slate-500 uppercase">Role</th>
-                    <th className="px-2 sm:px-6 py-3 text-xs font-medium text-slate-500 uppercase">Status</th>
-                    <th className="px-2 sm:px-6 py-3 text-xs font-medium text-slate-500 uppercase">Actions</th>
+                    <th className="px-2 sm:px-6 py-3 text-xs font-medium text-slate-500 uppercase">
+                      Name
+                    </th>
+                    <th className="px-2 sm:px-6 py-3 text-xs font-medium text-slate-500 uppercase">
+                      Email
+                    </th>
+                    <th className="px-2 sm:px-6 py-3 text-xs font-medium text-slate-500 uppercase">
+                      Role
+                    </th>
+                    <th className="px-2 sm:px-6 py-3 text-xs font-medium text-slate-500 uppercase">
+                      Status
+                    </th>
+                    <th className="px-2 sm:px-6 py-3 text-xs font-medium text-slate-500 uppercase">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
@@ -300,19 +350,35 @@ export const AdminUsersPage: React.FC = () => {
                             role="img"
                             aria-label={userItem.name || userItem.username || 'User avatar'}
                           >
-                            {userItem.avatarUrl ? <img src={userItem.avatarUrl} alt={userItem.name || userItem.username || 'User avatar'} className="w-full h-full object-cover" /> : (userItem.name || userItem.email || '?').charAt(0).toUpperCase()}
+                            {userItem.avatarUrl ? (
+                              <img
+                                src={userItem.avatarUrl}
+                                alt={userItem.name || userItem.username || 'User avatar'}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              (userItem.name || userItem.email || '?').charAt(0).toUpperCase()
+                            )}
                           </div>
-                          <span className="text-sm font-medium text-slate-900">{userItem.name || userItem.username || 'Unknown'}</span>
+                          <span className="text-sm font-medium text-slate-900">
+                            {userItem.name || userItem.username || 'Unknown'}
+                          </span>
                         </div>
                       </td>
-                      <td className="px-2 sm:px-6 py-4 text-sm text-slate-500">{userItem.email || '-'}</td>
+                      <td className="px-2 sm:px-6 py-4 text-sm text-slate-500">
+                        {userItem.email || '-'}
+                      </td>
                       <td className="px-2 sm:px-6 py-4 text-sm">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${userItem.role === 'super_admin' ? 'bg-purple-100 text-purple-800' : 'bg-slate-100 text-slate-800'}`}>
+                        <span
+                          className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${userItem.role === 'super_admin' ? 'bg-purple-100 text-purple-800' : 'bg-slate-100 text-slate-800'}`}
+                        >
                           {userItem.role || 'member'}
                         </span>
                       </td>
                       <td className="px-2 sm:px-6 py-4 text-sm">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${userItem.status === 'blocked' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
+                        <span
+                          className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${userItem.status === 'blocked' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}
+                        >
                           {userItem.status || 'active'}
                         </span>
                       </td>
@@ -330,30 +396,38 @@ export const AdminUsersPage: React.FC = () => {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem
-                              onClick={() => setRoleTarget({
-                                id: userItem.id,
-                                role: userItem.role === 'super_admin' ? 'member' : 'super_admin',
-                                name: userItem.name || userItem.username || 'this user',
-                              })}
+                              onClick={() =>
+                                setRoleTarget({
+                                  id: userItem.id,
+                                  role: userItem.role === 'super_admin' ? 'member' : 'super_admin',
+                                  name: userItem.name || userItem.username || 'this user',
+                                })
+                              }
                             >
-                              {userItem.role === 'super_admin' ? 'Demote to Member' : 'Promote to Admin'}
+                              {userItem.role === 'super_admin'
+                                ? 'Demote to Member'
+                                : 'Promote to Admin'}
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              onClick={() => setStatusTarget({
-                                id: userItem.id,
-                                status: userItem.status === 'blocked' ? 'active' : 'blocked',
-                                name: userItem.name || userItem.username || 'this user',
-                              })}
+                              onClick={() =>
+                                setStatusTarget({
+                                  id: userItem.id,
+                                  status: userItem.status === 'blocked' ? 'active' : 'blocked',
+                                  name: userItem.name || userItem.username || 'this user',
+                                })
+                              }
                             >
                               {userItem.status === 'blocked' ? 'Unblock User' : 'Block User'}
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               className="text-red-600 focus:text-red-600 focus:bg-red-50"
-                              onClick={() => setDeleteUserTarget({
-                                id: userItem.id,
-                                name: userItem.name || userItem.username || 'this user',
-                              })}
+                              onClick={() =>
+                                setDeleteUserTarget({
+                                  id: userItem.id,
+                                  name: userItem.name || userItem.username || 'this user',
+                                })
+                              }
                             >
                               Delete User
                             </DropdownMenuItem>
@@ -374,7 +448,7 @@ export const AdminUsersPage: React.FC = () => {
               <input
                 type="text"
                 value={inviteCode}
-                onChange={e => setInviteCode(e.target.value)}
+                onChange={(e) => setInviteCode(e.target.value)}
                 placeholder="Code (e.g. TEAM-2026)"
                 className="border border-slate-400 px-3 py-2 rounded focus-visible:ring-2 focus-visible:ring-primary outline-none"
                 required
@@ -382,24 +456,34 @@ export const AdminUsersPage: React.FC = () => {
               <input
                 type="number"
                 value={inviteMaxUses}
-                onChange={e => setInviteMaxUses(Number(e.target.value))}
+                onChange={(e) => setInviteMaxUses(Number(e.target.value))}
                 placeholder="Max Uses"
                 className="border border-slate-400 w-24 px-3 py-2 rounded focus-visible:ring-2 focus-visible:ring-primary outline-none"
                 required
                 min="0"
               />
-              <Button type="submit" variant="primary" size="md" className="rounded" loading={isCreating} disabled={isCreating}>
+              <Button
+                type="submit"
+                variant="primary"
+                size="md"
+                className="rounded"
+                loading={isCreating}
+                disabled={isCreating}
+              >
                 <span>Create Code</span>
               </Button>
             </form>
-            
+
             <div className="bg-card border border-slate-200 rounded-lg overflow-hidden">
               <ul className="divide-y divide-slate-200">
                 {invitations.length === 0 ? (
                   <li className="p-4 text-slate-500 text-center">No invitation codes found.</li>
                 ) : (
                   invitations.map((inv: Invitation) => (
-                    <li key={inv.id} className="flex items-center justify-between gap-2 p-4 hover:bg-slate-50">
+                    <li
+                      key={inv.id}
+                      className="flex items-center justify-between gap-2 p-4 hover:bg-slate-50"
+                    >
                       <div className="min-w-0">
                         <span className="font-semibold text-slate-800">{inv.code}</span>
                         <span className="text-sm text-slate-500 ml-2 sm:ml-4">
@@ -495,4 +579,3 @@ export const AdminUsersPage: React.FC = () => {
     </div>
   );
 };
-

@@ -16,22 +16,26 @@ export class DriveService {
   private driveRepo: DriveRepository;
   private googleDriveService: GoogleDriveService;
 
-  constructor(
-    db: D1Database,
-    clientId: string,
-    clientSecret: string,
-    encryptionKey: string,
-  ) {
+  constructor(db: D1Database, clientId: string, clientSecret: string, encryptionKey: string) {
     this.driveRepo = new DriveRepository(db);
     this.googleDriveService = new GoogleDriveService(db, clientId, clientSecret, encryptionKey);
   }
 
   /** Create a Google Drive folder via the API, then persist to D1 so it appears immediately. */
-  async createDriveFolder(userId: string, driveId: string, name: string, parentId?: string): Promise<string> {
+  async createDriveFolder(
+    userId: string,
+    driveId: string,
+    name: string,
+    parentId?: string,
+  ): Promise<string> {
     const drive = await this.driveRepo.findByIdAndUser(driveId, userId);
     if (!drive) throw new AppError(404, 'Drive not found');
 
-    const googleFolderId = await this.googleDriveService.createFolder(driveId, name, parentId || undefined);
+    const googleFolderId = await this.googleDriveService.createFolder(
+      driveId,
+      name,
+      parentId || undefined,
+    );
 
     await this.driveRepo.insertDriveFolder({
       id: generateId(),
@@ -52,7 +56,12 @@ export class DriveService {
   }
 
   /** Rename a Google Drive folder via the API, then update the cache. */
-  async renameDriveFolder(userId: string, driveId: string, googleFolderId: string, name: string): Promise<void> {
+  async renameDriveFolder(
+    userId: string,
+    driveId: string,
+    googleFolderId: string,
+    name: string,
+  ): Promise<void> {
     const drive = await this.driveRepo.findByIdAndUser(driveId, userId);
     if (!drive) throw new AppError(404, 'Drive not found');
 
@@ -79,7 +88,11 @@ export class DriveService {
   }
 
   /** Permanently delete a Google Drive folder. Uses deleteFile (Google API treats folders as files). */
-  async permanentDeleteDriveFolder(userId: string, driveId: string, googleFolderId: string): Promise<void> {
+  async permanentDeleteDriveFolder(
+    userId: string,
+    driveId: string,
+    googleFolderId: string,
+  ): Promise<void> {
     const drive = await this.driveRepo.findByIdAndUser(driveId, userId);
     if (!drive) throw new AppError(404, 'Drive not found');
 
@@ -160,7 +173,11 @@ export class DriveService {
       hasMore = true;
       fileRows.pop();
     }
-    const files = fileRows.map((r: Record<string, unknown>) => ({ ...mapFileRow(r), driveEmail: r.driveEmail, driveId: r.drive_account_id }));
+    const files = fileRows.map((r: Record<string, unknown>) => ({
+      ...mapFileRow(r),
+      driveEmail: r.driveEmail,
+      driveId: r.drive_account_id,
+    }));
     let nextCursor: string | null = null;
     if (files.length > 0 && hasMore) {
       const last = files[files.length - 1];
@@ -168,7 +185,11 @@ export class DriveService {
     }
 
     return {
-      folders: folderRows.map((r: Record<string, unknown>) => ({ ...mapDriveFolderRow(r), driveEmail: r.driveEmail, driveId: r.drive_account_id })),
+      folders: folderRows.map((r: Record<string, unknown>) => ({
+        ...mapDriveFolderRow(r),
+        driveEmail: r.driveEmail,
+        driveId: r.drive_account_id,
+      })),
       files,
       hasMore,
       nextCursor,
@@ -199,10 +220,19 @@ export class DriveService {
     // Resolve root folder ID
     const rootFolderId = drive.root_folder_id || 'root';
     const effectiveTargetId = targetFolderId === 'root' ? rootFolderId : targetFolderId;
-    const effectiveOldParentId = (!oldParentId || oldParentId === '__shared__') ? null :
-      (oldParentId === 'root' ? rootFolderId : oldParentId);
+    const effectiveOldParentId =
+      !oldParentId || oldParentId === '__shared__'
+        ? null
+        : oldParentId === 'root'
+          ? rootFolderId
+          : oldParentId;
 
-    await this.googleDriveService.moveToFolder(driveId, googleFileId, effectiveTargetId, effectiveOldParentId);
+    await this.googleDriveService.moveToFolder(
+      driveId,
+      googleFileId,
+      effectiveTargetId,
+      effectiveOldParentId,
+    );
 
     // Update DB — folders at root use NULL, files at root use 'root' (matches resolveParentId convention)
     const dbParentId = targetFolderId === 'root' ? (isFolder ? null : 'root') : targetFolderId;

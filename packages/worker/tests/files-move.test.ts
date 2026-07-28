@@ -89,22 +89,26 @@ describe('PATCH /files/:id/move', () => {
     );
     app.route('/files', filesRouter);
 
-    const res = await app.request(`/files/${FILE_ID}/move`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        Cookie: `omnidrive_sid=${SESSION_ID}`,
+    const res = await app.request(
+      `/files/${FILE_ID}/move`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: `omnidrive_sid=${SESSION_ID}`,
+        },
+        body: JSON.stringify({ workspaceFolderId: FOLDER_ID }),
       },
-      body: JSON.stringify({ workspaceFolderId: FOLDER_ID }),
-    }, {
-      DB: db,
-      GOOGLE_CLIENT_ID: '',
-      GOOGLE_CLIENT_SECRET: '',
-      JWT_SECRET: 'test-secret',
-      TOKEN_ENCRYPTION_KEY: '0'.repeat(64),
-      FRONTEND_URL: 'http://localhost',
-      WORKER_URL: 'http://localhost',
-    } as AppContext['Bindings']);
+      {
+        DB: db,
+        GOOGLE_CLIENT_ID: '',
+        GOOGLE_CLIENT_SECRET: '',
+        JWT_SECRET: 'test-secret',
+        TOKEN_ENCRYPTION_KEY: '0'.repeat(64),
+        FRONTEND_URL: 'http://localhost',
+        WORKER_URL: 'http://localhost',
+      } as AppContext['Bindings'],
+    );
 
     expect(res.status).toBe(200);
     const body = await res.json();

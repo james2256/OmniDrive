@@ -25,48 +25,77 @@ async function createUserAndSession(username: string): Promise<{ userId: string;
   const userId = `user-${username}`;
   const passwordHash = await hashPassword('TestPass123!');
   await env.DB.prepare(
-    'INSERT INTO users (id, username, password_hash, is_super_admin) VALUES (?, ?, ?, ?)'
-  ).bind(userId, username, passwordHash, 1).run();
+    'INSERT INTO users (id, username, password_hash, is_super_admin) VALUES (?, ?, ?, ?)',
+  )
+    .bind(userId, username, passwordHash, 1)
+    .run();
 
   const now = Date.now();
   const sessionData: SessionData = {
-    userId, username, email: null, name: username, avatarUrl: null,
-    role: 'super_admin', createdAt: now,
+    userId,
+    username,
+    email: null,
+    name: username,
+    avatarUrl: null,
+    role: 'super_admin',
+    createdAt: now,
   };
   const sessionId = `session-${username}-${now}`;
   await env.DB.prepare(
-    'INSERT INTO sessions (id, user_id, data, expires_at, touched_at) VALUES (?, ?, ?, ?, ?)'
-  ).bind(sessionId, userId, JSON.stringify(sessionData), now + 7 * 24 * 60 * 60 * 1000, now).run();
+    'INSERT INTO sessions (id, user_id, data, expires_at, touched_at) VALUES (?, ?, ?, ?, ?)',
+  )
+    .bind(sessionId, userId, JSON.stringify(sessionData), now + 7 * 24 * 60 * 60 * 1000, now)
+    .run();
 
   return { userId, cookie: `omnidrive_sid=${sessionId}` };
 }
 
 async function createDrive(userId: string, driveId: string) {
-  await env.DB.prepare(
-    'INSERT INTO drive_accounts (id, user_id, email) VALUES (?, ?, ?)'
-  ).bind(driveId, userId, `${driveId}@example.com`).run();
+  await env.DB.prepare('INSERT INTO drive_accounts (id, user_id, email) VALUES (?, ?, ?)')
+    .bind(driveId, userId, `${driveId}@example.com`)
+    .run();
 }
 
 async function createFile(params: {
-  id: string; userId: string; driveId: string; name: string;
-  mimeType?: string; size?: number; isTrashed?: number; isStarred?: number;
-  workspaceId?: string | null; metadata?: string;
+  id: string;
+  userId: string;
+  driveId: string;
+  name: string;
+  mimeType?: string;
+  size?: number;
+  isTrashed?: number;
+  isStarred?: number;
+  workspaceId?: string | null;
+  metadata?: string;
 }) {
   await env.DB.prepare(
-    'INSERT INTO files (id, user_id, drive_account_id, workspace_id, google_file_id, name, mime_type, size, is_trashed, is_starred, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-  ).bind(
-    params.id, params.userId, params.driveId, params.workspaceId ?? null,
-    `gfile-${params.id}`, params.name, params.mimeType ?? 'text/plain',
-    params.size ?? 100, params.isTrashed ?? 0, params.isStarred ?? 0,
-    params.metadata ?? null,
-  ).run();
+    'INSERT INTO files (id, user_id, drive_account_id, workspace_id, google_file_id, name, mime_type, size, is_trashed, is_starred, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+  )
+    .bind(
+      params.id,
+      params.userId,
+      params.driveId,
+      params.workspaceId ?? null,
+      `gfile-${params.id}`,
+      params.name,
+      params.mimeType ?? 'text/plain',
+      params.size ?? 100,
+      params.isTrashed ?? 0,
+      params.isStarred ?? 0,
+      params.metadata ?? null,
+    )
+    .run();
 }
 
 async function createWorkspace(ownerUserId: string, wsId: string) {
   await env.DB.prepare('INSERT INTO workspaces (id, name, owner_id) VALUES (?, ?, ?)')
-    .bind(wsId, `Workspace ${wsId}`, ownerUserId).run();
-  await env.DB.prepare('INSERT INTO workspace_members (id, workspace_id, user_id, role) VALUES (?, ?, ?, ?)')
-    .bind(`wm-${wsId}`, wsId, ownerUserId, 'owner').run();
+    .bind(wsId, `Workspace ${wsId}`, ownerUserId)
+    .run();
+  await env.DB.prepare(
+    'INSERT INTO workspace_members (id, workspace_id, user_id, role) VALUES (?, ?, ?, ?)',
+  )
+    .bind(`wm-${wsId}`, wsId, ownerUserId, 'owner')
+    .run();
 }
 
 describe('Complex SQL integration (integration)', () => {
@@ -86,23 +115,46 @@ describe('Complex SQL integration (integration)', () => {
     await createDrive(other.userId, 'drive-a2');
 
     // Owner's personal file
-    await createFile({ id: 'file-a1', userId: owner.userId, driveId: 'drive-a1', name: 'my-file.txt' });
+    await createFile({
+      id: 'file-a1',
+      userId: owner.userId,
+      driveId: 'drive-a1',
+      name: 'my-file.txt',
+    });
 
     // Owner's workspace file
     await createWorkspace(owner.userId, 'ws-a');
-    await createFile({ id: 'file-a2', userId: other.userId, driveId: 'drive-a2', name: 'ws-file.txt', workspaceId: 'ws-a' });
-    await env.DB.prepare('INSERT INTO workspace_members (id, workspace_id, user_id, role) VALUES (?, ?, ?, ?)')
-      .bind('wm-a-other', 'ws-a', other.userId, 'editor').run();
+    await createFile({
+      id: 'file-a2',
+      userId: other.userId,
+      driveId: 'drive-a2',
+      name: 'ws-file.txt',
+      workspaceId: 'ws-a',
+    });
+    await env.DB.prepare(
+      'INSERT INTO workspace_members (id, workspace_id, user_id, role) VALUES (?, ?, ?, ?)',
+    )
+      .bind('wm-a-other', 'ws-a', other.userId, 'editor')
+      .run();
 
     // Other user's personal file (should NOT appear)
-    await createFile({ id: 'file-a3', userId: other.userId, driveId: 'drive-a2', name: 'secret.txt' });
+    await createFile({
+      id: 'file-a3',
+      userId: other.userId,
+      driveId: 'drive-a2',
+      name: 'secret.txt',
+    });
 
-    const res = await app.request('/api/files/recent', {
-      headers: { Cookie: owner.cookie, Origin: ORIGIN },
-    }, env);
+    const res = await app.request(
+      '/api/files/recent',
+      {
+        headers: { Cookie: owner.cookie, Origin: ORIGIN },
+      },
+      env,
+    );
     expect(res.status).toBe(200);
-    const body = await res.json() as { files: { name: string }[] };
-    const names = body.files.map(f => f.name);
+    const body = (await res.json()) as { files: { name: string }[] };
+    const names = body.files.map((f) => f.name);
     expect(names).toContain('my-file.txt');
     expect(names).toContain('ws-file.txt');
     expect(names).not.toContain('secret.txt');
@@ -116,20 +168,33 @@ describe('Complex SQL integration (integration)', () => {
     await createDrive(wsMember.userId, 'drive-b1');
 
     await createWorkspace(owner.userId, 'ws-b');
-    await env.DB.prepare('INSERT INTO workspace_members (id, workspace_id, user_id, role) VALUES (?, ?, ?, ?)')
-      .bind('wm-b-member', 'ws-b', wsMember.userId, 'editor').run();
+    await env.DB.prepare(
+      'INSERT INTO workspace_members (id, workspace_id, user_id, role) VALUES (?, ?, ?, ?)',
+    )
+      .bind('wm-b-member', 'ws-b', wsMember.userId, 'editor')
+      .run();
 
     // File in workspace — owner + ws members can see, non-member cannot
-    await createFile({ id: 'file-b1', userId: owner.userId, driveId: 'drive-b1', name: 'ws-file-b.txt', workspaceId: 'ws-b' });
+    await createFile({
+      id: 'file-b1',
+      userId: owner.userId,
+      driveId: 'drive-b1',
+      name: 'ws-file-b.txt',
+      workspaceId: 'ws-b',
+    });
 
     // Non-member's recent should NOT include the workspace file
     await createDrive(nonMember.userId, 'drive-b2');
-    const res = await app.request('/api/files/recent', {
-      headers: { Cookie: nonMember.cookie, Origin: ORIGIN },
-    }, env);
+    const res = await app.request(
+      '/api/files/recent',
+      {
+        headers: { Cookie: nonMember.cookie, Origin: ORIGIN },
+      },
+      env,
+    );
     expect(res.status).toBe(200);
-    const body = await res.json() as { files: { name: string }[] };
-    expect(body.files.map(f => f.name)).not.toContain('ws-file-b.txt');
+    const body = (await res.json()) as { files: { name: string }[] };
+    expect(body.files.map((f) => f.name)).not.toContain('ws-file-b.txt');
   });
 
   // 4.3 — GET /category-overview aggregates by mime type (GROUP BY)
@@ -137,15 +202,41 @@ describe('Complex SQL integration (integration)', () => {
     const user = await createUserAndSession('user-c');
     await createDrive(user.userId, 'drive-c1');
 
-    await createFile({ id: 'file-c1', userId: user.userId, driveId: 'drive-c1', name: 'photo.jpg', mimeType: 'image/jpeg', size: 5000 });
-    await createFile({ id: 'file-c2', userId: user.userId, driveId: 'drive-c1', name: 'doc.pdf', mimeType: 'application/pdf', size: 3000 });
-    await createFile({ id: 'file-c3', userId: user.userId, driveId: 'drive-c1', name: 'trashed.jpg', mimeType: 'image/jpeg', size: 9999, isTrashed: 1 });
+    await createFile({
+      id: 'file-c1',
+      userId: user.userId,
+      driveId: 'drive-c1',
+      name: 'photo.jpg',
+      mimeType: 'image/jpeg',
+      size: 5000,
+    });
+    await createFile({
+      id: 'file-c2',
+      userId: user.userId,
+      driveId: 'drive-c1',
+      name: 'doc.pdf',
+      mimeType: 'application/pdf',
+      size: 3000,
+    });
+    await createFile({
+      id: 'file-c3',
+      userId: user.userId,
+      driveId: 'drive-c1',
+      name: 'trashed.jpg',
+      mimeType: 'image/jpeg',
+      size: 9999,
+      isTrashed: 1,
+    });
 
-    const res = await app.request('/api/files/category-overview', {
-      headers: { Cookie: user.cookie, Origin: ORIGIN },
-    }, env);
+    const res = await app.request(
+      '/api/files/category-overview',
+      {
+        headers: { Cookie: user.cookie, Origin: ORIGIN },
+      },
+      env,
+    );
     expect(res.status).toBe(200);
-    const body = await res.json() as { images: number; documents: number };
+    const body = (await res.json()) as { images: number; documents: number };
     expect(body.images).toBe(5000); // only non-trashed image
     expect(body.documents).toBe(3000);
   });
@@ -155,16 +246,30 @@ describe('Complex SQL integration (integration)', () => {
     const user = await createUserAndSession('user-d');
     await createDrive(user.userId, 'drive-d1');
 
-    await createFile({ id: 'file-d1', userId: user.userId, driveId: 'drive-d1', name: 'test-report.pdf' });
-    await createFile({ id: 'file-d2', userId: user.userId, driveId: 'drive-d1', name: 'invoice.txt' });
+    await createFile({
+      id: 'file-d1',
+      userId: user.userId,
+      driveId: 'drive-d1',
+      name: 'test-report.pdf',
+    });
+    await createFile({
+      id: 'file-d2',
+      userId: user.userId,
+      driveId: 'drive-d1',
+      name: 'invoice.txt',
+    });
 
-    const res = await app.request('/api/files/search?q=test', {
-      headers: { Cookie: user.cookie, Origin: ORIGIN },
-    }, env);
+    const res = await app.request(
+      '/api/files/search?q=test',
+      {
+        headers: { Cookie: user.cookie, Origin: ORIGIN },
+      },
+      env,
+    );
     expect(res.status).toBe(200);
-    const body = await res.json() as { files: { name: string }[]; query: string };
+    const body = (await res.json()) as { files: { name: string }[]; query: string };
     expect(body.query).toBe('test');
-    const names = body.files.map(f => f.name);
+    const names = body.files.map((f) => f.name);
     expect(names).toContain('test-report.pdf');
     expect(names).not.toContain('invoice.txt');
   });
@@ -174,15 +279,31 @@ describe('Complex SQL integration (integration)', () => {
     const user = await createUserAndSession('user-e');
     await createDrive(user.userId, 'drive-e1');
 
-    await createFile({ id: 'file-e1', userId: user.userId, driveId: 'drive-e1', name: 'tagged.txt', metadata: JSON.stringify({ tag: 'important' }) });
-    await createFile({ id: 'file-e2', userId: user.userId, driveId: 'drive-e1', name: 'untagged.txt', metadata: JSON.stringify({ tag: 'draft' }) });
+    await createFile({
+      id: 'file-e1',
+      userId: user.userId,
+      driveId: 'drive-e1',
+      name: 'tagged.txt',
+      metadata: JSON.stringify({ tag: 'important' }),
+    });
+    await createFile({
+      id: 'file-e2',
+      userId: user.userId,
+      driveId: 'drive-e1',
+      name: 'untagged.txt',
+      metadata: JSON.stringify({ tag: 'draft' }),
+    });
 
-    const res = await app.request('/api/files/search?metadata={"tag":"important"}', {
-      headers: { Cookie: user.cookie, Origin: ORIGIN },
-    }, env);
+    const res = await app.request(
+      '/api/files/search?metadata={"tag":"important"}',
+      {
+        headers: { Cookie: user.cookie, Origin: ORIGIN },
+      },
+      env,
+    );
     expect(res.status).toBe(200);
-    const body = await res.json() as { files: { name: string }[] };
-    const names = body.files.map(f => f.name);
+    const body = (await res.json()) as { files: { name: string }[] };
+    const names = body.files.map((f) => f.name);
     expect(names).toContain('tagged.txt');
     expect(names).not.toContain('untagged.txt');
   });
@@ -193,30 +314,53 @@ describe('Complex SQL integration (integration)', () => {
     await createDrive(user.userId, 'drive-f1');
 
     // Starred file
-    await createFile({ id: 'file-f1', userId: user.userId, driveId: 'drive-f1', name: 'starred-file.txt', isStarred: 1 });
+    await createFile({
+      id: 'file-f1',
+      userId: user.userId,
+      driveId: 'drive-f1',
+      name: 'starred-file.txt',
+      isStarred: 1,
+    });
     // Non-starred file (should NOT appear)
-    await createFile({ id: 'file-f2', userId: user.userId, driveId: 'drive-f1', name: 'regular-file.txt' });
+    await createFile({
+      id: 'file-f2',
+      userId: user.userId,
+      driveId: 'drive-f1',
+      name: 'regular-file.txt',
+    });
 
     // Starred workspace folder
     await createWorkspace(user.userId, 'ws-f');
     await env.DB.prepare(
-      'INSERT INTO workspace_folders (id, workspace_id, name, is_starred) VALUES (?, ?, ?, ?)'
-    ).bind('wf-f1', 'ws-f', 'starred-folder', 1).run();
+      'INSERT INTO workspace_folders (id, workspace_id, name, is_starred) VALUES (?, ?, ?, ?)',
+    )
+      .bind('wf-f1', 'ws-f', 'starred-folder', 1)
+      .run();
 
     // Starred drive folder
     await env.DB.prepare(
-      'INSERT INTO drive_folders (id, drive_account_id, google_folder_id, name, is_starred, is_trashed) VALUES (?, ?, ?, ?, ?, ?)'
-    ).bind('df-f1', 'drive-f1', 'gfolder-f1', 'starred-drive-folder', 1, 0).run();
+      'INSERT INTO drive_folders (id, drive_account_id, google_folder_id, name, is_starred, is_trashed) VALUES (?, ?, ?, ?, ?, ?)',
+    )
+      .bind('df-f1', 'drive-f1', 'gfolder-f1', 'starred-drive-folder', 1, 0)
+      .run();
 
-    const res = await app.request('/api/files/starred', {
-      headers: { Cookie: user.cookie, Origin: ORIGIN },
-    }, env);
+    const res = await app.request(
+      '/api/files/starred',
+      {
+        headers: { Cookie: user.cookie, Origin: ORIGIN },
+      },
+      env,
+    );
     expect(res.status).toBe(200);
-    const body = await res.json() as { files: { name: string }[]; folders: { name: string }[]; driveFolders: { name: string }[] };
-    expect(body.files.map(f => f.name)).toContain('starred-file.txt');
-    expect(body.files.map(f => f.name)).not.toContain('regular-file.txt');
-    expect(body.folders.map(f => f.name)).toContain('starred-folder');
-    expect(body.driveFolders.map(f => f.name)).toContain('starred-drive-folder');
+    const body = (await res.json()) as {
+      files: { name: string }[];
+      folders: { name: string }[];
+      driveFolders: { name: string }[];
+    };
+    expect(body.files.map((f) => f.name)).toContain('starred-file.txt');
+    expect(body.files.map((f) => f.name)).not.toContain('regular-file.txt');
+    expect(body.folders.map((f) => f.name)).toContain('starred-folder');
+    expect(body.driveFolders.map((f) => f.name)).toContain('starred-drive-folder');
   });
 
   // 4.7 — GET /trash returns trashed files + drive folders
@@ -225,23 +369,40 @@ describe('Complex SQL integration (integration)', () => {
     await createDrive(user.userId, 'drive-g1');
 
     // Trashed file
-    await createFile({ id: 'file-g1', userId: user.userId, driveId: 'drive-g1', name: 'trashed-file.txt', isTrashed: 1 });
+    await createFile({
+      id: 'file-g1',
+      userId: user.userId,
+      driveId: 'drive-g1',
+      name: 'trashed-file.txt',
+      isTrashed: 1,
+    });
     // Non-trashed file (should NOT appear)
-    await createFile({ id: 'file-g2', userId: user.userId, driveId: 'drive-g1', name: 'active-file.txt' });
+    await createFile({
+      id: 'file-g2',
+      userId: user.userId,
+      driveId: 'drive-g1',
+      name: 'active-file.txt',
+    });
 
     // Trashed drive folder
     await env.DB.prepare(
-      'INSERT INTO drive_folders (id, drive_account_id, google_folder_id, name, is_trashed) VALUES (?, ?, ?, ?, ?)'
-    ).bind('df-g1', 'drive-g1', 'gfolder-g1', 'trashed-drive-folder', 1).run();
+      'INSERT INTO drive_folders (id, drive_account_id, google_folder_id, name, is_trashed) VALUES (?, ?, ?, ?, ?)',
+    )
+      .bind('df-g1', 'drive-g1', 'gfolder-g1', 'trashed-drive-folder', 1)
+      .run();
 
-    const res = await app.request('/api/files/trash', {
-      headers: { Cookie: user.cookie, Origin: ORIGIN },
-    }, env);
+    const res = await app.request(
+      '/api/files/trash',
+      {
+        headers: { Cookie: user.cookie, Origin: ORIGIN },
+      },
+      env,
+    );
     expect(res.status).toBe(200);
-    const body = await res.json() as { files: { name: string }[]; folders: { name: string }[] };
-    expect(body.files.map(f => f.name)).toContain('trashed-file.txt');
-    expect(body.files.map(f => f.name)).not.toContain('active-file.txt');
-    expect(body.folders.map(f => f.name)).toContain('trashed-drive-folder');
+    const body = (await res.json()) as { files: { name: string }[]; folders: { name: string }[] };
+    expect(body.files.map((f) => f.name)).toContain('trashed-file.txt');
+    expect(body.files.map((f) => f.name)).not.toContain('active-file.txt');
+    expect(body.folders.map((f) => f.name)).toContain('trashed-drive-folder');
   });
 
   // 4.8 — Breadcrumb CTE returns correct path (WITH RECURSIVE)
@@ -251,11 +412,15 @@ describe('Complex SQL integration (integration)', () => {
 
     // Create folder hierarchy: root → folder-A → folder-B
     await env.DB.prepare(
-      'INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name) VALUES (?, ?, ?, ?, ?)'
-    ).bind('df-h-a', 'drive-h1', 'gfolder-a', 'root', 'folder-A').run();
+      'INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name) VALUES (?, ?, ?, ?, ?)',
+    )
+      .bind('df-h-a', 'drive-h1', 'gfolder-a', 'root', 'folder-A')
+      .run();
     await env.DB.prepare(
-      'INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name) VALUES (?, ?, ?, ?, ?)'
-    ).bind('df-h-b', 'drive-h1', 'gfolder-b', 'gfolder-a', 'folder-B').run();
+      'INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name) VALUES (?, ?, ?, ?, ?)',
+    )
+      .bind('df-h-b', 'drive-h1', 'gfolder-b', 'gfolder-a', 'folder-B')
+      .run();
 
     const driveRepo = new DriveRepository(env.DB);
     const { results } = await driveRepo.findBreadcrumbPath('drive-h1', 'gfolder-b');

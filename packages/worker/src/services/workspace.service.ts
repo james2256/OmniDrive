@@ -29,13 +29,18 @@ export class WorkspaceService {
 
   /** List all workspaces a user is a member of, with their role. */
   async listWorkspaces(userId: string) {
-    const { results } = await this.db.prepare(`
+    const { results } = await this.db
+      .prepare(
+        `
       SELECT w.*, wm.role
       FROM workspaces w
       JOIN workspace_members wm ON w.id = wm.workspace_id
       WHERE wm.user_id = ?
       ORDER BY w.created_at DESC
-    `).bind(userId).all();
+    `,
+      )
+      .bind(userId)
+      .all();
     return results;
   }
 
@@ -60,7 +65,12 @@ export class WorkspaceService {
    * RBAC: manager required + role-escalation check (can't assign ≥ own role).
    * Logs: member.invite audit event.
    */
-  async addMember(userId: string, workspaceId: string, email: string, role: WorkspaceRole): Promise<void> {
+  async addMember(
+    userId: string,
+    workspaceId: string,
+    email: string,
+    role: WorkspaceRole,
+  ): Promise<void> {
     const currentUserRole = await getWorkspaceRole(this.db, workspaceId, userId);
     if (!currentUserRole || !hasPermission(currentUserRole, 'manager')) {
       throw new AppError(403, 'Forbidden');
@@ -87,7 +97,7 @@ export class WorkspaceService {
         actionType: 'member.invite',
         resourceId: targetUser.id,
         resourceName: email,
-        metadata: { role }
+        metadata: { role },
       });
     } catch (e: unknown) {
       if ((e instanceof Error ? e.message : String(e)).includes('UNIQUE constraint failed')) {
@@ -133,7 +143,7 @@ export class WorkspaceService {
       actorId: userId,
       actionType: 'member.remove',
       resourceId: targetUserId,
-      metadata: { targetUserId }
+      metadata: { targetUserId },
     });
   }
 
@@ -169,12 +179,16 @@ export class WorkspaceService {
    * Create a policy.
    * RBAC: manager required.
    */
-  async createPolicy(userId: string, workspaceId: string, params: {
-    targetType: string;
-    targetId: string | null;
-    policyType: string;
-    config: Record<string, unknown>;
-  }): Promise<unknown> {
+  async createPolicy(
+    userId: string,
+    workspaceId: string,
+    params: {
+      targetType: string;
+      targetId: string | null;
+      policyType: string;
+      config: Record<string, unknown>;
+    },
+  ): Promise<unknown> {
     const role = await getWorkspaceRole(this.db, workspaceId, userId);
     if (!role || !hasPermission(role, 'manager')) {
       throw new AppError(403, 'Forbidden');
@@ -206,13 +220,20 @@ export class WorkspaceService {
    * Update folder metadata within a workspace.
    * RBAC: editor required.
    */
-  async updateFolderMetadata(userId: string, workspaceId: string, folderId: string, metadata: Record<string, unknown>): Promise<void> {
+  async updateFolderMetadata(
+    userId: string,
+    workspaceId: string,
+    folderId: string,
+    metadata: Record<string, unknown>,
+  ): Promise<void> {
     const role = await getWorkspaceRole(this.db, workspaceId, userId);
     if (!role || !hasPermission(role, 'editor')) {
       throw new AppError(403, 'Forbidden');
     }
 
-    await this.db.prepare('UPDATE workspace_folders SET metadata = ? WHERE id = ? AND workspace_id = ?')
-      .bind(JSON.stringify(metadata), folderId, workspaceId).run();
+    await this.db
+      .prepare('UPDATE workspace_folders SET metadata = ? WHERE id = ? AND workspace_id = ?')
+      .bind(JSON.stringify(metadata), folderId, workspaceId)
+      .run();
   }
 }

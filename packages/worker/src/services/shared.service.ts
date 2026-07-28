@@ -44,17 +44,20 @@ export class SharedService {
    * RBAC: caller must own the file OR be an editor of the file's workspace.
    * Returns the generated link ID (route builds the full URL).
    */
-  async createLink(userId: string, params: {
-    targetType: 'file' | 'folder';
-    targetId: string;
-    password?: string;
-    expiresAt?: string | null;
-    allowDownloads: boolean;
-    allowUploads: boolean;
-    maxDownloads?: number | null;
-    requireEmail: boolean;
-    webhookUrl?: string | null;
-  }): Promise<string> {
+  async createLink(
+    userId: string,
+    params: {
+      targetType: 'file' | 'folder';
+      targetId: string;
+      password?: string;
+      expiresAt?: string | null;
+      allowDownloads: boolean;
+      allowUploads: boolean;
+      maxDownloads?: number | null;
+      requireEmail: boolean;
+      webhookUrl?: string | null;
+    },
+  ): Promise<string> {
     // RBAC: verify ownership/workspace access
     await this.assertCanShare(userId, params.targetType, params.targetId);
 
@@ -85,31 +88,36 @@ export class SharedService {
   /** List all shared links for a user. */
   async listLinks(userId: string): Promise<SharedLink[]> {
     const { results } = await this.sharedRepo.findAllByUserWithTargetName(userId);
-    return results.map(r => mapSharedLinkRow(r as Record<string, unknown>));
+    return results.map((r) => mapSharedLinkRow(r as Record<string, unknown>));
   }
 
   /**
    * Update a shared link.
    * Handles the null=clear vs undefined=keep distinction.
    */
-  async updateLink(userId: string, id: string, body: {
-    password?: string | null;
-    expiresAt?: string | null;
-    allowDownloads?: boolean;
-    allowUploads?: boolean;
-    maxDownloads?: number | null;
-    requireEmail?: boolean;
-    webhookUrl?: string | null;
-  }): Promise<void> {
+  async updateLink(
+    userId: string,
+    id: string,
+    body: {
+      password?: string | null;
+      expiresAt?: string | null;
+      allowDownloads?: boolean;
+      allowUploads?: boolean;
+      maxDownloads?: number | null;
+      requireEmail?: boolean;
+      webhookUrl?: string | null;
+    },
+  ): Promise<void> {
     const existing = await this.sharedRepo.findByIdAndUser(id, userId);
     if (!existing) throw new NotFoundError('Link not found');
 
     // Distinguish undefined (keep existing) from null (clear) from value (set new)
     const expiresAt = body.expiresAt === undefined ? existing.expires_at : body.expiresAt;
-    const allowDownloads = body.allowDownloads ?? (existing.allow_downloads === 1);
-    const allowUploads = body.allowUploads ?? (existing.allow_uploads === 1);
-    const maxDownloads = body.maxDownloads === undefined ? existing.max_downloads : body.maxDownloads;
-    const requireEmail = body.requireEmail ?? (existing.require_email === 1);
+    const allowDownloads = body.allowDownloads ?? existing.allow_downloads === 1;
+    const allowUploads = body.allowUploads ?? existing.allow_uploads === 1;
+    const maxDownloads =
+      body.maxDownloads === undefined ? existing.max_downloads : body.maxDownloads;
+    const requireEmail = body.requireEmail ?? existing.require_email === 1;
     const webhookUrl = body.webhookUrl === undefined ? existing.webhook_url : body.webhookUrl;
 
     if (allowUploads) {
@@ -123,9 +131,10 @@ export class SharedService {
 
     let passwordHash = existing.password_hash;
     if (body.password !== undefined) {
-      passwordHash = (body.password === null || body.password === '')
-        ? null
-        : await hashSharedPassword(body.password);
+      passwordHash =
+        body.password === null || body.password === ''
+          ? null
+          : await hashSharedPassword(body.password);
     }
 
     const changes = await this.sharedRepo.update(id, userId, {
@@ -153,16 +162,25 @@ export class SharedService {
    * Queries drive_folders by google_folder_id (the link's targetId).
    * Returns null for workspace folders (not yet supported for shared-folder download).
    */
-  async resolveFolderTarget(link: SharedLink): Promise<{ driveId: string; googleFolderId: string; rootName: string } | null> {
-    const driveFolder = await this.db.prepare(
-      'SELECT drive_account_id, name FROM drive_folders WHERE google_folder_id = ?'
-    ).bind(link.targetId).first<{ drive_account_id: string; name: string }>();
+  async resolveFolderTarget(
+    link: SharedLink,
+  ): Promise<{ driveId: string; googleFolderId: string; rootName: string } | null> {
+    const driveFolder = await this.db
+      .prepare('SELECT drive_account_id, name FROM drive_folders WHERE google_folder_id = ?')
+      .bind(link.targetId)
+      .first<{ drive_account_id: string; name: string }>();
     if (!driveFolder) return null;
-    return { driveId: driveFolder.drive_account_id, googleFolderId: link.targetId, rootName: driveFolder.name };
+    return {
+      driveId: driveFolder.drive_account_id,
+      googleFolderId: link.targetId,
+      rootName: driveFolder.name,
+    };
   }
 
   /** Get shared link metadata + target file/folder name (for public preview). */
-  async getPublicMeta(id: string): Promise<{ link: SharedLink; target?: FileEntry; targetName?: string }> {
+  async getPublicMeta(
+    id: string,
+  ): Promise<{ link: SharedLink; target?: FileEntry; targetName?: string }> {
     const row = await this.sharedRepo.findById(id);
     if (!row) throw new NotFoundError('Link not found');
 
@@ -189,7 +207,9 @@ export class SharedService {
    * This ensures links created by workspace editors (who can share files
    * owned by other members) also work at download time.
    */
-  async getDownloadContext(link: SharedLink): Promise<{ file: FileRow; driveAccountId: string } | null> {
+  async getDownloadContext(
+    link: SharedLink,
+  ): Promise<{ file: FileRow; driveAccountId: string } | null> {
     const file = await this.fileRepo.findById(link.targetId);
     if (!file) return null;
 
@@ -208,8 +228,12 @@ export class SharedService {
 
   // ─── Fire-and-forget counters (caller wraps in waitUntil) ───
 
-  incrementViewCount(id: string) { return this.sharedRepo.incrementViewCount(id); }
-  incrementDownloadCount(id: string) { return this.sharedRepo.incrementDownloadCount(id); }
+  incrementViewCount(id: string) {
+    return this.sharedRepo.incrementViewCount(id);
+  }
+  incrementDownloadCount(id: string) {
+    return this.sharedRepo.incrementDownloadCount(id);
+  }
 
   /**
    * Atomically increment download count with maxDownloads enforcement.
@@ -233,7 +257,11 @@ export class SharedService {
    *   is private).
    * - Folder: workspace editor OR drive folder owner
    */
-  private async assertCanShare(userId: string, targetType: 'file' | 'folder', targetId: string): Promise<void> {
+  private async assertCanShare(
+    userId: string,
+    targetType: 'file' | 'folder',
+    targetId: string,
+  ): Promise<void> {
     if (targetType === 'file') {
       const file = await this.fileRepo.findById(targetId);
       if (!file) throw new NotFoundError('File not found');

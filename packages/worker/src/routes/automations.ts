@@ -25,7 +25,9 @@ automationsRouter.post('/', zValidator('json', createAutomationSchema, zodErrorH
 
   const id = generateId();
   await c.get('automationRepo').insert({
-    id, userId, name: body.name,
+    id,
+    userId,
+    name: body.name,
     triggerType: body.trigger_type,
     triggerConfig: JSON.stringify(body.trigger_config || {}),
     conditions: JSON.stringify(conditions),
@@ -35,11 +37,15 @@ automationsRouter.post('/', zValidator('json', createAutomationSchema, zodErrorH
   return c.json({ id, success: true }, 201);
 });
 
-automationsRouter.patch('/:id/toggle', zValidator('json', toggleAutomationSchema, zodErrorHook), async (c) => {
-  const { is_active } = c.req.valid('json');
-  const changed = await c.get('automationRepo').toggleActive(
-    c.req.param('id'), c.get('userId'), is_active ? IS_ACTIVE : IS_INACTIVE,
-  );
-  if (!changed) throw new AppError(404, 'Automation rule not found');
-  return c.json({ success: true });
-});
+automationsRouter.patch(
+  '/:id/toggle',
+  zValidator('json', toggleAutomationSchema, zodErrorHook),
+  async (c) => {
+    const { is_active } = c.req.valid('json');
+    const changed = await c
+      .get('automationRepo')
+      .toggleActive(c.req.param('id'), c.get('userId'), is_active ? IS_ACTIVE : IS_INACTIVE);
+    if (!changed) throw new AppError(404, 'Automation rule not found');
+    return c.json({ success: true });
+  },
+);

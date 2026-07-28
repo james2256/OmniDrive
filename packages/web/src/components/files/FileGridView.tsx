@@ -39,12 +39,19 @@ export function FileGridView(props: FileViewSharedProps) {
         const driveAccountId = 'driveAccountId' in folder ? folder.driveAccountId : undefined;
         const { drive } = getDriveInfo(driveAccountId);
         const hasError = drive ? errorDrives?.has(drive.id) : false;
-        const shared = folderId ? isTargetShared?.(folderId, 'folder') ?? false : false;
+        const shared = folderId ? (isTargetShared?.(folderId, 'folder') ?? false) : false;
         const isStarred = 'isStarred' in folder ? folder.isStarred : false;
         const isSelected = folderId ? selectedKeys.has(folderId) : false;
 
         return (
-          <ItemContextMenu key={folderId} type="folder" item={folder} actions={actions} isTrashView={isTrashView} isStarred={isStarred}>
+          <ItemContextMenu
+            key={folderId}
+            type="folder"
+            item={folder}
+            actions={actions}
+            isTrashView={isTrashView}
+            isStarred={isStarred}
+          >
             <div
               onClick={(e) => interactions.handleClick(e, { type: 'folder', item: folder })}
               onDoubleClick={() => interactions.handleFolderDoubleClick(folder)}
@@ -54,8 +61,8 @@ export function FileGridView(props: FileViewSharedProps) {
                 isSelected
                   ? 'bg-blue-100 border-blue-300'
                   : hasError
-                  ? 'border-red-300 bg-red-50 hover:border-red-400'
-                  : 'border-slate-200 bg-card shadow-sm hover:bg-primary/10 hover:border-blue-200'
+                    ? 'border-red-300 bg-red-50 hover:border-red-400'
+                    : 'border-slate-200 bg-card shadow-sm hover:bg-primary/10 hover:border-blue-200'
               }`}
             >
               <input
@@ -69,16 +76,25 @@ export function FileGridView(props: FileViewSharedProps) {
                 }}
               />
               <div className="flex items-center gap-3 min-w-0">
-                <Folder size={20} className="text-blue-500 flex-shrink-0 ml-5" fill="currentColor" />
+                <Folder
+                  size={20}
+                  className="text-blue-500 flex-shrink-0 ml-5"
+                  fill="currentColor"
+                />
                 <div className="flex-1 truncate text-sm font-medium text-slate-800">
                   {folder.name}
                 </div>
                 <div className="flex gap-1 items-center">
-                  {isStarred && <Star className="fill-yellow-400 text-yellow-400 flex-shrink-0" size={14} />}
+                  {isStarred && (
+                    <Star className="fill-yellow-400 text-yellow-400 flex-shrink-0" size={14} />
+                  )}
                   {shared && <Share2 size={12} className="text-blue-400 flex-shrink-0" />}
                 </div>
               </div>
-              {renderDriveBadge(driveAccountId, 'driveEmail' in folder ? folder.driveEmail : undefined)}
+              {renderDriveBadge(
+                driveAccountId,
+                'driveEmail' in folder ? folder.driveEmail : undefined,
+              )}
             </div>
           </ItemContextMenu>
         );
@@ -91,7 +107,14 @@ export function FileGridView(props: FileViewSharedProps) {
         const isSelected = selectedKeys.has(file.id);
 
         return (
-          <ItemContextMenu key={file.id} type="file" item={file} actions={actions} isTrashView={isTrashView} isStarred={file.isStarred}>
+          <ItemContextMenu
+            key={file.id}
+            type="file"
+            item={file}
+            actions={actions}
+            isTrashView={isTrashView}
+            isStarred={file.isStarred}
+          >
             <div
               onClick={(e) => interactions.handleClick(e, { type: 'file', item: file })}
               onDoubleClick={() => interactions.handleFileDoubleClick(file)}
@@ -114,21 +137,32 @@ export function FileGridView(props: FileViewSharedProps) {
                 }}
               />
               <div className="flex justify-between items-start">
-                <div className="text-3xl ml-5"><FileIcon mimeType={file.mimeType} /></div>
+                <div className="text-3xl ml-5">
+                  <FileIcon mimeType={file.mimeType} />
+                </div>
                 <div className="flex gap-1 items-center">
-                  {file.isStarred && <Star className="fill-yellow-400 text-yellow-400 flex-shrink-0" size={14} />}
+                  {file.isStarred && (
+                    <Star className="fill-yellow-400 text-yellow-400 flex-shrink-0" size={14} />
+                  )}
                   {shared && <Share2 size={12} className="text-blue-400 flex-shrink-0" />}
                 </div>
               </div>
               <div>
-                <div className="font-medium text-xs text-slate-800 truncate mb-1 leading-snug" title={file.name}>
+                <div
+                  className="font-medium text-xs text-slate-800 truncate mb-1 leading-snug"
+                  title={file.name}
+                >
                   {file.name}
                 </div>
-                <div className="mb-1.5">{renderDriveBadge(file.driveAccountId, file.driveEmail)}</div>
+                <div className="mb-1.5">
+                  {renderDriveBadge(file.driveAccountId, file.driveEmail)}
+                </div>
                 <div className="flex items-center text-xs text-slate-500 gap-1.5">
                   {!native && <span className="truncate">{formatFileSize(file.size)}</span>}
                   {!native && <span>·</span>}
-                  <span className="truncate">{formatRelativeTime(file.googleModifiedAt ?? file.createdAt)}</span>
+                  <span className="truncate">
+                    {formatRelativeTime(file.googleModifiedAt ?? file.createdAt)}
+                  </span>
                 </div>
               </div>
             </div>

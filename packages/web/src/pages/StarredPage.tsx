@@ -86,13 +86,15 @@ export function StarredPage() {
               },
               onToggleStar: itemModals.toggleStar,
               onPreviewFile: itemModals.setPreviewFile,
-              onShare: (id: string, type: 'file' | 'folder') => itemModals.setShareTarget({ id, type }),
+              onShare: (id: string, type: 'file' | 'folder') =>
+                itemModals.setShareTarget({ id, type }),
               onRenameFileRequest: itemModals.handleRenameFileRequest,
               onRenameFolderRequest: itemModals.handleRenameFolderRequest,
               onDeleteFile: itemModals.handleDeleteFile,
               onDeleteFolder: itemModals.handleDeleteFolder,
               onMoveDrive: (file: FileEntry) => itemModals.setMoveDriveFiles([file]),
-              onDownloadFolder: (driveId: string, folderId: string, name: string) => itemModals.setFolderDownloadTarget({ driveId, folderId, name }),
+              onDownloadFolder: (driveId: string, folderId: string, name: string) =>
+                itemModals.setFolderDownloadTarget({ driveId, folderId, name }),
               onMove: (items) => itemModals.setMoveTarget(items),
               onAddToWorkspace: itemModals.setWorkspaceTarget,
               onViewInfo: itemModals.handleViewInfo,

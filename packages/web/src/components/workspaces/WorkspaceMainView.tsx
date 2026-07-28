@@ -19,8 +19,15 @@ interface WorkspaceMainViewProps {
   onToggleSidebar?: () => void;
 }
 
-export function WorkspaceMainView({ 
-  activeFolder, path, onCreateFolder, onCreateRootFolder, onSync, isSyncing, fileTabProps, onToggleSidebar 
+export function WorkspaceMainView({
+  activeFolder,
+  path,
+  onCreateFolder,
+  onCreateRootFolder,
+  onSync,
+  isSyncing,
+  fileTabProps,
+  onToggleSidebar,
 }: WorkspaceMainViewProps) {
   const [activeTab, setActiveTab] = useState<'files' | 'members' | 'settings' | 'audit'>('files');
 
@@ -28,7 +35,11 @@ export function WorkspaceMainView({
     return (
       <div className="flex-1 flex flex-col items-center justify-center text-slate-500 bg-slate-50 gap-4 p-4 text-center">
         {onToggleSidebar && (
-          <Button onClick={onToggleSidebar} variant="secondary" className="md:hidden gap-1.5 rounded-lg hover:bg-slate-50">
+          <Button
+            onClick={onToggleSidebar}
+            variant="secondary"
+            className="md:hidden gap-1.5 rounded-lg hover:bg-slate-50"
+          >
             <PanelLeft size={16} /> Browse Workspaces
           </Button>
         )}
@@ -47,7 +58,12 @@ export function WorkspaceMainView({
         {/* Breadcrumbs + sidebar toggle */}
         <div className="flex items-center text-xs sm:text-sm text-slate-500 gap-2 min-w-0">
           {onToggleSidebar && (
-            <Button onClick={onToggleSidebar} variant="ghost" className="md:hidden p-1.5 rounded-md flex-shrink-0" aria-label="Toggle workspace tree">
+            <Button
+              onClick={onToggleSidebar}
+              variant="ghost"
+              className="md:hidden p-1.5 rounded-md flex-shrink-0"
+              aria-label="Toggle workspace tree"
+            >
               <PanelLeft size={16} />
             </Button>
           )}
@@ -61,20 +77,32 @@ export function WorkspaceMainView({
 
         {/* Title & Actions */}
         <div className="flex items-center justify-between gap-2">
-          <h1 className="text-lg sm:text-2xl font-semibold text-slate-900 truncate">{activeFolder.name}</h1>
+          <h1 className="text-lg sm:text-2xl font-semibold text-slate-900 truncate">
+            {activeFolder.name}
+          </h1>
           <div className="flex gap-1.5 sm:gap-2 flex-shrink-0">
-            <Button onClick={onCreateFolder} variant="secondary" className="gap-1 px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm rounded-md hover:bg-slate-50">
+            <Button
+              onClick={onCreateFolder}
+              variant="secondary"
+              className="gap-1 px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm rounded-md hover:bg-slate-50"
+            >
               <FolderPlus size={14} /> <span className="hidden sm:inline">New Folder</span>
             </Button>
-            <Button onClick={onSync} disabled={isSyncing} variant="secondary" className="gap-1 px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm rounded-md hover:bg-slate-50">
-              <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''} /> <span className="hidden sm:inline">Sync</span>
+            <Button
+              onClick={onSync}
+              disabled={isSyncing}
+              variant="secondary"
+              className="gap-1 px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm rounded-md hover:bg-slate-50"
+            >
+              <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''} />{' '}
+              <span className="hidden sm:inline">Sync</span>
             </Button>
           </div>
         </div>
 
         {/* Tabs */}
         <div className="flex gap-3 sm:gap-6 mt-1">
-          {(['files', 'members', 'settings', 'audit'] as const).map(tab => (
+          {(['files', 'members', 'settings', 'audit'] as const).map((tab) => (
             <Button
               key={tab}
               onClick={() => setActiveTab(tab)}

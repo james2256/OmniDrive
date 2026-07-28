@@ -25,51 +25,82 @@ async function createUserAndSession(username: string): Promise<{ userId: string;
   const userId = `user-${username}`;
   const passwordHash = await hashPassword('TestPass123!');
   await env.DB.prepare(
-    'INSERT INTO users (id, username, password_hash, is_super_admin) VALUES (?, ?, ?, ?)'
-  ).bind(userId, username, passwordHash, 1).run();
+    'INSERT INTO users (id, username, password_hash, is_super_admin) VALUES (?, ?, ?, ?)',
+  )
+    .bind(userId, username, passwordHash, 1)
+    .run();
 
   const now = Date.now();
   const sessionData: SessionData = {
-    userId, username, email: null, name: username, avatarUrl: null,
-    role: 'super_admin', createdAt: now,
+    userId,
+    username,
+    email: null,
+    name: username,
+    avatarUrl: null,
+    role: 'super_admin',
+    createdAt: now,
   };
   const sessionId = `session-${username}-${now}`;
   await env.DB.prepare(
-    'INSERT INTO sessions (id, user_id, data, expires_at, touched_at) VALUES (?, ?, ?, ?, ?)'
-  ).bind(sessionId, userId, JSON.stringify(sessionData), now + 7 * 24 * 60 * 60 * 1000, now).run();
+    'INSERT INTO sessions (id, user_id, data, expires_at, touched_at) VALUES (?, ?, ?, ?, ?)',
+  )
+    .bind(sessionId, userId, JSON.stringify(sessionData), now + 7 * 24 * 60 * 60 * 1000, now)
+    .run();
 
   return { userId, cookie: `omnidrive_sid=${sessionId}` };
 }
 
 async function createWorkspace(ownerUserId: string, wsId: string) {
   await env.DB.prepare('INSERT INTO workspaces (id, name, owner_id) VALUES (?, ?, ?)')
-    .bind(wsId, `Workspace ${wsId}`, ownerUserId).run();
-  await env.DB.prepare('INSERT INTO workspace_members (id, workspace_id, user_id, role) VALUES (?, ?, ?, ?)')
-    .bind(`wm-${wsId}`, wsId, ownerUserId, 'owner').run();
+    .bind(wsId, `Workspace ${wsId}`, ownerUserId)
+    .run();
+  await env.DB.prepare(
+    'INSERT INTO workspace_members (id, workspace_id, user_id, role) VALUES (?, ?, ?, ?)',
+  )
+    .bind(`wm-${wsId}`, wsId, ownerUserId, 'owner')
+    .run();
 }
 
 async function createDrive(userId: string, driveId: string) {
   await env.DB.prepare('INSERT INTO drive_accounts (id, user_id, email) VALUES (?, ?, ?)')
-    .bind(driveId, userId, `${driveId}@example.com`).run();
+    .bind(driveId, userId, `${driveId}@example.com`)
+    .run();
 }
 
 async function createFile(params: {
-  id: string; userId: string; driveId: string; name: string;
-  workspaceId?: string | null; workspaceFolderId?: string | null;
+  id: string;
+  userId: string;
+  driveId: string;
+  name: string;
+  workspaceId?: string | null;
+  workspaceFolderId?: string | null;
 }) {
   await env.DB.prepare(
-    'INSERT INTO files (id, user_id, drive_account_id, workspace_id, workspace_folder_id, google_file_id, name) VALUES (?, ?, ?, ?, ?, ?, ?)'
-  ).bind(
-    params.id, params.userId, params.driveId,
-    params.workspaceId ?? null, params.workspaceFolderId ?? null,
-    `gfile-${params.id}`, params.name,
-  ).run();
+    'INSERT INTO files (id, user_id, drive_account_id, workspace_id, workspace_folder_id, google_file_id, name) VALUES (?, ?, ?, ?, ?, ?, ?)',
+  )
+    .bind(
+      params.id,
+      params.userId,
+      params.driveId,
+      params.workspaceId ?? null,
+      params.workspaceFolderId ?? null,
+      `gfile-${params.id}`,
+      params.name,
+    )
+    .run();
 }
 
-async function createWorkspaceFolder(wsId: string, folderId: string, name: string, parentId: string | null = null) {
+async function createWorkspaceFolder(
+  wsId: string,
+  folderId: string,
+  name: string,
+  parentId: string | null = null,
+) {
   await env.DB.prepare(
-    'INSERT INTO workspace_folders (id, workspace_id, name, parent_id) VALUES (?, ?, ?, ?)'
-  ).bind(folderId, wsId, name, parentId).run();
+    'INSERT INTO workspace_folders (id, workspace_id, name, parent_id) VALUES (?, ?, ?, ?)',
+  )
+    .bind(folderId, wsId, name, parentId)
+    .run();
 }
 
 describe('Folder browsing (integration)', () => {
@@ -87,12 +118,16 @@ describe('Folder browsing (integration)', () => {
     await createWorkspace(user.userId, 'ws-tree');
     await createWorkspaceFolder('ws-tree', 'wf-tree-1', 'Subfolder');
 
-    const res = await app.request('/api/folders/tree', {
-      headers: { Cookie: user.cookie, Origin: ORIGIN },
-    }, env);
+    const res = await app.request(
+      '/api/folders/tree',
+      {
+        headers: { Cookie: user.cookie, Origin: ORIGIN },
+      },
+      env,
+    );
     expect(res.status).toBe(200);
-    const body = await res.json() as { folders: { name: string; id: string }[] };
-    const names = body.folders.map(f => f.name);
+    const body = (await res.json()) as { folders: { name: string; id: string }[] };
+    const names = body.folders.map((f) => f.name);
     // Workspace appears as a root folder
     expect(names).toContain('Workspace ws-tree');
     // Subfolder also appears
@@ -105,12 +140,16 @@ describe('Folder browsing (integration)', () => {
     await createWorkspace(user.userId, 'ws-root1');
     await createWorkspace(user.userId, 'ws-root2');
 
-    const res = await app.request('/api/folders', {
-      headers: { Cookie: user.cookie, Origin: ORIGIN },
-    }, env);
+    const res = await app.request(
+      '/api/folders',
+      {
+        headers: { Cookie: user.cookie, Origin: ORIGIN },
+      },
+      env,
+    );
     expect(res.status).toBe(200);
-    const body = await res.json() as { subfolders: { name: string }[] };
-    const names = body.subfolders.map(f => f.name);
+    const body = (await res.json()) as { subfolders: { name: string }[] };
+    const names = body.subfolders.map((f) => f.name);
     expect(names).toContain('Workspace ws-root1');
     expect(names).toContain('Workspace ws-root2');
   });
@@ -121,16 +160,31 @@ describe('Folder browsing (integration)', () => {
     await createWorkspace(user.userId, 'ws-list');
     await createDrive(user.userId, 'drive-ws');
     await createWorkspaceFolder('ws-list', 'wf-list-1', 'Root Folder');
-    await createFile({ id: 'file-ws-1', userId: user.userId, driveId: 'drive-ws', name: 'ws-root-file.txt', workspaceId: 'ws-list' });
+    await createFile({
+      id: 'file-ws-1',
+      userId: user.userId,
+      driveId: 'drive-ws',
+      name: 'ws-root-file.txt',
+      workspaceId: 'ws-list',
+    });
 
-    const res = await app.request('/api/folders/ws-list', {
-      headers: { Cookie: user.cookie, Origin: ORIGIN },
-    }, env, executionCtx);
+    const res = await app.request(
+      '/api/folders/ws-list',
+      {
+        headers: { Cookie: user.cookie, Origin: ORIGIN },
+      },
+      env,
+      executionCtx,
+    );
     expect(res.status).toBe(200);
-    const body = await res.json() as { folder: { name: string } | null; subfolders: { name: string }[]; files: { name: string }[] };
+    const body = (await res.json()) as {
+      folder: { name: string } | null;
+      subfolders: { name: string }[];
+      files: { name: string }[];
+    };
     expect(body.folder?.name).toBe('Workspace ws-list');
-    expect(body.subfolders.map(s => s.name)).toContain('Root Folder');
-    expect(body.files.map(f => f.name)).toContain('ws-root-file.txt');
+    expect(body.subfolders.map((s) => s.name)).toContain('Root Folder');
+    expect(body.files.map((f) => f.name)).toContain('ws-root-file.txt');
   });
 
   // 5.4 — GET /:folderId lists subfolders + files + breadcrumb
@@ -143,18 +197,35 @@ describe('Folder browsing (integration)', () => {
     // Create subfolder inside parent
     await createWorkspaceFolder('ws-folder', 'wf-child', 'Child Folder', 'wf-parent');
     // Create file inside parent folder
-    await createFile({ id: 'file-folder-1', userId: user.userId, driveId: 'drive-folder', name: 'inside-folder.txt', workspaceId: 'ws-folder', workspaceFolderId: 'wf-parent' });
+    await createFile({
+      id: 'file-folder-1',
+      userId: user.userId,
+      driveId: 'drive-folder',
+      name: 'inside-folder.txt',
+      workspaceId: 'ws-folder',
+      workspaceFolderId: 'wf-parent',
+    });
 
-    const res = await app.request('/api/folders/wf-parent', {
-      headers: { Cookie: user.cookie, Origin: ORIGIN },
-    }, env, executionCtx);
+    const res = await app.request(
+      '/api/folders/wf-parent',
+      {
+        headers: { Cookie: user.cookie, Origin: ORIGIN },
+      },
+      env,
+      executionCtx,
+    );
     expect(res.status).toBe(200);
-    const body = await res.json() as { folder: { name: string } | null; subfolders: { name: string }[]; files: { name: string }[]; breadcrumb: { name: string }[] };
+    const body = (await res.json()) as {
+      folder: { name: string } | null;
+      subfolders: { name: string }[];
+      files: { name: string }[];
+      breadcrumb: { name: string }[];
+    };
     expect(body.folder?.name).toBe('Parent Folder');
-    expect(body.subfolders.map(s => s.name)).toContain('Child Folder');
-    expect(body.files.map(f => f.name)).toContain('inside-folder.txt');
+    expect(body.subfolders.map((s) => s.name)).toContain('Child Folder');
+    expect(body.files.map((f) => f.name)).toContain('inside-folder.txt');
     // Breadcrumb should include workspace name + folder name
-    const breadcrumbNames = body.breadcrumb.map(b => b.name);
+    const breadcrumbNames = body.breadcrumb.map((b) => b.name);
     expect(breadcrumbNames).toContain('Workspace ws-folder');
     expect(breadcrumbNames).toContain('Parent Folder');
   });
@@ -163,9 +234,13 @@ describe('Folder browsing (integration)', () => {
   it('GET /:invalidId returns 404', async () => {
     const user = await createUserAndSession('user-404');
 
-    const res = await app.request('/api/folders/nonexistent-folder-id', {
-      headers: { Cookie: user.cookie, Origin: ORIGIN },
-    }, env);
+    const res = await app.request(
+      '/api/folders/nonexistent-folder-id',
+      {
+        headers: { Cookie: user.cookie, Origin: ORIGIN },
+      },
+      env,
+    );
     expect(res.status).toBe(404);
   });
 
@@ -178,26 +253,45 @@ describe('Folder browsing (integration)', () => {
     // Create 3 files in workspace root, request limit=2
     for (let i = 1; i <= 3; i++) {
       await createFile({
-        id: `file-pag-${i}`, userId: user.userId, driveId: 'drive-paginate',
-        name: `file-${i}.txt`, workspaceId: 'ws-paginate',
+        id: `file-pag-${i}`,
+        userId: user.userId,
+        driveId: 'drive-paginate',
+        name: `file-${i}.txt`,
+        workspaceId: 'ws-paginate',
       });
     }
 
-    const res = await app.request('/api/folders/ws-paginate?limit=2', {
-      headers: { Cookie: user.cookie, Origin: ORIGIN },
-    }, env, executionCtx);
+    const res = await app.request(
+      '/api/folders/ws-paginate?limit=2',
+      {
+        headers: { Cookie: user.cookie, Origin: ORIGIN },
+      },
+      env,
+      executionCtx,
+    );
     expect(res.status).toBe(200);
-    const body = await res.json() as { files: { name: string }[]; pagination: { nextCursor: string | null; hasMore: boolean } };
+    const body = (await res.json()) as {
+      files: { name: string }[];
+      pagination: { nextCursor: string | null; hasMore: boolean };
+    };
     expect(body.files.length).toBe(2); // limited to 2
     expect(body.pagination.hasMore).toBe(true);
     expect(body.pagination.nextCursor).toBeTruthy();
 
     // Fetch next page using cursor
-    const res2 = await app.request(`/api/folders/ws-paginate?limit=2&cursor=${encodeURIComponent(body.pagination.nextCursor!)}`, {
-      headers: { Cookie: user.cookie, Origin: ORIGIN },
-    }, env, executionCtx);
+    const res2 = await app.request(
+      `/api/folders/ws-paginate?limit=2&cursor=${encodeURIComponent(body.pagination.nextCursor!)}`,
+      {
+        headers: { Cookie: user.cookie, Origin: ORIGIN },
+      },
+      env,
+      executionCtx,
+    );
     expect(res2.status).toBe(200);
-    const body2 = await res2.json() as { files: { name: string }[]; pagination: { nextCursor: string | null; hasMore: boolean } };
+    const body2 = (await res2.json()) as {
+      files: { name: string }[];
+      pagination: { nextCursor: string | null; hasMore: boolean };
+    };
     expect(body2.files.length).toBe(1); // only 1 remaining
     expect(body2.pagination.hasMore).toBe(false);
     expect(body2.pagination.nextCursor).toBeNull();

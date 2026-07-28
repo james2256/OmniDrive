@@ -32,7 +32,7 @@ export function SettingsDrivesTab() {
   // The recentlySynced condition closes the race window where the backend
   // hasn't set syncStatus='syncing' yet (~500ms after the POST resolves).
   useEffect(() => {
-    const hasSyncing = drives.some(d => d.syncStatus === 'syncing');
+    const hasSyncing = drives.some((d) => d.syncStatus === 'syncing');
     if (!hasSyncing && !recentlySynced) return;
 
     const interval = setInterval(() => {
@@ -138,7 +138,9 @@ export function SettingsDrivesTab() {
     <>
       {/* Section: Connected Drives */}
       <div>
-        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Connected Drives</h2>
+        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
+          Connected Drives
+        </h2>
         <div className="space-y-3">
           {drives.map((drive, i) => (
             <DriveAccountCard
@@ -161,7 +163,9 @@ export function SettingsDrivesTab() {
 
       {/* Section: Add Drive */}
       <div>
-        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Add Drive</h2>
+        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
+          Add Drive
+        </h2>
         <div className="flex gap-2 sm:gap-3 flex-col sm:flex-row">
           <Button
             onClick={handleConnectDrive}
@@ -185,65 +189,63 @@ export function SettingsDrivesTab() {
       </div>
 
       {/* Service Account Form */}
-      <div className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${showSaForm ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+      <div
+        className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${showSaForm ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
+      >
         <div className="overflow-hidden">
           <div className="bg-card border border-slate-200 rounded-2xl p-4 sm:p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-base font-semibold text-slate-800">Add Service Account</h3>
-            <Button
-              onClick={() => setShowSaForm(false)}
-              variant="ghost"
-              className="p-1.5 rounded-full text-slate-500"
-              aria-label="Close form"
-            >
-              <X size={18} />
-            </Button>
-          </div>
-          <form onSubmit={handleAddServiceAccount} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                Service Account JSON
-              </label>
-              <textarea
-                value={saCredentials}
-                onChange={(e) => setSaCredentials(e.target.value)}
-                placeholder="Paste service account JSON key..."
-                rows={6}
-                className="w-full font-mono text-xs border border-slate-400 rounded-xl p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary resize-none"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                Shared Folder ID
-              </label>
-              <input
-                type="text"
-                value={saFolderId}
-                onChange={(e) => setSaFolderId(e.target.value)}
-                placeholder="Google Drive folder ID shared with SA"
-                className="w-full border border-slate-400 rounded-xl p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                required
-              />
-            </div>
-            <div className="flex gap-3 justify-end pt-2">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-semibold text-slate-800">Add Service Account</h3>
               <Button
-                type="button"
-                variant="secondary"
-                className="rounded-xl hover:bg-slate-50"
                 onClick={() => setShowSaForm(false)}
+                variant="ghost"
+                className="p-1.5 rounded-full text-slate-500"
+                aria-label="Close form"
               >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                variant="primary"
-                className="rounded-xl"
-              >
-                Add Account
+                <X size={18} />
               </Button>
             </div>
-          </form>
+            <form onSubmit={handleAddServiceAccount} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  Service Account JSON
+                </label>
+                <textarea
+                  value={saCredentials}
+                  onChange={(e) => setSaCredentials(e.target.value)}
+                  placeholder="Paste service account JSON key..."
+                  rows={6}
+                  className="w-full font-mono text-xs border border-slate-400 rounded-xl p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary resize-none"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  Shared Folder ID
+                </label>
+                <input
+                  type="text"
+                  value={saFolderId}
+                  onChange={(e) => setSaFolderId(e.target.value)}
+                  placeholder="Google Drive folder ID shared with SA"
+                  className="w-full border border-slate-400 rounded-xl p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  required
+                />
+              </div>
+              <div className="flex gap-3 justify-end pt-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="rounded-xl hover:bg-slate-50"
+                  onClick={() => setShowSaForm(false)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" variant="primary" className="rounded-xl">
+                  Add Account
+                </Button>
+              </div>
+            </form>
           </div>
         </div>
       </div>

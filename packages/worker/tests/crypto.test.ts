@@ -13,7 +13,11 @@ describe('encrypt/decrypt', () => {
   });
 
   it('round-trips JSON token data', async () => {
-    const tokens = JSON.stringify({ accessToken: 'ya29.abc', refreshToken: '1//xyz', expiresAt: 1234567890 });
+    const tokens = JSON.stringify({
+      accessToken: 'ya29.abc',
+      refreshToken: '1//xyz',
+      expiresAt: 1234567890,
+    });
     const encrypted = await encrypt(tokens, TEST_KEY);
     const decrypted = await decrypt(encrypted, TEST_KEY);
     expect(decrypted).toBe(tokens);

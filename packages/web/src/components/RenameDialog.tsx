@@ -1,5 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogTitle } from './ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogBody,
+  DialogFooter,
+  DialogTitle,
+} from './ui/dialog';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Pen } from 'lucide-react';
@@ -13,7 +20,14 @@ interface RenameDialogProps {
   loading?: boolean;
 }
 
-export function RenameDialog({ open, initialName, title, onConfirm, onClose, loading = false }: RenameDialogProps) {
+export function RenameDialog({
+  open,
+  initialName,
+  title,
+  onConfirm,
+  onClose,
+  loading = false,
+}: RenameDialogProps) {
   const [name, setName] = useState(initialName);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -52,8 +66,16 @@ export function RenameDialog({ open, initialName, title, onConfirm, onClose, loa
             />
           </DialogBody>
           <DialogFooter>
-            <Button variant="secondary" type="button" onClick={onClose} disabled={loading}>Cancel</Button>
-            <Button type="submit" disabled={loading || !name.trim() || name === initialName} loading={loading}>Rename</Button>
+            <Button variant="secondary" type="button" onClick={onClose} disabled={loading}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={loading || !name.trim() || name === initialName}
+              loading={loading}
+            >
+              Rename
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

@@ -27,7 +27,10 @@ vi.mock('../src/services/sync', () => ({
 
 const USER_ID = 'user-1';
 const SESSION_ID = 'session-abc';
-const VALID_SA_JSON = JSON.stringify({ type: 'service_account', client_email: 'sa@test.iam.gserviceaccount.com' });
+const VALID_SA_JSON = JSON.stringify({
+  type: 'service_account',
+  client_email: 'sa@test.iam.gserviceaccount.com',
+});
 
 describe('POST /api/drives/service-account', () => {
   beforeEach(() => {
@@ -71,7 +74,9 @@ describe('POST /api/drives/service-account', () => {
     const wrappedDb = {
       prepare: vi.fn((sql: string) => {
         if (sql.includes('FROM sessions')) {
-          return { bind: vi.fn(() => ({ first: vi.fn().mockResolvedValue(sessionRow), run: vi.fn() })) };
+          return {
+            bind: vi.fn(() => ({ first: vi.fn().mockResolvedValue(sessionRow), run: vi.fn() })),
+          };
         }
         return db.prepare(sql);
       }),
@@ -109,7 +114,7 @@ describe('POST /api/drives/service-account', () => {
         body: JSON.stringify({ credentials: VALID_SA_JSON, folderId: 'folder-abc' }),
       },
       env,
-      executionCtx
+      executionCtx,
     );
     const body = await res.json();
 
@@ -132,7 +137,7 @@ describe('POST /api/drives/service-account', () => {
         },
         body: JSON.stringify({ credentials: '', folderId: '' }),
       },
-      env
+      env,
     );
 
     expect(res.status).toBe(400);

@@ -5,7 +5,14 @@ import type { SharedLink } from '../lib/api';
 import { useInvalidateSharedLinks } from '../hooks/useSharedLinks';
 import { useToastStore } from '../stores/useToastStore';
 import { toLocalDatetimeInput } from '../lib/utils';
-import { Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogTitle } from './ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogBody,
+  DialogFooter,
+  DialogTitle,
+} from './ui/dialog';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 
@@ -25,7 +32,9 @@ export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [allowDownloads, setAllowDownloads] = useState(link?.allowDownloads ?? true);
   const [allowUploads, setAllowUploads] = useState(link?.allowUploads ?? false);
-  const [maxDownloads, setMaxDownloads] = useState(link?.maxDownloads ? String(link.maxDownloads) : '');
+  const [maxDownloads, setMaxDownloads] = useState(
+    link?.maxDownloads ? String(link.maxDownloads) : '',
+  );
   const [requireEmail, setRequireEmail] = useState(link?.requireEmail ?? false);
   const [webhookUrl, setWebhookUrl] = useState(link?.webhookUrl || '');
 
@@ -70,14 +79,14 @@ export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
         allowUploads: link.targetType === 'folder' ? allowUploads : false,
         maxDownloads: maxDownloads ? parseInt(maxDownloads, 10) : null,
         requireEmail,
-        webhookUrl: webhookUrl || undefined
+        webhookUrl: webhookUrl || undefined,
       });
 
       invalidateSharedLinks();
       addToast('success', 'Shared link settings updated successfully');
       onClose();
     } catch (err: unknown) {
-      setError((err instanceof Error ? err.message : 'Failed to update shared link'));
+      setError(err instanceof Error ? err.message : 'Failed to update shared link');
     } finally {
       setLoading(false);
     }
@@ -141,9 +150,15 @@ export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
             >
               <Settings size={12} className="mr-1" />
               Advanced
-              {showAdvanced ? <ChevronUp size={12} className="ml-1" /> : <ChevronDown size={12} className="ml-1" />}
+              {showAdvanced ? (
+                <ChevronUp size={12} className="ml-1" />
+              ) : (
+                <ChevronDown size={12} className="ml-1" />
+              )}
             </Button>
-            <div className={`grid transition-[grid-template-rows] duration-200 ${showAdvanced ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+            <div
+              className={`grid transition-[grid-template-rows] duration-200 ${showAdvanced ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
+            >
               <div className="overflow-hidden">
                 <div className="flex flex-col gap-2 pt-1">
                   <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
@@ -192,8 +207,12 @@ export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="secondary" type="button" onClick={onClose} disabled={loading}>Cancel</Button>
-              <Button type="submit" loading={loading}>Save Settings</Button>
+              <Button variant="secondary" type="button" onClick={onClose} disabled={loading}>
+                Cancel
+              </Button>
+              <Button type="submit" loading={loading}>
+                Save Settings
+              </Button>
             </DialogFooter>
           </form>
         </DialogBody>

@@ -1,15 +1,15 @@
-@import "tailwindcss";
-@import "tw-animate-css";
+@import 'tailwindcss';
+@import 'tw-animate-css';
 
 @theme {
-  --color-background: #F3F4F6;
-  --color-foreground: #0F172A;
+  --color-background: #f3f4f6;
+  --color-foreground: #0f172a;
 
-  --color-primary: #2563EB;
-  --color-primary-foreground: #FFFFFF;
+  --color-primary: #2563eb;
+  --color-primary-foreground: #ffffff;
 
-  --color-surface: #E5E7EB;
-  --color-card: #FCFCFD;
+  --color-surface: #e5e7eb;
+  --color-card: #fcfcfd;
 
   --radius-lg: 0.5rem;
   --radius-md: calc(0.5rem - 2px);
@@ -25,19 +25,19 @@
      Tailwind v4 removed this from preflight (intentional design change),
      but this project's UX expects the pointer cursor on all clickable buttons. */
   button:not(:disabled),
-  [role="button"]:not(:disabled) {
+  [role='button']:not(:disabled) {
     cursor: pointer;
   }
 
   /* Drive identity colors — assigned round-robin by getDriveColor(index).
      First color matches brand primary; rest are distinct accent colors. */
   :root {
-    --drive-1: #2563EB; /* Blue */
-    --drive-2: #A855F7; /* Purple */
-    --drive-3: #F97316; /* Orange */
-    --drive-4: #EF4444; /* Red */
-    --drive-5: #22C55E; /* Green */
-    --drive-6: #06B6D4; /* Cyan */
+    --drive-1: #2563eb; /* Blue */
+    --drive-2: #a855f7; /* Purple */
+    --drive-3: #f97316; /* Orange */
+    --drive-4: #ef4444; /* Red */
+    --drive-5: #22c55e; /* Green */
+    --drive-6: #06b6d4; /* Cyan */
   }
 
   /* Bento cell reveal — CSS-driven stagger via animation-delay.
@@ -47,8 +47,14 @@
       animation: bento-fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
     }
     @keyframes bento-fade-up {
-      from { opacity: 0; transform: translateY(10px); }
-      to   { opacity: 1; transform: translateY(0); }
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
   }
 

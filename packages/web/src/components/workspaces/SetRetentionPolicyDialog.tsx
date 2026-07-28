@@ -1,4 +1,12 @@
-import { Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogTitle, DialogDescription } from '../ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogBody,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+} from '../ui/dialog';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { FolderLock } from 'lucide-react';
@@ -67,8 +75,12 @@ export function SetRetentionPolicyDialog({ open, onClose, onSubmit }: Props) {
           </div>
         </DialogBody>
         <DialogFooter>
-          <Button variant="secondary" onClick={onClose} disabled={loading}>Cancel</Button>
-          <Button onClick={handleSubmit} loading={loading}>Save Policy</Button>
+          <Button variant="secondary" onClick={onClose} disabled={loading}>
+            Cancel
+          </Button>
+          <Button onClick={handleSubmit} loading={loading}>
+            Save Policy
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

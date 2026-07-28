@@ -1,6 +1,9 @@
 import type { DriveAccount } from '../types';
 
-export function resolveGoogleFolderId(drive: Pick<DriveAccount, 'rootFolderId'>, googleFolderId: string): string {
+export function resolveGoogleFolderId(
+  drive: Pick<DriveAccount, 'rootFolderId'>,
+  googleFolderId: string,
+): string {
   if (googleFolderId === 'root' && drive.rootFolderId) {
     return drive.rootFolderId;
   }
@@ -9,7 +12,7 @@ export function resolveGoogleFolderId(drive: Pick<DriveAccount, 'rootFolderId'>,
 
 export async function resolveSyncRootFolderId(
   drive: DriveAccount,
-  getOAuthRoot: () => Promise<string>
+  getOAuthRoot: () => Promise<string>,
 ): Promise<string> {
   if (drive.type === 'service_account' && drive.rootFolderId) {
     return drive.rootFolderId;

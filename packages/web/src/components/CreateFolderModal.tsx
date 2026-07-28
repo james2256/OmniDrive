@@ -2,7 +2,14 @@ import { useEffect, useState } from 'react';
 import { FolderPlus } from 'lucide-react';
 import { api } from '../lib/api';
 import { useToastStore } from '../stores/useToastStore';
-import { Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogTitle } from './ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogBody,
+  DialogFooter,
+  DialogTitle,
+} from './ui/dialog';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import type { DriveAccount } from '../types';
@@ -28,7 +35,15 @@ interface CreateFolderModalProps {
   drives?: DriveAccount[];
 }
 
-export function CreateFolderModal({ open, parentId, title, onClose, onSuccess, driveId, drives }: CreateFolderModalProps) {
+export function CreateFolderModal({
+  open,
+  parentId,
+  title,
+  onClose,
+  onSuccess,
+  driveId,
+  drives,
+}: CreateFolderModalProps) {
   const [name, setName] = useState('');
   const [selectedDriveId, setSelectedDriveId] = useState<string>('');
   const [loading, setLoading] = useState(false);
@@ -47,7 +62,8 @@ export function CreateFolderModal({ open, parentId, title, onClose, onSuccess, d
   const entityLabel = title.replace(/^New\s+/, '');
 
   const showDrivePicker = !driveId && (drives?.length ?? 0) > 1;
-  const effectiveDriveId = driveId || selectedDriveId || (drives && drives.length === 1 ? drives[0].id : '');
+  const effectiveDriveId =
+    driveId || selectedDriveId || (drives && drives.length === 1 ? drives[0].id : '');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,7 +84,9 @@ export function CreateFolderModal({ open, parentId, title, onClose, onSuccess, d
       onSuccess();
       onClose();
     } catch (err: unknown) {
-      setError((err instanceof Error ? err.message : `Failed to create ${entityLabel.toLowerCase()}`));
+      setError(
+        err instanceof Error ? err.message : `Failed to create ${entityLabel.toLowerCase()}`,
+      );
     } finally {
       setLoading(false);
     }
@@ -116,8 +134,16 @@ export function CreateFolderModal({ open, parentId, title, onClose, onSuccess, d
             </div>
           </DialogBody>
           <DialogFooter>
-            <Button variant="secondary" type="button" onClick={onClose} disabled={loading}>Cancel</Button>
-            <Button type="submit" loading={loading} disabled={loading || (showDrivePicker && !selectedDriveId)}>Create</Button>
+            <Button variant="secondary" type="button" onClick={onClose} disabled={loading}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              loading={loading}
+              disabled={loading || (showDrivePicker && !selectedDriveId)}
+            >
+              Create
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

@@ -8,5 +8,8 @@
  * them into a query that compares against a datetime('now') column.
  */
 export function toSQLiteDatetime(date: Date): string {
-  return date.toISOString().replace('T', ' ').replace(/\.\d+Z$/, '');
+  return date
+    .toISOString()
+    .replace('T', ' ')
+    .replace(/\.\d+Z$/, '');
 }

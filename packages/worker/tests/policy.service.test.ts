@@ -73,7 +73,11 @@ function wrapSqlite(db: Database.Database): D1Database {
   const makeExecutor = (sql: string, binds: unknown[] = []) => ({
     all: () => {
       const stmt = db.prepare(sql);
-      return { results: binds.length ? stmt.all(...binds) : stmt.all(), success: true, meta: { changes: 0 } };
+      return {
+        results: binds.length ? stmt.all(...binds) : stmt.all(),
+        success: true,
+        meta: { changes: 0 },
+      };
     },
     first: <T = unknown>() => {
       const stmt = db.prepare(sql);
@@ -106,19 +110,19 @@ describe('PolicyService.processAutoDeleteRetentionPolicies', () => {
   it('deletes expired files via Google API and removes them from DB', async () => {
     const db = createDb();
     db.prepare(
-      "INSERT INTO workspaces (id, name, owner_id, used_bytes) VALUES ('ws-1', 'Test', 'u1', 1000)"
+      "INSERT INTO workspaces (id, name, owner_id, used_bytes) VALUES ('ws-1', 'Test', 'u1', 1000)",
     ).run();
     db.prepare(
-      "INSERT INTO drive_accounts (id, user_id, email) VALUES ('d1', 'u1', 'a@b.com')"
+      "INSERT INTO drive_accounts (id, user_id, email) VALUES ('d1', 'u1', 'a@b.com')",
     ).run();
     // File created 10 days ago — policy deletes after 7 days
     const oldDate = toSQLiteDatetime(new Date(Date.now() - 10 * 24 * 60 * 60 * 1000));
     db.prepare(
-      "INSERT INTO files (id, user_id, drive_account_id, google_file_id, workspace_id, name, size, is_trashed, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)"
+      'INSERT INTO files (id, user_id, drive_account_id, google_file_id, workspace_id, name, size, is_trashed, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)',
     ).run('f1', 'u1', 'd1', 'gfile-1', 'ws-1', 'old.pdf', 500, oldDate);
 
     db.prepare(
-      "INSERT INTO workspace_policies (id, workspace_id, target_type, target_id, policy_type, config) VALUES ('p1', 'ws-1', 'workspace', NULL, 'data_retention', ?)"
+      "INSERT INTO workspace_policies (id, workspace_id, target_type, target_id, policy_type, config) VALUES ('p1', 'ws-1', 'workspace', NULL, 'data_retention', ?)",
     ).run(JSON.stringify({ action: 'auto_delete', days: 7 }));
 
     const driveService = makeMockDriveService();
@@ -131,11 +135,15 @@ describe('PolicyService.processAutoDeleteRetentionPolicies', () => {
     expect(driveService.deleteFile).toHaveBeenCalledWith('d1', 'gfile-1');
 
     // File removed from DB
-    const row = db.prepare('SELECT COUNT(*) as count FROM files WHERE id = ?').get('f1') as { count: number };
+    const row = db.prepare('SELECT COUNT(*) as count FROM files WHERE id = ?').get('f1') as {
+      count: number;
+    };
     expect(row.count).toBe(0);
 
     // Workspace used_bytes reduced by file size
-    const ws = db.prepare('SELECT used_bytes FROM workspaces WHERE id = ?').get('ws-1') as { used_bytes: number };
+    const ws = db.prepare('SELECT used_bytes FROM workspaces WHERE id = ?').get('ws-1') as {
+      used_bytes: number;
+    };
     expect(ws.used_bytes).toBe(500); // 1000 - 500
 
     db.close();
@@ -144,19 +152,19 @@ describe('PolicyService.processAutoDeleteRetentionPolicies', () => {
   it('skips trashed files (is_trashed = 1)', async () => {
     const db = createDb();
     db.prepare(
-      "INSERT INTO workspaces (id, name, owner_id, used_bytes) VALUES ('ws-1', 'Test', 'u1', 0)"
+      "INSERT INTO workspaces (id, name, owner_id, used_bytes) VALUES ('ws-1', 'Test', 'u1', 0)",
     ).run();
     db.prepare(
-      "INSERT INTO drive_accounts (id, user_id, email) VALUES ('d1', 'u1', 'a@b.com')"
+      "INSERT INTO drive_accounts (id, user_id, email) VALUES ('d1', 'u1', 'a@b.com')",
     ).run();
     const oldDate = toSQLiteDatetime(new Date(Date.now() - 10 * 24 * 60 * 60 * 1000));
     // Trashed file — should be skipped
     db.prepare(
-      "INSERT INTO files (id, user_id, drive_account_id, google_file_id, workspace_id, name, size, is_trashed, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)"
+      'INSERT INTO files (id, user_id, drive_account_id, google_file_id, workspace_id, name, size, is_trashed, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)',
     ).run('f1', 'u1', 'd1', 'gfile-1', 'ws-1', 'trashed.pdf', 500, oldDate);
 
     db.prepare(
-      "INSERT INTO workspace_policies (id, workspace_id, target_type, target_id, policy_type, config) VALUES ('p1', 'ws-1', 'workspace', NULL, 'data_retention', ?)"
+      "INSERT INTO workspace_policies (id, workspace_id, target_type, target_id, policy_type, config) VALUES ('p1', 'ws-1', 'workspace', NULL, 'data_retention', ?)",
     ).run(JSON.stringify({ action: 'auto_delete', days: 7 }));
 
     const driveService = makeMockDriveService();
@@ -165,7 +173,9 @@ describe('PolicyService.processAutoDeleteRetentionPolicies', () => {
     await service.processAutoDeleteRetentionPolicies();
 
     expect(driveService.deleteFile).not.toHaveBeenCalled();
-    const row = db.prepare('SELECT COUNT(*) as count FROM files WHERE id = ?').get('f1') as { count: number };
+    const row = db.prepare('SELECT COUNT(*) as count FROM files WHERE id = ?').get('f1') as {
+      count: number;
+    };
     expect(row.count).toBe(1); // still in DB
 
     db.close();
@@ -174,23 +184,23 @@ describe('PolicyService.processAutoDeleteRetentionPolicies', () => {
   it('respects the 20-deletion cap per cycle', async () => {
     const db = createDb();
     db.prepare(
-      "INSERT INTO workspaces (id, name, owner_id, used_bytes) VALUES ('ws-1', 'Test', 'u1', 0)"
+      "INSERT INTO workspaces (id, name, owner_id, used_bytes) VALUES ('ws-1', 'Test', 'u1', 0)",
     ).run();
     db.prepare(
-      "INSERT INTO drive_accounts (id, user_id, email) VALUES ('d1', 'u1', 'a@b.com')"
+      "INSERT INTO drive_accounts (id, user_id, email) VALUES ('d1', 'u1', 'a@b.com')",
     ).run();
     const oldDate = toSQLiteDatetime(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
 
     // Insert 25 expired files
     const insertFile = db.prepare(
-      "INSERT INTO files (id, user_id, drive_account_id, google_file_id, workspace_id, name, size, is_trashed, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)"
+      'INSERT INTO files (id, user_id, drive_account_id, google_file_id, workspace_id, name, size, is_trashed, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)',
     );
     for (let i = 0; i < 25; i++) {
       insertFile.run(`f${i}`, 'u1', 'd1', `gfile-${i}`, 'ws-1', `file-${i}.pdf`, 100, oldDate);
     }
 
     db.prepare(
-      "INSERT INTO workspace_policies (id, workspace_id, target_type, target_id, policy_type, config) VALUES ('p1', 'ws-1', 'workspace', NULL, 'data_retention', ?)"
+      "INSERT INTO workspace_policies (id, workspace_id, target_type, target_id, policy_type, config) VALUES ('p1', 'ws-1', 'workspace', NULL, 'data_retention', ?)",
     ).run(JSON.stringify({ action: 'auto_delete', days: 7 }));
 
     const driveService = makeMockDriveService();
@@ -211,18 +221,18 @@ describe('PolicyService.processAutoDeleteRetentionPolicies', () => {
   it('skips DB delete when Google API call fails (file stays in D1)', async () => {
     const db = createDb();
     db.prepare(
-      "INSERT INTO workspaces (id, name, owner_id, used_bytes) VALUES ('ws-1', 'Test', 'u1', 0)"
+      "INSERT INTO workspaces (id, name, owner_id, used_bytes) VALUES ('ws-1', 'Test', 'u1', 0)",
     ).run();
     db.prepare(
-      "INSERT INTO drive_accounts (id, user_id, email) VALUES ('d1', 'u1', 'a@b.com')"
+      "INSERT INTO drive_accounts (id, user_id, email) VALUES ('d1', 'u1', 'a@b.com')",
     ).run();
     const oldDate = toSQLiteDatetime(new Date(Date.now() - 10 * 24 * 60 * 60 * 1000));
     db.prepare(
-      "INSERT INTO files (id, user_id, drive_account_id, google_file_id, workspace_id, name, size, is_trashed, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)"
+      'INSERT INTO files (id, user_id, drive_account_id, google_file_id, workspace_id, name, size, is_trashed, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)',
     ).run('f1', 'u1', 'd1', 'gfile-1', 'ws-1', 'old.pdf', 500, oldDate);
 
     db.prepare(
-      "INSERT INTO workspace_policies (id, workspace_id, target_type, target_id, policy_type, config) VALUES ('p1', 'ws-1', 'workspace', NULL, 'data_retention', ?)"
+      "INSERT INTO workspace_policies (id, workspace_id, target_type, target_id, policy_type, config) VALUES ('p1', 'ws-1', 'workspace', NULL, 'data_retention', ?)",
     ).run(JSON.stringify({ action: 'auto_delete', days: 7 }));
 
     // Google API throws — file should stay in DB (not orphaned)
@@ -234,7 +244,9 @@ describe('PolicyService.processAutoDeleteRetentionPolicies', () => {
     await service.processAutoDeleteRetentionPolicies();
 
     expect(driveService.deleteFile).toHaveBeenCalledTimes(1);
-    const row = db.prepare('SELECT COUNT(*) as count FROM files WHERE id = ?').get('f1') as { count: number };
+    const row = db.prepare('SELECT COUNT(*) as count FROM files WHERE id = ?').get('f1') as {
+      count: number;
+    };
     expect(row.count).toBe(1); // file still in DB — not orphaned
 
     db.close();
@@ -253,27 +265,27 @@ describe('PolicyService.processAutoDeleteRetentionPolicies', () => {
 
     const db = createDb();
     db.prepare(
-      "INSERT INTO workspaces (id, name, owner_id, used_bytes) VALUES ('ws-1', 'Test', 'u1', 0)"
+      "INSERT INTO workspaces (id, name, owner_id, used_bytes) VALUES ('ws-1', 'Test', 'u1', 0)",
     ).run();
     db.prepare(
-      "INSERT INTO drive_accounts (id, user_id, email) VALUES ('d1', 'u1', 'a@b.com')"
+      "INSERT INTO drive_accounts (id, user_id, email) VALUES ('d1', 'u1', 'a@b.com')",
     ).run();
 
     // Cutoff = now - 7d = 2026-06-21 15:00:00. File at 2026-06-21 20:00:00 is on the
     // SAME day but 5h NEWER → must NOT be deleted.
     const newerSameDay = toSQLiteDatetime(new Date('2026-06-21T20:00:00.000Z'));
     db.prepare(
-      "INSERT INTO files (id, user_id, drive_account_id, google_file_id, workspace_id, name, size, is_trashed, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)"
+      'INSERT INTO files (id, user_id, drive_account_id, google_file_id, workspace_id, name, size, is_trashed, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)',
     ).run('f-keep', 'u1', 'd1', 'gfile-keep', 'ws-1', 'keep.pdf', 500, newerSameDay);
 
     // File created 8 days ago (OLDER than cutoff — should be deleted)
     const olderThanCutoff = toSQLiteDatetime(new Date('2026-06-20T10:00:00.000Z'));
     db.prepare(
-      "INSERT INTO files (id, user_id, drive_account_id, google_file_id, workspace_id, name, size, is_trashed, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)"
+      'INSERT INTO files (id, user_id, drive_account_id, google_file_id, workspace_id, name, size, is_trashed, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)',
     ).run('f-del', 'u1', 'd1', 'gfile-del', 'ws-1', 'delete.pdf', 300, olderThanCutoff);
 
     db.prepare(
-      "INSERT INTO workspace_policies (id, workspace_id, target_type, target_id, policy_type, config) VALUES ('p1', 'ws-1', 'workspace', NULL, 'data_retention', ?)"
+      "INSERT INTO workspace_policies (id, workspace_id, target_type, target_id, policy_type, config) VALUES ('p1', 'ws-1', 'workspace', NULL, 'data_retention', ?)",
     ).run(JSON.stringify({ action: 'auto_delete', days: 7 }));
 
     const driveService = makeMockDriveService();
@@ -285,7 +297,9 @@ describe('PolicyService.processAutoDeleteRetentionPolicies', () => {
     expect(driveService.deleteFile).toHaveBeenCalledTimes(1);
     expect(driveService.deleteFile).toHaveBeenCalledWith('d1', 'gfile-del');
 
-    const keepRow = db.prepare('SELECT COUNT(*) as count FROM files WHERE id = ?').get('f-keep') as { count: number };
+    const keepRow = db
+      .prepare('SELECT COUNT(*) as count FROM files WHERE id = ?')
+      .get('f-keep') as { count: number };
     expect(keepRow.count).toBe(1); // kept ✅
 
     vi.useRealTimers();

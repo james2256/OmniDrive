@@ -7,7 +7,7 @@ describe('Admin Invitations', () => {
     const app = new Hono();
     app.onError((err: any, c) => c.json({ error: err.message }, err.status || 500));
     app.route('/api/admin', adminRouter);
-    
+
     const res = await app.request('/api/admin/invitations');
     expect(res.status).toBe(401);
   });

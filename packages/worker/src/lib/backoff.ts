@@ -22,7 +22,9 @@ const NON_RETRYABLE_REASONS = new Set([
   'authError',
 ]);
 
-export async function parseDriveError(response: Response): Promise<{ status: number; reason: string | null; message: string }> {
+export async function parseDriveError(
+  response: Response,
+): Promise<{ status: number; reason: string | null; message: string }> {
   const status = response.status;
   let body: string;
   try {
@@ -68,7 +70,11 @@ function sleep(ms: number): Promise<void> {
  */
 export async function withBackoff(
   fn: () => Promise<Response>,
-  opts: { maxRetries?: number; maxBackoffMs?: number; isSuccess?: (response: Response) => boolean } = {},
+  opts: {
+    maxRetries?: number;
+    maxBackoffMs?: number;
+    isSuccess?: (response: Response) => boolean;
+  } = {},
 ): Promise<Response> {
   const maxRetries = opts.maxRetries ?? 3;
   const maxBackoffMs = opts.maxBackoffMs ?? 32000;

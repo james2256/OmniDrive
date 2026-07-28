@@ -18,7 +18,8 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   asChild?: boolean;
 }
 
-const base = 'flex items-center gap-2 font-medium rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2';
+const base =
+  'flex items-center gap-2 font-medium rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2';
 
 const variants: Record<Variant, string> = {
   primary: 'text-white bg-primary hover:opacity-90',
@@ -37,7 +38,19 @@ const sizes: Record<Size, string> = {
 };
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = 'primary', size = 'sm', loading, asChild = false, children, disabled, ...props }, ref) => {
+  (
+    {
+      className,
+      variant = 'primary',
+      size = 'sm',
+      loading,
+      asChild = false,
+      children,
+      disabled,
+      ...props
+    },
+    ref,
+  ) => {
     const Comp = asChild ? Slot : 'button';
     return (
       <Comp
@@ -49,7 +62,9 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       >
         {/* Slot requires exactly ONE child — when asChild, pass only children
             (the <a> element). When not asChild, wrap spinner + children in a Fragment. */}
-        {asChild ? children : (
+        {asChild ? (
+          children
+        ) : (
           <>
             {loading && <Spinner size={14} />}
             {children}

@@ -2,7 +2,8 @@
 export const qk = {
   drives: ['drives'] as const,
   driveFolder: ['driveFolder'] as const,
-  driveFolderContents: (driveId: string, folderId: string) => ['driveFolder', driveId, folderId] as const,
+  driveFolderContents: (driveId: string, folderId: string) =>
+    ['driveFolder', driveId, folderId] as const,
   starred: ['starred'] as const,
   trash: ['trash'] as const,
   recent: ['recent'] as const,

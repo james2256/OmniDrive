@@ -12,7 +12,7 @@ export function DropZone({ children }: { children: React.ReactNode }) {
         addFiles(acceptedFiles);
       }
     },
-    [addFiles]
+    [addFiles],
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -35,9 +35,7 @@ export function DropZone({ children }: { children: React.ReactNode }) {
             <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center">
               <Upload size={28} className="text-primary" aria-hidden="true" />
             </div>
-            <p className="text-lg font-semibold text-slate-900">
-              Drop files to upload
-            </p>
+            <p className="text-lg font-semibold text-slate-900">Drop files to upload</p>
           </div>
         </div>
       )}

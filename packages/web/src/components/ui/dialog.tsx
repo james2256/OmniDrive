@@ -1,16 +1,16 @@
-import * as React from "react"
-import * as DialogPrimitive from "@radix-ui/react-dialog"
-import { X } from "lucide-react"
+import * as React from 'react';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
+import { X } from 'lucide-react';
 
-import { cn } from "../../lib/utils"
+import { cn } from '../../lib/utils';
 
-const Dialog = DialogPrimitive.Root
+const Dialog = DialogPrimitive.Root;
 
-const DialogTrigger = DialogPrimitive.Trigger
+const DialogTrigger = DialogPrimitive.Trigger;
 
-const DialogPortal = DialogPrimitive.Portal
+const DialogPortal = DialogPrimitive.Portal;
 
-const DialogClose = DialogPrimitive.Close
+const DialogClose = DialogPrimitive.Close;
 
 const DialogOverlay = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Overlay>,
@@ -19,13 +19,13 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      "fixed inset-0 z-50 bg-black/50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-      className
+      'fixed inset-0 z-50 bg-black/50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+      className,
     )}
     {...props}
   />
-))
-DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
+));
+DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
@@ -36,8 +36,8 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed left-[50%] top-[50%] z-50 w-[calc(100%-1rem)] max-w-lg max-h-[85vh] overflow-hidden translate-x-[-50%] translate-y-[-50%] border border-slate-200 bg-card shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 rounded-xl",
-        className
+        'fixed left-[50%] top-[50%] z-50 w-[calc(100%-1rem)] max-w-lg max-h-[85vh] overflow-hidden translate-x-[-50%] translate-y-[-50%] border border-slate-200 bg-card shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 rounded-xl',
+        className,
       )}
       {...props}
     >
@@ -48,8 +48,8 @@ const DialogContent = React.forwardRef<
       </DialogPrimitive.Close>
     </DialogPrimitive.Content>
   </DialogPortal>
-))
-DialogContent.displayName = DialogPrimitive.Content.displayName
+));
+DialogContent.displayName = DialogPrimitive.Content.displayName;
 
 /**
  * Styled dialog header — icon + title + subtitle with border-b.
@@ -62,15 +62,10 @@ const DialogHeader = React.forwardRef<
 >(({ className, icon, subtitle, children, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn(
-      'flex items-center p-2.5 sm:p-3 border-b border-slate-200 shrink-0',
-      className,
-    )}
+    className={cn('flex items-center p-2.5 sm:p-3 border-b border-slate-200 shrink-0', className)}
     {...props}
   >
-    {icon && (
-      <span className="text-2xl shrink-0 mr-2.5 sm:mr-3">{icon}</span>
-    )}
+    {icon && <span className="text-2xl shrink-0 mr-2.5 sm:mr-3">{icon}</span>}
     <div className="min-w-0 flex-1">
       {children}
       {subtitle && <div className="text-xs text-slate-500 truncate">{subtitle}</div>}
@@ -80,16 +75,11 @@ const DialogHeader = React.forwardRef<
 DialogHeader.displayName = 'DialogHeader';
 
 /** Scrollable dialog body — sits between header (border-b) and footer (border-t). */
-const DialogBody = React.forwardRef<
-  React.ElementRef<'div'>,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn('p-4 overflow-y-auto', className)}
-    {...props}
-  />
-));
+const DialogBody = React.forwardRef<React.ElementRef<'div'>, React.HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => (
+    <div ref={ref} className={cn('p-4 overflow-y-auto', className)} {...props} />
+  ),
+);
 DialogBody.displayName = 'DialogBody';
 
 /** Styled dialog footer — border-t, bg-slate-50, right-aligned action buttons. */
@@ -114,14 +104,11 @@ const DialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
-    className={cn(
-      "text-sm sm:text-base font-semibold text-slate-800 tracking-tight",
-      className
-    )}
+    className={cn('text-sm sm:text-base font-semibold text-slate-800 tracking-tight', className)}
     {...props}
   />
-))
-DialogTitle.displayName = DialogPrimitive.Title.displayName
+));
+DialogTitle.displayName = DialogPrimitive.Title.displayName;
 
 const DialogDescription = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Description>,
@@ -129,11 +116,11 @@ const DialogDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Description
     ref={ref}
-    className={cn("text-sm text-slate-500", className)}
+    className={cn('text-sm text-slate-500', className)}
     {...props}
   />
-))
-DialogDescription.displayName = DialogPrimitive.Description.displayName
+));
+DialogDescription.displayName = DialogPrimitive.Description.displayName;
 
 export {
   Dialog,
@@ -147,4 +134,4 @@ export {
   DialogFooter,
   DialogTitle,
   DialogDescription,
-}
+};

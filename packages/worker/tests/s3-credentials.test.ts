@@ -31,7 +31,9 @@ describe('S3 Credentials API', () => {
     const mockDb = {
       prepare: vi.fn((sql: string) => {
         if (sql.includes('FROM sessions')) {
-          return { bind: vi.fn(() => ({ first: vi.fn().mockResolvedValue(sessionRow), run: vi.fn() })) };
+          return {
+            bind: vi.fn(() => ({ first: vi.fn().mockResolvedValue(sessionRow), run: vi.fn() })),
+          };
         }
         return {
           bind: vi.fn((...args: any[]) => {
@@ -43,7 +45,7 @@ describe('S3 Credentials API', () => {
                     userId: args[1],
                     accessKeyId: args[2],
                     secretKeyEnc: args[3],
-                    description: args[4]
+                    description: args[4],
                   };
                 } else if (sql.includes('DELETE FROM s3_credentials')) {
                   deletedId = args[0];
@@ -58,17 +60,17 @@ describe('S3 Credentials API', () => {
                         id: 'cred-123',
                         access_key_id: 'OMNI1234567890',
                         description: 'Test Credential',
-                        created_at: new Date().toISOString()
-                      }
-                    ]
+                        created_at: new Date().toISOString(),
+                      },
+                    ],
                   };
                 }
                 return { results: [] };
-              })
+              }),
             };
-          })
+          }),
         };
-      })
+      }),
     };
 
     const env = {
@@ -79,7 +81,7 @@ describe('S3 Credentials API', () => {
       JWT_SECRET: 'test-jwt-secret',
       TOKEN_ENCRYPTION_KEY: 'test-token-encryption-key-which-is-long-enough',
       GOOGLE_CLIENT_ID: 'google-id',
-      GOOGLE_CLIENT_SECRET: 'google-secret'
+      GOOGLE_CLIENT_SECRET: 'google-secret',
     };
 
     // 2. Test GET without auth (no cookies)
@@ -87,29 +89,37 @@ describe('S3 Credentials API', () => {
     expect(getNoAuth.status).toBe(401);
 
     // 3. Test POST without auth
-    const postNoAuth = await app.request('/api/s3-credentials', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Origin': 'http://localhost:3000'
+    const postNoAuth = await app.request(
+      '/api/s3-credentials',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'http://localhost:3000',
+        },
+        body: JSON.stringify({ description: 'New Key' }),
       },
-      body: JSON.stringify({ description: 'New Key' })
-    }, env);
+      env,
+    );
     expect(postNoAuth.status).toBe(401);
 
     // 4. Test POST with auth
-    const postRes = await app.request('/api/s3-credentials', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Cookie': `omnidrive_sid=${mockSessionCookie}`,
-        'Origin': 'http://localhost:3000'
+    const postRes = await app.request(
+      '/api/s3-credentials',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: `omnidrive_sid=${mockSessionCookie}`,
+          Origin: 'http://localhost:3000',
+        },
+        body: JSON.stringify({ description: 'My S3 Key' }),
       },
-      body: JSON.stringify({ description: 'My S3 Key' })
-    }, env);
+      env,
+    );
 
     expect(postRes.status).toBe(201);
-    const postBody = await postRes.json() as any;
+    const postBody = (await postRes.json()) as any;
     expect(postBody.id).toBeDefined();
     expect(postBody.accessKeyId).toBeDefined();
     expect(postBody.secretAccessKey).toBeDefined();
@@ -117,33 +127,43 @@ describe('S3 Credentials API', () => {
     expect(postBody.createdAt).toBeDefined();
 
     // Verify DB insertion was triggered correctly
-    expect(mockDb.prepare).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO s3_credentials'));
+    expect(mockDb.prepare).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO s3_credentials'),
+    );
     expect(insertedData).not.toBeNull();
     expect(insertedData.userId).toBe(mockUserId);
     expect(insertedData.description).toBe('My S3 Key');
 
     // 5. Test GET with auth
-    const getRes = await app.request('/api/s3-credentials', {
-      method: 'GET',
-      headers: {
-        'Cookie': `omnidrive_sid=${mockSessionCookie}`
-      }
-    }, env);
+    const getRes = await app.request(
+      '/api/s3-credentials',
+      {
+        method: 'GET',
+        headers: {
+          Cookie: `omnidrive_sid=${mockSessionCookie}`,
+        },
+      },
+      env,
+    );
     expect(getRes.status).toBe(200);
-    const getBody = await getRes.json() as any;
+    const getBody = (await getRes.json()) as any;
     expect(getBody).toBeInstanceOf(Array);
     expect(getBody[0].id).toBe('cred-123');
 
     // 6. Test DELETE with auth
-    const deleteRes = await app.request('/api/s3-credentials/cred-123', {
-      method: 'DELETE',
-      headers: {
-        'Cookie': `omnidrive_sid=${mockSessionCookie}`,
-        'Origin': 'http://localhost:3000'
-      }
-    }, env);
+    const deleteRes = await app.request(
+      '/api/s3-credentials/cred-123',
+      {
+        method: 'DELETE',
+        headers: {
+          Cookie: `omnidrive_sid=${mockSessionCookie}`,
+          Origin: 'http://localhost:3000',
+        },
+      },
+      env,
+    );
     expect(deleteRes.status).toBe(200);
-    const deleteBody = await deleteRes.json() as any;
+    const deleteBody = (await deleteRes.json()) as any;
     expect(deleteBody.success).toBe(true);
     expect(deletedId).toBe('cred-123');
   });
@@ -168,7 +188,9 @@ describe('S3 Credentials API', () => {
     const mockDb = {
       prepare: vi.fn((sql: string) => {
         if (sql.includes('FROM sessions')) {
-          return { bind: vi.fn(() => ({ first: vi.fn().mockResolvedValue(sessionRow), run: vi.fn() })) };
+          return {
+            bind: vi.fn(() => ({ first: vi.fn().mockResolvedValue(sessionRow), run: vi.fn() })),
+          };
         }
         return {
           bind: vi.fn((...args: any[]) => {
@@ -204,17 +226,17 @@ describe('S3 Credentials API', () => {
                         description: 'Test Scoped Credential',
                         created_at: new Date().toISOString(),
                         workspace_id: 'workspace-123',
-                        workspace_name: 'My Workspace'
-                      }
-                    ]
+                        workspace_name: 'My Workspace',
+                      },
+                    ],
                   };
                 }
                 return { results: [] };
-              })
+              }),
             };
-          })
+          }),
         };
-      })
+      }),
     };
 
     const env = {
@@ -225,50 +247,62 @@ describe('S3 Credentials API', () => {
       JWT_SECRET: 'test-jwt-secret',
       TOKEN_ENCRYPTION_KEY: 'test-token-encryption-key-which-is-long-enough',
       GOOGLE_CLIENT_ID: 'google-id',
-      GOOGLE_CLIENT_SECRET: 'google-secret'
+      GOOGLE_CLIENT_SECRET: 'google-secret',
     };
 
     // 1. Test POST with viewer role (invalid permissions) -> 403 Forbidden
     userRoleInWorkspace = 'viewer';
-    const viewerRes = await app.request('/api/s3-credentials', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Cookie': `omnidrive_sid=${mockSessionCookie}`,
-        'Origin': 'http://localhost:3000'
+    const viewerRes = await app.request(
+      '/api/s3-credentials',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: `omnidrive_sid=${mockSessionCookie}`,
+          Origin: 'http://localhost:3000',
+        },
+        body: JSON.stringify({ description: 'Viewer Key', workspaceId: 'workspace-123' }),
       },
-      body: JSON.stringify({ description: 'Viewer Key', workspaceId: 'workspace-123' })
-    }, env);
+      env,
+    );
     expect(viewerRes.status).toBe(403);
-    const viewerBody = await viewerRes.json() as any;
+    const viewerBody = (await viewerRes.json()) as any;
     expect(viewerBody.error).toBe('Unauthorized to manage S3 keys for this workspace');
 
     // 2. Test POST with manager role (valid permissions) -> 201 Created
     userRoleInWorkspace = 'manager';
-    const managerRes = await app.request('/api/s3-credentials', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Cookie': `omnidrive_sid=${mockSessionCookie}`,
-        'Origin': 'http://localhost:3000'
+    const managerRes = await app.request(
+      '/api/s3-credentials',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: `omnidrive_sid=${mockSessionCookie}`,
+          Origin: 'http://localhost:3000',
+        },
+        body: JSON.stringify({ description: 'Manager Key', workspaceId: 'workspace-123' }),
       },
-      body: JSON.stringify({ description: 'Manager Key', workspaceId: 'workspace-123' })
-    }, env);
+      env,
+    );
     expect(managerRes.status).toBe(201);
-    const managerBody = await managerRes.json() as any;
+    const managerBody = (await managerRes.json()) as any;
     expect(managerBody.id).toBeDefined();
     expect(insertedData).not.toBeNull();
     expect(insertedData.workspaceId).toBe('workspace-123');
 
     // 3. Test GET for scoped credential (retrieves workspace_name and workspace_id)
-    const getRes = await app.request('/api/s3-credentials', {
-      method: 'GET',
-      headers: {
-        'Cookie': `omnidrive_sid=${mockSessionCookie}`
-      }
-    }, env);
+    const getRes = await app.request(
+      '/api/s3-credentials',
+      {
+        method: 'GET',
+        headers: {
+          Cookie: `omnidrive_sid=${mockSessionCookie}`,
+        },
+      },
+      env,
+    );
     expect(getRes.status).toBe(200);
-    const getBody = await getRes.json() as any;
+    const getBody = (await getRes.json()) as any;
     expect(getBody).toBeInstanceOf(Array);
     expect(getBody[0].id).toBe('cred-123');
     expect(getBody[0].workspaceId).toBe('workspace-123');

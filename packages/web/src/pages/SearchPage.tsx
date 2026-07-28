@@ -22,7 +22,9 @@ export function SearchPage() {
   const queryClient = useQueryClient();
   const { data: sharedLinks = [] } = useSharedLinks();
 
-  const [shareTarget, setShareTarget] = useState<{ id: string, type: 'file' | 'folder' } | null>(null);
+  const [shareTarget, setShareTarget] = useState<{ id: string; type: 'file' | 'folder' } | null>(
+    null,
+  );
   const [moveDriveFiles, setMoveDriveFiles] = useState<FileEntry[]>([]);
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
 
@@ -39,10 +41,7 @@ export function SearchPage() {
   });
 
   const fileResults = searchResults?.files ?? [];
-  const folderResults = [
-    ...(searchResults?.driveFolders ?? []),
-    ...(searchResults?.folders ?? []),
-  ];
+  const folderResults = [...(searchResults?.driveFolders ?? []), ...(searchResults?.folders ?? [])];
 
   const getDriveInfo = useGetDriveInfo(drives);
 

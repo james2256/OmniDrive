@@ -286,9 +286,7 @@ describe('createInvitationSchema (corrected with code field)', () => {
     }
   });
   it('accepts long custom code (>= 12 chars)', () => {
-    expect(
-      createInvitationSchema.safeParse({ code: 'longenoughcode123' }).success,
-    ).toBe(true);
+    expect(createInvitationSchema.safeParse({ code: 'longenoughcode123' }).success).toBe(true);
   });
   it('defaults max_uses to 1', () => {
     const result = createInvitationSchema.safeParse({});
@@ -354,9 +352,7 @@ describe('auth schemas', () => {
     ).toBe(false);
   });
   it('changePasswordSchema requires currentPassword', () => {
-    expect(
-      changePasswordSchema.safeParse({ newPassword: 'Abcdefg1' }).success,
-    ).toBe(false);
+    expect(changePasswordSchema.safeParse({ newPassword: 'Abcdefg1' }).success).toBe(false);
   });
 });
 
@@ -373,9 +369,7 @@ describe('file schemas', () => {
     ).toBe(true);
   });
   it('fileMetadataSchema accepts string record', () => {
-    expect(
-      fileMetadataSchema.safeParse({ metadata: { key: 'value' } }).success,
-    ).toBe(true);
+    expect(fileMetadataSchema.safeParse({ metadata: { key: 'value' } }).success).toBe(true);
   });
 });
 
@@ -385,9 +379,7 @@ describe('folder schemas', () => {
   });
   it('addFilesToFolderSchema requires non-empty fileIds', () => {
     expect(addFilesToFolderSchema.safeParse({ fileIds: [] }).success).toBe(false);
-    expect(
-      addFilesToFolderSchema.safeParse({ fileIds: ['abc'] }).success,
-    ).toBe(true);
+    expect(addFilesToFolderSchema.safeParse({ fileIds: ['abc'] }).success).toBe(true);
   });
 });
 
@@ -397,9 +389,7 @@ describe('drive schemas', () => {
   });
   it('serviceAccountSchema requires credentials + folderId', () => {
     expect(serviceAccountSchema.safeParse({ credentials: 'x' }).success).toBe(false);
-    expect(
-      serviceAccountSchema.safeParse({ credentials: 'x', folderId: 'y' }).success,
-    ).toBe(true);
+    expect(serviceAccountSchema.safeParse({ credentials: 'x', folderId: 'y' }).success).toBe(true);
   });
 });
 
@@ -422,8 +412,8 @@ describe('s3 credentials schema', () => {
     ).toBe(true);
   });
   it('rejects description over 500 chars', () => {
-    expect(
-      createS3CredentialsSchema.safeParse({ description: 'x'.repeat(501) }).success,
-    ).toBe(false);
+    expect(createS3CredentialsSchema.safeParse({ description: 'x'.repeat(501) }).success).toBe(
+      false,
+    );
   });
 });

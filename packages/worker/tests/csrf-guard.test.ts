@@ -25,71 +25,99 @@ describe('csrfGuard', () => {
 
   it('allows POST with valid Origin header', async () => {
     const { app, env } = createApp();
-    const res = await app.request('/api/test', {
-      method: 'POST',
-      headers: { 'Origin': 'https://app.example.com', 'Content-Type': 'application/json' },
-      body: '{}',
-    }, env);
+    const res = await app.request(
+      '/api/test',
+      {
+        method: 'POST',
+        headers: { Origin: 'https://app.example.com', 'Content-Type': 'application/json' },
+        body: '{}',
+      },
+      env,
+    );
     expect(res.status).toBe(200);
   });
 
   it('blocks POST with invalid Origin header', async () => {
     const { app, env } = createApp();
-    const res = await app.request('/api/test', {
-      method: 'POST',
-      headers: { 'Origin': 'https://evil.com', 'Content-Type': 'application/json' },
-      body: '{}',
-    }, env);
+    const res = await app.request(
+      '/api/test',
+      {
+        method: 'POST',
+        headers: { Origin: 'https://evil.com', 'Content-Type': 'application/json' },
+        body: '{}',
+      },
+      env,
+    );
     expect(res.status).toBe(403);
   });
 
   it('blocks POST with no Origin and no Referer', async () => {
     const { app, env } = createApp();
-    const res = await app.request('/api/test', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: '{}',
-    }, env);
+    const res = await app.request(
+      '/api/test',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      },
+      env,
+    );
     expect(res.status).toBe(403);
   });
 
   it('allows POST with valid Referer (fallback)', async () => {
     const { app, env } = createApp();
-    const res = await app.request('/api/test', {
-      method: 'POST',
-      headers: { 'Referer': 'https://app.example.com/page', 'Content-Type': 'application/json' },
-      body: '{}',
-    }, env);
+    const res = await app.request(
+      '/api/test',
+      {
+        method: 'POST',
+        headers: { Referer: 'https://app.example.com/page', 'Content-Type': 'application/json' },
+        body: '{}',
+      },
+      env,
+    );
     expect(res.status).toBe(200);
   });
 
   it('exempts /api/auth/login', async () => {
     const { app, env } = createApp();
-    const res = await app.request('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: '{}',
-    }, env);
+    const res = await app.request(
+      '/api/auth/login',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      },
+      env,
+    );
     expect(res.status).toBe(200);
   });
 
   it('exempts /api/auth/register', async () => {
     const { app, env } = createApp();
-    const res = await app.request('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: '{}',
-    }, env);
+    const res = await app.request(
+      '/api/auth/register',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      },
+      env,
+    );
     expect(res.status).toBe(200);
   });
 
   it('exempts POST /api/shared/:id/verify (public password check)', async () => {
     const { app, env } = createApp();
-    const res = await app.request('/api/shared/abc123/verify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: '{}',
-    }, env);
+    const res = await app.request(
+      '/api/shared/abc123/verify',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      },
+      env,
+    );
     expect(res.status).toBe(200);
   });
 
@@ -101,11 +129,15 @@ describe('csrfGuard', () => {
 
   it('does NOT exempt POST /api/shared (create — requires auth)', async () => {
     const { app, env } = createApp();
-    const res = await app.request('/api/shared', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: '{}',
-    }, env);
+    const res = await app.request(
+      '/api/shared',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      },
+      env,
+    );
     expect(res.status).toBe(403);
   });
 });

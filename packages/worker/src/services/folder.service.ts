@@ -99,7 +99,12 @@ export class FolderService {
    * Get workspace contents (root folders + root files).
    * RBAC: membership only (any role can view).
    */
-  async getWorkspaceContents(userId: string, workspaceId: string, cursor: { name: string; id: string } | null, limit: number) {
+  async getWorkspaceContents(
+    userId: string,
+    workspaceId: string,
+    cursor: { name: string; id: string } | null,
+    limit: number,
+  ) {
     const ws = await this.workspaceRepo.findByIdAndMember(workspaceId, userId);
     if (!ws) throw new AppError(404, 'Folder not found or no access');
 
@@ -133,16 +138,22 @@ export class FolderService {
       syncStatus: (f.sync_status as 'idle' | 'syncing' | 'error') || 'idle',
     }));
 
-    const { results: fileRows } = await this.fileRepo.findFilesInWorkspaceRoot(workspaceId, cursor, limit);
+    const { results: fileRows } = await this.fileRepo.findFilesInWorkspaceRoot(
+      workspaceId,
+      cursor,
+      limit,
+    );
     let hasMore = false;
     if (fileRows.length > limit) {
       hasMore = true;
       fileRows.pop();
     }
-    const files: (FileEntry & { driveEmail: string })[] = fileRows.map((r: Record<string, unknown>) => ({
-      ...mapFileRow(r),
-      driveEmail: (r.driveEmail as string) || '',
-    }));
+    const files: (FileEntry & { driveEmail: string })[] = fileRows.map(
+      (r: Record<string, unknown>) => ({
+        ...mapFileRow(r),
+        driveEmail: (r.driveEmail as string) || '',
+      }),
+    );
     let nextCursor: string | null = null;
     if (files.length > 0 && hasMore) {
       const lastFile = files[files.length - 1];
@@ -151,7 +162,10 @@ export class FolderService {
 
     const breadcrumb = [
       { id: null, name: 'Home' },
-      { id: (ws as Record<string, unknown>).id as string, name: (ws as Record<string, unknown>).name as string },
+      {
+        id: (ws as Record<string, unknown>).id as string,
+        name: (ws as Record<string, unknown>).name as string,
+      },
     ];
 
     return { currentFolder, subfolders, files, breadcrumb, hasMore, nextCursor };
@@ -161,7 +175,12 @@ export class FolderService {
    * Get folder contents (subfolders + files).
    * RBAC: membership only (any role can view).
    */
-  async getFolderContents(userId: string, folderId: string, cursor: { name: string; id: string } | null, limit: number) {
+  async getFolderContents(
+    userId: string,
+    folderId: string,
+    cursor: { name: string; id: string } | null,
+    limit: number,
+  ) {
     const folder = await this.folderRepo.findByIdWithWorkspace(folderId, userId);
     if (!folder) throw new AppError(404, 'Folder not found or no access');
 
@@ -203,10 +222,12 @@ export class FolderService {
       hasMore = true;
       fileRows.pop();
     }
-    const files: (FileEntry & { driveEmail: string })[] = fileRows.map((r: Record<string, unknown>) => ({
-      ...mapFileRow(r),
-      driveEmail: (r.driveEmail as string) || '',
-    }));
+    const files: (FileEntry & { driveEmail: string })[] = fileRows.map(
+      (r: Record<string, unknown>) => ({
+        ...mapFileRow(r),
+        driveEmail: (r.driveEmail as string) || '',
+      }),
+    );
     let nextCursor: string | null = null;
     if (files.length > 0 && hasMore) {
       const lastFile = files[files.length - 1];
@@ -228,12 +249,15 @@ export class FolderService {
    * Create a folder or workspace. If no parentId: create workspace.
    * RBAC: membership only (any member can create folders — preserves current behavior).
    */
-  async createFolderOrWorkspace(userId: string, params: {
-    name: string;
-    parentId?: string | null;
-    icon?: string;
-    color?: string;
-  }): Promise<{ id: string; name: string; parentId: string | null }> {
+  async createFolderOrWorkspace(
+    userId: string,
+    params: {
+      name: string;
+      parentId?: string | null;
+      icon?: string;
+      color?: string;
+    },
+  ): Promise<{ id: string; name: string; parentId: string | null }> {
     const { name, parentId, icon, color } = params;
 
     if (!parentId) {
@@ -271,12 +295,16 @@ export class FolderService {
    * Update a folder or workspace.
    * RBAC: owner (workspace) / membership (folder — preserves current behavior).
    */
-  async updateFolderOrWorkspace(userId: string, folderId: string, params: {
-    name?: string;
-    parentId?: string | null;
-    icon?: string;
-    color?: string;
-  }): Promise<void> {
+  async updateFolderOrWorkspace(
+    userId: string,
+    folderId: string,
+    params: {
+      name?: string;
+      parentId?: string | null;
+      icon?: string;
+      color?: string;
+    },
+  ): Promise<void> {
     // Check if it's a workspace (owner check)
     const ws = await this.workspaceRepo.findByIdAndOwner(folderId, userId);
     if (ws) {

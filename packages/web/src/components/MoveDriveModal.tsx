@@ -1,6 +1,13 @@
 import { useState } from 'react';
 import { HardDrive, LoaderCircle } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogDescription } from './ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogBody,
+  DialogTitle,
+  DialogDescription,
+} from './ui/dialog';
 import { useDrives } from '../hooks/useDrives';
 import { useMoveFileToDrive } from '../hooks/useFileMutations';
 import type { FileEntry, DriveAccount } from '../types';
@@ -21,9 +28,8 @@ export function MoveDriveModal({ files, onClose, onSuccess }: MoveDriveModalProp
   const [isMoving, setIsMoving] = useState(false);
   const [movingToDriveId, setMovingToDriveId] = useState<string | null>(null);
 
-  const availableDrives = files.length === 1
-    ? drives.filter(d => d.id !== files[0].driveAccountId)
-    : drives;
+  const availableDrives =
+    files.length === 1 ? drives.filter((d) => d.id !== files[0].driveAccountId) : drives;
 
   const handleMove = async (drive: DriveAccount) => {
     if (files.length === 0) return;
@@ -66,7 +72,8 @@ export function MoveDriveModal({ files, onClose, onSuccess }: MoveDriveModalProp
         <DialogHeader icon={<HardDrive size={20} className="text-primary" />}>
           <DialogTitle>Move to Another Drive</DialogTitle>
           <DialogDescription className="text-xs text-slate-500 mt-1">
-            Select a destination drive to move {files.length} item(s). This may take a moment depending on the file size.
+            Select a destination drive to move {files.length} item(s). This may take a moment
+            depending on the file size.
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
@@ -76,7 +83,7 @@ export function MoveDriveModal({ files, onClose, onSuccess }: MoveDriveModalProp
                 No other drives available. Please connect another Google Drive account.
               </p>
             ) : (
-              availableDrives.map(drive => (
+              availableDrives.map((drive) => (
                 // eslint-disable-next-line no-restricted-syntax -- drive picker card (custom layout, not an action button)
                 <button
                   key={drive.id}
@@ -96,12 +103,8 @@ export function MoveDriveModal({ files, onClose, onSuccess }: MoveDriveModalProp
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-800 truncate">
-                      {drive.email}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {formatFileSize(drive.freeSpace)} free
-                    </p>
+                    <p className="text-sm font-medium text-slate-800 truncate">{drive.email}</p>
+                    <p className="text-xs text-slate-500">{formatFileSize(drive.freeSpace)} free</p>
                   </div>
                 </button>
               ))

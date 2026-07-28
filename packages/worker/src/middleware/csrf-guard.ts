@@ -2,11 +2,7 @@ import { createMiddleware } from 'hono/factory';
 
 const SAFE_METHODS = ['GET', 'HEAD', 'OPTIONS'];
 
-const CSRF_EXEMPT_PATHS = [
-  '/api/auth/google/callback',
-  '/api/auth/login',
-  '/api/auth/register',
-];
+const CSRF_EXEMPT_PATHS = ['/api/auth/google/callback', '/api/auth/login', '/api/auth/register'];
 
 function isPublicSharedEndpoint(method: string, path: string): boolean {
   const sharedMatch = path.match(/^\/api\/shared\/[^/]+/);

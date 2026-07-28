@@ -60,14 +60,14 @@ describe('UploadRouter', () => {
   it('throws if preferred is full and no drive fits', () => {
     const router = new UploadRouter(mockDrives);
     expect(() => router.selectDriveForUpload(700, 'drive1')).toThrowError(
-      'Insufficient overall quota for this file'
+      'Insufficient overall quota for this file',
     );
   });
 
   it('throws if all drives are full', () => {
     const router = new UploadRouter(mockDrives);
     expect(() => router.selectDriveForUpload(700)).toThrowError(
-      'Insufficient overall quota for this file'
+      'Insufficient overall quota for this file',
     );
   });
 });

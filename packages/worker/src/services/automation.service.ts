@@ -16,7 +16,6 @@ export const IS_TRASHED = 1;
 
 export const BATCH_SIZE = 100;
 
-
 export interface AutomationFile {
   name: string;
   extension: string;
@@ -37,7 +36,7 @@ interface ParsedRule {
 
 export function evaluateCondition(file: AutomationFile, conditions: RuleCondition[]): boolean {
   if (!conditions || conditions.length === 0) return true;
-  
+
   // Compute extension if missing
   const evalFile = { ...file };
   if (!evalFile.extension && evalFile.name) {
@@ -45,16 +44,20 @@ export function evaluateCondition(file: AutomationFile, conditions: RuleConditio
     evalFile.extension = parts.length > 1 ? (parts.pop() || '').toLowerCase() : '';
   }
 
-  return conditions.every(cond => {
+  return conditions.every((cond) => {
     const rawFieldValue = evalFile[cond.field];
     const value = rawFieldValue != null ? String(rawFieldValue).toLowerCase() : '';
     const target = cond.value != null ? String(cond.value).toLowerCase() : '';
-    
+
     switch (cond.operator) {
-      case 'endswith': return value.endsWith(target);
-      case 'contains': return value.includes(target);
-      case 'equals': return value === target;
-      default: return false;
+      case 'endswith':
+        return value.endsWith(target);
+      case 'contains':
+        return value.includes(target);
+      case 'equals':
+        return value === target;
+      default:
+        return false;
     }
   });
 }
@@ -67,7 +70,7 @@ function parseRule(row: Record<string, unknown>): ParsedRule | null {
       id: row.id as string,
       userId: row.user_id as string,
       conditions,
-      actions
+      actions,
     };
   } catch {
     return null; // Skip malformed rules
@@ -75,13 +78,19 @@ function parseRule(row: Record<string, unknown>): ParsedRule | null {
 }
 
 export class AutomationEngine {
-  constructor(private env: Env, private driveService: GoogleDriveService) {}
+  constructor(
+    private env: Env,
+    private driveService: GoogleDriveService,
+  ) {}
 
   async processEventTrigger(file: DbFile, ctx: ExecutionContext) {
     const db = this.env.DB;
-    const { results } = await db.prepare(
-      `SELECT * FROM automation_rules WHERE trigger_type = ? AND is_active = ? AND user_id = ?`
-    ).bind(TRIGGER_EVENT, IS_ACTIVE, file.user_id).all();
+    const { results } = await db
+      .prepare(
+        `SELECT * FROM automation_rules WHERE trigger_type = ? AND is_active = ? AND user_id = ?`,
+      )
+      .bind(TRIGGER_EVENT, IS_ACTIVE, file.user_id)
+      .all();
 
     for (const row of results) {
       const rule = parseRule(row as Record<string, unknown>);
@@ -93,10 +102,11 @@ export class AutomationEngine {
 
   async processCronTrigger(ctx: ExecutionContext) {
     const db = this.env.DB;
-    const { results } = await db.prepare(
-      `SELECT * FROM automation_rules WHERE trigger_type = ? AND is_active = ?`
-    ).bind(TRIGGER_CRON, IS_ACTIVE).all();
-    
+    const { results } = await db
+      .prepare(`SELECT * FROM automation_rules WHERE trigger_type = ? AND is_active = ?`)
+      .bind(TRIGGER_CRON, IS_ACTIVE)
+      .all();
+
     // Group rules by user_id
     const rulesByUser = new Map<string, ParsedRule[]>();
     for (const row of results) {
@@ -107,7 +117,6 @@ export class AutomationEngine {
         rulesByUser.set(rule.userId, userRules);
       }
     }
-
 
     for (const [userId, rules] of rulesByUser.entries()) {
       let cursor: { name: string; id: string } | null = null;
@@ -123,7 +132,10 @@ export class AutomationEngine {
         sql += ` ORDER BY name ASC, id ASC LIMIT ?`;
         binds.push(BATCH_SIZE);
 
-        const { results: files } = await db.prepare(sql).bind(...binds).all();
+        const { results: files } = await db
+          .prepare(sql)
+          .bind(...binds)
+          .all();
 
         if (files.length === 0) {
           break;
@@ -150,36 +162,45 @@ export class AutomationEngine {
   private async executeActions(ruleId: string, file: DbFile, actions: RuleAction[]) {
     try {
       const stmts: D1PreparedStatement[] = [];
-      
+
       for (const action of actions) {
-        const targetFolderId = action.targetFolderId ?? (action as RuleAction & { target_folder_id?: string }).target_folder_id;
-        
+        const targetFolderId =
+          action.targetFolderId ??
+          (action as RuleAction & { target_folder_id?: string }).target_folder_id;
+
         if (action.type === ACTION_MOVE && targetFolderId) {
           stmts.push(
-            this.env.DB.prepare('UPDATE files SET workspace_folder_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-              .bind(targetFolderId as string, file.id)
+            this.env.DB.prepare(
+              'UPDATE files SET workspace_folder_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+            ).bind(targetFolderId as string, file.id),
           );
         } else if (action.type === ACTION_DELETE) {
           // Call Google Drive API to trash the file so sync doesn't revert it.
           // If the API call fails, skip the D1 update — the file would reappear
           // on next sync anyway (Google says not trashed → UPSERT resets is_trashed=0).
           try {
-            await this.driveService.trashFile(file.drive_account_id as string, file.google_file_id as string);
+            await this.driveService.trashFile(
+              file.drive_account_id as string,
+              file.google_file_id as string,
+            );
           } catch (err) {
             logErrorNoCtx('Automation DELETE: Google API call failed', err, { fileId: file.id });
             continue;
           }
           stmts.push(
-            this.env.DB.prepare('UPDATE files SET is_trashed = ? WHERE id = ?')
-              .bind(IS_TRASHED, file.id)
+            this.env.DB.prepare('UPDATE files SET is_trashed = ? WHERE id = ?').bind(
+              IS_TRASHED,
+              file.id,
+            ),
           );
         }
       }
-      
+
       if (actions.length > 0) {
         stmts.push(
-          this.env.DB.prepare('INSERT INTO automation_logs (id, rule_id, status, details) VALUES (?, ?, ?, ?)')
-            .bind(generateId(), ruleId, 'success', JSON.stringify({ fileId: file.id }))
+          this.env.DB.prepare(
+            'INSERT INTO automation_logs (id, rule_id, status, details) VALUES (?, ?, ?, ?)',
+          ).bind(generateId(), ruleId, 'success', JSON.stringify({ fileId: file.id })),
         );
       }
 
@@ -188,8 +209,11 @@ export class AutomationEngine {
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      await this.env.DB.prepare('INSERT INTO automation_logs (id, rule_id, status, details) VALUES (?, ?, ?, ?)')
-        .bind(generateId(), ruleId, 'error', errorMessage).run();
+      await this.env.DB.prepare(
+        'INSERT INTO automation_logs (id, rule_id, status, details) VALUES (?, ?, ?, ?)',
+      )
+        .bind(generateId(), ruleId, 'error', errorMessage)
+        .run();
     }
   }
 }

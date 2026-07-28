@@ -70,7 +70,7 @@ async function makeApp(state: DbState) {
         headers: { 'Content-Type': 'application/json', Cookie: `omnidrive_sid=${SESSION_ID}` },
         body: JSON.stringify(body),
       },
-      env as any
+      env as any,
     );
   return { call, state };
 }

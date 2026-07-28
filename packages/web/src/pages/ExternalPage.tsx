@@ -42,7 +42,15 @@ export function ExternalPage() {
   const externalInfinite = useInfiniteQuery<
     { files: FileEntry[]; folders: DriveFolder[]; hasMore: boolean; nextCursor: string | null },
     Error,
-    { pages: { files: FileEntry[]; folders: DriveFolder[]; hasMore: boolean; nextCursor: string | null }[]; pageParams: (string | undefined)[] },
+    {
+      pages: {
+        files: FileEntry[];
+        folders: DriveFolder[];
+        hasMore: boolean;
+        nextCursor: string | null;
+      }[];
+      pageParams: (string | undefined)[];
+    },
     readonly ['external'],
     string | undefined
   >({
@@ -77,7 +85,7 @@ export function ExternalPage() {
     ? (externalInfinite.data?.pages[0]?.folders ?? [])
     : (folderQuery.data?.subfolders ?? []);
   const files: FileEntry[] = isTopLevel
-    ? (externalInfinite.data?.pages.flatMap(p => p.files) ?? [])
+    ? (externalInfinite.data?.pages.flatMap((p) => p.files) ?? [])
     : (folderQuery.data?.files ?? []);
   const breadcrumb: BreadcrumbItem[] = isTopLevel
     ? [{ id: 'root', name: 'My External Items' }]
@@ -85,8 +93,12 @@ export function ExternalPage() {
   const isLoading = isTopLevel ? externalInfinite.isLoading : folderQuery.isLoading;
   const hasMore = isTopLevel ? externalInfinite.hasNextPage : false;
 
-  const filteredSubfolders = subfolders.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()));
-  const filteredFiles = files.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredSubfolders = subfolders.filter((f) =>
+    f.name.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
+  const filteredFiles = files.filter((f) =>
+    f.name.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
 
   const refresh = useCallback(() => {
     // Invalidate both top-level and folder queries — ExternalPage uses either
@@ -109,9 +121,13 @@ export function ExternalPage() {
       <BulkActionBar
         onActionComplete={() => refresh()}
         onMoveRequested={() => itemModals.setMoveTarget(selectedItems)}
-        onWorkspaceRequested={() => itemModals.setWorkspaceTarget(selectedItems[0].item as FileEntry)}
+        onWorkspaceRequested={() =>
+          itemModals.setWorkspaceTarget(selectedItems[0].item as FileEntry)
+        }
         onMoveDriveRequested={() => {
-          const fileItems = selectedItems.filter(i => i.type === 'file').map(i => i.item as FileEntry);
+          const fileItems = selectedItems
+            .filter((i) => i.type === 'file')
+            .map((i) => i.item as FileEntry);
           itemModals.setMoveDriveFiles(fileItems);
         }}
       />
@@ -192,14 +208,17 @@ export function ExternalPage() {
                 isTargetShared={isTargetShared}
                 errorDrives={new Set<string>()}
                 actions={{
-                  onNavigateFolder: (id: string, driveId: string) => navigate(`/external/${id}?driveId=${driveId}`),
+                  onNavigateFolder: (id: string, driveId: string) =>
+                    navigate(`/external/${id}?driveId=${driveId}`),
                   onPreviewFile: itemModals.setPreviewFile,
-                  onShare: (id: string, type: 'file' | 'folder') => itemModals.setShareTarget({ id, type }),
+                  onShare: (id: string, type: 'file' | 'folder') =>
+                    itemModals.setShareTarget({ id, type }),
                   onRenameFileRequest: itemModals.handleRenameFileRequest,
                   onRenameFolderRequest: itemModals.handleRenameFolderRequest,
                   onDeleteFile: itemModals.handleDeleteFile,
                   onDeleteFolder: itemModals.handleDeleteFolder,
-                  onDownloadFolder: (driveId: string, folderId: string, name: string) => itemModals.setFolderDownloadTarget({ driveId, folderId, name }),
+                  onDownloadFolder: (driveId: string, folderId: string, name: string) =>
+                    itemModals.setFolderDownloadTarget({ driveId, folderId, name }),
                   onMove: (items: SelectedItem[]) => itemModals.setMoveTarget(items),
                   onViewInfo: itemModals.handleViewInfo,
                   onToggleStar: itemModals.toggleStar,
@@ -227,7 +246,11 @@ export function ExternalPage() {
       </div>
 
       {/* Shared file/folder modals (preview, share, rename, delete, move, etc.) */}
-      <ItemModals modals={itemModals} driveId={driveIdParam || drives[0]?.id || ''} onRefresh={refresh} />
+      <ItemModals
+        modals={itemModals}
+        driveId={driveIdParam || drives[0]?.id || ''}
+        onRefresh={refresh}
+      />
     </div>
   );
 }

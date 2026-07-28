@@ -16,33 +16,36 @@ export const SidebarStorage: React.FC = () => {
 
   useEffect(() => {
     if (aggregate && aggregate.totalQuota > 0) {
-      api.getFileCategoryOverview().then((res) => {
-        const allCategories = [
-          { name: 'Images', value: res.images, color: '#ef4444' },      // red
-          { name: 'Videos', value: res.videos, color: '#f59e0b' },      // yellow
-          { name: 'Documents', value: res.documents, color: '#2563EB' }, // blue
-          { name: 'Audio', value: res.audio, color: '#10b981' },        // green
-          { name: 'Archives', value: res.archives, color: '#6366f1' },  // indigo
-        ];
-        
-        const sorted = allCategories.filter(c => c.value > 0).sort((a, b) => b.value - a.value);
-        
-        let displayCategories: CategoryData[];
-        let othersValue = res.others || 0;
+      api
+        .getFileCategoryOverview()
+        .then((res) => {
+          const allCategories = [
+            { name: 'Images', value: res.images, color: '#ef4444' }, // red
+            { name: 'Videos', value: res.videos, color: '#f59e0b' }, // yellow
+            { name: 'Documents', value: res.documents, color: '#2563EB' }, // blue
+            { name: 'Audio', value: res.audio, color: '#10b981' }, // green
+            { name: 'Archives', value: res.archives, color: '#6366f1' }, // indigo
+          ];
 
-        if (sorted.length > 3) {
-          displayCategories = sorted.slice(0, 3);
-          othersValue += sorted.slice(3).reduce((sum, item) => sum + item.value, 0);
-        } else {
-          displayCategories = sorted;
-        }
+          const sorted = allCategories.filter((c) => c.value > 0).sort((a, b) => b.value - a.value);
 
-        if (othersValue > 0) {
-          displayCategories.push({ name: 'Others', value: othersValue, color: '#cbd5e1' }); // gray
-        }
-        
-        setData(displayCategories);
-      }).catch(console.error);
+          let displayCategories: CategoryData[];
+          let othersValue = res.others || 0;
+
+          if (sorted.length > 3) {
+            displayCategories = sorted.slice(0, 3);
+            othersValue += sorted.slice(3).reduce((sum, item) => sum + item.value, 0);
+          } else {
+            displayCategories = sorted;
+          }
+
+          if (othersValue > 0) {
+            displayCategories.push({ name: 'Others', value: othersValue, color: '#cbd5e1' }); // gray
+          }
+
+          setData(displayCategories);
+        })
+        .catch(console.error);
     }
   }, [aggregate]);
 
@@ -88,9 +91,7 @@ export const SidebarStorage: React.FC = () => {
       <div className="mb-3">
         <div className="flex justify-between text-xs mb-1">
           <span className="font-medium text-slate-700">Storage</span>
-          <span className="text-slate-500">
-            {totalPct.toFixed(1)}%
-          </span>
+          <span className="text-slate-500">{totalPct.toFixed(1)}%</span>
         </div>
         <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden mb-1">
           <div

@@ -16,7 +16,7 @@ describe('Header', () => {
     render(
       <MemoryRouter>
         <Header />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
     expect(screen.getByAltText('OmniDrive')).toBeDefined();
   });

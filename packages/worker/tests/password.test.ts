@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { hashPassword, verifyPassword, hashSharedPassword, verifySharedPassword } from '../src/lib/password';
+import {
+  hashPassword,
+  verifyPassword,
+  hashSharedPassword,
+  verifySharedPassword,
+} from '../src/lib/password';
 
 describe('password hashing (user accounts)', () => {
   it('hashPassword returns a pbkdf2-formatted string with 4 colon-separated parts', async () => {

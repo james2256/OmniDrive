@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { parseStorageQuota, computeDriveQuota, UNLIMITED_DRIVE_QUOTA_BYTES } from '../src/lib/storage-quota';
+import {
+  parseStorageQuota,
+  computeDriveQuota,
+  UNLIMITED_DRIVE_QUOTA_BYTES,
+} from '../src/lib/storage-quota';
 
 describe('parseStorageQuota', () => {
   it('parses limited quota from Google response', () => {
@@ -56,7 +60,12 @@ describe('computeDriveQuota', () => {
   it('quotaOverride wins over live limit and signals hasLimit=true', () => {
     // Google Workspace 5 TiB pool: Google omits limit, user sets override to 5 TiB
     const fiveTib = 5 * 1024 ** 4;
-    expect(computeDriveQuota({ totalQuota: 0, usedQuota: 0, quotaOverride: fiveTib }, { total: UNLIMITED_DRIVE_QUOTA_BYTES, used: 200 })).toEqual({
+    expect(
+      computeDriveQuota(
+        { totalQuota: 0, usedQuota: 0, quotaOverride: fiveTib },
+        { total: UNLIMITED_DRIVE_QUOTA_BYTES, used: 200 },
+      ),
+    ).toEqual({
       totalQuota: fiveTib,
       usedQuota: 200,
       freeSpace: fiveTib - 200,
@@ -69,7 +78,9 @@ describe('computeDriveQuota', () => {
     // Caller passes total: 0 when Google did not report a limit.
     // stored.totalQuota is used for display (freeSpace/usagePercent) but
     // hasLimit=false so the UI shows "Pooled storage" instead of a progress bar.
-    expect(computeDriveQuota({ totalQuota: 5000, usedQuota: 1000 }, { total: 0, used: 1000 })).toEqual({
+    expect(
+      computeDriveQuota({ totalQuota: 5000, usedQuota: 1000 }, { total: 0, used: 1000 }),
+    ).toEqual({
       totalQuota: 5000,
       usedQuota: 1000,
       freeSpace: 4000,

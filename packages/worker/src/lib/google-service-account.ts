@@ -61,12 +61,14 @@ async function importPrivateKey(pem: string): Promise<CryptoKey> {
     pemToPkcs8(pem),
     { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
     false,
-    ['sign']
+    ['sign'],
   );
 }
 
 async function createSignedJwt(clientEmail: string, privateKey: string): Promise<string> {
-  const header = base64UrlEncode(new TextEncoder().encode(JSON.stringify({ alg: 'RS256', typ: 'JWT' })));
+  const header = base64UrlEncode(
+    new TextEncoder().encode(JSON.stringify({ alg: 'RS256', typ: 'JWT' })),
+  );
   const now = Math.floor(Date.now() / 1000);
   const payload = base64UrlEncode(
     new TextEncoder().encode(
@@ -76,8 +78,8 @@ async function createSignedJwt(clientEmail: string, privateKey: string): Promise
         aud: TOKEN_URL,
         iat: now,
         exp: now + 3600,
-      })
-    )
+      }),
+    ),
   );
 
   const signingInput = `${header}.${payload}`;
@@ -85,14 +87,14 @@ async function createSignedJwt(clientEmail: string, privateKey: string): Promise
   const signature = await crypto.subtle.sign(
     'RSASSA-PKCS1-v1_5',
     key,
-    new TextEncoder().encode(signingInput)
+    new TextEncoder().encode(signingInput),
   );
 
   return `${signingInput}.${base64UrlEncode(new Uint8Array(signature))}`;
 }
 
 export async function fetchServiceAccountAccessToken(
-  credentials: ServiceAccountKey
+  credentials: ServiceAccountKey,
 ): Promise<{ accessToken: string; expiresAt: number }> {
   const assertion = await createSignedJwt(credentials.clientEmail, credentials.privateKey);
 
@@ -118,16 +120,16 @@ export async function fetchServiceAccountAccessToken(
 
 export async function verifySharedFolderAccess(
   accessToken: string,
-  folderId: string
+  folderId: string,
 ): Promise<{ id: string; name: string }> {
   const response = await fetch(
     `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(folderId)}?fields=id,name`,
-    { headers: { Authorization: `Bearer ${accessToken}` } }
+    { headers: { Authorization: `Bearer ${accessToken}` } },
   );
 
   if (!response.ok) {
     throw new Error(
-      'Cannot access shared folder. Share the folder with the service account email and verify the folder ID.'
+      'Cannot access shared folder. Share the folder with the service account email and verify the folder ID.',
     );
   }
 

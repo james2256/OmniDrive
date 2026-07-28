@@ -41,7 +41,10 @@ export interface UseItemModalsResult {
   handleRenameFileRequest: (fileId: string, currentName: string) => void;
   handleRenameFolderRequest: (driveId: string, folderId: string, currentName: string) => void;
   handleRenameConfirm: (newName: string) => Promise<void>;
-  handleViewInfo: (item: FileEntry | DriveFolder | WorkspaceFolder, type: 'file' | 'folder') => void;
+  handleViewInfo: (
+    item: FileEntry | DriveFolder | WorkspaceFolder,
+    type: 'file' | 'folder',
+  ) => void;
   // Confirm handlers (called by ConfirmDialog onConfirm)
   confirmFileDeleteAsync: () => Promise<void>;
   confirmFolderDeleteAsync: () => Promise<void>;
@@ -76,14 +79,26 @@ export function useItemModals(options: UseItemModalsOptions = {}): UseItemModals
   const { setIsInfoPanelOpen } = useUIStore();
 
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
-  const [shareTarget, setShareTarget] = useState<{ id: string; type: 'file' | 'folder' } | null>(null);
+  const [shareTarget, setShareTarget] = useState<{ id: string; type: 'file' | 'folder' } | null>(
+    null,
+  );
   const [moveDriveFiles, setMoveDriveFiles] = useState<FileEntry[]>([]);
   const [moveTarget, setMoveTarget] = useState<SelectedItem[]>([]);
-  const [folderDownloadTarget, setFolderDownloadTarget] = useState<{ driveId: string; folderId: string; name: string } | null>(null);
+  const [folderDownloadTarget, setFolderDownloadTarget] = useState<{
+    driveId: string;
+    folderId: string;
+    name: string;
+  } | null>(null);
   const [workspaceTarget, setWorkspaceTarget] = useState<FileEntry | null>(null);
   const [renameTarget, setRenameTarget] = useState<RenameTarget>(null);
-  const [confirmFileDelete, setConfirmFileDelete] = useState<{ id: string; name: string } | null>(null);
-  const [confirmFolderDelete, setConfirmFolderDelete] = useState<{ id: string; name: string; driveId: string } | null>(null);
+  const [confirmFileDelete, setConfirmFileDelete] = useState<{ id: string; name: string } | null>(
+    null,
+  );
+  const [confirmFolderDelete, setConfirmFolderDelete] = useState<{
+    id: string;
+    name: string;
+    driveId: string;
+  } | null>(null);
 
   const deleteFileMut = useDeleteFile();
   const renameFileMut = useRenameFile();
@@ -91,44 +106,60 @@ export function useItemModals(options: UseItemModalsOptions = {}): UseItemModals
   const renameDriveFolderMut = useRenameDriveFolder();
   const toggleStar = useToggleStar();
 
-  const handleDeleteFile = useCallback((id: string, name?: string) => {
-    const resolvedName = name ?? files.find((f) => f.id === id)?.name ?? 'this file';
-    setConfirmFileDelete({ id, name: resolvedName });
-  }, [files]);
+  const handleDeleteFile = useCallback(
+    (id: string, name?: string) => {
+      const resolvedName = name ?? files.find((f) => f.id === id)?.name ?? 'this file';
+      setConfirmFileDelete({ id, name: resolvedName });
+    },
+    [files],
+  );
 
-  const handleDeleteFolder = useCallback((driveId: string, folderId: string, name?: string) => {
-    const resolvedName = name ?? allFolders.find((f) => getFolderIdentifier(f) === folderId)?.name ?? 'this folder';
-    setConfirmFolderDelete({ id: folderId, name: resolvedName, driveId });
-  }, [allFolders]);
+  const handleDeleteFolder = useCallback(
+    (driveId: string, folderId: string, name?: string) => {
+      const resolvedName =
+        name ?? allFolders.find((f) => getFolderIdentifier(f) === folderId)?.name ?? 'this folder';
+      setConfirmFolderDelete({ id: folderId, name: resolvedName, driveId });
+    },
+    [allFolders],
+  );
 
   const handleRenameFileRequest = useCallback((fileId: string, currentName: string) => {
     setRenameTarget({ kind: 'file', id: fileId, currentName });
   }, []);
 
-  const handleRenameFolderRequest = useCallback((driveId: string, folderId: string, currentName: string) => {
-    setRenameTarget({ kind: 'folder', driveId, folderId, currentName });
-  }, []);
+  const handleRenameFolderRequest = useCallback(
+    (driveId: string, folderId: string, currentName: string) => {
+      setRenameTarget({ kind: 'folder', driveId, folderId, currentName });
+    },
+    [],
+  );
 
-  const handleRenameConfirm = useCallback(async (newName: string) => {
-    if (!renameTarget) return;
-    if (renameTarget.kind === 'file') {
-      await renameFileMut.mutateAsync({ fileId: renameTarget.id, name: newName });
-    } else {
-      await renameDriveFolderMut.mutateAsync({
-        driveId: renameTarget.driveId,
-        folderId: renameTarget.folderId,
-        name: newName,
-      });
-    }
-    setRenameTarget(null);
-    onRefresh?.();
-  }, [renameTarget, renameFileMut, renameDriveFolderMut, onRefresh]);
+  const handleRenameConfirm = useCallback(
+    async (newName: string) => {
+      if (!renameTarget) return;
+      if (renameTarget.kind === 'file') {
+        await renameFileMut.mutateAsync({ fileId: renameTarget.id, name: newName });
+      } else {
+        await renameDriveFolderMut.mutateAsync({
+          driveId: renameTarget.driveId,
+          folderId: renameTarget.folderId,
+          name: newName,
+        });
+      }
+      setRenameTarget(null);
+      onRefresh?.();
+    },
+    [renameTarget, renameFileMut, renameDriveFolderMut, onRefresh],
+  );
 
-  const handleViewInfo = useCallback((item: FileEntry | DriveFolder | WorkspaceFolder, type: 'file' | 'folder') => {
-    clearSelection();
-    toggleSelection({ type, item } as SelectedItem);
-    setIsInfoPanelOpen(true);
-  }, [clearSelection, toggleSelection, setIsInfoPanelOpen]);
+  const handleViewInfo = useCallback(
+    (item: FileEntry | DriveFolder | WorkspaceFolder, type: 'file' | 'folder') => {
+      clearSelection();
+      toggleSelection({ type, item } as SelectedItem);
+      setIsInfoPanelOpen(true);
+    },
+    [clearSelection, toggleSelection, setIsInfoPanelOpen],
+  );
 
   const confirmFileDeleteAsync = useCallback(async () => {
     if (!confirmFileDelete) return;
@@ -148,17 +179,32 @@ export function useItemModals(options: UseItemModalsOptions = {}): UseItemModals
   }, [confirmFolderDelete, deleteDriveFolderMut, onRefresh]);
 
   return {
-    previewFile, shareTarget, moveDriveFiles, moveTarget, folderDownloadTarget,
-    workspaceTarget, renameTarget, confirmFileDelete, confirmFolderDelete,
+    previewFile,
+    shareTarget,
+    moveDriveFiles,
+    moveTarget,
+    folderDownloadTarget,
+    workspaceTarget,
+    renameTarget,
+    confirmFileDelete,
+    confirmFolderDelete,
     isRenaming: renameFileMut.isPending || renameDriveFolderMut.isPending,
     isDeletingFile: deleteFileMut.isPending,
     isDeletingFolder: deleteDriveFolderMut.isPending,
-    handleDeleteFile, handleDeleteFolder,
-    handleRenameFileRequest, handleRenameFolderRequest, handleRenameConfirm,
+    handleDeleteFile,
+    handleDeleteFolder,
+    handleRenameFileRequest,
+    handleRenameFolderRequest,
+    handleRenameConfirm,
     handleViewInfo,
-    confirmFileDeleteAsync, confirmFolderDeleteAsync,
-    setPreviewFile, setShareTarget, setMoveDriveFiles, setMoveTarget,
-    setFolderDownloadTarget, setWorkspaceTarget,
+    confirmFileDeleteAsync,
+    confirmFolderDeleteAsync,
+    setPreviewFile,
+    setShareTarget,
+    setMoveDriveFiles,
+    setMoveTarget,
+    setFolderDownloadTarget,
+    setWorkspaceTarget,
     closeRename: () => setRenameTarget(null),
     closeFileDelete: () => setConfirmFileDelete(null),
     closeFolderDelete: () => setConfirmFolderDelete(null),

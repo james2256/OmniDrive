@@ -46,8 +46,13 @@ function mockContext(db: D1Database, cookie: string | undefined): AppContext {
 // Wrap a better-sqlite3 DB in the minimal D1-shaped interface authGuard uses
 function wrapSqlite(db: Database.Database): D1Database {
   const makeExecutor = (sql: string, binds: unknown[] = []) => ({
-    all: () => ({ results: binds.length ? db.prepare(sql).all(...binds) : db.prepare(sql).all(), success: true, meta: { changes: 0 } }),
-    first: <T = unknown>() => (binds.length ? db.prepare(sql).get(...binds) : db.prepare(sql).get()) as T | null,
+    all: () => ({
+      results: binds.length ? db.prepare(sql).all(...binds) : db.prepare(sql).all(),
+      success: true,
+      meta: { changes: 0 },
+    }),
+    first: <T = unknown>() =>
+      (binds.length ? db.prepare(sql).get(...binds) : db.prepare(sql).get()) as T | null,
     run: () => {
       const info = binds.length ? db.prepare(sql).run(...binds) : db.prepare(sql).run();
       return { success: true, meta: { changes: info.changes } };
@@ -63,7 +68,10 @@ describe('authGuard', () => {
     const c = mockContext(db, undefined);
 
     await expect(authGuard(c, () => Promise.resolve())).rejects.toThrow(AppError);
-    await expect(authGuard(c, () => Promise.resolve())).rejects.toMatchObject({ status: 401, message: 'Not authenticated' });
+    await expect(authGuard(c, () => Promise.resolve())).rejects.toMatchObject({
+      status: 401,
+      message: 'Not authenticated',
+    });
   });
 
   it('throws 401 when session does not exist', async () => {
@@ -71,44 +79,68 @@ describe('authGuard', () => {
     const db = wrapSqlite(rawDb);
     const c = mockContext(db, 'nonexistent-session');
 
-    await expect(authGuard(c, () => Promise.resolve())).rejects.toMatchObject({ status: 401, message: 'Session expired' });
+    await expect(authGuard(c, () => Promise.resolve())).rejects.toMatchObject({
+      status: 401,
+      message: 'Session expired',
+    });
     rawDb.close();
   });
 
   it('throws 401 and deletes session when expired', async () => {
     const rawDb = createDb();
-    rawDb.prepare('INSERT INTO sessions (id, data, expires_at, touched_at) VALUES (?, ?, ?, ?)')
+    rawDb
+      .prepare('INSERT INTO sessions (id, data, expires_at, touched_at) VALUES (?, ?, ?, ?)')
       .run('sess-1', JSON.stringify({ userId: 'u1' }), Date.now() - 1000, Date.now() - 1000);
     const db = wrapSqlite(rawDb);
     const c = mockContext(db, 'sess-1');
 
-    await expect(authGuard(c, () => Promise.resolve())).rejects.toMatchObject({ status: 401, message: 'Session expired' });
+    await expect(authGuard(c, () => Promise.resolve())).rejects.toMatchObject({
+      status: 401,
+      message: 'Session expired',
+    });
 
     // Session should be deleted
-    const row = rawDb.prepare('SELECT COUNT(*) as count FROM sessions WHERE id = ?').get('sess-1') as { count: number };
+    const row = rawDb
+      .prepare('SELECT COUNT(*) as count FROM sessions WHERE id = ?')
+      .get('sess-1') as { count: number };
     expect(row.count).toBe(0);
     rawDb.close();
   });
 
   it('throws 401 and deletes session when JSON is corrupted (self-heal)', async () => {
     const rawDb = createDb();
-    rawDb.prepare('INSERT INTO sessions (id, data, expires_at, touched_at) VALUES (?, ?, ?, ?)')
+    rawDb
+      .prepare('INSERT INTO sessions (id, data, expires_at, touched_at) VALUES (?, ?, ?, ?)')
       .run('sess-corrupt', '{"userId":"u1" BAD JSON', Date.now() + 10000, Date.now() - 2000);
     const db = wrapSqlite(rawDb);
     const c = mockContext(db, 'sess-corrupt');
 
-    await expect(authGuard(c, () => Promise.resolve())).rejects.toMatchObject({ status: 401, message: 'Session expired' });
+    await expect(authGuard(c, () => Promise.resolve())).rejects.toMatchObject({
+      status: 401,
+      message: 'Session expired',
+    });
 
     // Corrupted session should be deleted (self-heal)
-    const row = rawDb.prepare('SELECT COUNT(*) as count FROM sessions WHERE id = ?').get('sess-corrupt') as { count: number };
+    const row = rawDb
+      .prepare('SELECT COUNT(*) as count FROM sessions WHERE id = ?')
+      .get('sess-corrupt') as { count: number };
     expect(row.count).toBe(0);
     rawDb.close();
   });
 
   it('sets userId and session on context when valid', async () => {
     const rawDb = createDb();
-    const sessionData = { userId: 'u1', username: 'alice', email: null, name: 'Alice', avatarUrl: null, role: 'member' as const, createdAt: Date.now() };
-    rawDb.prepare('INSERT INTO sessions (id, data, expires_at, touched_at) VALUES (?, ?, ?, ?)')
+    const sessionData = {
+      userId: 'u1',
+      username: 'alice',
+      email: null,
+      name: 'Alice',
+      avatarUrl: null,
+      role: 'member' as const,
+      createdAt: Date.now(),
+    };
+    rawDb
+      .prepare('INSERT INTO sessions (id, data, expires_at, touched_at) VALUES (?, ?, ?, ?)')
       .run('sess-valid', JSON.stringify(sessionData), Date.now() + 10000, Date.now() - 2000);
     const db = wrapSqlite(rawDb);
     const c = mockContext(db, 'sess-valid');

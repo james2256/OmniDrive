@@ -21,9 +21,11 @@ export function WorkspacesPage() {
   const [subfolders, setSubfolders] = useState<WorkspaceFolder[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [retentionTargetId, setRetentionTargetId] = useState<string | null>(null);
-  const [createModal, setCreateModal] = useState<{ parentId: string | null; title: string } | null>(null);
-  const addToast = useToastStore(state => state.addToast);
-  const clearSelection = useSelectionStore(s => s.clearSelection);
+  const [createModal, setCreateModal] = useState<{ parentId: string | null; title: string } | null>(
+    null,
+  );
+  const addToast = useToastStore((state) => state.addToast);
+  const clearSelection = useSelectionStore((s) => s.clearSelection);
   const { data: drivesData } = useDrives();
   const drives = drivesData?.drives ?? [];
   const [wsSidebarOpen, setWsSidebarOpen] = useState(false);
@@ -31,7 +33,9 @@ export function WorkspacesPage() {
   // distinct from file-item actions handled by useItemModals)
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [renameTarget, setRenameTarget] = useState<{ id: string; currentName: string } | null>(null);
+  const [renameTarget, setRenameTarget] = useState<{ id: string; currentName: string } | null>(
+    null,
+  );
   const [isRenaming, setIsRenaming] = useState(false);
 
   const fetchTree = useCallback(async () => {
@@ -43,17 +47,20 @@ export function WorkspacesPage() {
     }
   }, [addToast]);
 
-  const fetchContents = useCallback(async (folderId: string, isStale?: () => boolean) => {
-    try {
-      const res = await api.getFolderContents(folderId);
-      if (isStale?.()) return;
-      setFiles(res.files);
-      setSubfolders(res.subfolders);
-    } catch {
-      if (isStale?.()) return;
-      addToast('error', 'Failed to load folder contents');
-    }
-  }, [addToast]);
+  const fetchContents = useCallback(
+    async (folderId: string, isStale?: () => boolean) => {
+      try {
+        const res = await api.getFolderContents(folderId);
+        if (isStale?.()) return;
+        setFiles(res.files);
+        setSubfolders(res.subfolders);
+      } catch {
+        if (isStale?.()) return;
+        addToast('error', 'Failed to load folder contents');
+      }
+    },
+    [addToast],
+  );
 
   useEffect(() => {
     fetchTree();
@@ -68,7 +75,9 @@ export function WorkspacesPage() {
       setSubfolders([]);
     }
     clearSelection();
-    return () => { ignore = true; };
+    return () => {
+      ignore = true;
+    };
   }, [activeFolderId, clearSelection, fetchContents]);
 
   const refreshContents = useCallback(() => {
@@ -83,7 +92,7 @@ export function WorkspacesPage() {
   // ─── Sidebar workspace-folder actions (rename/delete workspace folders) ───
 
   const handleRename = (id: string) => {
-    const folder = folders.find(f => f.id === id);
+    const folder = folders.find((f) => f.id === id);
     if (!folder) return;
     setRenameTarget({ id, currentName: folder.name });
   };
@@ -137,14 +146,17 @@ export function WorkspacesPage() {
     }
   };
 
-  const activeFolder = useMemo(() => folders.find(f => f.id === activeFolderId) || null, [folders, activeFolderId]);
+  const activeFolder = useMemo(
+    () => folders.find((f) => f.id === activeFolderId) || null,
+    [folders, activeFolderId],
+  );
 
   const breadcrumbPath = useMemo(() => {
     const path: BreadcrumbItem[] = [];
     let current = activeFolder;
     while (current) {
       path.unshift({ id: current.id, name: current.name });
-      current = folders.find(f => f.id === current?.parentId) || null;
+      current = folders.find((f) => f.id === current?.parentId) || null;
     }
     return path;
   }, [activeFolder, folders]);
@@ -156,15 +168,18 @@ export function WorkspacesPage() {
 
   // Remove a file from the current workspace (non-destructive: moves to root).
   // Distinct from "Delete" (permanent) — both are available in the context menu.
-  const onRemoveFromWorkspace = useCallback(async (id: string) => {
-    try {
-      await api.moveFile(id, null);
-      addToast('success', 'Removed from workspace');
-      setFiles(prev => prev.filter(f => f.id !== id));
-    } catch {
-      addToast('error', 'Failed to remove from workspace');
-    }
-  }, [addToast]);
+  const onRemoveFromWorkspace = useCallback(
+    async (id: string) => {
+      try {
+        await api.moveFile(id, null);
+        addToast('success', 'Removed from workspace');
+        setFiles((prev) => prev.filter((f) => f.id !== id));
+      } catch {
+        addToast('error', 'Failed to remove from workspace');
+      }
+    },
+    [addToast],
+  );
 
   const handleSetRetentionPolicy = useCallback((id: string, type: 'file' | 'folder') => {
     if (type === 'folder') {
@@ -180,42 +195,60 @@ export function WorkspacesPage() {
     files,
   });
 
-  const fileTabProps = useMemo(() => ({
-    files,
-    subfolders,
-    getDriveInfo,
-    isTargetShared,
-    errorDrives,
-    actions: {
-      onNavigateFolder: setActiveFolderId,
-      onPreviewFile: itemModals.setPreviewFile,
-      onShare: (id: string, type: 'file' | 'folder') => itemModals.setShareTarget({ id, type }),
-      onRenameFileRequest: itemModals.handleRenameFileRequest,
-      onDeleteFile: itemModals.handleDeleteFile,
+  const fileTabProps = useMemo(
+    () => ({
+      files,
+      subfolders,
+      getDriveInfo,
+      isTargetShared,
+      errorDrives,
+      actions: {
+        onNavigateFolder: setActiveFolderId,
+        onPreviewFile: itemModals.setPreviewFile,
+        onShare: (id: string, type: 'file' | 'folder') => itemModals.setShareTarget({ id, type }),
+        onRenameFileRequest: itemModals.handleRenameFileRequest,
+        onDeleteFile: itemModals.handleDeleteFile,
+        onRemoveFromWorkspace,
+        onMoveDrive: (file: FileEntry) => itemModals.setMoveDriveFiles([file]),
+        onMove: (items: SelectedItem[]) => itemModals.setMoveTarget(items),
+        onToggleStar: itemModals.toggleStar,
+        onViewInfo: itemModals.handleViewInfo,
+        onSetRetentionPolicy: handleSetRetentionPolicy,
+      },
+    }),
+    [
+      files,
+      subfolders,
+      getDriveInfo,
+      isTargetShared,
+      errorDrives,
+      itemModals,
       onRemoveFromWorkspace,
-      onMoveDrive: (file: FileEntry) => itemModals.setMoveDriveFiles([file]),
-      onMove: (items: SelectedItem[]) => itemModals.setMoveTarget(items),
-      onToggleStar: itemModals.toggleStar,
-      onViewInfo: itemModals.handleViewInfo,
-      onSetRetentionPolicy: handleSetRetentionPolicy,
-    },
-  }), [
-    files, subfolders, getDriveInfo, isTargetShared, errorDrives,
-    itemModals, onRemoveFromWorkspace, handleSetRetentionPolicy,
-  ]);
+      handleSetRetentionPolicy,
+    ],
+  );
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-card relative">
       {/* Mobile backdrop */}
       {wsSidebarOpen && (
-        <div className="md:hidden fixed inset-0 z-40 bg-black/40" onClick={() => setWsSidebarOpen(false)} aria-hidden />
+        <div
+          className="md:hidden fixed inset-0 z-40 bg-black/40"
+          onClick={() => setWsSidebarOpen(false)}
+          aria-hidden
+        />
       )}
       {/* Sidebar: mobile drawer (fixed) + desktop inline (always visible) */}
-      <div className={`${wsSidebarOpen ? 'fixed left-0 top-0 bottom-0 z-50 shadow-xl' : 'hidden'} md:relative md:block md:shadow-none md:z-auto`}>
+      <div
+        className={`${wsSidebarOpen ? 'fixed left-0 top-0 bottom-0 z-50 shadow-xl' : 'hidden'} md:relative md:block md:shadow-none md:z-auto`}
+      >
         <WorkspaceSidebar
           folders={folders}
           activeFolderId={activeFolderId}
-          onSelect={(id) => { setActiveFolderId(id); setWsSidebarOpen(false); }}
+          onSelect={(id) => {
+            setActiveFolderId(id);
+            setWsSidebarOpen(false);
+          }}
           onRename={handleRename}
           onDelete={handleDelete}
           onNewSubfolder={openCreateModal}

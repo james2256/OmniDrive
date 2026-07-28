@@ -41,11 +41,11 @@ app.onError((err, c) => {
   const isAppError = err instanceof AppError || err.name === 'AppError';
   const status = isAppError ? (err as AppError).status : 500;
   const message = isAppError ? err.message : 'Internal server error';
-  
+
   if (status >= 500) {
     logError(c, 'Unhandled server error', err, { errorClass: err.constructor.name });
   }
-  
+
   if (c.req.path.startsWith('/s3')) {
     let s3Code = 'InternalError';
     if (status === 400) s3Code = 'InvalidRequest';
@@ -54,37 +54,46 @@ app.onError((err, c) => {
     else if (status === 405) s3Code = 'MethodNotAllowed';
     else if (status === 409) s3Code = 'Conflict';
 
-    if (typeof (err as unknown as Record<string, unknown>).code === 'string' && (err as unknown as Record<string, unknown>).code) {
+    if (
+      typeof (err as unknown as Record<string, unknown>).code === 'string' &&
+      (err as unknown as Record<string, unknown>).code
+    ) {
       s3Code = (err as unknown as Record<string, unknown>).code as string;
     }
 
     return xmlError(c, s3Code, message, status);
   }
-  
+
   return c.json({ error: message }, status as 400 | 401 | 403 | 404 | 500);
 });
 
 // Rate limiters — applied before auth to protect login/register
 app.use('/api/auth/login', rateLimiter({ windowMs: 60_000, maxRequests: 10 }));
 app.use('/api/auth/register', rateLimiter({ windowMs: 600_000, maxRequests: 10 }));
-app.use('/api/shared/:id/verify', rateLimiter({
-  windowMs: 60_000,
-  maxRequests: 5,
-  keyFn: (c: Context) => {
-    const ip = c.req.header('CF-Connecting-IP') ?? c.req.header('X-Real-IP') ?? 'unknown';
-    const id = c.req.param('id') ?? 'unknown';
-    return `${ip}:${id}`;
-  },
-}));
-app.use('/api/shared/:id/download', rateLimiter({
-  windowMs: 60_000,
-  maxRequests: 20,
-  keyFn: (c: Context) => {
-    const ip = c.req.header('CF-Connecting-IP') ?? c.req.header('X-Real-IP') ?? 'unknown';
-    const id = c.req.param('id') ?? 'unknown';
-    return `${ip}:${id}`;
-  },
-}));
+app.use(
+  '/api/shared/:id/verify',
+  rateLimiter({
+    windowMs: 60_000,
+    maxRequests: 5,
+    keyFn: (c: Context) => {
+      const ip = c.req.header('CF-Connecting-IP') ?? c.req.header('X-Real-IP') ?? 'unknown';
+      const id = c.req.param('id') ?? 'unknown';
+      return `${ip}:${id}`;
+    },
+  }),
+);
+app.use(
+  '/api/shared/:id/download',
+  rateLimiter({
+    windowMs: 60_000,
+    maxRequests: 20,
+    keyFn: (c: Context) => {
+      const ip = c.req.header('CF-Connecting-IP') ?? c.req.header('X-Real-IP') ?? 'unknown';
+      const id = c.req.param('id') ?? 'unknown';
+      return `${ip}:${id}`;
+    },
+  }),
+);
 app.use('/api/*', rateLimiter({ windowMs: 60_000, maxRequests: 100 }));
 // ponytail: S3 rate limit — /s3 bypasses /api/* catch-all, needs its own limiter
 app.use('/s3/*', rateLimiter({ windowMs: 60_000, maxRequests: 100 }));
@@ -121,7 +130,15 @@ export default {
     await runScheduledSync(env);
     await runLifecycleExpiration(env);
     await cleanupOrphanMultipartUploads(env);
-    const engine = new AutomationEngine(env, new GoogleDriveService(env.DB, env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, env.TOKEN_ENCRYPTION_KEY));
+    const engine = new AutomationEngine(
+      env,
+      new GoogleDriveService(
+        env.DB,
+        env.GOOGLE_CLIENT_ID,
+        env.GOOGLE_CLIENT_SECRET,
+        env.TOKEN_ENCRYPTION_KEY,
+      ),
+    );
     await engine.processCronTrigger(ctx);
 
     // Audit log cleanup
@@ -129,7 +146,12 @@ export default {
     await auditService.cleanupOldLogs(30);
 
     // Data retention policies
-    const driveService = new GoogleDriveService(env.DB, env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, env.TOKEN_ENCRYPTION_KEY);
+    const driveService = new GoogleDriveService(
+      env.DB,
+      env.GOOGLE_CLIENT_ID,
+      env.GOOGLE_CLIENT_SECRET,
+      env.TOKEN_ENCRYPTION_KEY,
+    );
     const policyService = new PolicyService(env.DB, driveService);
     await policyService.processAutoDeleteRetentionPolicies();
 
@@ -137,9 +159,15 @@ export default {
     await env.DB.prepare('DELETE FROM sessions WHERE expires_at < ?').bind(Date.now()).run();
 
     // Cleanup expired OAuth states (10-min TTL) + stale quota/category cache (>1h old)
-    await env.DB.prepare('DELETE FROM oauth_states WHERE created_at < ?').bind(Date.now() - 10 * 60 * 1000).run();
-    await env.DB.prepare('DELETE FROM quota_cache WHERE updated_at < ?').bind(Date.now() - 60 * 60 * 1000).run();
-    await env.DB.prepare('DELETE FROM category_cache WHERE updated_at < ?').bind(Date.now() - 60 * 60 * 1000).run();
+    await env.DB.prepare('DELETE FROM oauth_states WHERE created_at < ?')
+      .bind(Date.now() - 10 * 60 * 1000)
+      .run();
+    await env.DB.prepare('DELETE FROM quota_cache WHERE updated_at < ?')
+      .bind(Date.now() - 60 * 60 * 1000)
+      .run();
+    await env.DB.prepare('DELETE FROM category_cache WHERE updated_at < ?')
+      .bind(Date.now() - 60 * 60 * 1000)
+      .run();
   },
 } satisfies ExportedHandler<Env>;
 

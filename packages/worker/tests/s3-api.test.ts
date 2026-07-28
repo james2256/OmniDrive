@@ -20,7 +20,7 @@ function calculateSigV4({
   region = 'us-east-1',
   service = 's3',
   dateStr = '20260621',
-  amzDate = '20260621T120000Z'
+  amzDate = '20260621T120000Z',
 }: {
   method: string;
   path: string;
@@ -35,8 +35,10 @@ function calculateSigV4({
   amzDate?: string;
 }) {
   function awsEncode(str: string): string {
-    return encodeURIComponent(str)
-      .replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+    return encodeURIComponent(str).replace(
+      /[!'()*]/g,
+      (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase(),
+    );
   }
 
   const queryParamsList: [string, string][] = Object.entries(queryParams);
@@ -76,17 +78,17 @@ function calculateSigV4({
     canonicalQueryString,
     canonicalHeaders,
     signedHeaders,
-    payloadHash
+    payloadHash,
   ].join('\n');
 
   const stringToSign = [
     'AWS4-HMAC-SHA256',
     amzDate,
     `${dateStr}/${region}/${service}/aws4_request`,
-    sha256(canonicalRequest)
+    sha256(canonicalRequest),
   ].join('\n');
 
-  const kDate = hmacSha256("AWS4" + secretAccessKey, dateStr);
+  const kDate = hmacSha256('AWS4' + secretAccessKey, dateStr);
   const kRegion = hmacSha256(kDate, region);
   const kService = hmacSha256(kRegion, service);
   const kSigning = hmacSha256(kService, 'aws4_request');
@@ -96,7 +98,7 @@ function calculateSigV4({
     signature,
     signedHeaders,
     canonicalRequest,
-    stringToSign
+    stringToSign,
   };
 }
 
@@ -122,7 +124,7 @@ describe('S3 API compatibility endpoints', () => {
     multipartPartsResolved = [] as any[],
     driveAccountResolved = null as any,
     s3WorkspaceId = null as string | null,
-    sqlQueries = [] as { sql: string; args: any[] }[]
+    sqlQueries = [] as { sql: string; args: any[] }[],
   } = {}) => {
     const encryptedSecret = await encrypt(SECRET_ACCESS_KEY, TOKEN_ENCRYPTION_KEY);
 
@@ -144,13 +146,15 @@ describe('S3 API compatibility endpoints', () => {
                       access_key_id: ACCESS_KEY_ID,
                       secret_key_enc: encryptedSecret,
                       description: 'Test Credential',
-                      workspace_id: s3WorkspaceId
+                      workspace_id: s3WorkspaceId,
                     };
                   }
                 }
                 if (sql.includes('FROM workspaces w')) {
                   // ponytail: auto-add role:'owner' so RBAC checks pass — tests cover S3 behavior, not RBAC denial
-                  return workspaceResolved ? { ...workspaceResolved, role: workspaceResolved.role || 'owner' } : null;
+                  return workspaceResolved
+                    ? { ...workspaceResolved, role: workspaceResolved.role || 'owner' }
+                    : null;
                 }
                 if (sql.includes('SELECT id FROM workspace_folders')) {
                   return folderResolved;
@@ -162,7 +166,7 @@ describe('S3 API compatibility endpoints', () => {
                   return multipartUploadResolved;
                 }
                 if (sql.includes('SELECT * FROM drive_accounts WHERE id = ?')) {
-                  return driveAccountResolved || (driveAccounts[0] || null);
+                  return driveAccountResolved || driveAccounts[0] || null;
                 }
                 return null;
               }),
@@ -180,22 +184,23 @@ describe('S3 API compatibility endpoints', () => {
                   return { results: multipartPartsResolved };
                 }
                 return { results: [] };
-              })
+              }),
             };
-          })
+          }),
         };
-      })
+      }),
     };
-
 
     return {
       DB: mockDb as any,
       KV: {
-        get: vi.fn().mockResolvedValue(JSON.stringify({
-          accessToken: 'fake-access-token',
-          refreshToken: 'fake-refresh-token',
-          expiresAt: Date.now() + 3600_000,
-        })),
+        get: vi.fn().mockResolvedValue(
+          JSON.stringify({
+            accessToken: 'fake-access-token',
+            refreshToken: 'fake-refresh-token',
+            expiresAt: Date.now() + 3600_000,
+          }),
+        ),
         put: vi.fn().mockResolvedValue(undefined),
       } as any,
       GOOGLE_CLIENT_ID: 'google-id',
@@ -218,7 +223,7 @@ describe('S3 API compatibility endpoints', () => {
   it('returns 200 and list of workspaces for ListBuckets operation', async () => {
     const workspaces = [
       { id: 'ws-1', name: 'my-bucket-1', created_at: '2026-06-21 10:00:00' },
-      { id: 'ws-2', name: 'my-bucket-2', created_at: '2026-06-21 11:00:00' }
+      { id: 'ws-2', name: 'my-bucket-2', created_at: '2026-06-21 11:00:00' },
     ];
 
     const env = await getMockEnv({ workspaces });
@@ -227,9 +232,9 @@ describe('S3 API compatibility endpoints', () => {
     const dateStr = '20260621';
     const path = '/s3/';
     const headers = {
-      'host': 'localhost:8787',
+      host: 'localhost:8787',
       'x-amz-date': amzDate,
-      'x-amz-content-sha256': sha256('')
+      'x-amz-content-sha256': sha256(''),
     };
 
     const { signature, signedHeaders } = calculateSigV4({
@@ -237,22 +242,26 @@ describe('S3 API compatibility endpoints', () => {
       path,
       headers,
       dateStr,
-      amzDate
+      amzDate,
     });
 
     const authHeader = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
-    const res = await app.request(path, {
-      method: 'GET',
-      headers: {
-        ...headers,
-        'Authorization': authHeader
-      }
-    }, env);
+    const res = await app.request(
+      path,
+      {
+        method: 'GET',
+        headers: {
+          ...headers,
+          Authorization: authHeader,
+        },
+      },
+      env,
+    );
 
     expect(res.status).toBe(200);
     expect(res.headers.get('Content-Type')).toContain('application/xml');
-    
+
     const body = await res.text();
     expect(body).toContain('<ListAllMyBucketsResult>');
     expect(body).toContain('<Bucket>');
@@ -270,9 +279,9 @@ describe('S3 API compatibility endpoints', () => {
     const dateStr = '20260621';
     const path = '/s3/non-existent-bucket';
     const headers = {
-      'host': 'localhost:8787',
+      host: 'localhost:8787',
       'x-amz-date': amzDate,
-      'x-amz-content-sha256': sha256('')
+      'x-amz-content-sha256': sha256(''),
     };
 
     const { signature, signedHeaders } = calculateSigV4({
@@ -280,18 +289,22 @@ describe('S3 API compatibility endpoints', () => {
       path,
       headers,
       dateStr,
-      amzDate
+      amzDate,
     });
 
     const authHeader = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
-    const res = await app.request(path, {
-      method: 'GET',
-      headers: {
-        ...headers,
-        'Authorization': authHeader
-      }
-    }, env);
+    const res = await app.request(
+      path,
+      {
+        method: 'GET',
+        headers: {
+          ...headers,
+          Authorization: authHeader,
+        },
+      },
+      env,
+    );
 
     expect(res.status).toBe(404);
     expect(res.headers.get('Content-Type')).toContain('application/xml');
@@ -307,9 +320,9 @@ describe('S3 API compatibility endpoints', () => {
     const dateStr = '20260621';
     const path = '/s3/my-bucket-1';
     const headers = {
-      'host': 'localhost:8787',
+      host: 'localhost:8787',
       'x-amz-date': amzDate,
-      'x-amz-content-sha256': sha256('')
+      'x-amz-content-sha256': sha256(''),
     };
 
     const { signature, signedHeaders } = calculateSigV4({
@@ -317,18 +330,22 @@ describe('S3 API compatibility endpoints', () => {
       path,
       headers,
       dateStr,
-      amzDate
+      amzDate,
     });
 
     const authHeader = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
-    const res = await app.request(path, {
-      method: 'HEAD',
-      headers: {
-        ...headers,
-        'Authorization': authHeader
-      }
-    }, env);
+    const res = await app.request(
+      path,
+      {
+        method: 'HEAD',
+        headers: {
+          ...headers,
+          Authorization: authHeader,
+        },
+      },
+      env,
+    );
 
     expect(res.status).toBe(200);
     expect(await res.text()).toBe('');
@@ -341,9 +358,9 @@ describe('S3 API compatibility endpoints', () => {
     const dateStr = '20260621';
     const path = '/s3/non-existent-bucket';
     const headers = {
-      'host': 'localhost:8787',
+      host: 'localhost:8787',
       'x-amz-date': amzDate,
-      'x-amz-content-sha256': sha256('')
+      'x-amz-content-sha256': sha256(''),
     };
 
     const { signature, signedHeaders } = calculateSigV4({
@@ -351,18 +368,22 @@ describe('S3 API compatibility endpoints', () => {
       path,
       headers,
       dateStr,
-      amzDate
+      amzDate,
     });
 
     const authHeader = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
-    const res = await app.request(path, {
-      method: 'HEAD',
-      headers: {
-        ...headers,
-        'Authorization': authHeader
-      }
-    }, env);
+    const res = await app.request(
+      path,
+      {
+        method: 'HEAD',
+        headers: {
+          ...headers,
+          Authorization: authHeader,
+        },
+      },
+      env,
+    );
 
     expect(res.status).toBe(404);
     expect(await res.text()).toBe('');
@@ -371,8 +392,20 @@ describe('S3 API compatibility endpoints', () => {
   it('returns 200 and list of objects (no delimiter)', async () => {
     const workspaceResolved = { id: 'ws-1' };
     const files = [
-      { id: 'f-1', name: 'photo.jpg', size: 1024, updated_at: '2026-06-21 11:30:00', s3_key: 'photo.jpg' },
-      { id: 'f-2', name: 'report.pdf', size: 2048, updated_at: '2026-06-21 11:45:00', s3_key: 'documents/report.pdf' }
+      {
+        id: 'f-1',
+        name: 'photo.jpg',
+        size: 1024,
+        updated_at: '2026-06-21 11:30:00',
+        s3_key: 'photo.jpg',
+      },
+      {
+        id: 'f-2',
+        name: 'report.pdf',
+        size: 2048,
+        updated_at: '2026-06-21 11:45:00',
+        s3_key: 'documents/report.pdf',
+      },
     ];
 
     const env = await getMockEnv({ workspaceResolved, files });
@@ -381,9 +414,9 @@ describe('S3 API compatibility endpoints', () => {
     const dateStr = '20260621';
     const path = '/s3/my-bucket-1';
     const headers = {
-      'host': 'localhost:8787',
+      host: 'localhost:8787',
       'x-amz-date': amzDate,
-      'x-amz-content-sha256': sha256('')
+      'x-amz-content-sha256': sha256(''),
     };
 
     const { signature, signedHeaders } = calculateSigV4({
@@ -391,18 +424,22 @@ describe('S3 API compatibility endpoints', () => {
       path,
       headers,
       dateStr,
-      amzDate
+      amzDate,
     });
 
     const authHeader = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
-    const res = await app.request(path, {
-      method: 'GET',
-      headers: {
-        ...headers,
-        'Authorization': authHeader
-      }
-    }, env);
+    const res = await app.request(
+      path,
+      {
+        method: 'GET',
+        headers: {
+          ...headers,
+          Authorization: authHeader,
+        },
+      },
+      env,
+    );
 
     expect(res.status).toBe(200);
     expect(res.headers.get('Content-Type')).toContain('application/xml');
@@ -420,9 +457,27 @@ describe('S3 API compatibility endpoints', () => {
   it('filters objects by prefix and handles delimiter properly', async () => {
     const workspaceResolved = { id: 'ws-1' };
     const files = [
-      { id: 'f-1', name: 'photo.jpg', size: 1024, updated_at: '2026-06-21 11:30:00', s3_key: 'photo.jpg' },
-      { id: 'f-2', name: 'report.pdf', size: 2048, updated_at: '2026-06-21 11:45:00', s3_key: 'documents/report.pdf' },
-      { id: 'f-3', name: 'notes.txt', size: 512, updated_at: '2026-06-21 11:50:00', s3_key: 'documents/archive/notes.txt' }
+      {
+        id: 'f-1',
+        name: 'photo.jpg',
+        size: 1024,
+        updated_at: '2026-06-21 11:30:00',
+        s3_key: 'photo.jpg',
+      },
+      {
+        id: 'f-2',
+        name: 'report.pdf',
+        size: 2048,
+        updated_at: '2026-06-21 11:45:00',
+        s3_key: 'documents/report.pdf',
+      },
+      {
+        id: 'f-3',
+        name: 'notes.txt',
+        size: 512,
+        updated_at: '2026-06-21 11:50:00',
+        s3_key: 'documents/archive/notes.txt',
+      },
     ];
 
     const env = await getMockEnv({ workspaceResolved, files });
@@ -432,13 +487,13 @@ describe('S3 API compatibility endpoints', () => {
     const path = '/s3/my-bucket-1';
     const queryParams = {
       prefix: 'documents/',
-      delimiter: '/'
+      delimiter: '/',
     };
 
     const headers = {
-      'host': 'localhost:8787',
+      host: 'localhost:8787',
       'x-amz-date': amzDate,
-      'x-amz-content-sha256': sha256('')
+      'x-amz-content-sha256': sha256(''),
     };
 
     const { signature, signedHeaders } = calculateSigV4({
@@ -447,29 +502,33 @@ describe('S3 API compatibility endpoints', () => {
       queryParams,
       headers,
       dateStr,
-      amzDate
+      amzDate,
     });
 
     const _queryString = `prefix=documents%2F&delimiter=%2F&X-Amz-Signature=${signature}`;
     const authHeader = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
-    const res = await app.request(`${path}?prefix=documents/&delimiter=/`, {
-      method: 'GET',
-      headers: {
-        ...headers,
-        'Authorization': authHeader
-      }
-    }, env);
+    const res = await app.request(
+      `${path}?prefix=documents/&delimiter=/`,
+      {
+        method: 'GET',
+        headers: {
+          ...headers,
+          Authorization: authHeader,
+        },
+      },
+      env,
+    );
 
     expect(res.status).toBe(200);
     const body = await res.text();
     // 'photo.jpg' doesn't match 'documents/' prefix
     expect(body).not.toContain('<Key>photo.jpg</Key>');
-    
+
     // 'documents/report.pdf' is in the immediate prefix folder, so it should be in Contents
     expect(body).toContain('<Key>documents/report.pdf</Key>');
     expect(body).toContain('<Size>2048</Size>');
-    
+
     // 'documents/archive/notes.txt' is deeper than 'documents/', so 'documents/archive/' is a CommonPrefix
     expect(body).not.toContain('<Key>documents/archive/notes.txt</Key>');
     expect(body).toContain('<CommonPrefixes>');
@@ -478,20 +537,18 @@ describe('S3 API compatibility endpoints', () => {
 
   it('escapes special XML characters in S3 ListBuckets, ListObjectsV2, and Errors responses', async () => {
     // 1. ListBuckets XML escaping check
-    const workspaces = [
-      { id: 'ws-1', name: 'my-<bucket>&"-1', created_at: '2026-06-21 10:00:00' }
-    ];
+    const workspaces = [{ id: 'ws-1', name: 'my-<bucket>&"-1', created_at: '2026-06-21 10:00:00' }];
     const weirdUserId = 'user-<id>&"\'';
     const envBuckets = await getMockEnv({ workspaces, userId: weirdUserId });
 
     const amzDate = '20260621T120000Z';
     const dateStr = '20260621';
-    
+
     let path = '/s3/';
     const headers = {
-      'host': 'localhost:8787',
+      host: 'localhost:8787',
       'x-amz-date': amzDate,
-      'x-amz-content-sha256': sha256('')
+      'x-amz-content-sha256': sha256(''),
     };
 
     let sigResult = calculateSigV4({
@@ -499,18 +556,22 @@ describe('S3 API compatibility endpoints', () => {
       path,
       headers,
       dateStr,
-      amzDate
+      amzDate,
     });
 
     let authHeader = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request, SignedHeaders=${sigResult.signedHeaders}, Signature=${sigResult.signature}`;
 
-    let res = await app.request(path, {
-      method: 'GET',
-      headers: {
-        ...headers,
-        'Authorization': authHeader
-      }
-    }, envBuckets);
+    let res = await app.request(
+      path,
+      {
+        method: 'GET',
+        headers: {
+          ...headers,
+          Authorization: authHeader,
+        },
+      },
+      envBuckets,
+    );
 
     expect(res.status).toBe(200);
     let body = await res.text();
@@ -521,29 +582,39 @@ describe('S3 API compatibility endpoints', () => {
     // 2. ListObjectsV2 XML escaping check
     const workspaceResolved = { id: 'ws-1' };
     const files = [
-      { id: 'f-<1>&"\'', name: 'photo-<1>&"\'.jpg', size: 1024, updated_at: '2026-06-21 11:30:00', s3_key: 'photo-<1>&"\'.jpg' }
+      {
+        id: 'f-<1>&"\'',
+        name: 'photo-<1>&"\'.jpg',
+        size: 1024,
+        updated_at: '2026-06-21 11:30:00',
+        s3_key: 'photo-<1>&"\'.jpg',
+      },
     ];
     const envObjects = await getMockEnv({ workspaceResolved, files, userId: weirdUserId });
-    
+
     path = '/s3/my-%3Cbucket%3E%26%22-1'; // url encoded my-<bucket>&"-1
-    
+
     sigResult = calculateSigV4({
       method: 'GET',
       path,
       headers,
       dateStr,
-      amzDate
+      amzDate,
     });
 
     authHeader = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request, SignedHeaders=${sigResult.signedHeaders}, Signature=${sigResult.signature}`;
 
-    res = await app.request(path, {
-      method: 'GET',
-      headers: {
-        ...headers,
-        'Authorization': authHeader
-      }
-    }, envObjects);
+    res = await app.request(
+      path,
+      {
+        method: 'GET',
+        headers: {
+          ...headers,
+          Authorization: authHeader,
+        },
+      },
+      envObjects,
+    );
 
     expect(res.status).toBe(200);
     body = await res.text();
@@ -554,18 +625,19 @@ describe('S3 API compatibility endpoints', () => {
 
   it('defines handler routes for GET, PUT, DELETE, and HEAD objects', () => {
     // This verifies route patterns are matched inside Hono
-    const routes = app.routes.filter(r => r.path.startsWith('/s3'));
-    expect(routes.some(r => r.method === 'GET' && r.path === '/s3/:bucket/:key{.+}')).toBe(true);
-    expect(routes.some(r => r.method === 'PUT' && r.path === '/s3/:bucket/:key{.+}')).toBe(true);
-    expect(routes.some(r => r.method === 'DELETE' && r.path === '/s3/:bucket/:key{.+}')).toBe(true);
-    expect(routes.some(r => r.method === 'HEAD' && r.path === '/s3/:bucket/:key{.+}')).toBe(true);
+    const routes = app.routes.filter((r) => r.path.startsWith('/s3'));
+    expect(routes.some((r) => r.method === 'GET' && r.path === '/s3/:bucket/:key{.+}')).toBe(true);
+    expect(routes.some((r) => r.method === 'PUT' && r.path === '/s3/:bucket/:key{.+}')).toBe(true);
+    expect(routes.some((r) => r.method === 'DELETE' && r.path === '/s3/:bucket/:key{.+}')).toBe(
+      true,
+    );
+    expect(routes.some((r) => r.method === 'HEAD' && r.path === '/s3/:bucket/:key{.+}')).toBe(true);
   });
 
   it('defines POST handler on bucket key for multipart operations', () => {
-    const routes = app.routes.filter(r => r.path.startsWith('/s3'));
-    expect(routes.some(r => r.method === 'POST' && r.path === '/s3/:bucket/:key{.+}')).toBe(true);
+    const routes = app.routes.filter((r) => r.path.startsWith('/s3'));
+    expect(routes.some((r) => r.method === 'POST' && r.path === '/s3/:bucket/:key{.+}')).toBe(true);
   });
-
 
   describe('S3 Object CRUD operations', () => {
     it('downloads an object (GetObject)', async () => {
@@ -579,15 +651,15 @@ describe('S3 API compatibility endpoints', () => {
         name: 'photo.jpg',
         mime_type: 'image/jpeg',
         size: 12,
-        is_trashed: 0
+        is_trashed: 0,
       };
-      
+
       const sqlQueries: any[] = [];
       const env = await getMockEnv({
         workspaceResolved,
         fileResolved,
         folderResolved: { id: 'folder-123' },
-        sqlQueries
+        sqlQueries,
       });
 
       const downloadSpy = vi.spyOn(GoogleDriveService.prototype, 'downloadFile').mockResolvedValue({
@@ -595,17 +667,17 @@ describe('S3 API compatibility endpoints', () => {
           start(controller) {
             controller.enqueue(new TextEncoder().encode('file content'));
             controller.close();
-          }
-        })
+          },
+        }),
       });
 
       const amzDate = '20260621T120000Z';
       const dateStr = '20260621';
       const path = '/s3/my-bucket-1/photos/holiday/photo.jpg';
       const headers = {
-        'host': 'localhost:8787',
+        host: 'localhost:8787',
         'x-amz-date': amzDate,
-        'x-amz-content-sha256': sha256('')
+        'x-amz-content-sha256': sha256(''),
       };
 
       const { signature, signedHeaders } = calculateSigV4({
@@ -613,18 +685,22 @@ describe('S3 API compatibility endpoints', () => {
         path,
         headers,
         dateStr,
-        amzDate
+        amzDate,
       });
 
       const authHeader = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
-      const res = await app.request(path, {
-        method: 'GET',
-        headers: {
-          ...headers,
-          'Authorization': authHeader
-        }
-      }, env);
+      const res = await app.request(
+        path,
+        {
+          method: 'GET',
+          headers: {
+            ...headers,
+            Authorization: authHeader,
+          },
+        },
+        env,
+      );
 
       expect(res.status).toBe(200);
       expect(res.headers.get('Content-Type')).toBe('image/jpeg');
@@ -646,22 +722,22 @@ describe('S3 API compatibility endpoints', () => {
         name: 'photo.jpg',
         mime_type: 'image/jpeg',
         size: 12,
-        is_trashed: 0
+        is_trashed: 0,
       };
 
       const env = await getMockEnv({
         workspaceResolved,
         fileResolved,
-        folderResolved: { id: 'folder-123' }
+        folderResolved: { id: 'folder-123' },
       });
 
       const amzDate = '20260621T120000Z';
       const dateStr = '20260621';
       const path = '/s3/my-bucket-1/photos/holiday/photo.jpg';
       const headers = {
-        'host': 'localhost:8787',
+        host: 'localhost:8787',
         'x-amz-date': amzDate,
-        'x-amz-content-sha256': sha256('')
+        'x-amz-content-sha256': sha256(''),
       };
 
       const { signature, signedHeaders } = calculateSigV4({
@@ -669,18 +745,22 @@ describe('S3 API compatibility endpoints', () => {
         path,
         headers,
         dateStr,
-        amzDate
+        amzDate,
       });
 
       const authHeader = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
-      const res = await app.request(path, {
-        method: 'HEAD',
-        headers: {
-          ...headers,
-          'Authorization': authHeader
-        }
-      }, env);
+      const res = await app.request(
+        path,
+        {
+          method: 'HEAD',
+          headers: {
+            ...headers,
+            Authorization: authHeader,
+          },
+        },
+        env,
+      );
 
       expect(res.status).toBe(200);
       expect(res.headers.get('Content-Type')).toBe('image/jpeg');
@@ -699,7 +779,7 @@ describe('S3 API compatibility endpoints', () => {
         name: 'photo.jpg',
         mime_type: 'image/jpeg',
         size: 12,
-        is_trashed: 0
+        is_trashed: 0,
       };
 
       const sqlQueries: any[] = [];
@@ -707,18 +787,20 @@ describe('S3 API compatibility endpoints', () => {
         workspaceResolved,
         fileResolved,
         folderResolved: { id: 'folder-123' },
-        sqlQueries
+        sqlQueries,
       });
 
-      const trashSpy = vi.spyOn(GoogleDriveService.prototype, 'trashFile').mockResolvedValue(undefined);
+      const trashSpy = vi
+        .spyOn(GoogleDriveService.prototype, 'trashFile')
+        .mockResolvedValue(undefined);
 
       const amzDate = '20260621T120000Z';
       const dateStr = '20260621';
       const path = '/s3/my-bucket-1/photos/holiday/photo.jpg';
       const headers = {
-        'host': 'localhost:8787',
+        host: 'localhost:8787',
         'x-amz-date': amzDate,
-        'x-amz-content-sha256': sha256('')
+        'x-amz-content-sha256': sha256(''),
       };
 
       const { signature, signedHeaders } = calculateSigV4({
@@ -726,23 +808,27 @@ describe('S3 API compatibility endpoints', () => {
         path,
         headers,
         dateStr,
-        amzDate
+        amzDate,
       });
 
       const authHeader = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
-      const res = await app.request(path, {
-        method: 'DELETE',
-        headers: {
-          ...headers,
-          'Authorization': authHeader
-        }
-      }, env);
+      const res = await app.request(
+        path,
+        {
+          method: 'DELETE',
+          headers: {
+            ...headers,
+            Authorization: authHeader,
+          },
+        },
+        env,
+      );
 
       expect(res.status).toBe(204);
       expect(trashSpy).toHaveBeenCalledWith('drive-123', 'g-123');
 
-      const updateQuery = sqlQueries.find(q => q.sql.includes('UPDATE files SET is_trashed = 1'));
+      const updateQuery = sqlQueries.find((q) => q.sql.includes('UPDATE files SET is_trashed = 1'));
       expect(updateQuery).toBeDefined();
       expect(updateQuery.args[0]).toBe('file-123');
 
@@ -766,8 +852,8 @@ describe('S3 API compatibility endpoints', () => {
           quota_updated_at: '2026-06-21 12:00:00',
           sync_status: 'idle',
           last_synced_at: '2026-06-21 12:00:00',
-          created_at: '2026-06-21 12:00:00'
-        }
+          created_at: '2026-06-21 12:00:00',
+        },
       ];
 
       const sqlQueries: any[] = [];
@@ -775,44 +861,50 @@ describe('S3 API compatibility endpoints', () => {
         workspaceResolved,
         driveAccounts,
         folderResolved: { id: 'folder-123' },
-        sqlQueries
+        sqlQueries,
       });
 
-      const initiateSpy = vi.spyOn(GoogleDriveService.prototype, 'initiateResumableUpload').mockResolvedValue('https://example.com/upload-url');
+      const initiateSpy = vi
+        .spyOn(GoogleDriveService.prototype, 'initiateResumableUpload')
+        .mockResolvedValue('https://example.com/upload-url');
 
       const payload = 'hello world';
       const payloadMD5 = '5eb63bbbe01eeed093cb22bb8f5acdc3';
 
-      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: any, init: any) => {
-        if (url === 'https://example.com/upload-url') {
-          if (init && init.body) {
-            if (typeof init.body.getReader === 'function') {
-              const reader = init.body.getReader();
-              while (true) {
-                const { done } = await reader.read();
-                if (done) break;
+      const fetchSpy = vi
+        .spyOn(globalThis, 'fetch')
+        .mockImplementation(async (url: any, init: any) => {
+          if (url === 'https://example.com/upload-url') {
+            if (init && init.body) {
+              if (typeof init.body.getReader === 'function') {
+                const reader = init.body.getReader();
+                while (true) {
+                  const { done } = await reader.read();
+                  if (done) break;
+                }
+              } else if (typeof init.body[Symbol.asyncIterator] === 'function') {
+                for await (const _ of init.body) {
+                  void _;
+                }
               }
-            } else if (typeof init.body[Symbol.asyncIterator] === 'function') {
-              for await (const _ of init.body) { void _; }
             }
+            return {
+              ok: true,
+              text: async () => JSON.stringify({ id: 'g-new-file-id' }),
+            } as Response;
           }
-          return {
-            ok: true,
-            text: async () => JSON.stringify({ id: 'g-new-file-id' })
-          } as Response;
-        }
-        return { ok: false } as Response;
-      });
+          return { ok: false } as Response;
+        });
 
       const amzDate = '20260621T120000Z';
       const dateStr = '20260621';
       const path = '/s3/my-bucket-1/photos/holiday/photo.jpg';
       const headers = {
-        'host': 'localhost:8787',
+        host: 'localhost:8787',
         'x-amz-date': amzDate,
         'x-amz-content-sha256': sha256(payload),
         'content-type': 'text/plain',
-        'content-length': String(payload.length)
+        'content-length': String(payload.length),
       };
 
       const { signature, signedHeaders } = calculateSigV4({
@@ -821,30 +913,42 @@ describe('S3 API compatibility endpoints', () => {
         headers,
         payload,
         dateStr,
-        amzDate
+        amzDate,
       });
 
       const authHeader = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
-      const res = await app.request(path, {
-        method: 'PUT',
-        headers: {
-          ...headers,
-          'Authorization': authHeader
+      const res = await app.request(
+        path,
+        {
+          method: 'PUT',
+          headers: {
+            ...headers,
+            Authorization: authHeader,
+          },
+          body: payload,
         },
-        body: payload
-      }, env);
+        env,
+      );
 
       expect(res.status).toBe(200);
       expect(res.headers.get('ETag')).toBe(`"${payloadMD5}"`);
 
-      expect(initiateSpy).toHaveBeenCalledWith('drive-123', 'photo.jpg', 'text/plain', 'root-folder-123');
-      expect(fetchSpy).toHaveBeenCalledWith('https://example.com/upload-url', expect.objectContaining({
-        method: 'PUT',
-        headers: expect.objectContaining({ 'Content-Length': String(payload.length) })
-      }));
+      expect(initiateSpy).toHaveBeenCalledWith(
+        'drive-123',
+        'photo.jpg',
+        'text/plain',
+        'root-folder-123',
+      );
+      expect(fetchSpy).toHaveBeenCalledWith(
+        'https://example.com/upload-url',
+        expect.objectContaining({
+          method: 'PUT',
+          headers: expect.objectContaining({ 'Content-Length': String(payload.length) }),
+        }),
+      );
 
-      const insertQuery = sqlQueries.find(q => q.sql.includes('INSERT INTO files'));
+      const insertQuery = sqlQueries.find((q) => q.sql.includes('INSERT INTO files'));
       expect(insertQuery).toBeDefined();
       expect(insertQuery.args[1]).toBe(USER_ID);
       expect(insertQuery.args[2]).toBe('drive-123');
@@ -876,8 +980,8 @@ describe('S3 API compatibility endpoints', () => {
           quota_updated_at: '2026-06-21 12:00:00',
           sync_status: 'idle',
           last_synced_at: '2026-06-21 12:00:00',
-          created_at: '2026-06-21 12:00:00'
-        }
+          created_at: '2026-06-21 12:00:00',
+        },
       ];
       // Simulate an existing duplicate file in D1
       const fileResolved = {
@@ -889,7 +993,7 @@ describe('S3 API compatibility endpoints', () => {
         name: 'photo.jpg',
         mime_type: 'image/jpeg',
         size: 12,
-        is_trashed: 0
+        is_trashed: 0,
       };
 
       const sqlQueries: any[] = [];
@@ -898,45 +1002,53 @@ describe('S3 API compatibility endpoints', () => {
         driveAccounts,
         fileResolved,
         folderResolved: { id: 'folder-123' },
-        sqlQueries
+        sqlQueries,
       });
 
-      const initiateSpy = vi.spyOn(GoogleDriveService.prototype, 'initiateResumableUpload').mockResolvedValue('https://example.com/upload-url');
-      const deleteSpy = vi.spyOn(GoogleDriveService.prototype, 'deleteFile').mockResolvedValue(undefined);
+      const initiateSpy = vi
+        .spyOn(GoogleDriveService.prototype, 'initiateResumableUpload')
+        .mockResolvedValue('https://example.com/upload-url');
+      const deleteSpy = vi
+        .spyOn(GoogleDriveService.prototype, 'deleteFile')
+        .mockResolvedValue(undefined);
 
       const payload = 'hello world';
       const payloadMD5 = '5eb63bbbe01eeed093cb22bb8f5acdc3';
 
-      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: any, init: any) => {
-        if (url === 'https://example.com/upload-url') {
-          if (init && init.body) {
-            if (typeof init.body.getReader === 'function') {
-              const reader = init.body.getReader();
-              while (true) {
-                const { done } = await reader.read();
-                if (done) break;
+      const fetchSpy = vi
+        .spyOn(globalThis, 'fetch')
+        .mockImplementation(async (url: any, init: any) => {
+          if (url === 'https://example.com/upload-url') {
+            if (init && init.body) {
+              if (typeof init.body.getReader === 'function') {
+                const reader = init.body.getReader();
+                while (true) {
+                  const { done } = await reader.read();
+                  if (done) break;
+                }
+              } else if (typeof init.body[Symbol.asyncIterator] === 'function') {
+                for await (const _ of init.body) {
+                  void _;
+                }
               }
-            } else if (typeof init.body[Symbol.asyncIterator] === 'function') {
-              for await (const _ of init.body) { void _; }
             }
+            return {
+              ok: true,
+              text: async () => JSON.stringify({ id: 'g-new-file-id' }),
+            } as Response;
           }
-          return {
-            ok: true,
-            text: async () => JSON.stringify({ id: 'g-new-file-id' })
-          } as Response;
-        }
-        return { ok: false } as Response;
-      });
+          return { ok: false } as Response;
+        });
 
       const amzDate = '20260621T120000Z';
       const dateStr = '20260621';
       const path = '/s3/my-bucket-1/photos/holiday/photo.jpg';
       const headers = {
-        'host': 'localhost:8787',
+        host: 'localhost:8787',
         'x-amz-date': amzDate,
         'x-amz-content-sha256': sha256(payload),
         'content-type': 'text/plain',
-        'content-length': String(payload.length)
+        'content-length': String(payload.length),
       };
 
       const { signature, signedHeaders } = calculateSigV4({
@@ -945,19 +1057,23 @@ describe('S3 API compatibility endpoints', () => {
         headers,
         payload,
         dateStr,
-        amzDate
+        amzDate,
       });
 
       const authHeader = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
-      const res = await app.request(path, {
-        method: 'PUT',
-        headers: {
-          ...headers,
-          'Authorization': authHeader
+      const res = await app.request(
+        path,
+        {
+          method: 'PUT',
+          headers: {
+            ...headers,
+            Authorization: authHeader,
+          },
+          body: payload,
         },
-        body: payload
-      }, env);
+        env,
+      );
 
       expect(res.status).toBe(200);
       expect(res.headers.get('ETag')).toBe(`"${payloadMD5}"`);
@@ -966,11 +1082,11 @@ describe('S3 API compatibility endpoints', () => {
       expect(deleteSpy).toHaveBeenCalledWith('drive-123', 'g-existing-123');
 
       // Verify D1 query to delete the duplicate file row was executed
-      const deleteQuery = sqlQueries.find(q => q.sql.includes('DELETE FROM files'));
+      const deleteQuery = sqlQueries.find((q) => q.sql.includes('DELETE FROM files'));
       expect(deleteQuery).toBeDefined();
       expect(deleteQuery.args[0]).toBe('existing-file-123');
 
-      const insertQuery = sqlQueries.find(q => q.sql.includes('INSERT INTO files'));
+      const insertQuery = sqlQueries.find((q) => q.sql.includes('INSERT INTO files'));
       expect(insertQuery).toBeDefined();
       // Check metadata containing md5 is inserted
       expect(insertQuery.args[9]).toBe(JSON.stringify({ md5: payloadMD5 }));
@@ -999,8 +1115,8 @@ describe('S3 API compatibility endpoints', () => {
           quota_updated_at: '2026-06-21 12:00:00',
           sync_status: 'idle',
           last_synced_at: '2026-06-21 12:00:00',
-          created_at: '2026-06-21 12:00:00'
-        }
+          created_at: '2026-06-21 12:00:00',
+        },
       ];
 
       // 1. Test Initiate Multipart Upload
@@ -1009,19 +1125,21 @@ describe('S3 API compatibility endpoints', () => {
         const env = await getMockEnv({
           workspaceResolved,
           driveAccounts,
-          sqlQueries
+          sqlQueries,
         });
 
-        const createFolderSpy = vi.spyOn(GoogleDriveService.prototype, 'createFolder').mockResolvedValue('temp-folder-123');
+        const createFolderSpy = vi
+          .spyOn(GoogleDriveService.prototype, 'createFolder')
+          .mockResolvedValue('temp-folder-123');
 
         const amzDate = '20260621T120000Z';
         const dateStr = '20260621';
         const path = '/s3/my-bucket-1/large-file.bin';
         const queryParams = { uploads: '' };
         const headers = {
-          'host': 'localhost:8787',
+          host: 'localhost:8787',
           'x-amz-date': amzDate,
-          'x-amz-content-sha256': sha256('')
+          'x-amz-content-sha256': sha256(''),
         };
 
         const { signature, signedHeaders } = calculateSigV4({
@@ -1030,18 +1148,22 @@ describe('S3 API compatibility endpoints', () => {
           queryParams,
           headers,
           dateStr,
-          amzDate
+          amzDate,
         });
 
         const authHeader = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
-        const res = await app.request(`${path}?uploads`, {
-          method: 'POST',
-          headers: {
-            ...headers,
-            'Authorization': authHeader
-          }
-        }, env);
+        const res = await app.request(
+          `${path}?uploads`,
+          {
+            method: 'POST',
+            headers: {
+              ...headers,
+              Authorization: authHeader,
+            },
+          },
+          env,
+        );
 
         expect(res.status).toBe(200);
         const body = await res.text();
@@ -1050,9 +1172,15 @@ describe('S3 API compatibility endpoints', () => {
         expect(body).toContain('<Key>large-file.bin</Key>');
         expect(body).toContain('<UploadId>');
 
-        expect(createFolderSpy).toHaveBeenCalledWith('drive-123', expect.stringContaining('.omnidrive_multipart_'), 'root-folder-123');
-        
-        const insertQuery = sqlQueries.find(q => q.sql.includes('INSERT INTO s3_multipart_uploads'));
+        expect(createFolderSpy).toHaveBeenCalledWith(
+          'drive-123',
+          expect.stringContaining('.omnidrive_multipart_'),
+          'root-folder-123',
+        );
+
+        const insertQuery = sqlQueries.find((q) =>
+          q.sql.includes('INSERT INTO s3_multipart_uploads'),
+        );
         expect(insertQuery).toBeDefined();
         expect(insertQuery.args[1]).toBe(USER_ID);
         expect(insertQuery.args[2]).toBe('ws-1');
@@ -1072,33 +1200,39 @@ describe('S3 API compatibility endpoints', () => {
           workspace_id: 'ws-1',
           key: 'large-file.bin',
           drive_account_id: 'drive-123',
-          temp_folder_id: 'temp-folder-123'
+          temp_folder_id: 'temp-folder-123',
         };
         const env = await getMockEnv({
           workspaceResolved,
           driveAccounts,
           multipartUploadResolved,
-          sqlQueries
+          sqlQueries,
         });
 
-        const initiateSpy = vi.spyOn(GoogleDriveService.prototype, 'initiateResumableUpload').mockResolvedValue('https://example.com/part-upload-url');
-        const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: any, init: any) => {
-          if (init && init.body) {
-            if (typeof init.body.getReader === 'function') {
-              const reader = init.body.getReader();
-              while (true) {
-                const { done } = await reader.read();
-                if (done) break;
+        const initiateSpy = vi
+          .spyOn(GoogleDriveService.prototype, 'initiateResumableUpload')
+          .mockResolvedValue('https://example.com/part-upload-url');
+        const fetchSpy = vi
+          .spyOn(globalThis, 'fetch')
+          .mockImplementation(async (url: any, init: any) => {
+            if (init && init.body) {
+              if (typeof init.body.getReader === 'function') {
+                const reader = init.body.getReader();
+                while (true) {
+                  const { done } = await reader.read();
+                  if (done) break;
+                }
+              } else if (typeof init.body[Symbol.asyncIterator] === 'function') {
+                for await (const _ of init.body) {
+                  void _;
+                }
               }
-            } else if (typeof init.body[Symbol.asyncIterator] === 'function') {
-              for await (const _ of init.body) { void _; }
             }
-          }
-          return {
-            ok: true,
-            text: async () => JSON.stringify({ id: 'g-part-file-123' })
-          } as Response;
-        });
+            return {
+              ok: true,
+              text: async () => JSON.stringify({ id: 'g-part-file-123' }),
+            } as Response;
+          });
 
         const partPayload = 'part content';
         const partMD5 = '5d9e2866a2d0cc0249dad69c33eb7e4a'; // md5('part content')
@@ -1108,11 +1242,11 @@ describe('S3 API compatibility endpoints', () => {
         const path = '/s3/my-bucket-1/large-file.bin';
         const queryParams = { uploadId: 'upload-123', partNumber: '1' };
         const headers = {
-          'host': 'localhost:8787',
+          host: 'localhost:8787',
           'x-amz-date': amzDate,
           'x-amz-content-sha256': sha256(partPayload),
           'content-type': 'application/octet-stream',
-          'content-length': String(partPayload.length)
+          'content-length': String(partPayload.length),
         };
 
         const { signature, signedHeaders } = calculateSigV4({
@@ -1122,26 +1256,37 @@ describe('S3 API compatibility endpoints', () => {
           headers,
           payload: partPayload,
           dateStr,
-          amzDate
+          amzDate,
         });
 
         const authHeader = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
-        const res = await app.request(`${path}?uploadId=upload-123&partNumber=1`, {
-          method: 'PUT',
-          headers: {
-            ...headers,
-            'Authorization': authHeader
+        const res = await app.request(
+          `${path}?uploadId=upload-123&partNumber=1`,
+          {
+            method: 'PUT',
+            headers: {
+              ...headers,
+              Authorization: authHeader,
+            },
+            body: partPayload,
           },
-          body: partPayload
-        }, env);
+          env,
+        );
 
         expect(res.status).toBe(200);
         expect(res.headers.get('ETag')).toBe(`"${partMD5}"`);
 
-        expect(initiateSpy).toHaveBeenCalledWith('drive-123', 'part_1', 'application/octet-stream', 'temp-folder-123');
+        expect(initiateSpy).toHaveBeenCalledWith(
+          'drive-123',
+          'part_1',
+          'application/octet-stream',
+          'temp-folder-123',
+        );
 
-        const insertPartQuery = sqlQueries.find(q => q.sql.includes('INSERT OR REPLACE INTO s3_multipart_parts'));
+        const insertPartQuery = sqlQueries.find((q) =>
+          q.sql.includes('INSERT OR REPLACE INTO s3_multipart_parts'),
+        );
         expect(insertPartQuery).toBeDefined();
         expect(insertPartQuery.args[0]).toBe('upload-123');
         expect(insertPartQuery.args[1]).toBe(1);
@@ -1162,7 +1307,7 @@ describe('S3 API compatibility endpoints', () => {
           workspace_id: 'ws-1',
           key: 'large-file.bin',
           drive_account_id: 'drive-123',
-          temp_folder_id: 'temp-folder-123'
+          temp_folder_id: 'temp-folder-123',
         };
         const multipartPartsResolved = [
           {
@@ -1170,8 +1315,8 @@ describe('S3 API compatibility endpoints', () => {
             part_number: 1,
             google_file_id: 'g-part-file-123',
             etag: '"5d9e2866a2d0cc0249dad69c33eb7e4a"',
-            size: 12
-          }
+            size: 12,
+          },
         ];
 
         const env = await getMockEnv({
@@ -1179,46 +1324,54 @@ describe('S3 API compatibility endpoints', () => {
           driveAccounts,
           multipartUploadResolved,
           multipartPartsResolved,
-          sqlQueries
+          sqlQueries,
         });
 
-        const initiateSpy = vi.spyOn(GoogleDriveService.prototype, 'initiateResumableUpload').mockResolvedValue('https://example.com/final-upload-url');
-        const downloadSpy = vi.spyOn(GoogleDriveService.prototype, 'downloadFile').mockResolvedValue({
-          stream: new ReadableStream({
-            start(ctrl) {
-              ctrl.enqueue(new TextEncoder().encode('part content'));
-              ctrl.close();
-            }
-          })
-        });
-        const deleteSpy = vi.spyOn(GoogleDriveService.prototype, 'deleteFile').mockResolvedValue(undefined);
+        const initiateSpy = vi
+          .spyOn(GoogleDriveService.prototype, 'initiateResumableUpload')
+          .mockResolvedValue('https://example.com/final-upload-url');
+        const downloadSpy = vi
+          .spyOn(GoogleDriveService.prototype, 'downloadFile')
+          .mockResolvedValue({
+            stream: new ReadableStream({
+              start(ctrl) {
+                ctrl.enqueue(new TextEncoder().encode('part content'));
+                ctrl.close();
+              },
+            }),
+          });
+        const deleteSpy = vi
+          .spyOn(GoogleDriveService.prototype, 'deleteFile')
+          .mockResolvedValue(undefined);
 
-        const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: any, init: any) => {
-          if (url === 'https://example.com/final-upload-url') {
-            // Consume final stream
-            if (init && init.body) {
-              const reader = init.body.getReader();
-              while (true) {
-                const { done } = await reader.read();
-                if (done) break;
+        const fetchSpy = vi
+          .spyOn(globalThis, 'fetch')
+          .mockImplementation(async (url: any, init: any) => {
+            if (url === 'https://example.com/final-upload-url') {
+              // Consume final stream
+              if (init && init.body) {
+                const reader = init.body.getReader();
+                while (true) {
+                  const { done } = await reader.read();
+                  if (done) break;
+                }
               }
+              return {
+                ok: true,
+                text: async () => JSON.stringify({ id: 'g-final-file-123' }),
+              } as Response;
             }
-            return {
-              ok: true,
-              text: async () => JSON.stringify({ id: 'g-final-file-123' })
-            } as Response;
-          }
-          return { ok: false } as Response;
-        });
+            return { ok: false } as Response;
+          });
 
         const amzDate = '20260621T120000Z';
         const dateStr = '20260621';
         const path = '/s3/my-bucket-1/large-file.bin';
         const queryParams = { uploadId: 'upload-123' };
         const headers = {
-          'host': 'localhost:8787',
+          host: 'localhost:8787',
           'x-amz-date': amzDate,
-          'x-amz-content-sha256': sha256('')
+          'x-amz-content-sha256': sha256(''),
         };
 
         const { signature, signedHeaders } = calculateSigV4({
@@ -1227,18 +1380,22 @@ describe('S3 API compatibility endpoints', () => {
           queryParams,
           headers,
           dateStr,
-          amzDate
+          amzDate,
         });
 
         const authHeader = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
-        const res = await app.request(`${path}?uploadId=upload-123`, {
-          method: 'POST',
-          headers: {
-            ...headers,
-            'Authorization': authHeader
-          }
-        }, env);
+        const res = await app.request(
+          `${path}?uploadId=upload-123`,
+          {
+            method: 'POST',
+            headers: {
+              ...headers,
+              Authorization: authHeader,
+            },
+          },
+          env,
+        );
 
         expect(res.status).toBe(200);
         const body = await res.text();
@@ -1247,15 +1404,22 @@ describe('S3 API compatibility endpoints', () => {
         expect(body).toContain('<Key>large-file.bin</Key>');
         expect(body).toContain('<ETag>"5957f540217942ac31a98596f9b61399-1"</ETag>');
 
-        expect(initiateSpy).toHaveBeenCalledWith('drive-123', 'large-file.bin', 'application/octet-stream', 'root-folder-123');
+        expect(initiateSpy).toHaveBeenCalledWith(
+          'drive-123',
+          'large-file.bin',
+          'application/octet-stream',
+          'root-folder-123',
+        );
         expect(downloadSpy).toHaveBeenCalledWith('drive-123', 'g-part-file-123');
         expect(deleteSpy).toHaveBeenCalledWith('drive-123', 'temp-folder-123');
 
-        const deleteUploadQuery = sqlQueries.find(q => q.sql.includes('DELETE FROM s3_multipart_uploads WHERE upload_id = ?'));
+        const deleteUploadQuery = sqlQueries.find((q) =>
+          q.sql.includes('DELETE FROM s3_multipart_uploads WHERE upload_id = ?'),
+        );
         expect(deleteUploadQuery).toBeDefined();
         expect(deleteUploadQuery.args[0]).toBe('upload-123');
 
-        const insertFileQuery = sqlQueries.find(q => q.sql.includes('INSERT INTO files'));
+        const insertFileQuery = sqlQueries.find((q) => q.sql.includes('INSERT INTO files'));
         expect(insertFileQuery).toBeDefined();
         expect(insertFileQuery.args[1]).toBe(USER_ID);
         expect(insertFileQuery.args[2]).toBe('drive-123');
@@ -1283,16 +1447,26 @@ describe('S3 API compatibility endpoints', () => {
       const amzDate = '20260621T120000Z';
       const dateStr = '20260621';
       const headers = {
-        'host': 'localhost:8787',
+        host: 'localhost:8787',
         'x-amz-date': amzDate,
-        'x-amz-content-sha256': sha256('')
+        'x-amz-content-sha256': sha256(''),
       };
-      const { signature, signedHeaders } = calculateSigV4({ method, path, headers, dateStr, amzDate });
-      const authHeader = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request, SignedHeaders=${signedHeaders}, Signature=${signature}`;
-      return app.request(path, {
+      const { signature, signedHeaders } = calculateSigV4({
         method,
-        headers: { ...headers, Authorization: authHeader }
-      }, env);
+        path,
+        headers,
+        dateStr,
+        amzDate,
+      });
+      const authHeader = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+      return app.request(
+        path,
+        {
+          method,
+          headers: { ...headers, Authorization: authHeader },
+        },
+        env,
+      );
     }
 
     it('returns 404 XML error when GetObject key does not exist', async () => {
@@ -1322,7 +1496,7 @@ describe('S3 API compatibility endpoints', () => {
     it('returns 404 XML NoSuchUpload when aborting a non-existent multipart upload', async () => {
       const env = await getMockEnv({
         workspaceResolved: { id: 'ws-1' },
-        multipartUploadResolved: null
+        multipartUploadResolved: null,
       });
 
       const amzDate = '20260621T120000Z';
@@ -1330,17 +1504,28 @@ describe('S3 API compatibility endpoints', () => {
       const path = '/s3/my-bucket/large-file.bin';
       const queryParams = { uploadId: 'non-existent-upload' };
       const headers = {
-        'host': 'localhost:8787',
+        host: 'localhost:8787',
         'x-amz-date': amzDate,
-        'x-amz-content-sha256': sha256('')
+        'x-amz-content-sha256': sha256(''),
       };
-      const { signature, signedHeaders } = calculateSigV4({ method: 'DELETE', path, queryParams, headers, dateStr, amzDate });
+      const { signature, signedHeaders } = calculateSigV4({
+        method: 'DELETE',
+        path,
+        queryParams,
+        headers,
+        dateStr,
+        amzDate,
+      });
       const authHeader = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
-      const res = await app.request(`${path}?uploadId=non-existent-upload`, {
-        method: 'DELETE',
-        headers: { ...headers, Authorization: authHeader }
-      }, env);
+      const res = await app.request(
+        `${path}?uploadId=non-existent-upload`,
+        {
+          method: 'DELETE',
+          headers: { ...headers, Authorization: authHeader },
+        },
+        env,
+      );
 
       expect(res.status).toBe(404);
       const body = await res.text();
@@ -1356,9 +1541,9 @@ describe('S3 API compatibility endpoints', () => {
           workspace_id: 'ws-1',
           key: 'large-file.bin',
           drive_account_id: 'drive-123',
-          temp_folder_id: 'temp-folder-123'
+          temp_folder_id: 'temp-folder-123',
         },
-        multipartPartsResolved: [] // no parts uploaded
+        multipartPartsResolved: [], // no parts uploaded
       });
 
       const amzDate = '20260621T120000Z';
@@ -1366,17 +1551,28 @@ describe('S3 API compatibility endpoints', () => {
       const path = '/s3/my-bucket/large-file.bin';
       const queryParams = { uploadId: 'upload-empty' };
       const headers = {
-        'host': 'localhost:8787',
+        host: 'localhost:8787',
         'x-amz-date': amzDate,
-        'x-amz-content-sha256': sha256('')
+        'x-amz-content-sha256': sha256(''),
       };
-      const { signature, signedHeaders } = calculateSigV4({ method: 'POST', path, queryParams, headers, dateStr, amzDate });
+      const { signature, signedHeaders } = calculateSigV4({
+        method: 'POST',
+        path,
+        queryParams,
+        headers,
+        dateStr,
+        amzDate,
+      });
       const authHeader = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
-      const res = await app.request(`${path}?uploadId=upload-empty`, {
-        method: 'POST',
-        headers: { ...headers, Authorization: authHeader }
-      }, env);
+      const res = await app.request(
+        `${path}?uploadId=upload-empty`,
+        {
+          method: 'POST',
+          headers: { ...headers, Authorization: authHeader },
+        },
+        env,
+      );
 
       expect(res.status).toBe(400);
     });
@@ -1388,17 +1584,27 @@ describe('S3 API compatibility endpoints', () => {
       const dateStr = '20260621';
       const path = '/s3/my-bucket/file.bin';
       const headers = {
-        'host': 'localhost:8787',
+        host: 'localhost:8787',
         'x-amz-date': amzDate,
-        'x-amz-content-sha256': sha256('')
+        'x-amz-content-sha256': sha256(''),
       };
-      const { signature, signedHeaders } = calculateSigV4({ method: 'POST', path, headers, dateStr, amzDate });
+      const { signature, signedHeaders } = calculateSigV4({
+        method: 'POST',
+        path,
+        headers,
+        dateStr,
+        amzDate,
+      });
       const authHeader = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
-      const res = await app.request(path, {
-        method: 'POST',
-        headers: { ...headers, Authorization: authHeader }
-      }, env);
+      const res = await app.request(
+        path,
+        {
+          method: 'POST',
+          headers: { ...headers, Authorization: authHeader },
+        },
+        env,
+      );
 
       expect(res.status).toBe(400);
     });
@@ -1406,7 +1612,7 @@ describe('S3 API compatibility endpoints', () => {
     it('returns 400 when PutObject has no connected drives', async () => {
       const env = await getMockEnv({
         workspaceResolved: { id: 'ws-1' },
-        driveAccounts: [] // no drives connected
+        driveAccounts: [], // no drives connected
       });
 
       const payload = 'file content';
@@ -1414,19 +1620,30 @@ describe('S3 API compatibility endpoints', () => {
       const dateStr = '20260621';
       const path = '/s3/my-bucket/file.txt';
       const headers = {
-        'host': 'localhost:8787',
+        host: 'localhost:8787',
         'x-amz-date': amzDate,
         'x-amz-content-sha256': sha256(payload),
-        'content-length': String(payload.length)
+        'content-length': String(payload.length),
       };
-      const { signature, signedHeaders } = calculateSigV4({ method: 'PUT', path, headers, payload, dateStr, amzDate });
+      const { signature, signedHeaders } = calculateSigV4({
+        method: 'PUT',
+        path,
+        headers,
+        payload,
+        dateStr,
+        amzDate,
+      });
       const authHeader = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
-      const res = await app.request(path, {
-        method: 'PUT',
-        headers: { ...headers, Authorization: authHeader },
-        body: payload
-      }, env);
+      const res = await app.request(
+        path,
+        {
+          method: 'PUT',
+          headers: { ...headers, Authorization: authHeader },
+          body: payload,
+        },
+        env,
+      );
 
       expect(res.status).toBe(400);
     });
@@ -1434,48 +1651,60 @@ describe('S3 API compatibility endpoints', () => {
 
   describe('S3 workspace scoping enforcement when s3WorkspaceId is set', () => {
     async function makeSignedRequest(
-      method: string, 
-      path: string, 
-      env: any, 
-      payload = '', 
-      queryParams: Record<string, string> = {}
+      method: string,
+      path: string,
+      env: any,
+      payload = '',
+      queryParams: Record<string, string> = {},
     ) {
       const amzDate = '20260621T120000Z';
       const dateStr = '20260621';
       const headers = {
-        'host': 'localhost:8787',
+        host: 'localhost:8787',
         'x-amz-date': amzDate,
-        'x-amz-content-sha256': sha256(payload)
+        'x-amz-content-sha256': sha256(payload),
       };
       if (payload) {
         headers['content-length'] = String(payload.length);
       }
-      const { signature, signedHeaders } = calculateSigV4({ method, path, queryParams, headers, payload, dateStr, amzDate });
+      const { signature, signedHeaders } = calculateSigV4({
+        method,
+        path,
+        queryParams,
+        headers,
+        payload,
+        dateStr,
+        amzDate,
+      });
       const authHeader = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request, SignedHeaders=${signedHeaders}, Signature=${signature}`;
-      
+
       const queryStr = Object.entries(queryParams)
         .map(([k, v]) => `${encodeURIComponent(k)}${v ? `=${encodeURIComponent(v)}` : ''}`)
         .join('&');
       const fullPath = queryStr ? `${path}?${queryStr}` : path;
 
-      return app.request(fullPath, {
-        method,
-        headers: { ...headers, Authorization: authHeader },
-        body: payload || undefined
-      }, env);
+      return app.request(
+        fullPath,
+        {
+          method,
+          headers: { ...headers, Authorization: authHeader },
+          body: payload || undefined,
+        },
+        env,
+      );
     }
 
     it('returns only the scoped workspace in ListBuckets if s3WorkspaceId is set', async () => {
       const workspaces = [
         { id: 'ws-1', name: 'my-bucket-1', created_at: '2026-06-21 10:00:00' },
-        { id: 'ws-2', name: 'my-bucket-2', created_at: '2026-06-21 11:00:00' }
+        { id: 'ws-2', name: 'my-bucket-2', created_at: '2026-06-21 11:00:00' },
       ];
 
       const sqlQueries: any[] = [];
-      const env = await getMockEnv({ 
-        workspaces: [workspaces[0]], 
+      const env = await getMockEnv({
+        workspaces: [workspaces[0]],
         s3WorkspaceId: 'ws-1',
-        sqlQueries
+        sqlQueries,
       });
 
       const res = await makeSignedRequest('GET', '/s3/', env);
@@ -1484,7 +1713,7 @@ describe('S3 API compatibility endpoints', () => {
       expect(body).toContain('<Name>my-bucket-1</Name>');
       expect(body).not.toContain('<Name>my-bucket-2</Name>');
 
-      const listQuery = sqlQueries.find(q => q.sql.includes('SELECT w.id, w.name, w.created_at'));
+      const listQuery = sqlQueries.find((q) => q.sql.includes('SELECT w.id, w.name, w.created_at'));
       expect(listQuery).toBeDefined();
       expect(listQuery.args[1]).toBe('ws-1');
       expect(listQuery.args[2]).toBe('ws-1');
@@ -1492,24 +1721,26 @@ describe('S3 API compatibility endpoints', () => {
 
     it('allows access to bucket (ListObjectsV2) if it belongs to the scoped workspace', async () => {
       const sqlQueries: any[] = [];
-      const env = await getMockEnv({ 
-        workspaceResolved: { id: 'ws-1' }, 
+      const env = await getMockEnv({
+        workspaceResolved: { id: 'ws-1' },
         s3WorkspaceId: 'ws-1',
-        sqlQueries
+        sqlQueries,
       });
       const res = await makeSignedRequest('GET', '/s3/my-bucket-1', env);
       expect(res.status).toBe(200);
 
-      const resolveQuery = sqlQueries.find(q => q.sql.includes('SELECT w.id') && q.sql.includes('FROM workspaces w'));
+      const resolveQuery = sqlQueries.find(
+        (q) => q.sql.includes('SELECT w.id') && q.sql.includes('FROM workspaces w'),
+      );
       expect(resolveQuery).toBeDefined();
       expect(resolveQuery.args[2]).toBe('ws-1');
       expect(resolveQuery.args[3]).toBe('ws-1');
     });
 
     it('rejects GET bucket (ListObjectsV2) if workspace does not match scoped workspace ID', async () => {
-      const env = await getMockEnv({ 
-        workspaceResolved: null, 
-        s3WorkspaceId: 'ws-2' 
+      const env = await getMockEnv({
+        workspaceResolved: null,
+        s3WorkspaceId: 'ws-2',
       });
       const res = await makeSignedRequest('GET', '/s3/my-bucket-1', env);
       expect(res.status).toBe(404);
@@ -1518,18 +1749,18 @@ describe('S3 API compatibility endpoints', () => {
     });
 
     it('rejects HEAD object if workspace does not match scoped workspace ID', async () => {
-      const env = await getMockEnv({ 
-        workspaceResolved: null, 
-        s3WorkspaceId: 'ws-2' 
+      const env = await getMockEnv({
+        workspaceResolved: null,
+        s3WorkspaceId: 'ws-2',
       });
       const res = await makeSignedRequest('HEAD', '/s3/my-bucket-1/file.txt', env);
       expect(res.status).toBe(404);
     });
 
     it('rejects GET object if workspace does not match scoped workspace ID', async () => {
-      const env = await getMockEnv({ 
-        workspaceResolved: null, 
-        s3WorkspaceId: 'ws-2' 
+      const env = await getMockEnv({
+        workspaceResolved: null,
+        s3WorkspaceId: 'ws-2',
       });
       const res = await makeSignedRequest('GET', '/s3/my-bucket-1/file.txt', env);
       expect(res.status).toBe(404);
@@ -1538,9 +1769,9 @@ describe('S3 API compatibility endpoints', () => {
     });
 
     it('rejects DELETE object if workspace does not match scoped workspace ID', async () => {
-      const env = await getMockEnv({ 
-        workspaceResolved: null, 
-        s3WorkspaceId: 'ws-2' 
+      const env = await getMockEnv({
+        workspaceResolved: null,
+        s3WorkspaceId: 'ws-2',
       });
       const res = await makeSignedRequest('DELETE', '/s3/my-bucket-1/file.txt', env);
       expect(res.status).toBe(404);
@@ -1549,9 +1780,9 @@ describe('S3 API compatibility endpoints', () => {
     });
 
     it('rejects PUT object if workspace does not match scoped workspace ID', async () => {
-      const env = await getMockEnv({ 
-        workspaceResolved: null, 
-        s3WorkspaceId: 'ws-2' 
+      const env = await getMockEnv({
+        workspaceResolved: null,
+        s3WorkspaceId: 'ws-2',
       });
       const res = await makeSignedRequest('PUT', '/s3/my-bucket-1/file.txt', env, 'some content');
       expect(res.status).toBe(404);
@@ -1560,11 +1791,13 @@ describe('S3 API compatibility endpoints', () => {
     });
 
     it('rejects POST object (initiate multipart upload) if workspace does not match scoped workspace ID', async () => {
-      const env = await getMockEnv({ 
-        workspaceResolved: null, 
-        s3WorkspaceId: 'ws-2' 
+      const env = await getMockEnv({
+        workspaceResolved: null,
+        s3WorkspaceId: 'ws-2',
       });
-      const res = await makeSignedRequest('POST', '/s3/my-bucket-1/file.txt', env, '', { uploads: '' });
+      const res = await makeSignedRequest('POST', '/s3/my-bucket-1/file.txt', env, '', {
+        uploads: '',
+      });
       expect(res.status).toBe(404);
       const body = await res.text();
       expect(body).toBe('Bucket not found');

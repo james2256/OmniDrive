@@ -6,7 +6,13 @@ import { decrypt } from '../lib/crypto';
 import { hmacSha256, sha256 } from '../lib/crypto-s3';
 import { logError } from '../lib/logger';
 
-function returnXmlError(c: Context<AppContext>, code: string, message: string, status: 400 | 401 | 403 | 404 | 500 = 403, extraFields: Record<string, string> = {}) {
+function returnXmlError(
+  c: Context<AppContext>,
+  code: string,
+  message: string,
+  status: 400 | 401 | 403 | 404 | 500 = 403,
+  extraFields: Record<string, string> = {},
+) {
   let xml = `<?xml version="1.0" encoding="UTF-8"?>
 <Error>
   <Code>${code}</Code>
@@ -26,14 +32,16 @@ function returnXmlError(c: Context<AppContext>, code: string, message: string, s
 }
 
 function awsEncode(str: string): string {
-  return encodeURIComponent(str)
-    .replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+  return encodeURIComponent(str).replace(
+    /[!'()*]/g,
+    (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase(),
+  );
 }
 
 export const s3AuthMiddleware: MiddlewareHandler<AppContext> = async (c, next) => {
   const authHeader = c.req.header('Authorization');
   let isPresigned = false;
-  
+
   let accessKeyId: string;
   let date = '';
   let region = '';
@@ -42,32 +50,40 @@ export const s3AuthMiddleware: MiddlewareHandler<AppContext> = async (c, next) =
   let signature = '';
   let amzDate = '';
   let expiresStr = '';
-  
+
   if (authHeader && authHeader.startsWith('AWS4-HMAC-SHA256')) {
     const credentialMatch = authHeader.match(/Credential=([^,\s]+)/);
     const signedHeadersMatch = authHeader.match(/SignedHeaders=([^,\s]+)/);
     const signatureMatch = authHeader.match(/Signature=([^,\s]+)/);
-    
+
     if (!credentialMatch || !signedHeadersMatch || !signatureMatch) {
       return returnXmlError(c, 'InvalidAccessKeyId', 'Malformed Authorization Header');
     }
-    
+
     const credParts = credentialMatch[1].split('/');
     if (credParts.length < 5) {
-      return returnXmlError(c, 'InvalidAccessKeyId', 'Malformed Credential in Authorization Header');
+      return returnXmlError(
+        c,
+        'InvalidAccessKeyId',
+        'Malformed Credential in Authorization Header',
+      );
     }
-    
+
     accessKeyId = credParts[0];
     date = credParts[1];
     region = credParts[2];
     service = credParts[3];
-    
+
     signedHeaders = signedHeadersMatch[1];
     signature = signatureMatch[1];
-    
+
     amzDate = c.req.header('x-amz-date') || c.req.header('date') || '';
     if (!amzDate) {
-      return returnXmlError(c, 'AccessDenied', 'AWS Signature Version 4 requires x-amz-date or date header');
+      return returnXmlError(
+        c,
+        'AccessDenied',
+        'AWS Signature Version 4 requires x-amz-date or date header',
+      );
     }
   } else {
     // Check query parameters (Presigned URLs)
@@ -77,38 +93,51 @@ export const s3AuthMiddleware: MiddlewareHandler<AppContext> = async (c, next) =
     const amzSignature = c.req.query('X-Amz-Signature');
     const amzDateParam = c.req.query('X-Amz-Date');
     const amzExpires = c.req.query('X-Amz-Expires');
-    
-    if (!amzCred || amzAlgorithm !== 'AWS4-HMAC-SHA256' || !amzSignedHeaders || !amzSignature || !amzDateParam) {
+
+    if (
+      !amzCred ||
+      amzAlgorithm !== 'AWS4-HMAC-SHA256' ||
+      !amzSignedHeaders ||
+      !amzSignature ||
+      !amzDateParam
+    ) {
       return returnXmlError(c, 'AccessDenied', 'AWS Signature Version 4 credentials missing');
     }
-    
+
     const credParts = amzCred.split('/');
     if (credParts.length < 5) {
       return returnXmlError(c, 'InvalidAccessKeyId', 'Malformed X-Amz-Credential query parameter');
     }
-    
+
     accessKeyId = credParts[0];
     date = credParts[1];
     region = credParts[2];
     service = credParts[3];
-    
+
     signedHeaders = amzSignedHeaders;
     signature = amzSignature;
     amzDate = amzDateParam;
     expiresStr = amzExpires || '';
     isPresigned = true;
   }
-  
+
   // Look up credentials in the database
   const db = c.env.DB;
-  const cred = await db.prepare('SELECT * FROM s3_credentials WHERE access_key_id = ?').bind(accessKeyId).first() as S3CredentialRow | null;
+  const cred = (await db
+    .prepare('SELECT * FROM s3_credentials WHERE access_key_id = ?')
+    .bind(accessKeyId)
+    .first()) as S3CredentialRow | null;
   if (!cred) {
-    return returnXmlError(c, 'InvalidAccessKeyId', 'The AWS Access Key Id you provided does not exist in our records.');
+    return returnXmlError(
+      c,
+      'InvalidAccessKeyId',
+      'The AWS Access Key Id you provided does not exist in our records.',
+    );
   }
-  
+
   try {
     const rawSecretKey = await decrypt(cred.secret_key_enc, c.env.TOKEN_ENCRYPTION_KEY);
-    
+
     // Perform standard AWS SigV4 validation
     // 1. Time expiration and clock skew validation
     const datePattern = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/;
@@ -146,7 +175,11 @@ export const s3AuthMiddleware: MiddlewareHandler<AppContext> = async (c, next) =
       const currentTime = Date.now();
       const expiresSec = parseInt(expiresStr, 10);
       if (isNaN(expiresSec) || expiresSec < 0 || expiresSec > 604800) {
-        return returnXmlError(c, 'InvalidArgument', 'X-Amz-Expires must be a valid integer between 0 and 604800');
+        return returnXmlError(
+          c,
+          'InvalidArgument',
+          'X-Amz-Expires must be a valid integer between 0 and 604800',
+        );
       }
       if (currentTime > requestTime + expiresSec * 1000) {
         return returnXmlError(c, 'AccessDenied', 'Request has expired', 403);
@@ -155,10 +188,15 @@ export const s3AuthMiddleware: MiddlewareHandler<AppContext> = async (c, next) =
       const currentTime = Date.now();
       const fifteenMinutes = 15 * 60 * 1000;
       if (Math.abs(currentTime - requestTime) > fifteenMinutes) {
-        return returnXmlError(c, 'RequestTimeTooSkewed', 'The difference between the request time and the current time is too large.', 403);
+        return returnXmlError(
+          c,
+          'RequestTimeTooSkewed',
+          'The difference between the request time and the current time is too large.',
+          403,
+        );
       }
     }
-    
+
     // 2. Recompute the Canonical Request
     const url = new URL(c.req.url);
     const pathStart = c.req.url.indexOf('/', c.req.url.indexOf('//') + 2);
@@ -167,14 +205,14 @@ export const s3AuthMiddleware: MiddlewareHandler<AppContext> = async (c, next) =
     if (!rawPath.startsWith('/')) {
       rawPath = '/' + rawPath;
     }
-    
+
     const queryParams: [string, string][] = [];
     url.searchParams.forEach((value, key) => {
       if (key.toLowerCase() !== 'x-amz-signature') {
         queryParams.push([key, value]);
       }
     });
-    
+
     queryParams.sort((a, b) => {
       const aKey = awsEncode(a[0]);
       const bKey = awsEncode(b[0]);
@@ -186,39 +224,44 @@ export const s3AuthMiddleware: MiddlewareHandler<AppContext> = async (c, next) =
       if (aVal > bVal) return 1;
       return 0;
     });
-    
+
     const canonicalQueryString = queryParams
       .map(([key, val]) => `${awsEncode(key)}=${awsEncode(val)}`)
       .join('&');
-      
-    const signedHeadersList = signedHeaders.split(';').map(h => h.trim().toLowerCase());
-    
+
+    const signedHeadersList = signedHeaders.split(';').map((h) => h.trim().toLowerCase());
+
     const getCanonicalHeaders = (overrides: Record<string, string> = {}) => {
       let canonicalHeaders = '';
       for (const headerName of signedHeadersList) {
-        const headerVal = overrides[headerName] !== undefined
-          ? overrides[headerName]
-          : (c.req.header(headerName) || url.searchParams.get(headerName) || '');
+        const headerVal =
+          overrides[headerName] !== undefined
+            ? overrides[headerName]
+            : c.req.header(headerName) || url.searchParams.get(headerName) || '';
         const trimmedVal = headerVal.trim().replace(/\s+/g, ' ');
         canonicalHeaders += `${headerName}:${trimmedVal}\n`;
       }
       return canonicalHeaders;
     };
-    
+
     let payloadHash = c.req.header('x-amz-content-sha256');
     if (!payloadHash) {
       if (c.req.method === 'GET' || c.req.method === 'HEAD' || c.req.method === 'DELETE') {
         payloadHash = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
       } else {
         // ponytail: require x-amz-content-sha256 on PUT/POST — prevents body substitution
-        return returnXmlError(c, 'InvalidRequest', 'x-amz-content-sha256 header is required for PUT/POST requests');
+        return returnXmlError(
+          c,
+          'InvalidRequest',
+          'x-amz-content-sha256 header is required for PUT/POST requests',
+        );
       }
     }
-    
+
     // Calculate expected signature using a helper that supports fallback paths and header overrides
     const checkSignatureForPath = (
       pathToCheck: string,
-      headerOverrides: Record<string, string> = {}
+      headerOverrides: Record<string, string> = {},
     ): { valid: boolean; calculated: string; canonical: string; stringToSign: string } => {
       const canonicalHeaders = getCanonicalHeaders(headerOverrides);
       const canonicalRequest = [
@@ -227,26 +270,27 @@ export const s3AuthMiddleware: MiddlewareHandler<AppContext> = async (c, next) =
         canonicalQueryString,
         canonicalHeaders,
         signedHeaders,
-        payloadHash
+        payloadHash,
       ].join('\n');
-      
+
       const stringToSign = [
         'AWS4-HMAC-SHA256',
         amzDate,
         `${date}/${region}/${service}/aws4_request`,
-        sha256(canonicalRequest)
+        sha256(canonicalRequest),
       ].join('\n');
-      
-      const kDate = hmacSha256("AWS4" + rawSecretKey, date);
+
+      const kDate = hmacSha256('AWS4' + rawSecretKey, date);
       const kRegion = hmacSha256(kDate, region);
       const kService = hmacSha256(kRegion, service);
       const kSigning = hmacSha256(kService, 'aws4_request');
       const calculatedSignature = hmacSha256(kSigning, stringToSign).toString('hex');
-      
+
       const computedBuf = Buffer.from(calculatedSignature, 'hex');
       const providedBuf = Buffer.from(signature, 'hex');
-      const valid = computedBuf.length === providedBuf.length && timingSafeEqual(computedBuf, providedBuf);
-      
+      const valid =
+        computedBuf.length === providedBuf.length && timingSafeEqual(computedBuf, providedBuf);
+
       return { valid, calculated: calculatedSignature, canonical: canonicalRequest, stringToSign };
     };
 
@@ -273,14 +317,12 @@ export const s3AuthMiddleware: MiddlewareHandler<AppContext> = async (c, next) =
     let result = { valid: false, calculated: '', canonical: '', stringToSign: '' };
 
     // Try all combinations of path candidates and accept-encoding overrides
-    outerLoop:
-    for (const pathCandidate of pathCandidates) {
+    outerLoop: for (const pathCandidate of pathCandidates) {
       for (const aeVal of acceptEncodingValues) {
         const overrides = signedHeadersList.includes('accept-encoding')
           ? { 'accept-encoding': aeVal }
-          
-          : {} as Record<string, string>;
-          
+          : ({} as Record<string, string>);
+
         const testResult = checkSignatureForPath(pathCandidate, overrides);
         if (testResult.valid) {
           result = testResult;
@@ -299,17 +341,17 @@ export const s3AuthMiddleware: MiddlewareHandler<AppContext> = async (c, next) =
         providedSignature: signature,
         calculatedSignature: result.calculated,
         canonicalRequest: result.canonical,
-        stringToSign: result.stringToSign
+        stringToSign: result.stringToSign,
       });
       // ponytail: do NOT echo CanonicalRequest/StringToSign to client — that's a signing oracle
       return returnXmlError(
         c,
         'SignatureDoesNotMatch',
         'The request signature we calculated does not match the signature you provided. Check your key and signing method.',
-        403
+        403,
       );
     }
-    
+
     c.set('userId', cred.user_id);
     c.set('s3WorkspaceId', cred.workspace_id || null);
     return await next();

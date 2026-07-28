@@ -7,28 +7,42 @@ describe('validateWebhookUrl', () => {
   });
 
   it('rejects localhost', () => {
-    expect(validateWebhookUrl('https://localhost/hook')).toBe('Webhook URL must not point to private/internal addresses');
+    expect(validateWebhookUrl('https://localhost/hook')).toBe(
+      'Webhook URL must not point to private/internal addresses',
+    );
   });
 
   it('rejects 127.0.0.1', () => {
-    expect(validateWebhookUrl('https://127.0.0.1/hook')).toBe('Webhook URL must not point to private/internal addresses');
+    expect(validateWebhookUrl('https://127.0.0.1/hook')).toBe(
+      'Webhook URL must not point to private/internal addresses',
+    );
   });
 
   it('rejects cloud metadata IP', () => {
-    expect(validateWebhookUrl('https://169.254.169.254/latest/meta-data')).toBe('Webhook URL must not point to private/internal addresses');
+    expect(validateWebhookUrl('https://169.254.169.254/latest/meta-data')).toBe(
+      'Webhook URL must not point to private/internal addresses',
+    );
   });
 
   it('rejects private 10.x.x.x range', () => {
-    expect(validateWebhookUrl('https://10.0.0.1/hook')).toBe('Webhook URL must not point to private/internal addresses');
+    expect(validateWebhookUrl('https://10.0.0.1/hook')).toBe(
+      'Webhook URL must not point to private/internal addresses',
+    );
   });
 
   it('rejects private 192.168.x.x range', () => {
-    expect(validateWebhookUrl('https://192.168.1.1/hook')).toBe('Webhook URL must not point to private/internal addresses');
+    expect(validateWebhookUrl('https://192.168.1.1/hook')).toBe(
+      'Webhook URL must not point to private/internal addresses',
+    );
   });
 
   it('rejects private 172.16-31.x.x range', () => {
-    expect(validateWebhookUrl('https://172.16.0.1/hook')).toBe('Webhook URL must not point to private/internal addresses');
-    expect(validateWebhookUrl('https://172.31.255.255/hook')).toBe('Webhook URL must not point to private/internal addresses');
+    expect(validateWebhookUrl('https://172.16.0.1/hook')).toBe(
+      'Webhook URL must not point to private/internal addresses',
+    );
+    expect(validateWebhookUrl('https://172.31.255.255/hook')).toBe(
+      'Webhook URL must not point to private/internal addresses',
+    );
   });
 
   it('allows valid 172.x addresses outside private range', () => {

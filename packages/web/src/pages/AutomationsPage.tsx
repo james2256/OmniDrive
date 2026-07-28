@@ -15,11 +15,7 @@ export function AutomationsPage() {
         <h1 className="text-2xl font-bold text-slate-900">Automation Rules</h1>
       </div>
 
-      {error && (
-        <div className="p-3 bg-red-50 text-red-600 rounded-lg mb-4 text-sm">
-          {error}
-        </div>
-      )}
+      {error && <div className="p-3 bg-red-50 text-red-600 rounded-lg mb-4 text-sm">{error}</div>}
 
       <div className="bg-card border border-slate-200 rounded-xl overflow-hidden shadow-sm">
         {isLoading ? (
@@ -28,16 +24,15 @@ export function AutomationsPage() {
             Loading rules...
           </div>
         ) : rules.length === 0 ? (
-          <div className="p-8 text-center text-slate-500">
-            No automation rules yet.
-          </div>
+          <div className="p-8 text-center text-slate-500">No automation rules yet.</div>
         ) : (
-          rules.map(rule => (
-            <div key={rule.id} className="p-4 border-b border-slate-100 last:border-b-0 flex justify-between items-center gap-3">
+          rules.map((rule) => (
+            <div
+              key={rule.id}
+              className="p-4 border-b border-slate-100 last:border-b-0 flex justify-between items-center gap-3"
+            >
               <div className="min-w-0">
-                <h3 className="text-sm font-semibold text-slate-800 mb-1 truncate">
-                  {rule.name}
-                </h3>
+                <h3 className="text-sm font-semibold text-slate-800 mb-1 truncate">{rule.name}</h3>
                 <p className="text-xs text-slate-500">
                   Trigger: <span className="capitalize">{rule.triggerType}</span>
                 </p>

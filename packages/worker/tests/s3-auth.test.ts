@@ -21,7 +21,7 @@ function calculateSigV4({
   region = 'us-east-1',
   service = 's3',
   dateStr = '20260621',
-  amzDate = '20260621T120000Z'
+  amzDate = '20260621T120000Z',
 }: {
   method: string;
   path: string;
@@ -36,8 +36,10 @@ function calculateSigV4({
   amzDate?: string;
 }) {
   function awsEncode(str: string): string {
-    return encodeURIComponent(str)
-      .replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+    return encodeURIComponent(str).replace(
+      /[!'()*]/g,
+      (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase(),
+    );
   }
 
   const queryParamsList: [string, string][] = Object.entries(queryParams);
@@ -77,17 +79,17 @@ function calculateSigV4({
     canonicalQueryString,
     canonicalHeaders,
     signedHeaders,
-    payloadHash
+    payloadHash,
   ].join('\n');
 
   const stringToSign = [
     'AWS4-HMAC-SHA256',
     amzDate,
     `${dateStr}/${region}/${service}/aws4_request`,
-    sha256(canonicalRequest)
+    sha256(canonicalRequest),
   ].join('\n');
 
-  const kDate = hmacSha256("AWS4" + secretAccessKey, dateStr);
+  const kDate = hmacSha256('AWS4' + secretAccessKey, dateStr);
   const kRegion = hmacSha256(kDate, region);
   const kService = hmacSha256(kRegion, service);
   const kSigning = hmacSha256(kService, 'aws4_request');
@@ -97,7 +99,7 @@ function calculateSigV4({
     signature,
     signedHeaders,
     canonicalRequest,
-    stringToSign
+    stringToSign,
   };
 }
 
@@ -113,7 +115,7 @@ describe('S3 Auth Middleware', () => {
 
   const getMockEnv = async (credentialsInDb = true, workspaceId: string | null = null) => {
     const encryptedSecret = await encrypt(SECRET_ACCESS_KEY, TOKEN_ENCRYPTION_KEY);
-    
+
     const mockDb = {
       prepare: vi.fn((sql: string) => {
         return {
@@ -128,16 +130,16 @@ describe('S3 Auth Middleware', () => {
                       workspace_id: workspaceId,
                       access_key_id: ACCESS_KEY_ID,
                       secret_key_enc: encryptedSecret,
-                      description: 'Test Credential'
+                      description: 'Test Credential',
                     };
                   }
                 }
                 return null;
-              })
+              }),
             };
-          })
+          }),
         };
-      })
+      }),
     };
 
     return {
@@ -159,7 +161,7 @@ describe('S3 Auth Middleware', () => {
       return c.json({
         success: true,
         userId: c.get('userId'),
-        s3WorkspaceId: c.get('s3WorkspaceId')
+        s3WorkspaceId: c.get('s3WorkspaceId'),
       });
     });
     return testApp;
@@ -168,7 +170,7 @@ describe('S3 Auth Middleware', () => {
   it('rejects requests with missing authentication credentials', async () => {
     const app = createTestApp();
     const env = await getMockEnv();
-    
+
     const res = await app.request('/test-bucket/file.txt', { method: 'GET' }, env);
     expect(res.status).toBe(403);
     const body = await res.text();
@@ -179,14 +181,18 @@ describe('S3 Auth Middleware', () => {
   it('rejects requests with malformed Authorization header', async () => {
     const app = createTestApp();
     const env = await getMockEnv();
-    
-    const res = await app.request('/test-bucket/file.txt', {
-      method: 'GET',
-      headers: {
-        'Authorization': 'AWS4-HMAC-SHA256 MalformedHeaderData'
-      }
-    }, env);
-    
+
+    const res = await app.request(
+      '/test-bucket/file.txt',
+      {
+        method: 'GET',
+        headers: {
+          Authorization: 'AWS4-HMAC-SHA256 MalformedHeaderData',
+        },
+      },
+      env,
+    );
+
     expect(res.status).toBe(403);
     const body = await res.text();
     expect(body).toContain('<Code>InvalidAccessKeyId</Code>');
@@ -196,32 +202,36 @@ describe('S3 Auth Middleware', () => {
   it('rejects requests if the Access Key does not exist', async () => {
     const app = createTestApp();
     const env = await getMockEnv(false); // No credentials in DB
-    
+
     const amzDate = '20260621T120000Z';
     const dateStr = '20260621';
     const path = '/test-bucket/file.txt';
-    
+
     const { signature, signedHeaders } = calculateSigV4({
       method: 'GET',
       path,
       headers: {
-        'host': 'localhost:8787',
-        'x-amz-date': amzDate
+        host: 'localhost:8787',
+        'x-amz-date': amzDate,
       },
       dateStr,
-      amzDate
+      amzDate,
     });
 
     const authHeader = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
-    const res = await app.request(path, {
-      method: 'GET',
-      headers: {
-        'host': 'localhost:8787',
-        'x-amz-date': amzDate,
-        'Authorization': authHeader
-      }
-    }, env);
+    const res = await app.request(
+      path,
+      {
+        method: 'GET',
+        headers: {
+          host: 'localhost:8787',
+          'x-amz-date': amzDate,
+          Authorization: authHeader,
+        },
+      },
+      env,
+    );
 
     expect(res.status).toBe(403);
     const body = await res.text();
@@ -232,14 +242,14 @@ describe('S3 Auth Middleware', () => {
   it('accepts and authenticates valid Header-based requests', async () => {
     const app = createTestApp();
     const env = await getMockEnv();
-    
+
     const amzDate = '20260621T120000Z';
     const dateStr = '20260621';
     const path = '/test-bucket/file.txt';
     const headers = {
-      'host': 'localhost:8787',
+      host: 'localhost:8787',
       'x-amz-date': amzDate,
-      'x-amz-content-sha256': sha256('')
+      'x-amz-content-sha256': sha256(''),
     };
 
     const { signature, signedHeaders } = calculateSigV4({
@@ -247,21 +257,25 @@ describe('S3 Auth Middleware', () => {
       path,
       headers,
       dateStr,
-      amzDate
+      amzDate,
     });
 
     const authHeader = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
-    const res = await app.request(path, {
-      method: 'GET',
-      headers: {
-        ...headers,
-        'Authorization': authHeader
-      }
-    }, env);
+    const res = await app.request(
+      path,
+      {
+        method: 'GET',
+        headers: {
+          ...headers,
+          Authorization: authHeader,
+        },
+      },
+      env,
+    );
 
     expect(res.status).toBe(200);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(body.success).toBe(true);
     expect(body.userId).toBe(USER_ID);
   });
@@ -269,13 +283,13 @@ describe('S3 Auth Middleware', () => {
   it('rejects Header-based requests with incorrect signatures', async () => {
     const app = createTestApp();
     const env = await getMockEnv();
-    
+
     const amzDate = '20260621T120000Z';
     const dateStr = '20260621';
     const path = '/test-bucket/file.txt';
     const headers = {
-      'host': 'localhost:8787',
-      'x-amz-date': amzDate
+      host: 'localhost:8787',
+      'x-amz-date': amzDate,
     };
 
     const { signedHeaders } = calculateSigV4({
@@ -283,19 +297,23 @@ describe('S3 Auth Middleware', () => {
       path,
       headers,
       dateStr,
-      amzDate
+      amzDate,
     });
 
     const incorrectSignature = 'a'.repeat(64);
     const authHeader = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request, SignedHeaders=${signedHeaders}, Signature=${incorrectSignature}`;
 
-    const res = await app.request(path, {
-      method: 'GET',
-      headers: {
-        ...headers,
-        'Authorization': authHeader
-      }
-    }, env);
+    const res = await app.request(
+      path,
+      {
+        method: 'GET',
+        headers: {
+          ...headers,
+          Authorization: authHeader,
+        },
+      },
+      env,
+    );
 
     expect(res.status).toBe(403);
     const body = await res.text();
@@ -305,21 +323,21 @@ describe('S3 Auth Middleware', () => {
   it('accepts and authenticates valid Presigned URL query-based requests', async () => {
     const app = createTestApp();
     const env = await getMockEnv();
-    
+
     const amzDate = '20260621T120000Z';
     const dateStr = '20260621';
     const path = '/test-bucket/file.txt';
     const headers = {
-      'host': 'localhost:8787'
+      host: 'localhost:8787',
     };
-    
+
     // For query based auth, params to sign:
     const queryParams = {
       'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
       'X-Amz-Credential': `${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request`,
       'X-Amz-Date': amzDate,
       'X-Amz-Expires': '86400',
-      'X-Amz-SignedHeaders': 'host'
+      'X-Amz-SignedHeaders': 'host',
     };
 
     const { signature } = calculateSigV4({
@@ -328,20 +346,25 @@ describe('S3 Auth Middleware', () => {
       queryParams,
       headers,
       dateStr,
-      amzDate
+      amzDate,
     });
 
-    const queryString = Object.entries(queryParams)
-      .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
-      .join('&') + `&X-Amz-Signature=${signature}`;
+    const queryString =
+      Object.entries(queryParams)
+        .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+        .join('&') + `&X-Amz-Signature=${signature}`;
 
-    const res = await app.request(`${path}?${queryString}`, {
-      method: 'GET',
-      headers
-    }, env);
+    const res = await app.request(
+      `${path}?${queryString}`,
+      {
+        method: 'GET',
+        headers,
+      },
+      env,
+    );
 
     expect(res.status).toBe(200);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(body.success).toBe(true);
     expect(body.userId).toBe(USER_ID);
   });
@@ -349,23 +372,23 @@ describe('S3 Auth Middleware', () => {
   it('rejects expired Presigned URL requests', async () => {
     const app = createTestApp();
     const env = await getMockEnv();
-    
+
     // Set timestamp to past
     const pastDate = new Date(Date.now() - 3600 * 1000); // 1 hour ago
     const amzDate = pastDate.toISOString().replace(/[:-]/g, '').split('.')[0] + 'Z';
     const dateStr = amzDate.slice(0, 8);
-    
+
     const path = '/test-bucket/file.txt';
     const headers = {
-      'host': 'localhost:8787'
+      host: 'localhost:8787',
     };
-    
+
     const queryParams = {
       'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
       'X-Amz-Credential': `${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request`,
       'X-Amz-Date': amzDate,
       'X-Amz-Expires': '60', // Expires in 60 seconds (but it's 1 hour ago)
-      'X-Amz-SignedHeaders': 'host'
+      'X-Amz-SignedHeaders': 'host',
     };
 
     const { signature } = calculateSigV4({
@@ -374,17 +397,22 @@ describe('S3 Auth Middleware', () => {
       queryParams,
       headers,
       dateStr,
-      amzDate
+      amzDate,
     });
 
-    const queryString = Object.entries(queryParams)
-      .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
-      .join('&') + `&X-Amz-Signature=${signature}`;
+    const queryString =
+      Object.entries(queryParams)
+        .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+        .join('&') + `&X-Amz-Signature=${signature}`;
 
-    const res = await app.request(`${path}?${queryString}`, {
-      method: 'GET',
-      headers
-    }, env);
+    const res = await app.request(
+      `${path}?${queryString}`,
+      {
+        method: 'GET',
+        headers,
+      },
+      env,
+    );
 
     expect(res.status).toBe(403);
     const body = await res.text();
@@ -395,20 +423,20 @@ describe('S3 Auth Middleware', () => {
   it('rejects malformed date formats in presigned URLs', async () => {
     const app = createTestApp();
     const env = await getMockEnv();
-    
+
     const malformedAmzDate = '2026-06-21T12:00:00Z'; // standard ISO instead of YYYYMMDDTHHMMSSZ
     const dateStr = '20260621';
     const path = '/test-bucket/file.txt';
     const headers = {
-      'host': 'localhost:8787'
+      host: 'localhost:8787',
     };
-    
+
     const queryParams = {
       'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
       'X-Amz-Credential': `${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request`,
       'X-Amz-Date': malformedAmzDate,
       'X-Amz-Expires': '86400',
-      'X-Amz-SignedHeaders': 'host'
+      'X-Amz-SignedHeaders': 'host',
     };
 
     const { signature } = calculateSigV4({
@@ -417,17 +445,22 @@ describe('S3 Auth Middleware', () => {
       queryParams,
       headers,
       dateStr,
-      amzDate: malformedAmzDate
+      amzDate: malformedAmzDate,
     });
 
-    const queryString = Object.entries(queryParams)
-      .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
-      .join('&') + `&X-Amz-Signature=${signature}`;
+    const queryString =
+      Object.entries(queryParams)
+        .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+        .join('&') + `&X-Amz-Signature=${signature}`;
 
-    const res = await app.request(`${path}?${queryString}`, {
-      method: 'GET',
-      headers
-    }, env);
+    const res = await app.request(
+      `${path}?${queryString}`,
+      {
+        method: 'GET',
+        headers,
+      },
+      env,
+    );
 
     expect(res.status).toBe(403);
     const body = await res.text();
@@ -438,15 +471,15 @@ describe('S3 Auth Middleware', () => {
   it('rejects header-based requests with skewed clocks (> 15 mins)', async () => {
     const app = createTestApp();
     const env = await getMockEnv();
-    
+
     // 16 minutes in the past relative to 12:00:00Z (which is 11:44:00Z)
     const skewedAmzDate = '20260621T114400Z';
     const dateStr = '20260621';
     const path = '/test-bucket/file.txt';
     const headers = {
-      'host': 'localhost:8787',
+      host: 'localhost:8787',
       'x-amz-date': skewedAmzDate,
-      'x-amz-content-sha256': sha256('')
+      'x-amz-content-sha256': sha256(''),
     };
 
     const { signature, signedHeaders } = calculateSigV4({
@@ -454,54 +487,65 @@ describe('S3 Auth Middleware', () => {
       path,
       headers,
       dateStr,
-      amzDate: skewedAmzDate
+      amzDate: skewedAmzDate,
     });
 
     const authHeader = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
-    const res = await app.request(path, {
-      method: 'GET',
-      headers: {
-        ...headers,
-        'Authorization': authHeader
-      }
-    }, env);
+    const res = await app.request(
+      path,
+      {
+        method: 'GET',
+        headers: {
+          ...headers,
+          Authorization: authHeader,
+        },
+      },
+      env,
+    );
 
     expect(res.status).toBe(403);
     const body = await res.text();
     expect(body).toContain('<Code>RequestTimeTooSkewed</Code>');
-    expect(body).toContain('The difference between the request time and the current time is too large.');
+    expect(body).toContain(
+      'The difference between the request time and the current time is too large.',
+    );
   });
 
   it('rejects presigned URLs with invalid signatures', async () => {
     const app = createTestApp();
     const env = await getMockEnv();
-    
+
     const amzDate = '20260621T120000Z';
     const dateStr = '20260621';
     const path = '/test-bucket/file.txt';
     const headers = {
-      'host': 'localhost:8787'
+      host: 'localhost:8787',
     };
-    
+
     const queryParams = {
       'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
       'X-Amz-Credential': `${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request`,
       'X-Amz-Date': amzDate,
       'X-Amz-Expires': '86400',
-      'X-Amz-SignedHeaders': 'host'
+      'X-Amz-SignedHeaders': 'host',
     };
 
     const incorrectSignature = 'b'.repeat(64);
 
-    const queryString = Object.entries(queryParams)
-      .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
-      .join('&') + `&X-Amz-Signature=${incorrectSignature}`;
+    const queryString =
+      Object.entries(queryParams)
+        .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+        .join('&') + `&X-Amz-Signature=${incorrectSignature}`;
 
-    const res = await app.request(`${path}?${queryString}`, {
-      method: 'GET',
-      headers
-    }, env);
+    const res = await app.request(
+      `${path}?${queryString}`,
+      {
+        method: 'GET',
+        headers,
+      },
+      env,
+    );
 
     expect(res.status).toBe(403);
     const body = await res.text();
@@ -511,14 +555,14 @@ describe('S3 Auth Middleware', () => {
   it('propagates workspace_id as s3WorkspaceId in context if present', async () => {
     const app = createTestApp();
     const env = await getMockEnv(true, 'workspace-123');
-    
+
     const amzDate = '20260621T120000Z';
     const dateStr = '20260621';
     const path = '/test-bucket/file.txt';
     const headers = {
-      'host': 'localhost:8787',
+      host: 'localhost:8787',
       'x-amz-date': amzDate,
-      'x-amz-content-sha256': sha256('')
+      'x-amz-content-sha256': sha256(''),
     };
 
     const { signature, signedHeaders } = calculateSigV4({
@@ -526,21 +570,25 @@ describe('S3 Auth Middleware', () => {
       path,
       headers,
       dateStr,
-      amzDate
+      amzDate,
     });
 
     const authHeader = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
-    const res = await app.request(path, {
-      method: 'GET',
-      headers: {
-        ...headers,
-        'Authorization': authHeader
-      }
-    }, env);
+    const res = await app.request(
+      path,
+      {
+        method: 'GET',
+        headers: {
+          ...headers,
+          Authorization: authHeader,
+        },
+      },
+      env,
+    );
 
     expect(res.status).toBe(200);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(body.success).toBe(true);
     expect(body.userId).toBe(USER_ID);
     expect(body.s3WorkspaceId).toBe('workspace-123');
@@ -549,14 +597,14 @@ describe('S3 Auth Middleware', () => {
   it('sets s3WorkspaceId to null in context if workspace_id is absent/null', async () => {
     const app = createTestApp();
     const env = await getMockEnv(true, null);
-    
+
     const amzDate = '20260621T120000Z';
     const dateStr = '20260621';
     const path = '/test-bucket/file.txt';
     const headers = {
-      'host': 'localhost:8787',
+      host: 'localhost:8787',
       'x-amz-date': amzDate,
-      'x-amz-content-sha256': sha256('')
+      'x-amz-content-sha256': sha256(''),
     };
 
     const { signature, signedHeaders } = calculateSigV4({
@@ -564,21 +612,25 @@ describe('S3 Auth Middleware', () => {
       path,
       headers,
       dateStr,
-      amzDate
+      amzDate,
     });
 
     const authHeader = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
-    const res = await app.request(path, {
-      method: 'GET',
-      headers: {
-        ...headers,
-        'Authorization': authHeader
-      }
-    }, env);
+    const res = await app.request(
+      path,
+      {
+        method: 'GET',
+        headers: {
+          ...headers,
+          Authorization: authHeader,
+        },
+      },
+      env,
+    );
 
     expect(res.status).toBe(200);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(body.success).toBe(true);
     expect(body.userId).toBe(USER_ID);
     expect(body.s3WorkspaceId).toBe(null);

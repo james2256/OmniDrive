@@ -1,12 +1,15 @@
 import { createHash, createHmac } from 'node:crypto';
 
-export function getMD5HashingStream(): { stream: TransformStream<Uint8Array, Uint8Array>; getHash: () => string } {
+export function getMD5HashingStream(): {
+  stream: TransformStream<Uint8Array, Uint8Array>;
+  getHash: () => string;
+} {
   const hash = createHash('md5');
   const stream = new TransformStream<Uint8Array, Uint8Array>({
     transform(chunk, controller) {
       hash.update(chunk);
       controller.enqueue(chunk);
-    }
+    },
   });
   return { stream, getHash: () => hash.digest('hex') };
 }
@@ -20,10 +23,12 @@ export interface StreamHashingResult {
  * Pipes a ReadableStream to compute its MD5 hash while passing through the data.
  * Keeps memory overhead to O(1) by hashing chunk-by-chunk.
  */
-export async function calculateMD5ForStream(stream: ReadableStream<Uint8Array>): Promise<{ md5Hex: string; stream: ReadableStream<Uint8Array> }> {
+export async function calculateMD5ForStream(
+  stream: ReadableStream<Uint8Array>,
+): Promise<{ md5Hex: string; stream: ReadableStream<Uint8Array> }> {
   const hash = createHash('md5');
   const reader = stream.getReader();
-  
+
   const chunks: Uint8Array[] = [];
 
   while (true) {
@@ -44,7 +49,7 @@ export async function calculateMD5ForStream(stream: ReadableStream<Uint8Array>):
         controller.enqueue(chunk);
       }
       controller.close();
-    }
+    },
   });
 
   return { md5Hex, stream: outputStream };

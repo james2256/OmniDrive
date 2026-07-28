@@ -7,7 +7,10 @@ export function WorkspaceAuditTab({ workspaceId }: { workspaceId: string }) {
   const [logs, setLogs] = useState<AuditLog[]>([]);
 
   useEffect(() => {
-    api.getWorkspaceAuditLogs(workspaceId).then((res) => setLogs(res.logs)).catch(console.error);
+    api
+      .getWorkspaceAuditLogs(workspaceId)
+      .then((res) => setLogs(res.logs))
+      .catch(console.error);
   }, [workspaceId]);
 
   return (
@@ -25,9 +28,13 @@ export function WorkspaceAuditTab({ workspaceId }: { workspaceId: string }) {
         <tbody>
           {logs.map((log) => (
             <tr key={log.id} className="border-b last:border-0 hover:bg-slate-50">
-              <td className="px-3 py-1.5 text-sm text-slate-500">{formatAbsoluteDate(log.createdAt)}</td>
+              <td className="px-3 py-1.5 text-sm text-slate-500">
+                {formatAbsoluteDate(log.createdAt)}
+              </td>
               <td className="px-3 py-1.5 text-sm">{log.actorEmail || log.actorId}</td>
-              <td className="px-4 py-2 font-mono text-xs text-primary bg-primary/10 w-max rounded px-2 py-1 inline-block mt-2 ml-4">{log.actionType}</td>
+              <td className="px-4 py-2 font-mono text-xs text-primary bg-primary/10 w-max rounded px-2 py-1 inline-block mt-2 ml-4">
+                {log.actionType}
+              </td>
               <td className="px-3 py-1.5 text-sm">{log.resourceName || log.resourceId}</td>
             </tr>
           ))}

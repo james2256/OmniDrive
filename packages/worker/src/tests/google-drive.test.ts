@@ -10,17 +10,17 @@ test('iterateAllFilesAndFolders yields chunks of data', async () => {
     ok: true,
     json: async () => ({
       files: [{ id: '1', mimeType: 'application/vnd.google-apps.folder' }],
-      nextPageToken: undefined
-    })
+      nextPageToken: undefined,
+    }),
   });
 
   const iterator = service.iterateAllFilesAndFolders('drive_1', 'token123');
   const result = await iterator.next();
-  
+
   expect(result.done).toBe(false);
   expect(result.value.folders).toHaveLength(1);
   expect(result.value.nextPageToken).toBeUndefined();
-  
+
   const end = await iterator.next();
   expect(end.done).toBe(true);
 });

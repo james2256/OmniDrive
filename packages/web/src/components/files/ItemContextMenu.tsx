@@ -6,7 +6,20 @@ import {
   ContextMenuTrigger,
   ContextMenuSeparator,
 } from '../ui/context-menu';
-import { Folder, Download, Trash2, Pencil, ExternalLink, Share2, RefreshCw, Eye, Star, Info, FolderInput, FolderMinus } from 'lucide-react';
+import {
+  Folder,
+  Download,
+  Trash2,
+  Pencil,
+  ExternalLink,
+  Share2,
+  RefreshCw,
+  Eye,
+  Star,
+  Info,
+  FolderInput,
+  FolderMinus,
+} from 'lucide-react';
 import type { FileEntry, DriveFolder, WorkspaceFolder } from '../../types';
 import type { ItemActions, ItemKind } from './types';
 import type { SelectedItem } from '../../stores/useSelectionStore';
@@ -31,11 +44,24 @@ interface ItemContextMenuProps {
  * Policy" silently disappeared because a prop was omitted at one of four
  * `<ItemContextMenuContent>` call sites.
  */
-export function ItemContextMenu({ type, item, actions, isTrashView, isStarred, children }: ItemContextMenuProps) {
+export function ItemContextMenu({
+  type,
+  item,
+  actions,
+  isTrashView,
+  isStarred,
+  children,
+}: ItemContextMenuProps) {
   return (
     <ContextMenu>
       <ContextMenuTrigger>{children}</ContextMenuTrigger>
-      <ItemContextMenuContent type={type} item={item} actions={actions} isTrashView={isTrashView} isStarred={isStarred} />
+      <ItemContextMenuContent
+        type={type}
+        item={item}
+        actions={actions}
+        isTrashView={isTrashView}
+        isStarred={isStarred}
+      />
     </ContextMenu>
   );
 }
@@ -48,8 +74,10 @@ interface ItemContextMenuContentProps {
   isStarred?: boolean;
 }
 
-const MENU_ITEM_CLASS = 'px-3 py-2 text-sm text-slate-700 cursor-pointer hover:bg-slate-100 outline-none flex items-center';
-const MENU_ITEM_DANGER_CLASS = 'px-3 py-2 text-sm text-red-600 cursor-pointer hover:bg-red-50 outline-none flex items-center';
+const MENU_ITEM_CLASS =
+  'px-3 py-2 text-sm text-slate-700 cursor-pointer hover:bg-slate-100 outline-none flex items-center';
+const MENU_ITEM_DANGER_CLASS =
+  'px-3 py-2 text-sm text-red-600 cursor-pointer hover:bg-red-50 outline-none flex items-center';
 
 /**
  * Renders context menu items. Decides which items to show based on:
@@ -61,15 +89,22 @@ const MENU_ITEM_DANGER_CLASS = 'px-3 py-2 text-sm text-red-600 cursor-pointer ho
  * Actions are destructured into local consts at the top so TypeScript can
  * narrow them in closure callbacks — no non-null assertions needed.
  */
-const ItemContextMenuContent: React.FC<ItemContextMenuContentProps> = ({ type, item, actions, isTrashView, isStarred }) => {
+const ItemContextMenuContent: React.FC<ItemContextMenuContentProps> = ({
+  type,
+  item,
+  actions,
+  isTrashView,
+  isStarred,
+}) => {
   const file = type === 'file' ? (item as FileEntry) : undefined;
-  const driveFolder = type === 'folder' && 'googleFolderId' in item ? (item as DriveFolder) : undefined;
+  const driveFolder =
+    type === 'folder' && 'googleFolderId' in item ? (item as DriveFolder) : undefined;
 
   const fileId = file?.id;
   const webViewLink = file?.webViewLink;
   const driveAccountId = driveFolder?.driveAccountId;
   // For files: the DB UUID. For DriveFolders: googleFolderId. For WorkspaceFolders: workspace id.
-  const itemId = driveFolder ? driveFolder.googleFolderId : item.id ?? '';
+  const itemId = driveFolder ? driveFolder.googleFolderId : (item.id ?? '');
   const showItemActions = !!(itemId || driveFolder);
   const name = 'name' in item ? item.name : undefined;
 
@@ -123,7 +158,10 @@ const ItemContextMenuContent: React.FC<ItemContextMenuContentProps> = ({ type, i
             </ContextMenuItem>
           )}
           {type === 'file' && onPermanentDelete && fileId && (
-            <ContextMenuItem className={MENU_ITEM_DANGER_CLASS} onClick={() => onPermanentDelete(fileId)}>
+            <ContextMenuItem
+              className={MENU_ITEM_DANGER_CLASS}
+              onClick={() => onPermanentDelete(fileId)}
+            >
               <Trash2 size={16} className="mr-3 text-red-500" />
               Delete Forever
             </ContextMenuItem>
@@ -148,30 +186,47 @@ const ItemContextMenuContent: React.FC<ItemContextMenuContentProps> = ({ type, i
             </ContextMenuItem>
           )}
           {type === 'file' && file && webViewLink && (
-            <ContextMenuItem onClick={() => window.open(webViewLink, '_blank', 'noopener,noreferrer')}>
+            <ContextMenuItem
+              onClick={() => window.open(webViewLink, '_blank', 'noopener,noreferrer')}
+            >
               <ExternalLink className="mr-2 h-4 w-4" /> Open in Google
             </ContextMenuItem>
           )}
           {driveFolder && (
             <ContextMenuItem
-              onClick={() => window.open(`https://drive.google.com/drive/folders/${driveFolder.googleFolderId}`, '_blank', 'noopener,noreferrer')}
+              onClick={() =>
+                window.open(
+                  `https://drive.google.com/drive/folders/${driveFolder.googleFolderId}`,
+                  '_blank',
+                  'noopener,noreferrer',
+                )
+              }
             >
               <ExternalLink className="mr-2 h-4 w-4" /> Open in Google
             </ContextMenuItem>
           )}
           {type === 'file' && file && (
-            <ContextMenuItem onClick={() => { window.location.href = `${import.meta.env.VITE_API_URL || ''}/api/files/${file.id}/download`; }}>
+            <ContextMenuItem
+              onClick={() => {
+                window.location.href = `${import.meta.env.VITE_API_URL || ''}/api/files/${file.id}/download`;
+              }}
+            >
               <Download className="mr-2 h-4 w-4" /> Download
             </ContextMenuItem>
           )}
           {type === 'folder' && driveFolder && onDownloadFolder && driveAccountId && name && (
-            <ContextMenuItem onClick={() => onDownloadFolder(driveAccountId, driveFolder.googleFolderId, name)}>
+            <ContextMenuItem
+              onClick={() => onDownloadFolder(driveAccountId, driveFolder.googleFolderId, name)}
+            >
               <Download className="mr-2 h-4 w-4" /> Download
             </ContextMenuItem>
           )}
           {onToggleStar && showItemActions && (
-            <ContextMenuItem onClick={() => onToggleStar(itemId, type, !!isStarred, driveAccountId)}>
-              <Star className="mr-2 h-4 w-4" /> {isStarred ? 'Remove from Starred' : 'Add to Starred'}
+            <ContextMenuItem
+              onClick={() => onToggleStar(itemId, type, !!isStarred, driveAccountId)}
+            >
+              <Star className="mr-2 h-4 w-4" />{' '}
+              {isStarred ? 'Remove from Starred' : 'Add to Starred'}
             </ContextMenuItem>
           )}
           {onShare && showItemActions && (
@@ -190,15 +245,15 @@ const ItemContextMenuContent: React.FC<ItemContextMenuContentProps> = ({ type, i
             </ContextMenuItem>
           )}
           {type === 'file' && onRenameFileRequest && fileId && name && (
-            <ContextMenuItem
-              onClick={() => onRenameFileRequest(fileId, name)}
-            >
+            <ContextMenuItem onClick={() => onRenameFileRequest(fileId, name)}>
               <Pencil className="mr-2 h-4 w-4" /> Rename
             </ContextMenuItem>
           )}
           {type === 'folder' && onRenameFolderRequest && driveAccountId && driveFolder && name && (
             <ContextMenuItem
-              onClick={() => onRenameFolderRequest(driveAccountId, driveFolder.googleFolderId, name)}
+              onClick={() =>
+                onRenameFolderRequest(driveAccountId, driveFolder.googleFolderId, name)
+              }
             >
               <Pencil className="mr-2 h-4 w-4" /> Rename
             </ContextMenuItem>
@@ -214,7 +269,10 @@ const ItemContextMenuContent: React.FC<ItemContextMenuContentProps> = ({ type, i
             </ContextMenuItem>
           )}
           {type === 'file' && file && onRemoveFromWorkspace && fileId && (
-            <ContextMenuItem className={MENU_ITEM_CLASS} onClick={() => onRemoveFromWorkspace(fileId)}>
+            <ContextMenuItem
+              className={MENU_ITEM_CLASS}
+              onClick={() => onRemoveFromWorkspace(fileId)}
+            >
               <FolderMinus size={16} className="mr-3 text-slate-500" />
               Remove from workspace
             </ContextMenuItem>

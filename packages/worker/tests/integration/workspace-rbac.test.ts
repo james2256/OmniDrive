@@ -20,22 +20,34 @@ declare module 'cloudflare:workers' {
 
 const ORIGIN = 'http://localhost:5173';
 
-async function createUserAndSession(username: string, isSuperAdmin: boolean): Promise<{ userId: string; cookie: string }> {
+async function createUserAndSession(
+  username: string,
+  isSuperAdmin: boolean,
+): Promise<{ userId: string; cookie: string }> {
   const userId = `user-${username}`;
   const passwordHash = await hashPassword('TestPass123!');
   await env.DB.prepare(
-    'INSERT INTO users (id, username, password_hash, is_super_admin, email) VALUES (?, ?, ?, ?, ?)'
-  ).bind(userId, username, passwordHash, isSuperAdmin ? 1 : 0, `${username}@example.com`).run();
+    'INSERT INTO users (id, username, password_hash, is_super_admin, email) VALUES (?, ?, ?, ?, ?)',
+  )
+    .bind(userId, username, passwordHash, isSuperAdmin ? 1 : 0, `${username}@example.com`)
+    .run();
 
   const now = Date.now();
   const sessionData: SessionData = {
-    userId, username, email: `${username}@example.com`, name: username, avatarUrl: null,
-    role: isSuperAdmin ? 'super_admin' : 'member', createdAt: now,
+    userId,
+    username,
+    email: `${username}@example.com`,
+    name: username,
+    avatarUrl: null,
+    role: isSuperAdmin ? 'super_admin' : 'member',
+    createdAt: now,
   };
   const sessionId = `session-${username}`;
   await env.DB.prepare(
-    'INSERT INTO sessions (id, user_id, data, expires_at, touched_at) VALUES (?, ?, ?, ?, ?)'
-  ).bind(sessionId, userId, JSON.stringify(sessionData), now + 7 * 24 * 60 * 60 * 1000, now).run();
+    'INSERT INTO sessions (id, user_id, data, expires_at, touched_at) VALUES (?, ?, ?, ?, ?)',
+  )
+    .bind(sessionId, userId, JSON.stringify(sessionData), now + 7 * 24 * 60 * 60 * 1000, now)
+    .run();
 
   return { userId, cookie: `omnidrive_sid=${sessionId}` };
 }
@@ -43,15 +55,22 @@ async function createUserAndSession(username: string, isSuperAdmin: boolean): Pr
 async function createWorkspace(ownerUserId: string, name = 'Test Workspace') {
   const wsId = `ws-${name.replace(/\s/g, '-').toLowerCase()}`;
   await env.DB.prepare('INSERT INTO workspaces (id, name, owner_id) VALUES (?, ?, ?)')
-    .bind(wsId, name, ownerUserId).run();
-  await env.DB.prepare('INSERT INTO workspace_members (id, workspace_id, user_id, role) VALUES (?, ?, ?, ?)')
-    .bind(`wm-owner-${wsId}`, wsId, ownerUserId, 'owner').run();
+    .bind(wsId, name, ownerUserId)
+    .run();
+  await env.DB.prepare(
+    'INSERT INTO workspace_members (id, workspace_id, user_id, role) VALUES (?, ?, ?, ?)',
+  )
+    .bind(`wm-owner-${wsId}`, wsId, ownerUserId, 'owner')
+    .run();
   return wsId;
 }
 
 async function addMember(workspaceId: string, userId: string, role: string) {
-  await env.DB.prepare('INSERT INTO workspace_members (id, workspace_id, user_id, role) VALUES (?, ?, ?, ?)')
-    .bind(`wm-${userId}-${workspaceId}`, workspaceId, userId, role).run();
+  await env.DB.prepare(
+    'INSERT INTO workspace_members (id, workspace_id, user_id, role) VALUES (?, ?, ?, ?)',
+  )
+    .bind(`wm-${userId}-${workspaceId}`, workspaceId, userId, role)
+    .run();
 }
 
 describe('Workspace RBAC (integration)', () => {
@@ -71,14 +90,22 @@ describe('Workspace RBAC (integration)', () => {
     await addMember(wsId, viewer.userId, 'viewer');
 
     await env.DB.prepare('INSERT INTO drive_accounts (id, user_id, email) VALUES (?, ?, ?)')
-      .bind('drive-1', owner.userId, 'owner1@example.com').run();
-    await env.DB.prepare('INSERT INTO files (id, user_id, drive_account_id, workspace_id, google_file_id, name) VALUES (?, ?, ?, ?, ?, ?)')
-      .bind('file-1', owner.userId, 'drive-1', wsId, 'gfile-1', 'test.txt').run();
+      .bind('drive-1', owner.userId, 'owner1@example.com')
+      .run();
+    await env.DB.prepare(
+      'INSERT INTO files (id, user_id, drive_account_id, workspace_id, google_file_id, name) VALUES (?, ?, ?, ?, ?, ?)',
+    )
+      .bind('file-1', owner.userId, 'drive-1', wsId, 'gfile-1', 'test.txt')
+      .run();
 
-    const res = await app.request('/api/files/file-1', {
-      method: 'DELETE',
-      headers: { Cookie: viewer.cookie, Origin: ORIGIN },
-    }, env);
+    const res = await app.request(
+      '/api/files/file-1',
+      {
+        method: 'DELETE',
+        headers: { Cookie: viewer.cookie, Origin: ORIGIN },
+      },
+      env,
+    );
     expect(res.status).toBe(403);
   });
 
@@ -88,16 +115,22 @@ describe('Workspace RBAC (integration)', () => {
     await createUserAndSession('member2', false);
     const wsId = await createWorkspace(owner.userId);
 
-    const res = await app.request(`/api/workspaces/${wsId}/members`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Cookie: owner.cookie, Origin: ORIGIN },
-      body: JSON.stringify({ email: 'member2@example.com', role: 'viewer' }),
-    }, env);
+    const res = await app.request(
+      `/api/workspaces/${wsId}/members`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Cookie: owner.cookie, Origin: ORIGIN },
+        body: JSON.stringify({ email: 'member2@example.com', role: 'viewer' }),
+      },
+      env,
+    );
     expect(res.status).toBe(201);
 
     const { results: logs } = await env.DB.prepare(
-      'SELECT action_type, resource_name, metadata FROM audit_logs WHERE workspace_id = ? AND action_type = ?'
-    ).bind(wsId, 'member.invite').all();
+      'SELECT action_type, resource_name, metadata FROM audit_logs WHERE workspace_id = ? AND action_type = ?',
+    )
+      .bind(wsId, 'member.invite')
+      .all();
     expect(logs.length).toBe(1);
     expect(logs[0].resource_name).toBe('member2@example.com');
     expect(JSON.parse(logs[0].metadata as string).role).toBe('viewer');
@@ -111,11 +144,15 @@ describe('Workspace RBAC (integration)', () => {
     const wsId = await createWorkspace(owner.userId);
     await addMember(wsId, manager.userId, 'manager');
 
-    const res = await app.request(`/api/workspaces/${wsId}/members`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Cookie: manager.cookie, Origin: ORIGIN },
-      body: JSON.stringify({ email: 'target3@example.com', role: 'manager' }),
-    }, env);
+    const res = await app.request(
+      `/api/workspaces/${wsId}/members`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Cookie: manager.cookie, Origin: ORIGIN },
+        body: JSON.stringify({ email: 'target3@example.com', role: 'manager' }),
+      },
+      env,
+    );
     expect(res.status).toBe(403);
   });
 
@@ -126,9 +163,13 @@ describe('Workspace RBAC (integration)', () => {
     const wsId = await createWorkspace(owner.userId);
     await addMember(wsId, viewer.userId, 'viewer');
 
-    const res = await app.request(`/api/workspaces/${wsId}/audit-logs`, {
-      headers: { Cookie: viewer.cookie, Origin: ORIGIN },
-    }, env);
+    const res = await app.request(
+      `/api/workspaces/${wsId}/audit-logs`,
+      {
+        headers: { Cookie: viewer.cookie, Origin: ORIGIN },
+      },
+      env,
+    );
     expect(res.status).toBe(403);
   });
 
@@ -139,9 +180,13 @@ describe('Workspace RBAC (integration)', () => {
     const wsId = await createWorkspace(owner.userId);
     await addMember(wsId, viewer.userId, 'viewer');
 
-    const res = await app.request(`/api/workspaces/${wsId}/policies`, {
-      headers: { Cookie: viewer.cookie, Origin: ORIGIN },
-    }, env);
+    const res = await app.request(
+      `/api/workspaces/${wsId}/policies`,
+      {
+        headers: { Cookie: viewer.cookie, Origin: ORIGIN },
+      },
+      env,
+    );
     expect(res.status).toBe(403);
   });
 
@@ -152,10 +197,14 @@ describe('Workspace RBAC (integration)', () => {
     const wsId = await createWorkspace(owner.userId);
     await addMember(wsId, editor.userId, 'editor');
 
-    const res = await app.request(`/api/workspaces/${wsId}/members/${editor.userId}`, {
-      method: 'DELETE',
-      headers: { Cookie: editor.cookie, Origin: ORIGIN },
-    }, env);
+    const res = await app.request(
+      `/api/workspaces/${wsId}/members/${editor.userId}`,
+      {
+        method: 'DELETE',
+        headers: { Cookie: editor.cookie, Origin: ORIGIN },
+      },
+      env,
+    );
     expect(res.status).toBe(400);
   });
 
@@ -164,10 +213,14 @@ describe('Workspace RBAC (integration)', () => {
     const owner = await createUserAndSession('owner7', true);
     const wsId = await createWorkspace(owner.userId);
 
-    const res = await app.request(`/api/workspaces/${wsId}/members/${owner.userId}`, {
-      method: 'DELETE',
-      headers: { Cookie: owner.cookie, Origin: ORIGIN },
-    }, env);
+    const res = await app.request(
+      `/api/workspaces/${wsId}/members/${owner.userId}`,
+      {
+        method: 'DELETE',
+        headers: { Cookie: owner.cookie, Origin: ORIGIN },
+      },
+      env,
+    );
     expect(res.status).toBe(400);
   });
 
@@ -178,15 +231,21 @@ describe('Workspace RBAC (integration)', () => {
     const wsId = await createWorkspace(owner.userId);
     await addMember(wsId, editor.userId, 'editor');
 
-    const res = await app.request(`/api/workspaces/${wsId}/members/${editor.userId}`, {
-      method: 'DELETE',
-      headers: { Cookie: owner.cookie, Origin: ORIGIN },
-    }, env);
+    const res = await app.request(
+      `/api/workspaces/${wsId}/members/${editor.userId}`,
+      {
+        method: 'DELETE',
+        headers: { Cookie: owner.cookie, Origin: ORIGIN },
+      },
+      env,
+    );
     expect(res.status).toBe(200);
 
     const { results: logs } = await env.DB.prepare(
-      'SELECT action_type, resource_id FROM audit_logs WHERE workspace_id = ? AND action_type = ?'
-    ).bind(wsId, 'member.remove').all();
+      'SELECT action_type, resource_id FROM audit_logs WHERE workspace_id = ? AND action_type = ?',
+    )
+      .bind(wsId, 'member.remove')
+      .all();
     expect(logs.length).toBe(1);
     expect(logs[0].resource_id).toBe(editor.userId);
   });

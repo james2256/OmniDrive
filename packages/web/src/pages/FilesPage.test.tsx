@@ -19,7 +19,10 @@ vi.mock('react-router-dom', () => ({
 
 vi.mock('../hooks/useDrives', () => ({ useDrives: vi.fn(), useGetDriveInfo: () => vi.fn() }));
 vi.mock('../hooks/useMergedDrive', () => ({ useMergedDrive: vi.fn() }));
-vi.mock('../hooks/useSharedLinks', () => ({ useSharedLinks: vi.fn(), useIsTargetSharedCallback: () => vi.fn() }));
+vi.mock('../hooks/useSharedLinks', () => ({
+  useSharedLinks: vi.fn(),
+  useIsTargetSharedCallback: () => vi.fn(),
+}));
 vi.mock('../hooks/useFileMutations', () => ({
   useToggleStar: () => vi.fn(),
   useDeleteFile: () => ({ mutate: vi.fn() }),
@@ -34,13 +37,18 @@ vi.mock('../hooks/useFolderMutations', () => ({
 
 vi.mock('../stores/useUploadStore', () => ({ useUploadStore: vi.fn() }));
 vi.mock('../stores/useUIStore', () => ({ useUIStore: vi.fn() }));
-vi.mock('../stores/useSelectionStore', () => ({ useSelectionStore: vi.fn(), useClearSelectionOnRouteChange: () => {} }));
+vi.mock('../stores/useSelectionStore', () => ({
+  useSelectionStore: vi.fn(),
+  useClearSelectionOnRouteChange: () => {},
+}));
 vi.mock('../lib/api', () => ({ api: { createFolder: vi.fn() } }));
 
 vi.mock('../components/Breadcrumb', () => ({
   Breadcrumb: ({ items }: any) => (
     <nav data-testid="breadcrumb">
-      {items.map((item: any) => <span key={item.id}>{item.name}</span>)}
+      {items.map((item: any) => (
+        <span key={item.id}>{item.name}</span>
+      ))}
     </nav>
   ),
 }));
@@ -49,15 +57,26 @@ vi.mock('../components/files/FileGrid', () => ({
   FileGrid: ({ files, subfolders, actions }: any) => (
     <div data-testid="file-grid">
       {subfolders.map((f: any) => (
-        <button key={f.id} data-testid={`folder-${f.id}`} onClick={() => actions.onNavigateFolder?.(f.id, f.driveId)}>
+        <button
+          key={f.id}
+          data-testid={`folder-${f.id}`}
+          onClick={() => actions.onNavigateFolder?.(f.id, f.driveId)}
+        >
           {f.name}
         </button>
       ))}
       {files.map((f: any) => (
         <div key={f.id} data-testid={`file-${f.id}`}>
           <span>{f.name}</span>
-          <button data-testid={`share-${f.id}`} onClick={() => actions.onShare?.(f.id, 'file')}>Share</button>
-          <button data-testid={`star-${f.id}`} onClick={() => actions.onToggleStar?.(f.id, 'file', f.isStarred)}>Star</button>
+          <button data-testid={`share-${f.id}`} onClick={() => actions.onShare?.(f.id, 'file')}>
+            Share
+          </button>
+          <button
+            data-testid={`star-${f.id}`}
+            onClick={() => actions.onToggleStar?.(f.id, 'file', f.isStarred)}
+          >
+            Star
+          </button>
         </div>
       ))}
     </div>
@@ -73,14 +92,25 @@ vi.mock('../components/FilePreviewModal', () => ({ FilePreviewModal: () => null 
 vi.mock('../components/ShareModal', () => ({ ShareModal: () => null }));
 vi.mock('../components/MoveDriveModal', () => ({ MoveDriveModal: () => null }));
 vi.mock('../components/MoveModal', () => ({ MoveModal: () => null }));
-vi.mock('../components/workspaces/AddToWorkspaceModal', () => ({ AddToWorkspaceModal: () => null }));
+vi.mock('../components/workspaces/AddToWorkspaceModal', () => ({
+  AddToWorkspaceModal: () => null,
+}));
 
 vi.mock('../components/CreateFolderModal', () => ({
   CreateFolderModal: ({ open, onClose, onCreate }: any) =>
     open ? (
       <div data-testid="create-folder-modal">
-        <button data-testid="close-folder-modal" onClick={onClose}>Cancel</button>
-        <button data-testid="create-folder" onClick={() => { onCreate('New Folder'); }}>Create</button>
+        <button data-testid="close-folder-modal" onClick={onClose}>
+          Cancel
+        </button>
+        <button
+          data-testid="create-folder"
+          onClick={() => {
+            onCreate('New Folder');
+          }}
+        >
+          Create
+        </button>
       </div>
     ) : null,
 }));
@@ -125,7 +155,10 @@ vi.mock('lucide-react', () => ({
 describe('FilesPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (useDrives as Mock).mockReturnValue({ data: { drives: [{ id: 'd1', email: 'u@gmail.com' }] }, isLoading: false });
+    (useDrives as Mock).mockReturnValue({
+      data: { drives: [{ id: 'd1', email: 'u@gmail.com' }] },
+      isLoading: false,
+    });
     (useMergedDrive as Mock).mockReturnValue({
       files: [],
       subfolders: [],
@@ -166,7 +199,13 @@ describe('FilesPage', () => {
   it('renders files and subfolders in the grid', async () => {
     (useMergedDrive as Mock).mockReturnValue({
       files: [
-        { id: 'f1', name: 'document.pdf', isStarred: false, mimeType: 'application/pdf', size: 1024 },
+        {
+          id: 'f1',
+          name: 'document.pdf',
+          isStarred: false,
+          mimeType: 'application/pdf',
+          size: 1024,
+        },
         { id: 'f2', name: 'photo.jpg', isStarred: true, mimeType: 'image/jpeg', size: 2048 },
       ],
       subfolders: [
@@ -219,7 +258,9 @@ describe('FilesPage', () => {
     }));
 
     (useMergedDrive as Mock).mockReturnValue({
-      files: [{ id: 'f1', name: 'doc.pdf', isStarred: false, mimeType: 'application/pdf', size: 1024 }],
+      files: [
+        { id: 'f1', name: 'doc.pdf', isStarred: false, mimeType: 'application/pdf', size: 1024 },
+      ],
       subfolders: [],
       breadcrumb: [{ id: 'root', name: 'My Drive' }],
       isLoading: false,

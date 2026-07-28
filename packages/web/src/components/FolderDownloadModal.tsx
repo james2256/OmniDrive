@@ -1,5 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogTitle } from './ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogBody,
+  DialogFooter,
+  DialogTitle,
+} from './ui/dialog';
 import { Button } from './ui/Button';
 import { LoaderCircle, CheckCircle2, AlertCircle, Download } from 'lucide-react';
 import { downloadZip } from 'client-zip';
@@ -17,14 +24,21 @@ interface FolderDownloadModalProps {
 }
 
 interface TreeFile {
-  id?: string;        // D1 row ID (authenticated mode)
+  id?: string; // D1 row ID (authenticated mode)
   googleFileId?: string; // Google file ID (shared-link mode)
   path: string;
   name: string;
   size: number;
 }
 
-export function FolderDownloadModal({ open, onClose, driveId, folderId, sharedLinkId, folderName }: FolderDownloadModalProps) {
+export function FolderDownloadModal({
+  open,
+  onClose,
+  driveId,
+  folderId,
+  sharedLinkId,
+  folderName,
+}: FolderDownloadModalProps) {
   const [status, setStatus] = useState<'listing' | 'downloading' | 'done' | 'error'>('listing');
   const [progress, setProgress] = useState({ current: 0, total: 0, currentName: '' });
   const [errorMsg, setErrorMsg] = useState('');
@@ -42,7 +56,11 @@ export function FolderDownloadModal({ open, onClose, driveId, folderId, sharedLi
 
         const res = await fetch(url, { credentials: 'include' });
         if (!res.ok) throw new Error(await res.text());
-        const data = await res.json() as { files: TreeFile[]; rootName: string; truncated?: boolean };
+        const data = (await res.json()) as {
+          files: TreeFile[];
+          rootName: string;
+          truncated?: boolean;
+        };
 
         if (cancelled) return;
         if (data.files.length === 0) {
@@ -53,7 +71,11 @@ export function FolderDownloadModal({ open, onClose, driveId, folderId, sharedLi
 
         // 2. Download each file and stream into ZIP
         setStatus('downloading');
-        setProgress({ current: 0, total: data.files.length, currentName: data.files[0]?.name ?? '' });
+        setProgress({
+          current: 0,
+          total: data.files.length,
+          currentName: data.files[0]?.name ?? '',
+        });
 
         const apiUrl = import.meta.env.VITE_API_URL || '';
         let downloaded = 0;
@@ -68,7 +90,13 @@ export function FolderDownloadModal({ open, onClose, driveId, folderId, sharedLi
             if (!response.ok) throw new Error(`Failed to download ${file.name}`);
             yield { name: file.path, input: response, lastModified: new Date() };
             downloaded++;
-            if (!cancelled) setProgress({ current: downloaded, total: data.files.length, currentName: file.name });
+            if (!cancelled) {
+              setProgress({
+                current: downloaded,
+                total: data.files.length,
+                currentName: file.name,
+              });
+            }
           }
         })();
 
@@ -91,16 +119,16 @@ export function FolderDownloadModal({ open, onClose, driveId, folderId, sharedLi
       }
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [open, driveId, folderId, sharedLinkId]);
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && status !== 'downloading' && onClose()}>
       <DialogContent className="max-w-md p-0 gap-0 flex flex-col overflow-hidden">
         <DialogHeader icon={<Download size={20} className="text-primary" />}>
-          <DialogTitle>
-            Download &ldquo;{folderName}&rdquo;
-          </DialogTitle>
+          <DialogTitle>Download &ldquo;{folderName}&rdquo;</DialogTitle>
         </DialogHeader>
         <DialogBody>
           {status === 'listing' && (
@@ -121,7 +149,9 @@ export function FolderDownloadModal({ open, onClose, driveId, folderId, sharedLi
               <div className="w-full bg-slate-200 rounded-full h-2 mb-2">
                 <div
                   className="bg-primary h-2 rounded-full transition-all"
-                  style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}
+                  style={{
+                    width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%`,
+                  }}
                 />
               </div>
               <p className="text-xs text-slate-500 truncate">{progress.currentName}</p>
@@ -144,7 +174,9 @@ export function FolderDownloadModal({ open, onClose, driveId, folderId, sharedLi
         </DialogBody>
         {status !== 'downloading' && (
           <DialogFooter>
-            <Button variant="secondary" onClick={onClose}>Close</Button>
+            <Button variant="secondary" onClick={onClose}>
+              Close
+            </Button>
           </DialogFooter>
         )}
       </DialogContent>
