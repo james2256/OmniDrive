@@ -13,6 +13,13 @@ import { useToastStore } from '../../stores/useToastStore';
 import { useDrives } from '../../hooks/useDrives';
 import { Button } from '../ui/Button';
 
+/** Parse metadata (string or object) into a Record, returning {} on malformed JSON. */
+function parseMetadata(raw: string | Record<string, string> | undefined): Record<string, string> {
+  if (!raw) return {};
+  if (typeof raw !== 'string') return raw;
+  try { return JSON.parse(raw); } catch { return {}; }
+}
+
 export const InfoPanel: React.FC = () => {
   const selectedItems = useSelectionStore((s) => s.selectedItems);
   const isInfoPanelOpen = useUIStore((s) => s.isInfoPanelOpen);
@@ -179,7 +186,7 @@ export const InfoPanel: React.FC = () => {
             <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Tags & Metadata</h4>
             {item && ('metadata' in item && item.metadata) ? (
               <div className="flex flex-wrap gap-2 mb-3">
-                {Object.entries(typeof (item as unknown as FileEntry & { workspaceId?: string; lastSyncedAt?: string }).metadata === 'string' ? JSON.parse(String((item as unknown as FileEntry & { workspaceId?: string; lastSyncedAt?: string }).metadata) || '{}') : (item as unknown as FileEntry & { workspaceId?: string; lastSyncedAt?: string }).metadata).map(([k, v]) => (
+                {Object.entries(parseMetadata((item as unknown as FileEntry & { workspaceId?: string; lastSyncedAt?: string }).metadata)).map(([k, v]) => (
                   <div key={k} className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full flex items-center">
                     <span className="font-semibold mr-1">{k}:</span> {v as string}
                   </div>
@@ -196,7 +203,7 @@ export const InfoPanel: React.FC = () => {
                 const value = (form.elements.namedItem('metaValue') as HTMLInputElement).value;
                 if (!key || !value || !item) return;
 
-                const currentMeta = typeof (item as unknown as FileEntry & { workspaceId?: string; lastSyncedAt?: string }).metadata === 'string' ? JSON.parse(String((item as unknown as FileEntry & { workspaceId?: string; lastSyncedAt?: string }).metadata) || '{}') : ((item as unknown as FileEntry & { workspaceId?: string; lastSyncedAt?: string }).metadata as Record<string, string> || {});
+                const currentMeta = parseMetadata((item as unknown as FileEntry & { workspaceId?: string; lastSyncedAt?: string }).metadata);
                 const newMeta = { ...currentMeta, [key]: value };
 
                 try {

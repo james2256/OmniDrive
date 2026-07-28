@@ -631,7 +631,7 @@ describe('S3 API compatibility endpoints', () => {
       expect(res.headers.get('Content-Length')).toBe('12');
       const body = await res.text();
       expect(body).toBe('file content');
-      expect(downloadSpy).toHaveBeenCalledWith('drive-123', 'g-123');
+      expect(downloadSpy).toHaveBeenCalledWith('drive-123', 'g-123', 'image/jpeg');
       downloadSpy.mockRestore();
     });
 

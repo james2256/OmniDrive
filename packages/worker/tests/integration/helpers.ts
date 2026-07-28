@@ -23,6 +23,7 @@ const TABLES = [
   `CREATE TABLE IF NOT EXISTS category_cache (user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, payload TEXT NOT NULL, updated_at INTEGER NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS s3_credentials (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, access_key_id TEXT UNIQUE NOT NULL, secret_key_enc TEXT NOT NULL, description TEXT, workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE, created_at TEXT NOT NULL DEFAULT (datetime('now')))`,
   `CREATE TABLE IF NOT EXISTS automation_rules (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, name TEXT NOT NULL, trigger_type TEXT NOT NULL, trigger_config TEXT, conditions TEXT, actions TEXT, is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')))`,
+  `CREATE TABLE IF NOT EXISTS automation_logs (id TEXT PRIMARY KEY, rule_id TEXT NOT NULL REFERENCES automation_rules(id) ON DELETE CASCADE, status TEXT NOT NULL, details TEXT, executed_at TEXT NOT NULL DEFAULT (datetime('now')))`,
   `CREATE TABLE IF NOT EXISTS s3_multipart_uploads (upload_id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE, key TEXT NOT NULL, drive_account_id TEXT NOT NULL REFERENCES drive_accounts(id) ON DELETE CASCADE, temp_folder_id TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')))`,
   `CREATE TABLE IF NOT EXISTS s3_multipart_parts (upload_id TEXT NOT NULL REFERENCES s3_multipart_uploads(upload_id) ON DELETE CASCADE, part_number INTEGER NOT NULL, google_file_id TEXT NOT NULL, etag TEXT NOT NULL, size INTEGER NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (upload_id, part_number))`,
   `CREATE TABLE IF NOT EXISTS sync_state (drive_account_id TEXT PRIMARY KEY REFERENCES drive_accounts(id) ON DELETE CASCADE, change_token TEXT, next_page_token TEXT, last_synced_at TEXT, status TEXT DEFAULT 'idle', error_message TEXT)`,
@@ -39,7 +40,7 @@ export async function ensureSchema(db: D1Database): Promise<void> {
 
 /** Clear all rows from all tables (for test isolation between files). */
 export async function clearAllTables(db: D1Database): Promise<void> {
-  const tables = ['s3_lifecycle_rules', 'quota_cache', 'sync_state', 's3_multipart_parts', 's3_multipart_uploads', 'automation_rules', 's3_credentials', 'drive_tokens', 'category_cache', 'oauth_states', 'shared_link_logs', 'shared_links', 'audit_logs', 'workspace_policies', 'drive_folders', 'files', 'workspace_members', 'workspace_folders', 'workspaces', 'drive_accounts', 'sessions', 'users', 'invitation_codes'];
+  const tables = ['s3_lifecycle_rules', 'quota_cache', 'sync_state', 's3_multipart_parts', 's3_multipart_uploads', 'automation_logs', 'automation_rules', 's3_credentials', 'drive_tokens', 'category_cache', 'oauth_states', 'shared_link_logs', 'shared_links', 'audit_logs', 'workspace_policies', 'drive_folders', 'files', 'workspace_members', 'workspace_folders', 'workspaces', 'drive_accounts', 'sessions', 'users', 'invitation_codes'];
   for (const table of tables) {
     await db.prepare(`DELETE FROM ${table}`).run();
   }

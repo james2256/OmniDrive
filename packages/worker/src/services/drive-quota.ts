@@ -40,7 +40,7 @@ export async function resolveDrivesWithQuota(
       } catch (e) {
         logErrorNoCtx('Failed to fetch quota for drive', e, { driveId: drive.id });
         // Tokens exist but quota API failed — treat unknown stored quota as unlimited for routing
-        const computed = computeDriveQuota({ totalQuota: 0, usedQuota: drive.usedQuota });
+        const computed = computeDriveQuota({ totalQuota: drive.totalQuota, usedQuota: drive.usedQuota });
         return { ...drive, ...computed };
       }
     })

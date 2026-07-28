@@ -65,10 +65,9 @@ export const Omnibar: React.FC = () => {
 
   const handleFileClick = (file: FileEntry) => {
     setIsOpen(false);
-    // Navigate to the file's parent folder so the user sees it in context
-    if (file.workspaceId) {
-      navigate(`/files/${file.workspaceId}`);
-    } else if (file.googleParentId) {
+    // Navigate to the file's parent folder so the user sees it in context.
+    // workspaceId is a workspace UUID (not a folder ID) — don't use it as a route param.
+    if (file.googleParentId) {
       navigate(`/files/${file.googleParentId}?driveId=${file.driveAccountId}`);
     } else {
       navigate('/files/root');
@@ -80,9 +79,11 @@ export const Omnibar: React.FC = () => {
     navigate(`/files/${folder.googleFolderId}?driveId=${folder.driveAccountId || folder.driveId}`);
   };
 
-  const handleWorkspaceFolderClick = (folder: WorkspaceFolder) => {
+  const handleWorkspaceFolderClick = (_folder: WorkspaceFolder) => {
     setIsOpen(false);
-    navigate(`/files/${folder.id}`);
+    // Workspace folders are browsed via the Workspaces page, not /files
+    // (folder.id is a workspace_folders UUID, not a Google Drive folder ID).
+    navigate('/workspaces');
   };
 
   return (

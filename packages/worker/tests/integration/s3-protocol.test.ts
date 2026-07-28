@@ -186,6 +186,64 @@ describe('S3 Protocol (integration)', () => {
     expect(body).toContain('Bucket not found');
   });
 
+  // ─── ListObjectsV2 pagination (P1.3) ───
+  it('GET /s3/:bucket ListObjectsV2 paginates with max-keys and continuation-token', async () => {
+    const { userId } = await insertUserAndS3Cred('alice');
+    const wsId = await insertWorkspace(userId, 'page-bucket');
+    await insertDrive(userId, 'drive-1', 'alice@gmail.com');
+    // Insert 5 files — with max-keys=2, should take 3 pages (2 + 2 + 1)
+    for (let i = 0; i < 5; i++) {
+      await insertFile(userId, 'drive-1', wsId, null, `file${i}.txt`, `gfile-${i}`);
+    }
+
+    // Page 1: max-keys=2 → 2 files, IsTruncated=true, NextContinuationToken
+    const res1 = await signedRequest('GET', '/s3/page-bucket', { queryParams: { 'max-keys': '2' } });
+    expect(res1.status).toBe(200);
+    const body1 = await res1.text();
+    expect(body1).toContain('<MaxKeys>2</MaxKeys>');
+    expect(body1).toContain('<IsTruncated>true</IsTruncated>');
+    expect(body1).toContain('<NextContinuationToken>');
+    // Extract the continuation token
+    const tokenMatch = body1.match(/<NextContinuationToken>([^<]+)<\/NextContinuationToken>/);
+    expect(tokenMatch).toBeTruthy();
+    const token1 = tokenMatch![1];
+    // Should contain exactly 2 files
+    expect(body1.match(/<Contents>/g)?.length).toBe(2);
+
+    // Page 2: use continuation-token → 2 more files, IsTruncated=true
+    const res2 = await signedRequest('GET', '/s3/page-bucket', { queryParams: { 'max-keys': '2', 'continuation-token': token1 } });
+    expect(res2.status).toBe(200);
+    const body2 = await res2.text();
+    expect(body2).toContain('<IsTruncated>true</IsTruncated>');
+    const token2Match = body2.match(/<NextContinuationToken>([^<]+)<\/NextContinuationToken>/);
+    const token2 = token2Match![1];
+    expect(body2.match(/<Contents>/g)?.length).toBe(2);
+
+    // Page 3: final page → 1 file, IsTruncated=false, no NextContinuationToken
+    const res3 = await signedRequest('GET', '/s3/page-bucket', { queryParams: { 'max-keys': '2', 'continuation-token': token2 } });
+    expect(res3.status).toBe(200);
+    const body3 = await res3.text();
+    expect(body3).toContain('<IsTruncated>false</IsTruncated>');
+    expect(body3).not.toContain('<NextContinuationToken>');
+    expect(body3.match(/<Contents>/g)?.length).toBe(1);
+  });
+
+  // ─── ListObjectsV2 LIKE escape (P1.5) ───
+  it('GET /s3/:bucket ListObjectsV2 with % in prefix matches literally (not wildcard)', async () => {
+    const { userId } = await insertUserAndS3Cred('alice');
+    const wsId = await insertWorkspace(userId, 'escape-bucket');
+    await insertDrive(userId, 'drive-1', 'alice@gmail.com');
+    await insertFile(userId, 'drive-1', wsId, null, '50%off.txt', 'gfile-pct');
+    await insertFile(userId, 'drive-1', wsId, null, 'other.txt', 'gfile-other');
+
+    // prefix=50% should match only "50%off.txt", not "other.txt"
+    const res = await signedRequest('GET', '/s3/escape-bucket', { queryParams: { prefix: '50%' } });
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain('50%off.txt');
+    expect(body).not.toContain('other.txt');
+  });
+
   // ─── 9.3 DeleteObject → marks file as trashed in D1 ───
   it('DELETE /s3/:bucket/:key marks file as trashed in D1', async () => {
     const { userId } = await insertUserAndS3Cred('alice');

@@ -186,7 +186,7 @@ drivesRouter.get('/', async (c) => {
 
     } catch (e) {
       logError(c, 'Failed to fetch quota for drive', e, { driveId: drive.id });
-      const computed = computeDriveQuota({ totalQuota: 0, usedQuota: drive.usedQuota, quotaOverride: drive.quotaOverride });
+      const computed = computeDriveQuota({ totalQuota: drive.totalQuota, usedQuota: drive.usedQuota, quotaOverride: drive.quotaOverride });
       return { ...drive, ...computed, health: 'error' as const };
     }
   }));

@@ -147,8 +147,29 @@ s3Router.on(['GET', 'HEAD'], '/:bucket', async (c) => {
 
   const prefix = c.req.query('prefix') || '';
   const delimiter = c.req.query('delimiter') || '';
+  // S3 ListObjectsV2 pagination params (max-keys capped at 1000 per S3 spec).
+  const maxKeys = Math.min(parseInt(c.req.query('max-keys') || '1000', 10) || 1000, 1000);
+  const continuationToken = c.req.query('continuation-token') || '';
+  const startAfter = c.req.query('start-after') || '';
 
-  // Recursive SQLite CTE to assemble flat S3 keys for all workspace files
+  // Decode continuation token (opaque base64 of {key, id}) or start-after.
+  // Known limitation: if a folder is renamed between paginated requests, the
+  // s3_key (computed from folder path) changes — the cursor may skip/duplicate.
+  let cursor: { key: string; id: string } | null = null;
+  if (continuationToken) {
+    try { cursor = JSON.parse(atob(continuationToken)); } catch { cursor = null; }
+  } else if (startAfter) {
+    cursor = { key: startAfter, id: '' };
+  }
+
+  // Recursive SQLite CTE to assemble flat S3 keys for all workspace files.
+  // ORDER BY s3_key, id ensures deterministic cursor pagination.
+  const escapedPrefix = prefix.replace(/[%_^]/g, ch => '^' + ch) + '%';
+  const cursorClause = cursor ? " AND (COALESCE(fp.path, '') || f.name, f.id) > (?, ?)" : '';
+  const binds: (string | number)[] = [workspace.id, workspace.id, workspace.id, escapedPrefix];
+  if (cursor) binds.push(cursor.key, cursor.id);
+  binds.push(maxKeys + 1);  // +1 to detect truncation
+
   const { results: files } = await db.prepare(`
     WITH RECURSIVE folder_path(id, path) AS (
         SELECT id, name || '/' FROM workspace_folders WHERE parent_id IS NULL AND workspace_id = ?
@@ -162,13 +183,24 @@ s3Router.on(['GET', 'HEAD'], '/:bucket', async (c) => {
     FROM files f
     LEFT JOIN folder_path fp ON f.workspace_folder_id = fp.id
     WHERE f.workspace_id = ? AND f.is_trashed = 0
-      AND COALESCE(fp.path, '') || f.name LIKE ?
-  `).bind(workspace.id, workspace.id, workspace.id, prefix + '%').all() as { results: FileRow[] };
+      AND COALESCE(fp.path, '') || f.name LIKE ? ESCAPE '^'${cursorClause}
+    ORDER BY COALESCE(fp.path, '') || f.name, f.id
+    LIMIT ?
+  `).bind(...binds).all() as { results: FileRow[] };
+
+  // Detect truncation: if we got more than maxKeys, there's another page.
+  const truncated = files.length > maxKeys;
+  const pageFiles = truncated ? files.slice(0, maxKeys) : files;
+  let nextToken = '';
+  if (truncated && pageFiles.length > 0) {
+    const last = pageFiles[pageFiles.length - 1];
+    nextToken = btoa(JSON.stringify({ key: last.s3_key, id: last.id }));
+  }
 
   let contentsXml = '';
   const commonPrefixesSet = new Set<string>();
 
-  for (const file of files) {
+  for (const file of pageFiles) {
     const key = file.s3_key || '';
     if (!key.startsWith(prefix)) continue;
 
@@ -211,8 +243,8 @@ s3Router.on(['GET', 'HEAD'], '/:bucket', async (c) => {
 <ListBucketResult>
   <Name>${escapeXml(bucketName)}</Name>
   <Prefix>${escapeXml(prefix)}</Prefix>
-  <MaxKeys>1000</MaxKeys>
-  <IsTruncated>false</IsTruncated>
+  <MaxKeys>${maxKeys}</MaxKeys>
+  <IsTruncated>${truncated}</IsTruncated>${continuationToken ? `\n  <ContinuationToken>${escapeXml(continuationToken)}</ContinuationToken>` : ''}${nextToken ? `\n  <NextContinuationToken>${escapeXml(nextToken)}</NextContinuationToken>` : ''}
 ${contentsXml}${prefixesXml}</ListBucketResult>`;
 
   return c.text(xml, 200, { 'Content-Type': 'application/xml' });
@@ -399,9 +431,20 @@ s3Router.get('/:bucket/:key{.+}', async (c) => {
     c.env.TOKEN_ENCRYPTION_KEY
   );
 
-  const { stream } = await driveService.downloadFile(file.drive_account_id, file.google_file_id);
-  c.header('Content-Type', file.mime_type || 'application/octet-stream');
-  c.header('Content-Length', String(file.size));
+  const { stream, exportedMimeType } = await driveService.downloadFile(
+    file.drive_account_id,
+    file.google_file_id,
+    file.mime_type || undefined
+  );
+  // Google Docs (vnd.google-apps.*) are exported to a different format with a
+  // different size — file.size (D1) is the Google-side size, not the export size.
+  // Omit Content-Length for exports so the runtime uses chunked encoding;
+  // setting it would truncate or hang the client.
+  const isGoogleDocExport = file.mime_type?.startsWith('application/vnd.google-apps.');
+  c.header('Content-Type', exportedMimeType || file.mime_type || 'application/octet-stream');
+  if (!isGoogleDocExport) {
+    c.header('Content-Length', String(file.size));
+  }
   c.header('ETag', `"${getFileETag(file)}"`);
   return c.body(stream);
 });
@@ -574,7 +617,8 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
 
   // Get Google File ID from response headers / body
   const rawBody = await response.text();
-  const gFile = JSON.parse(rawBody);
+  let gFile: { id?: string; md5Checksum?: string } = {};
+  try { gFile = JSON.parse(rawBody); } catch { /* non-JSON Google response */ }
 
   // Get the calculated MD5 hash after the stream has been fully consumed
   const md5Hex = getHash();
@@ -651,7 +695,8 @@ async function handleUploadPart(c: Context, uploadId: string, partNumber: number
   if (!response.ok) return c.text('Failed uploading part to Google Drive', 502);
 
   const rawBody = await response.text();
-  const gFile = JSON.parse(rawBody);
+  let gFile: { id?: string; md5Checksum?: string } = {};
+  try { gFile = JSON.parse(rawBody); } catch { /* non-JSON Google response */ }
 
   const md5Hex = getHash();
 
@@ -798,7 +843,8 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
     if (!response.ok) return c.text('Final concatenation failed', 502);
 
     const rawBody = await response.text();
-    const gFile = JSON.parse(rawBody);
+    let gFile: { id?: string; md5Checksum?: string } = {};
+    try { gFile = JSON.parse(rawBody); } catch { /* non-JSON Google response */ }
 
     // Check if file already exists in D1 under the same folder/name/workspace
     const existingFile = await db.prepare(`
