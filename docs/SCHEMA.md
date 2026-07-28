@@ -14,17 +14,26 @@ erDiagram
     users ||--o{ automation_rules : creates
     users ||--o{ s3_credentials : generates
     users ||--o{ audit_logs : acts
+    users ||--o{ sessions : has
+    users ||--o{ oauth_states : initiates
+    users ||--o{ invitation_codes : creates
+    users ||--o{ s3_multipart_uploads : initiates
+    users ||--o{ category_cache : has
 
     workspaces ||--o{ workspace_members : has
     workspaces ||--o{ workspace_folders : contains
     workspaces ||--o{ workspace_policies : governs
     workspaces ||--o{ files : scopes
     workspaces ||--o{ s3_multipart_uploads : receives
+    workspaces ||--o{ s3_lifecycle_rules : has
+    workspaces ||--o{ s3_credentials : scopes
 
     drive_accounts ||--o{ drive_folders : mirrors
     drive_accounts ||--o{ files : stores
     drive_accounts ||--|| sync_state : tracks
     drive_accounts ||--o{ s3_multipart_uploads : buffers
+    drive_accounts ||--|| drive_tokens : has
+    drive_accounts ||--o{ quota_cache : caches
 
     workspace_folders ||--o{ workspace_folders : parent_child
     workspace_folders ||--o{ files : organizes
@@ -52,6 +61,7 @@ Local and Google OAuth accounts.
 | `is_super_admin` | INTEGER | `1` = super admin, `0` = member |
 | `created_at` | TEXT | ISO datetime |
 | `updated_at` | TEXT | ISO datetime |
+| `is_blocked` | INTEGER | `1` = blocked (admin block feature, migration `0009`). Blocked users cannot log in (`403 Account blocked`) and existing sessions are deleted on block. Default `0`. |
 
 **Global role**: `super_admin` | `member` (in the session, not a separate column other than `is_super_admin`).
 
@@ -94,6 +104,10 @@ Mirror of Google Drive folder structure (read-only cache).
 | `name` | TEXT | |
 | `is_synced` | INTEGER | Sync status |
 | `synced_at` | TEXT | |
+| `created_at` | TEXT | |
+| `owned_by_me` | INTEGER | `1` = owned by the user, `0` = shared with them (migration `0002`). |
+| `is_trashed` | INTEGER | Mirrors `files.is_trashed` for soft-delete (migration `0003`). |
+| `is_starred` | INTEGER | Mirrors `files.is_starred` (migration `0004`). |
 
 **Unique**: `(drive_account_id, google_folder_id)`
 
@@ -185,10 +199,18 @@ File metadata synced from Google Drive.
 | `synced_at` | TEXT | |
 | `created_at` | TEXT | |
 | `updated_at` | TEXT | |
+| `owned_by_me` | INTEGER | `1` = owned by the user, `0` = shared with them (migration `0002`). |
 
 **Unique**: `(drive_account_id, google_file_id)`
 
-**Indexes**: `user_id+workspace_id`, `workspace_folder_id`, `drive_account_id`, `name`, `google_parent_id`
+**Indexes**: `user_id+workspace_id`, `workspace_folder_id`, `drive_account_id`,
+`user_id+name`, `drive_account_id+google_parent_id`,
+`user_id+is_trashed+name+id` (cursor pagination, migration `0005`),
+`workspace_id+is_trashed`, `user_id+google_parent_id+is_trashed+owned_by_me`
+(findExternalFiles), `user_id+is_starred+is_trashed` (findStarred),
+`workspace_id+workspace_folder_id+is_trashed+name+id` (findFilesInWorkspaceRoot),
+and an expression index on `(user_id, is_trashed, COALESCE(google_modified_at, synced_at, updated_at) DESC)`
+(findRecent sort, migration `0008`).
 
 ---
 
@@ -301,8 +323,8 @@ Workspace action audit trail.
 | Column | Type | Description |
 |--------|------|-------------|
 | `id` | TEXT PK | |
-| `workspace_id` | TEXT FK | Nullable |
-| `actor_id` | TEXT FK → users | |
+| `workspace_id` | TEXT FK → workspaces | Nullable — `ON DELETE SET NULL` (migration `0006`; audit logs outlive workspaces for compliance) |
+| `actor_id` | TEXT FK → users | `ON DELETE CASCADE` |
 | `action_type` | TEXT | |
 | `resource_id` | TEXT | |
 | `resource_name` | TEXT | |
@@ -348,7 +370,7 @@ Invitation codes for new user registration.
 
 ### `sessions`
 
-User login sessions (migrated from KV to D1 via `0009`).
+User login sessions (migrated from KV to D1 in baseline `0001_initial_schema.sql`).
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -364,7 +386,7 @@ Cleanup: cron `*/30` in `index.ts` deletes rows `WHERE expires_at < now`.
 
 ### `oauth_states`
 
-PKCE verifier + userId for OAuth round-trip (migrated from KV via `0010`). TTL 10 minutes, cleaned by cron.
+PKCE verifier + userId for OAuth round-trip (migrated from KV in baseline `0001_initial_schema.sql`). TTL 10 minutes, cleaned by cron.
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -375,7 +397,7 @@ PKCE verifier + userId for OAuth round-trip (migrated from KV via `0010`). TTL 1
 
 ### `drive_tokens`
 
-Encrypted OAuth tokens per drive account (migrated from KV via `0010`). Auto-deleted when the drive is removed (ON DELETE CASCADE).
+Encrypted OAuth tokens per drive account (migrated from KV in baseline `0001_initial_schema.sql`). Auto-deleted when the drive is removed (ON DELETE CASCADE).
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -385,13 +407,33 @@ Encrypted OAuth tokens per drive account (migrated from KV via `0010`). Auto-del
 
 ### `quota_cache`
 
-Cache of Google Drive API `storageQuota` results (migrated from KV via `0010`). TTL 5 minutes via `updated_at` check in code.
+Cache of Google Drive API `storageQuota` results (migrated from KV in baseline `0001_initial_schema.sql`). TTL 5 minutes via `updated_at` check in code.
 
 | Column | Type | Description |
 |--------|------|-------------|
 | `drive_account_id` | TEXT PK FK → drive_accounts | Drive being cached |
 | `payload` | TEXT | JSON `QuotaCache` (v, total, used, hasLimit) |
 | `updated_at` | INTEGER | Unix ms — entry considered stale if > 5min / >1h (cron) |
+
+---
+
+### `category_cache`
+
+Per-user MIME-category aggregation cache backing the Dashboard category breakdown
+(added by migration `0007_d1_perf_indexes_and_category_cache`). Mirrors
+`quota_cache`: PK + `payload` TEXT + `updated_at` INTEGER, 5-min TTL via
+`updated_at` check, upserted on cache miss, invalidated on
+trash/restore/delete/upload. Sync upserts bypass the service layer; the TTL
+covers that path (acceptable 5-min dashboard staleness).
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `user_id` | TEXT PK FK → users | User whose category overview is cached |
+| `payload` | TEXT | JSON category aggregation (count, size per MIME category) |
+| `updated_at` | INTEGER | Unix ms — entry considered stale if > 5min / >1h (cron) |
+
+Cleanup: cron `*/30` deletes rows `WHERE updated_at < now - 1h` (see
+`index.ts` scheduled handler).
 
 ---
 
@@ -452,9 +494,17 @@ Migration folder: `packages/worker/migrations/`. Single source of truth.
 
 | File | Change |
 |------|--------|
-| `0001_initial_schema.sql` | Idempotent baseline — a copy of `schema.sql` (all tables + indexes). First `apply` on an existing production DB = safe no-op (all `IF NOT EXISTS`), just records the baseline. |
+| `0001_initial_schema.sql` | Idempotent baseline — a copy of `schema.sql` (23 tables + indexes). First `apply` on an existing production DB = safe no-op (all `IF NOT EXISTS`), just records the baseline. |
+| `0002_add_owned_by_me.sql` | `ALTER TABLE files / drive_folders ADD COLUMN owned_by_me` (DEFAULT 1 — assumes existing rows are owned). |
+| `0003_add_drive_folders_is_trashed.sql` | `ALTER TABLE drive_folders ADD COLUMN is_trashed` (soft-delete for trashed folders). |
+| `0004_add_drive_folders_is_starred.sql` | `ALTER TABLE drive_folders ADD COLUMN is_starred`. |
+| `0005_add_files_cursor_index.sql` | `idx_files_user_trashed_name_id` for cursor pagination (automation cron R4). |
+| `0006_audit_logs_set_null.sql` | Recreate `audit_logs` with `ON DELETE SET NULL` on `workspace_id` (compliance — audit logs outlive workspaces). |
+| `0007_d1_perf_indexes_and_category_cache.sql` | 5 perf indexes (findRecent/findExternalFiles/findStarred/findFilesInWorkspaceRoot/shared-links LEFT JOIN) + new `category_cache` table. |
+| `0008_findrecent_perf_indexes.sql` | Expression index on `(user_id, is_trashed, COALESCE(google_modified_at, synced_at, updated_at) DESC)` (findRecent sort) + `idx_drive_folders_starred_trashed`. |
+| `0009_add_users_is_blocked.sql` | `ALTER TABLE users ADD COLUMN is_blocked` (admin block feature — login rejects blocked users, block deletes existing sessions). |
 
-Old numbered migrations `0001`–`0010` in `src/db/` (dead, not referenced by any code) and `migrations/0008_add_s3_lifecycle_rules.sql` (number `0008` collision) have been removed — all their effects are already in the baseline. History is preserved in git.
+Old numbered migrations `0001`–`0010` that previously lived in `src/db/` (dead, not referenced by any code) and `migrations/0008_add_s3_lifecycle_rules.sql` (number `0008` collision) have been removed — all their effects are already in the baseline. History is preserved in git.
 
 **Forward rule:** every schema change must update TWO things — `src/db/schema.sql` (canonical fresh-install, used by `reset.mjs`/`onboard-deploy.mjs`) **and** a new `migrations/000N_*.sql` file with incremental DDL. The `tests/migrations.test.ts` test fails if the two diverge.
 
@@ -474,11 +524,11 @@ make reset-remote
 
 ## KV Store (Not D1)
 
-Since migration `0010`, almost all data has moved to D1. KV only stores **shared-link rate-limit counters** (low volume, convenient TTL semantics):
+Since the baseline migration `0001_initial_schema.sql`, almost all data lives in D1. KV only stores **shared-link rate-limit counters** (low volume, convenient TTL semantics):
 
 | Key pattern | Content |
 |-------------|---------|
 | `shared_verify_lock:{linkId}` | Lockout after 20 wrong password attempts (TTL 15 minutes) |
 | `shared_verify_fail:{linkId}` | Failed attempt counter (TTL 15 minutes) |
 
-OAuth tokens, PKCE state, and quota cache are now in D1 (tables `drive_tokens`, `oauth_states`, `quota_cache`).
+OAuth tokens, PKCE state, quota cache, and category cache are now in D1 (tables `drive_tokens`, `oauth_states`, `quota_cache`, `category_cache`).

@@ -94,25 +94,29 @@ These limits are **HARD** — when exceeded, operations fail with errors. The us
 
 ---
 
-## ⚠️ Critical: The sync.ts D1 comment is WRONG for Free tier
+## ⚠️ Critical: The sync.ts D1 comment (updated)
 
-**`packages/worker/src/services/sync.ts:26-28`** says:
+**`packages/worker/src/services/sync.ts:26-32`** now reads:
 ```
 // Workers Free plan: 50 external subrequests (fetch to Google API) per invocation.
-// D1 calls have a separate 1,000 limit — not the bottleneck.
+// D1 calls: 50/invocation on Free, 1,000 on Paid. On Free, D1 can be a co-bottleneck.
+// (waiting on Google API + D1), so CPU time (10ms) is not the constraint either.
+// Per sync page: 1 external call (Google API fetch). One-time: getRootFolderId (1).
+// Completion: getStartPageToken (1) + getQuota (1). Budget 45 leaves margin for
+// token refresh (+1) and the one-time calls. Capacity: (45 - 1) / 1 = 44 pages = 4,400 items.
+const EXTERNAL_SUBREQUEST_BUDGET = 45;
 ```
 
 **Verification:**
 - ✅ "50 external subrequests per invocation" — **CORRECT** for Free.
-- ❌ "D1 calls have a separate 1,000 limit" — **WRONG for Free.** 1,000 is the **Paid** limit. On **Free, D1 = 50 queries per invocation** — the same magnitude as the external budget.
+- ✅ "D1 calls: 50/invocation on Free, 1,000 on Paid" — **CORRECT** (the previous "D1 calls have a separate 1,000 limit" comment that this section flagged as wrong has been fixed in code).
+- ✅ `EXTERNAL_SUBREQUEST_BUDGET = 45` (matches ADR-0007).
 
 **Source (D1 limits page):**
 > "Queries per Worker invocation (read subrequest limits) — 1000 (Workers Paid) / 50 (Free)"
 > — https://developers.cloudflare.com/d1/platform/limits/
 
-**Impact:** `sync.ts` has ~16 D1 call sites, and `batchInChunks` sends 1 `db.batch()` per 100 statements (each batch = 1 D1 subrequest). A full sync page (1 external fetch + 1 batch upsert + ~3-5 `sync_state`/token calls) sits close to the 50-call D1 ceiling. **D1 is NOT "not the bottleneck" on Free — it's co-equal with the external budget.**
-
-**Action:** Re-validate D1 call count per sync invocation empirically. Update the comment at `sync.ts:26-28` (and the duplicate at `sync.ts:169-170`) to reflect the Free-tier D1 limit of 50.
+**Impact:** `sync.ts` has ~16 D1 call sites, and `batchInChunks` sends 1 `db.batch()` per 100 statements (each batch = 1 D1 subrequest). A full sync page (1 external fetch + 1 batch upsert + ~3-5 `sync_state`/token calls) sits close to the 50-call D1 ceiling. **D1 is co-equal with the external budget on Free** — not "not the bottleneck" as the old comment claimed. The current comment reflects this.
 
 ---
 
@@ -205,13 +209,16 @@ Sources:
 | `expirationTtl` minimum | **60 seconds** | 60 seconds |
 | `cacheTtl` minimum (read-side cache) | 30 seconds | 30 seconds |
 
-**⚠️ KV eventual consistency (critical for OmniDrive's rate-limiter + OAuth state):**
+**⚠️ KV eventual consistency (critical for OmniDrive's shared-link lockout):**
 > "Writes are immediately visible to other requests in the same global network location, but can take up to 60 seconds... to be visible in other parts of the world."
 > — KV limits page
 
 OmniDrive uses KV for:
-- **OAuth state** (10-min TTL) — eventual consistency is tolerable ✅
-- **Rate limiting** (`rate-limiter.ts`) — ⚠️ eventual consistency means rate limits can be **under-counted** globally during the 60-second propagation window. A determined attacker could exceed limits by routing requests through different edge locations.
+- **Shared-link password lockout** (`shared_verify_lock:<id>`, 15-min TTL) and **failed-attempt counter** (`shared_verify_fail:<id>`) in `routes/shared.ts` — eventual consistency is tolerable for lockout windows ✅
+- **Rate limiting** (`middleware/rate-limiter.ts`) uses an **in-memory `Map`** per isolate, NOT KV — eventual consistency is N/A within an isolate, but cross-isolate limits can be under-counted. KV is not used here.
+- **OAuth state** lives in **D1** (`oauth_states` table, 10-min TTL via `created_at`), not KV — strong consistency for PKCE verifier lookup ✅
+
+> **Note:** OAuth state, drive tokens, sessions, and quota cache all live in D1 (see ADR-0001), not KV. KV is used **only** for shared-link lockout/counter keys.
 
 **Free-tier-only mitigations for rate-limiter consistency:**
 1. **Move rate-limit counters to D1** (strongly consistent on Free). Trade-off: each rate-check costs 1 of the 50 D1 queries/invocation. Acceptable if rate-limited routes are few (auth, shared-link verify).
@@ -269,18 +276,19 @@ Source: https://developers.cloudflare.com/workers/configuration/cron-triggers/ *
 
 **OmniDrive's cron:** `*/30 * * * *` (every 30 min) — well within limits.
 
-**OmniDrive's scheduled handler** (`index.ts:116-137`) runs 7 `ctx.waitUntil()` tasks:
-1. `runScheduledSync` (Drive delta sync)
+**OmniDrive's scheduled handler** (`packages/worker/src/index.ts:117-143`) runs **10 sequential `await` calls** (NOT `ctx.waitUntil`) inside the cron trigger:
+1. `runScheduledSync` (Drive delta sync — heavy, Google API + D1)
 2. `runLifecycleExpiration` (S3 lifecycle)
 3. `cleanupOrphanMultipartUploads`
 4. `AutomationEngine.processCronTrigger`
-5. `AuditService.cleanupOldLogs(30)`
-6. `PolicyService.processAutoDeleteRetentionPolicies`
-7. Session cleanup (DELETE expired sessions)
-8. OAuth state cleanup (10-min TTL)
-9. Quota cache cleanup (>1h old)
+5. `AuditService.cleanupOldLogs(30)` (audit log retention)
+6. `PolicyService.processAutoDeleteRetentionPolicies` (data retention)
+7. Session cleanup — `DELETE FROM sessions WHERE expires_at < ?`
+8. OAuth state cleanup — `DELETE FROM oauth_states WHERE created_at < ?` (10-min TTL)
+9. Quota cache cleanup — `DELETE FROM quota_cache WHERE updated_at < ?` (>1h old)
+10. Category cache cleanup — `DELETE FROM category_cache WHERE updated_at < ?` (>1h old)
 
-All run concurrently via `waitUntil` within the 15-minute wall-time budget. ✅ Good design.
+Heavy tasks run **sequentially** (via `await`, not `waitUntil`) to avoid D1 subrequest budget contention on Free tier (50/invocation). Cron has no HTTP response to return quickly, so blocking is fine — the Worker stays alive until all 10 tasks finish within the 15-minute wall-time budget. ✅ Correct design for the Free-tier D1 constraint.
 
 ---
 

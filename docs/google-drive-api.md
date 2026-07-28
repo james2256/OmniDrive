@@ -73,7 +73,7 @@ Source: https://developers.google.com/identity/protocols/oauth2/scopes
 
 ### OmniDrive's current scope
 
-**`packages/worker/src/routes/auth.ts:116`:**
+**`packages/worker/src/routes/auth.ts:121`:**
 ```ts
 const scope = 'openid email profile https://www.googleapis.com/auth/drive';
 ```
@@ -131,7 +131,7 @@ OmniDrive's 30-min cron is within reasonable bounds. For lower latency, consider
 > "supportsTeamDrives: Deprecated: Use supportsAllDrives instead."
 > — https://developers.google.com/drive/api/reference/rest/v3/changes/list
 
-**OmniDrive status:** `listFolderContents` (google-drive.ts:705) uses `supportsAllDrives=true&includeItemsFromAllDrives=true` ✅. But `listChanges` (line 637) and `listFilesInFolder` (line 672) do **NOT** pass these params — ⚠️ shared drive items may be missing from sync and folder-listing. **Action: add to all `files.list` / `changes.list` calls.**
+**OmniDrive status:** `listFolderContents` (google-drive.ts:653) uses `supportsAllDrives=true&includeItemsFromAllDrives=true` ✅. But `listChanges` (line 592) and `listFilesInFolder` (line 624) do **NOT** pass these params — ⚠️ shared drive items may be missing from sync and folder-listing. **Action: add to all `files.list` / `changes.list` calls.**
 
 ### `spaces=drive` vs `spaces=appDataFolder`
 
@@ -140,14 +140,14 @@ Source: https://developers.google.com/drive/api/guides/appdata
 - **`drive`** = user's My Drive + shared drives (where OmniDrive user files live) ✅
 - **`appDataFolder`** = hidden per-app isolated folder for app-specific config data. Requires `drive.appdata` scope. Deleted when user uninstalls app.
 
-**OmniDrive uses `spaces=drive`** (google-drive.ts:637) ✅ — correct for user-file aggregation. `appDataFolder` is unnecessary since OmniDrive persists state in D1.
+**OmniDrive uses `spaces=drive`** (google-drive.ts:592) ✅ — correct for user-file aggregation. `appDataFolder` is unnecessary since OmniDrive persists state in D1.
 
 ### `fields` parameter (partial responses)
 
 > "For better performance, you can ask the server to send only the fields you really need and get a partial response instead."
 > — https://developers.google.com/drive/api/guides/performance
 
-**OmniDrive uses `fields` on all list/get calls** ✅ — e.g., `changes(fileId,removed,file(id,name,mimeType,...))` at google-drive.ts:634. This is Google's recommended pattern.
+**OmniDrive uses `fields` on all list/get calls** ✅ — e.g., `changes(fileId,removed,file(id,name,mimeType,...))` at google-drive.ts:589. This is Google's recommended pattern.
 
 **Note:** `fields` does NOT reduce quota units (a `files.list` = 100 units regardless), but reduces payload/latency/CPU.
 
@@ -188,7 +188,7 @@ Official reasons:
 
 The docs do NOT pin a hard "1 hour" constant; the sample response shows `"expires_in": 3920` (~65 min). The widely-cited "~3600s / 1 hour" is typical, **not guaranteed**.
 
-**OmniDrive status:** ✅ `refreshToken` (google-drive.ts:178) reads `data.expires_in * 1000` correctly — does not hardcode 3600.
+**OmniDrive status:** ✅ `refreshToken` (google-drive.ts:184) reads `data.expires_in * 1000` (line 200) correctly — does not hardcode 3600.
 
 ### Token revocation
 
@@ -235,7 +235,7 @@ Source: https://developers.google.com/drive/api/guides/manage-uploads
 
 **Resume after interruption:** query status with empty PUT + `Content-Range: */<total>`, read `Range` header for resume byte.
 
-**OmniDrive status:** `initiateResumableUpload` (google-drive.ts:294) exists ✅. Need to verify the chunked upload completion path in `upload-router.ts` handles 308/404 correctly (not verified in this audit).
+**OmniDrive status:** `initiateResumableUpload` (google-drive.ts:309) exists ✅. Need to verify the chunked upload completion path in `upload-router.ts` handles 308/404 correctly (not verified in this audit).
 
 ---
 
@@ -252,7 +252,7 @@ Source: https://developers.google.com/drive/api/guides/manage-downloads
 | `files.download` (newer) | Alternative to `alt=media` | No size cap |
 | `exportLinks` | Browser-facing export URLs | N/A |
 
-**OmniDrive status:** `downloadFile` (google-drive.ts:350-392) ✅ correctly distinguishes:
+**OmniDrive status:** `downloadFile` (google-drive.ts:373) ✅ correctly distinguishes:
 - Google Workspace (`application/vnd.google-apps.*`) → uses `/export?mimeType=...`
 - Other files → uses `?alt=media`
 
@@ -349,7 +349,7 @@ Source: https://developers.google.com/drive/api/guides/limits
 > — Handle errors guide
 
 **OmniDrive status:**
-- ✅ Supports service accounts (`google-drive.ts:91`, `google-service-account.ts`)
+- ✅ Supports service accounts (`google-drive.ts:121`, `lib/google-service-account.ts`)
 - ❌ Does NOT use `quotaUser` parameter — **all SA traffic collapses into one per-user quota bucket → throttling risk.**
 
 **Action:** If using a SA for multiple end-users, add `quotaUser=<end-user-id>` to all Drive API calls to bucket traffic per-user.

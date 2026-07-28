@@ -15,9 +15,14 @@ OmniDrive architecture document — a multi-Google Drive storage gateway on the 
        ▼                                  ▼           ▼
   VITE_API_URL                      ┌─────────┐ ┌─────────┐
   → Worker :8888                    │ D1 (DB) │ │ KV      │
-                                    │ SQLite  │ │ Tokens  │
-                                    │ Session │ │ OAuth   │
-                                    └─────────┘ └────┬────┘
+                                    │ SQLite  │ │ Shared- │
+                                    │ Session │ │ link    │
+                                    │ Tokens  │ │ lockout │
+                                    │ OAuth   │ │ (only)  │
+                                    │ Quota   │ └─────────┘
+                                    │ Cat.   │
+                                    │ Cache  │
+                                    └────────┘
                                                      │
                                     ┌────────────────┼────────────────┐
                                     ▼                ▼                ▼
@@ -42,8 +47,8 @@ OmniDrive architecture document — a multi-Google Drive storage gateway on the 
 | Backend framework | Hono | 4.12.x | Edge-first HTTP framework, runs on Workers and Node |
 | Backend runtime | Cloudflare Workers | wrangler 4.112.0 | `wrangler.toml` declares D1/KV bindings + cron |
 | Validation | Zod | 4.4.x | `zValidator` on every route; centralised schemas in `lib/schemas.ts` |
-| Database | Cloudflare D1 (SQLite) | — | 23 tables, see `docs/SCHEMA.md` |
-| Cache / tokens | Cloudflare KV | — | OAuth tokens (AES-256-GCM), quota cache |
+| Database | Cloudflare D1 (SQLite) | — | 24 tables, see `docs/SCHEMA.md` |
+| Cache / tokens | Cloudflare D1 + Cloudflare KV | — | Quota cache, category cache, OAuth states, OAuth tokens (AES-256-GCM) all live in D1 tables; KV is only used for shared-link brute-force lockout (`routes/shared.ts`), 15-min TTL |
 | Frontend framework | React | 19.2.7 | Functional components + hooks only |
 | Build tool | Vite | 8.1.5 | Dev server proxies `/api/*` to Worker |
 | CSS | Tailwind CSS | 4.3.3 | CSS-first config with `@theme` in `app.css`; `tw-animate-css` 1.4.0 replaces `tailwindcss-animate` |
@@ -51,7 +56,7 @@ OmniDrive architecture document — a multi-Google Drive storage gateway on the 
 | Icons | lucide-react | 1.25.0 | — |
 | Upload | react-dropzone | 19.1.1 | — |
 | Server state | TanStack Query | 5.101.x | Query keys centralised in `lib/queryKeys.ts` |
-| Client state | Zustand | 5.0.x | Stores: UI, auth, upload, selection, toast |
+| Client state | Zustand | 5.0.x | Stores: UI, auth, upload, selection, toast, automation |
 | Charts | Recharts | 3.10.x | Dashboard bento grid |
 | Lint | ESLint | 10.7.0 | Flat config (`eslint.config.mjs`); `eslint-plugin-react` removed, `eslint-plugin-react-hooks` + `eslint-plugin-security` kept |
 | Test runner | Vitest | 4.1.10 | Both worker and web packages |
@@ -65,6 +70,9 @@ OmniDrive architecture document — a multi-Google Drive storage gateway on the 
 Incoming Request
     │
     ▼
+requestId              ← Generate / propagate x-request-id (log correlation)
+    │
+    ▼
 securityHeaders          ← X-Content-Type-Options, CSP, etc.
     │
     ▼
@@ -74,12 +82,13 @@ corsMiddleware           ← Origin whitelist (FRONTEND_URL)
 csrfGuard (/api/*)       ← Origin/Referer validation on mutations
     │
     ▼
-rateLimiter              ← Per-route + global 100 req/min
+rateLimiter              ← Per-route + global 100 req/min (in-memory per isolate)
     │
     ▼
 Route Handler
-    ├── authGuard        ← Cookie session (most /api routes)
-    ├── rbac middleware  ← Workspace role checks
+    ├── authGuard        ← Cookie session (most /api routes); injects services + repos via c.set()
+    ├── sharedServices   ← Instantiates SharedService for /api/shared/* (incl. public routes)
+    ├── rbac (lib/rbac)   ← getWorkspaceRole / hasPermission called inline by services (NOT a middleware)
     └── s3-auth          ← AWS SigV4 (/s3 routes)
     │
     ▼
@@ -109,15 +118,21 @@ D1 / KV / Google API
 
 | Service | File | Responsibility |
 |---------|------|----------------|
-| `GoogleDriveService` | `services/google-drive.ts` | Google Drive API v3 wrapper |
-| `sync` | `services/sync.ts` | Full + incremental sync via Changes API |
-| `AuthService` | `services/auth.service.ts` | Login, register, session, OAuth |
-| `AutomationEngine` | `services/automation.service.ts` | Rule evaluation & execution |
-| `AuditService` | `services/audit.service.ts` | Workspace audit logging |
-| `PolicyService` | `services/policy.service.ts` | Quota & data retention |
+| `GoogleDriveService` | `services/google-drive.ts` | Google Drive API v3 wrapper (token mgmt, file/folder ops, Changes API). All calls go through `driveFetch` → `withBackoff` (exponential backoff + `reason` parsing) |
+| `DriveService` | `services/drive.service.ts` | Business logic for Google Drive account + Drive-folder operations. Owns `DriveRepository` + `GoogleDriveService`. User-scoped (ownership RBAC) |
+| `FolderService` | `services/folder.service.ts` | Workspace folder CRUD + tree. Owns `FolderRepository` + `WorkspaceRepository` + `FileRepository`. Uses `lib/rbac` for membership/role checks |
+| `FileService` | `services/file.service.ts` | Trash / restore / permanent-delete / rename / move / copy with workspace RBAC. Injects `FileRepository` + `FolderRepository` + `DriveRepository` + `GoogleDriveService` + `PolicyService`. The `DriveRepository` was added so `FileService` can power global search across the user's drives without going through `routes/drives.ts` |
+| `WorkspaceService` | `services/workspace.service.ts` | Workspace CRUD, members, policies, audit-log access. Owns `WorkspaceRepository` + `AuditService`. Enforces role-escalation / last-owner / self-removal rules |
+| `SharedService` | `services/shared.service.ts` | Shared-link CRUD, password hashing, webhook validation, slug uniqueness, download/view counters. Owns `SharedRepository` + `FileRepository` + `DriveRepository` + `FolderRepository`. Injected by `sharedServices` middleware for every `/api/shared/*` request |
+| `AuthService` | `services/auth.service.ts` | Login, register, change-password, session revoke, OAuth code exchange. Wraps Google token + userinfo fetches in `withBackoff` |
+| `AutomationEngine` | `services/automation.service.ts` | Rule evaluation & execution (cron + on-write triggers) |
+| `AuditService` | `services/audit.service.ts` | Workspace audit logging; `cleanupOldLogs(30)` runs on cron |
+| `PolicyService` | `services/policy.service.ts` | Workspace data-retention policies; `processAutoDeleteRetentionPolicies()` runs on cron |
 | `UploadRouter` | `services/upload-router.ts` | Pick the drive with most free space for upload; spillover if preferred drive is full |
-| `FileService` | `services/file.service.ts` | Trash / restore / permanent-delete / rename / move / copy with workspace RBAC. Injects `FileRepository` + `FolderRepository` + `DriveRepository` + `GoogleDriveService` + `PolicyService`. The `DriveRepository` was added so `FileService` can power global search across the user's drives without going through `routes/drives.ts`. |
-| `computeDriveQuota` | `lib/storage-quota.ts` | Compute total/used/free/percent + fallback chain & override |
+| `resolveDrivesWithQuota` | `services/drive-quota.ts` | List a user's drives with live Google quota merged (or stored fallback when tokens/quota are unavailable). Backs the dashboard + upload-router |
+| `sync` (`runScheduledSync`) | `services/sync.ts` | Full + incremental sync via Changes API. OOM-safe generator + per-page D1 checkpoint |
+| `s3-lifecycle` | `services/s3-lifecycle.ts` | S3 bucket lifecycle XML parse/serialize + `runLifecycleExpiration` (trash expired objects) + `cleanupOrphanMultipartUploads` (reap >24h-old multipart uploads). Both run on cron |
+| `computeDriveQuota` | `lib/storage-quota.ts` | Pure function: compute total/used/free/percent from (stored + live) + override priority. Also exports `UNLIMITED_DRIVE_QUOTA_BYTES` (1 TiB parse-time fallback) and `QUOTA_CACHE_VERSION` |
 
 ### Repository Pattern
 
@@ -145,13 +160,16 @@ Nine repositories exist today, one per logical domain:
 
 | Middleware | File | Purpose |
 |------------|------|---------|
-| `authGuard` | `middleware/auth-guard.ts` | Cookie `omnidrive_sid` → D1 session |
-| `csrfGuard` | `middleware/csrf-guard.ts` | CSRF protection |
-| `rateLimiter` | `middleware/rate-limiter.ts` | Sliding window in-memory |
-| `rbac` | `middleware/rbac.ts` | Workspace role authorization |
-| `s3-auth` | `middleware/s3-auth.ts` | AWS Signature V4 verification |
-| `cors` | `middleware/cors.ts` | CORS headers |
-| `securityHeaders` | `middleware/security-headers.ts` | Security response headers |
+| `requestId` | `middleware/request-id.ts` | Generate or propagate `x-request-id` header; stored on context for log correlation |
+| `securityHeaders` | `middleware/security-headers.ts` | Security response headers (CSP, X-Content-Type-Options, etc.) |
+| `cors` | `middleware/cors.ts` | CORS headers, origin whitelist from `FRONTEND_URL` |
+| `csrfGuard` | `middleware/csrf-guard.ts` | CSRF protection (Origin/Referer check on mutations) |
+| `rateLimiter` | `middleware/rate-limiter.ts` | Sliding window in-memory, per-isolate, per-limiter instance |
+| `authGuard` | `middleware/auth-guard.ts` | Cookie `omnidrive_sid` → D1 session; throttled sliding-window TTL extension; **injects services + repositories via `c.set(...)`** (`fileService`, `folderService`, `driveService`, `workspaceService`, `automationRepo`, `s3CredentialsRepo`, `adminRepo`, `authRepo`) |
+| `sharedServices` | `middleware/shared-services.ts` | Instantiates `SharedService` on every `/api/shared/*` request — including public routes (meta/verify/email/download) that bypass `authGuard` but still need DB access |
+| `s3-auth` | `middleware/s3-auth.ts` | AWS Signature V4 verification for `/s3` routes |
+
+> **Note on RBAC:** there is no `middleware/rbac.ts`. Workspace role checks (`getWorkspaceRole`, `hasPermission`, `roleLevel`) live in `lib/rbac.ts` and are called inline by services (`FileService`, `FolderService`, `WorkspaceService`, `SharedService`) and a few routes (`s3.ts`, `s3-credentials.ts`, `files.ts`).
 
 ## Authentication Flow
 
@@ -170,12 +188,12 @@ Client POST /api/auth/login { username, password }
 ```
 Client GET /api/auth/google
     → Generate PKCE challenge (S256)
-    → Store state in KV
+    → Store state + PKCE verifier + userId in D1 (`oauth_states`, 10-min TTL via `created_at`)
     → Redirect to Google consent
 
 Google GET /api/auth/callback?code=...&state=...
     → Verify state + exchange code (with PKCE verifier)
-    → Encrypt tokens → KV (tokens:{driveId})
+    → Encrypt tokens (AES-256-GCM) → D1 (`drive_tokens` row keyed by `drive_account_id`)
     → Link/create drive_account in D1
 ```
 
@@ -218,9 +236,9 @@ Cron */30 * * * *
 Each drive's capacity is computed in `computeDriveQuota()` (`lib/storage-quota.ts`) with the following priority:
 
 1. `drive_accounts.quota_override` (manual) — **deprecated, no endpoint/UI writes to it anymore** (the manual capacity editor feature was removed). The branch is kept read-only so no drop-column migration is needed.
-2. `storageQuota.limit` from the Google API (if present — "if applicable")
-3. `drive_accounts.total_quota` (cached)
-4. `UNLIMITED_DRIVE_QUOTA_BYTES` (1 TiB fallback)
+2. `live.total` from the Google API, **only when `hasLimit` is true** (Google returned `storageQuota.limit`)
+3. `drive_accounts.total_quota` (cached, last value written when `hasLimit` was true)
+4. `0` → UI shows "Pooled storage" (no limit known). `UNLIMITED_DRIVE_QUOTA_BYTES` (1 TiB) is the parse-time fallback inside `parseStorageQuota` for the cached `total` field, but `computeDriveQuota` will not surface it as the effective capacity unless `hasLimit` is true
 
 **Important note:** The Google Drive API does **not** return `storageQuota.limit` for:
 - Google Workspace pooled storage (5 TB+ accounts)
@@ -230,7 +248,7 @@ Those accounts fall back to 1 TiB. (Previously users could set `quota_override` 
 
 Usage (`used`) uses `storageQuota.usageInDrive` (Drive-only), not `usage` (account-wide: Drive+Gmail+Photos).
 
-The quota cache in KV (`quota:{driveId}`, 5-minute TTL) is tagged with `QUOTA_CACHE_VERSION` so old entries auto-invalidate when the schema changes.
+The quota cache lives in D1 (`quota_cache` table, keyed by `drive_account_id`, 5-minute TTL enforced via `updated_at` check in `getQuota()`). The cached payload is tagged with `QUOTA_CACHE_VERSION` so stale entries (e.g. pre-`usageInDrive` rows that stored account-wide usage) are auto-ignored when the schema changes. The `category_cache` table follows the same pattern for the dashboard category-overview tile.
 
 ## S3 Compatibility Layer
 
@@ -302,6 +320,7 @@ Two complementary stores — **Zustand for client/UI state, TanStack Query for s
 | `useUploadStore` | `stores/useUploadStore.ts` | Upload queue + progress |
 | `useSelectionStore` | `stores/useSelectionStore.ts` | Multi-select file/folder ids |
 | `useToastStore` | `stores/useToastStore.ts` | Toast queue |
+| `useAutomationStore` | `stores/useAutomationStore.ts` | Automation-rule list, loading state, toggle/refresh actions |
 
 TanStack Query (`@tanstack/react-query` 5.x) caches server state. Query keys are centralised in `lib/queryKeys.ts`, and cache invalidation goes through `lib/invalidate.ts` so mutation hooks can blast the right keys after writes.
 
@@ -338,15 +357,20 @@ The Vite dev server proxies `/api/*` to the Worker (`packages/web/vite.config.ts
 
 ## Scheduled Jobs (Cron)
 
-Trigger: `*/30 * * * *` (every 30 minutes)
+Trigger: `*/30 * * * *` (every 30 minutes) — `wrangler.toml` on Workers, `node-cron` in `node-server.ts` for self-host. All tasks run **sequentially** via `await` in `index.ts`'s `scheduled()` handler (no `ctx.waitUntil`) to avoid D1 subrequest budget contention on Free tier.
 
 | Job | Service | Purpose |
 |-----|---------|---------|
 | Drive sync | `runScheduledSync()` | Incremental sync for all drives |
+| S3 lifecycle expiration | `runLifecycleExpiration()` | Trash S3 objects past `expiration_days` per rule (Option A, recoverable ~30 days via Google) |
+| Orphan multipart reap | `cleanupOrphanMultipartUploads()` | Delete >24h-old multipart uploads + their Google Drive temp folders |
 | Automation | `AutomationEngine.processCronTrigger()` | Evaluate rules |
-| Audit cleanup | `AuditService.cleanupOldLogs(30)` | Delete logs older than 30 days |
+| Audit cleanup | `AuditService.cleanupOldLogs(30)` | Delete audit logs older than 30 days |
 | Data retention | `PolicyService.processAutoDeleteRetentionPolicies()` | Auto-delete per policy |
-| S3 lifecycle | `runLifecycleExpiration()` | Trash S3 objects past `expiration_days` per rule (Option A, recoverable) |
+| Session cleanup | inline `DELETE FROM sessions WHERE expires_at < ?` | Drop expired sessions |
+| OAuth state cleanup | inline `DELETE FROM oauth_states WHERE created_at < ?-10min` | Drop expired OAuth states (10-min TTL) |
+| Quota cache cleanup | inline `DELETE FROM quota_cache WHERE updated_at < ?-1h` | Drop stale quota cache rows (>1h old) |
+| Category cache cleanup | inline `DELETE FROM category_cache WHERE updated_at < ?-1h` | Drop stale category cache rows (>1h old) |
 
 ## Security Model
 
@@ -355,8 +379,8 @@ Trigger: `*/30 * * * *` (every 30 minutes)
 | CSRF | Origin/Referer guard on mutations |
 | Brute force | Rate limiter on login/register/verify |
 | IDOR | Ownership scoping on shared links, files, workspaces |
-| Token theft | AES-256-GCM encryption at rest in KV |
-| Role escalation | RBAC middleware, role hierarchy enforcement |
+| Token theft | AES-256-GCM encryption at rest in D1 (`drive_tokens.encrypted_tokens`) |
+| Role escalation | RBAC checks via `lib/rbac.ts` (`getWorkspaceRole`, `hasPermission`, `roleLevel`) called inline by services/routes; role hierarchy enforcement |
 | SSRF | Webhook URL validation |
 | Session hijack | httpOnly cookie, 7-day sliding TTL, server-side revocable (D1) |
 | S3 signature bypass | Timing-safe comparison, clock skew ±15min |
@@ -380,11 +404,13 @@ VITE_API_URL points to Worker URL
 
 ```
 docker-compose.yml
-    └── omnidrive-unified image
-         ├── Node server (node-server.ts)
-         ├── SQLite (better-sqlite3)
-         └── KV polyfill (kv.ts)
+    └── omnidrive-unified image (node:24-slim)
+         ├── Node server (node-server.ts) — Hono on @hono/node-server, default port 8080
+         ├── D1 polyfill (polyfills/d1.ts) — backed by better-sqlite3, runs schema.sql on new DBs + pending migrations on existing ones
+         └── KV polyfill (polyfills/kv.ts) — backed by a separate SQLite file (data/kv.sqlite)
 ```
+
+`node-server.ts` reuses the same Hono `app` from `index.ts`. Cron is driven by `node-cron` on the same `*/30 * * * *` schedule; the static React build is served via `@hono/node-server/serve-static` with an SPA fallback to `index.html`.
 
 ## Environment & Configuration
 

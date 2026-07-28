@@ -3,6 +3,8 @@
 > **Verified audit.** Every claim below is cross-referenced against the code at HEAD `1b78053` and the verified limits in [`cloudflare-free-tier.md`](./cloudflare-free-tier.md) and [`google-drive-api.md`](./google-drive-api.md). Research date: 2026-07-23.
 >
 > 🚫 **HARD CONSTRAINT: OmniDrive runs 100% on Cloudflare Free tier. Never pay a cent.** Every recommendation in this audit respects that constraint. "Upgrade to Paid" is NEVER a recommendation — when a Free-tier limit is hit, the answer is always to optimize within Free, not to pay.
+>
+> > **Re-verification note (added 2026 re-audit, HEAD `468d25d`):** Items below are annotated inline with their current status — `✅ RESOLVED`, `🟡 PARTIALLY RESOLVED`, or `🔴 STILL OPEN`. The biggest change since the original audit is the introduction of `lib/backoff.ts` (`withBackoff` + `parseDriveError` + `isRetryable`), which resolves §2.1 and §2.2, and the migration of the rate-limiter off KV to per-isolate in-memory (resolves §3.4). The original §2.4 sync.ts comment has been corrected at line 27, but two stale duplicates remain at lines 173–174 and 198–199 (still mention "1,000 limit" — that's Paid, not Free).
 
 ---
 
@@ -10,9 +12,9 @@
 
 OmniDrive is a well-architected Cloudflare Workers gateway that **correctly handles most of the hard problems** (subrequest budgeting, quota caching, delta sync, OAuth token encryption, D1 batching). However, it has **three significant gaps** that will cause production issues:
 
-1. **🔴 No exponential backoff / retry on Google API errors** — any 429/403/5xx from Google fails the entire sync cycle. Google officially requires backoff.
-2. **🔴 The sync.ts D1 comment is wrong for Free tier** — it claims D1 has a 1,000-call limit (that's Paid); Free is 50/invocation, co-equal with the external-fetch budget. The sync job could hit this on large drives.
-3. **🔴 No `quotaUser` for service-account flows** — if OmniDrive uses a SA for multiple users, all traffic collapses into one per-user quota bucket → throttling.
+1. **🔴 No exponential backoff / retry on Google API errors** — any 429/403/5xx from Google fails the entire sync cycle. Google officially requires backoff. **→ ✅ RESOLVED.** `lib/backoff.ts` adds `withBackoff` (truncated exponential + jitter, max 3 retries, 32 s cap) + `parseDriveError` + `isRetryable`. All `GoogleDriveService` calls now go through `driveFetch → withBackoff`. Covered by `packages/worker/tests/backoff.test.ts`.
+2. **🔴 The sync.ts D1 comment is wrong for Free tier** — it claims D1 has a 1,000-call limit (that's Paid); Free is 50/invocation, co-equal with the external-fetch budget. The sync job could hit this on large drives. **→ 🟡 PARTIALLY RESOLVED.** The main comment at `sync.ts:27` is now correct ("D1 calls: 50/invocation on Free, 1,000 on Paid. On Free, D1 can be a co-bottleneck"). Two stale duplicates remain — `sync.ts:173-174` ("they have their own 1,000 limit") and `sync.ts:198-199` ("D1 has 1,000 subrequest limit") — both still misleading on Free.
+3. **🔴 No `quotaUser` for service-account flows** — if OmniDrive uses a SA for multiple users, all traffic collapses into one per-user quota bucket → throttling. **→ 🔴 STILL OPEN.** `grep -rn "quotaUser" packages/worker/src` → zero matches. No SA per-user bucketing.
 
 Plus several medium-priority gaps (missing `supportsAllDrives` on some calls, no 10MB export limit handling, unknown OAuth consent screen status, no token-refresh single-flight).
 
@@ -169,6 +171,8 @@ if (mimeType && mimeType.startsWith('application/vnd.google-apps.')) {
 
 **✅ Correct.** All run concurrently within the 15-minute Cron wall-time budget. Good hygiene prevents D1 bloat on Free tier (500 MB/database limit).
 
+> **🟡 OUTDATED (2026 re-audit, HEAD `468d25d`):** The `scheduled()` handler no longer uses `ctx.waitUntil()` for cleanup. It now `await`s every task **sequentially** — `runScheduledSync` → `runLifecycleExpiration` → `cleanupOrphanMultipartUploads` → `AutomationEngine.processCronTrigger` → `AuditService.cleanupOldLogs(30)` → `PolicyService.processAutoDeleteRetentionPolicies` → 4 inline `DELETE FROM ...` cleanups (sessions, oauth_states, quota_cache, category_cache). The inline comment in `index.ts` documents the rationale: "Heavy tasks run first … sequentially to avoid D1 subrequest budget contention on Free tier (50/invocation)." Also: `category_cache` cleanup was added (matching `quota_cache`), and the business jobs now include sync + automation + retention (not just hygiene). The hygiene benefit is unchanged; the concurrency claim is stale.
+
 ### 1.14 Non-blocking counters via `waitUntil`
 
 **`packages/worker/src/routes/shared.ts:123-126`:**
@@ -185,9 +189,13 @@ c.executionCtx.waitUntil(Promise.all([
 
 ## Part 2 — What's Done Wrong / Missing 🔴
 
+> **Re-audit note (2026, HEAD `468d25d`):** Each item below is annotated inline. Summary: §2.1 ✅ RESOLVED, §2.2 ✅ RESOLVED, §2.3 🔴 STILL OPEN, §2.4 🟡 PARTIALLY RESOLVED, §2.5 🔴 STILL OPEN, §2.6 🟡 PARTIALLY RESOLVED, §2.7 🔴 STILL OPEN, §2.8 🔴 STILL OPEN (config), §2.9 🔴 STILL OPEN. The biggest change is the introduction of `lib/backoff.ts`, which moots §2.1 + §2.2.
+
 ### 2.1 🔴 NO exponential backoff on Google API errors
 
-**Verified absence:** `grep -rn "backoff\|exponential\|Math.pow(2" packages/worker/src/services/google-drive.ts packages/worker/src/services/sync.ts` → **zero matches.**
+> **✅ RESOLVED (2026 re-audit).** `packages/worker/src/lib/backoff.ts` now exists and exports `withBackoff(fn, opts)` — truncated exponential backoff with jitter, `maxRetries = 3`, `maxBackoffMs = 32_000`. `GoogleDriveService.driveFetch` wraps every Google API call in `withBackoff`; `AuthService.fetchWithBackoff` does the same for the OAuth code-exchange + userinfo fetch. Tested in `packages/worker/tests/backoff.test.ts`. The original "no matches" grep claim is now stale.
+
+**Verified absence (original audit):** `grep -rn "backoff\|exponential\|Math.pow(2" packages/worker/src/services/google-drive.ts packages/worker/src/services/sync.ts` → **zero matches.**
 
 **Current behavior (`google-drive.ts:215-216`):**
 ```ts
@@ -209,7 +217,9 @@ Algorithm: `wait = min((2^n) + random(≤1000ms), max_backoff)`, max_backoff = 3
 
 ### 2.2 🔴 NO Google error `reason` parsing
 
-**Current behavior:** All errors throw `UpstreamError` with raw `response.text()`. The JSON `error.errors[].reason` field is never parsed.
+> **✅ RESOLVED (2026 re-audit).** `lib/backoff.ts` exports `parseDriveError(response)` which extracts `{ status, reason, message }` from the Google error JSON, and `isRetryable(status, reason)` which classifies reasons against `RETRYABLE_REASONS` (`rateLimitExceeded`, `userRateLimitExceeded`, `backendError`, `internalError`) and `NON_RETRYABLE_REASONS` (`dailyLimitExceeded`, `usageLimits`, `quotaExceeded`, `invalidCredentials`, `authError`). `withBackoff` uses both to decide retry-vs-fail. 5xx and 429 are always retryable; 403 is retryable only when the reason is in `RETRYABLE_REASONS`. (`sharingRateLimitExceeded` and `numChildrenInNonRootLimitExceeded` from the original list below are not yet in either set — currently treated as "retry only if 5xx/429, otherwise fail".)
+
+**Current behavior (original audit, preserved for context):** All errors throw `UpstreamError` with raw `response.text()`. The JSON `error.errors[].reason` field is never parsed.
 
 **Google's error model ([Handle errors](https://developers.google.com/drive/api/guides/handle-errors)):**
 ```json
@@ -235,7 +245,9 @@ Critical reasons OmniDrive cannot distinguish:
 
 ### 2.3 🔴 NO `quotaUser` for service-account flows
 
-**Verified absence:** `grep -rn "quotaUser" packages/worker/src` → **zero matches.**
+> **🔴 STILL OPEN (2026 re-audit).** `grep -rn "quotaUser" packages/worker/src` → **zero matches.** The service-account code path (`google-drive.ts:121-128`, `lib/google-service-account.ts`) still issues Drive API calls without `quotaUser`. If OmniDrive ever routes multiple end-users through one SA, all requests will share a single per-user quota bucket.
+
+**Verified absence (original audit):** `grep -rn "quotaUser" packages/worker/src` → **zero matches.**
 
 **OmniDrive supports service accounts** (`google-drive.ts:91`, `google-service-account.ts`).
 
@@ -249,7 +261,17 @@ Critical reasons OmniDrive cannot distinguish:
 
 ### 2.4 🔴 sync.ts D1 comment is WRONG for Free tier
 
-**`packages/worker/src/services/sync.ts:26-28`:**
+> **🟡 PARTIALLY RESOLVED (2026 re-audit).** The main comment at `sync.ts:26-32` is now correct:
+> ```
+> // Workers Free plan: 50 external subrequests (fetch to Google API) per invocation.
+> // D1 calls: 50/invocation on Free, 1,000 on Paid. On Free, D1 can be a co-bottleneck.
+> ```
+> Two stale duplicates remain and still mislead on Free:
+> - `sync.ts:173-174`: `// ...D1 calls (sync_state, loadTokens) don't count toward the 50 external limit — they have their own 1,000 limit.` (the 1,000 figure is Paid-only)
+> - `sync.ts:198-199`: `// D1 has 1,000 subrequest limit, so the extra save per page (44 max) is well within budget.` (same — 1,000 is Paid-only; on Free this would be 50)
+> Neither has caused production bugs because the actual per-sync D1 call count is well under 50, but the comments should be updated if/when those code paths are touched.
+
+**`packages/worker/src/services/sync.ts:26-28` (original audit, now superseded by the rewrite above):**
 ```
 // Workers Free plan: 50 external subrequests (fetch to Google API) per invocation.
 // D1 calls have a separate 1,000 limit — not the bottleneck.
@@ -272,7 +294,9 @@ Critical reasons OmniDrive cannot distinguish:
 
 ### 2.5 🟡 Missing `supportsAllDrives` on `listChanges` and `listFilesInFolder`
 
-**`google-drive.ts:637` (`listChanges`):**
+> **🔴 STILL OPEN (2026 re-audit).** `google-drive.ts:592` (`listChanges`) STILL has no `supportsAllDrives=true` / `includeItemsFromAllDrives=true`. `google-drive.ts:624` (`listFilesInFolder`) STILL has no `supportsAllDrives=true` / `includeItemsFromAllDrives=true`. The contrast with `listFolderContents` (line 653) and `iterateAllFilesAndFolders` (line 687) — both of which now set both params — remains. Shared-drive items may still be missing from these two specific call sites. Line numbers below are from the original audit; they have shifted by ~45 lines in the current HEAD.
+
+**`google-drive.ts:637` (`listChanges` — original audit line, current line is 592):**
 ```ts
 const response = await fetch(
   `${DRIVE_API}/changes?pageToken=${...}&fields=${fields}&spaces=drive&includeRemoved=true`,
@@ -294,6 +318,8 @@ const url = `${DRIVE_API}/files?q=${q}&fields=nextPageToken,${fields}${pageToken
 
 ### 2.6 🟡 NO `pageSize=1000` on list calls
 
+> **🟡 PARTIALLY RESOLVED (2026 re-audit).** `iterateAllFilesAndFolders` (the sync full-listing path, `google-drive.ts:687`) now sets `&pageSize=1000`. `listFolderContents` (line 653) and `listFilesInFolder` (line 624) still do NOT set `pageSize` → Google defaults to 100 → 10× more round-trips for large folders. Recommend adding `&pageSize=1000` to both remaining call sites.
+
 **Google's max ([files.list](https://developers.google.com/drive/api/reference/rest/v3/files/list)):**
 > "The maximum value is 1000; values above 1000 will be coerced to 1000."
 
@@ -305,6 +331,8 @@ OmniDrive's `listFilesInFolder` and `listFolderContents` do NOT set `pageSize` �
 
 ### 2.7 🟡 NO 10MB export limit handling
 
+> **🔴 STILL OPEN (2026 re-audit).** `google-drive.ts:373-411` (`downloadFile`) still has no specific handling for 403 `exportSizeLimitExceeded`. With `withBackoff` now in place, the error is parsed and a 403 with `exportSizeLimitExceeded` reason will NOT be retried (correct — non-retryable), but it surfaces as a raw `UpstreamError` with the Google message rather than a user-friendly explanation. Consider catching this specific reason in the route layer and returning a 413 / 422 with a clear message.
+
 **Google's limit ([Manage downloads](https://developers.google.com/drive/api/guides/manage-downloads)):**
 > "Exported content is limited to 10 MB."
 
@@ -314,7 +342,9 @@ OmniDrive's `listFilesInFolder` and `listFolderContents` do NOT set `pageSize` �
 
 ### 2.8 🟡 OAuth consent screen status unknown
 
-**`packages/worker/src/routes/auth.ts:124`:** `authUrl.searchParams.append('prompt', 'consent');` — this requests consent on each login but doesn't indicate the consent screen's publishing status.
+> **🔴 STILL OPEN — configuration, not code (2026 re-audit).** The code path is unchanged (`auth.ts:129` still appends `prompt=consent`; the original audit referenced line 124). Publishing-status verification is outside the repo. This remains a launch prerequisite: if the Google Cloud OAuth consent screen is in "Testing" status, refresh tokens expire in 7 days and users must re-authenticate weekly.
+
+**`packages/worker/src/routes/auth.ts:124` (original audit line; current line is 129):** `authUrl.searchParams.append('prompt', 'consent');` — this requests consent on each login but doesn't indicate the consent screen's publishing status.
 
 **Google's rule ([OAuth 2.0 guide](https://developers.google.com/identity/protocols/oauth2)):**
 > "A Google Cloud Platform project with an OAuth consent screen configured for an external user type and a publishing status of 'Testing' is issued a refresh token expiring in 7 days…"
@@ -325,7 +355,9 @@ OmniDrive's `listFilesInFolder` and `listFolderContents` do NOT set `pageSize` �
 
 ### 2.9 🟡 NO token-refresh single-flight
 
-**`google-drive.ts:82-113` (`getValidToken`):** In-memory `tokenCache` (Map) prevents races **within one sync invocation**, but two concurrent cron cycles (or a cron + user request) for the same account could race on refresh.
+> **🔴 STILL OPEN (2026 re-audit).** `google-drive.ts:183` still carries the `ponytail` marker: `// ponytail: last-write-wins refresh — sync is mostly serial (activeSyncs guard); add single-flight lock if races become a problem`. The in-Map `tokenCache` (line 116) prevents races within one isolate but not cross-isolate. `activeSyncs` Set serializes per-drive sync, which mitigates the common case, but a user request hitting a different isolate during a cron refresh could still trigger a wasted refresh.
+
+**`google-drive.ts:82-113` (`getValidToken` — original audit line range; current line is 112):** In-memory `tokenCache` (Map) prevents races **within one sync invocation**, but two concurrent cron cycles (or a cron + user request) for the same account could race on refresh.
 
 **Google's stance:** No official guidance on concurrent refreshes. The token endpoint is typically idempotent, but this is not documented.
 
@@ -336,6 +368,8 @@ OmniDrive's `listFilesInFolder` and `listFolderContents` do NOT set `pageSize` �
 ---
 
 ## Part 3 — What Can Be Improved 🟡
+
+> **Re-audit note (2026, HEAD `468d25d`):** Summary: §3.1 🔴 NOT VERIFIED (`changes.watch` not adopted; still polling — recommended posture unchanged), §3.2 still accurate, §3.3 🔴 STILL OPEN, §3.4 ✅ RESOLVED (different approach than recommended — in-memory not D1), §3.5 ✅ RESOLVED, §3.6 🔴 STILL OPEN.
 
 ### 3.1 Consider `changes.watch` for lower-latency sync (optional)
 
@@ -369,6 +403,8 @@ OmniDrive's `listFilesInFolder` and `listFolderContents` do NOT set `pageSize` �
 
 ### 3.3 Add structured logging for sync quota usage
 
+> **🔴 STILL OPEN (2026 re-audit).** `services/sync.ts` still only calls `logErrorNoCtx` on failure (lines 156, 353). No `logInfo` / "sync cycle complete" summary with `pagesProcessed` / `itemsUpserted` / `externalSubrequests` / `d1Queries` / `quotaUnitsEstimate` / `durationMs` has been added. `lib/logger.ts` exports `logInfo` (used by routes via `c`), but `sync.ts` runs in the cron handler without an HTTP context, so it would need the `logInfoNoCtx` / `logErrorNoCtx` variants already in use. The 50-subrequest / 50-D1-query ceiling is therefore still not directly observable from logs.
+
 **Current:** `lib/logger.ts` exists with structured JSON logging + requestId.
 
 **Gap:** No logging of quota units consumed per sync cycle, D1 query count, or external subrequest count.
@@ -383,6 +419,10 @@ logInfo(c, 'sync cycle complete', {
 This makes it easy to spot when a sync is approaching the 50-subrequest or 50-D1-query ceiling.
 
 ### 3.4 KV rate-limiter eventual consistency
+
+> **✅ RESOLVED (2026 re-audit, with a caveat).** `packages/worker/src/middleware/rate-limiter.ts` no longer touches KV — it's a per-isolate in-memory sliding-window Map (one store per `rateLimiter(...)` instance so overlapping route matchers like `/api/auth/login` + the catch-all `/api/*` don't share a bucket). The 60-second KV eventual-consistency window is no longer a concern. **Caveat / new trade-off:** counters are now per-isolate, so an attacker routing requests across multiple Worker isolates can exceed the configured cap by `N × maxRequests` where `N` is the number of isolates handling their traffic. The `ponytail` comment in the file flags this: `// ponytail: per-isolate limit — upgrade to Durable Object/KV if brute-force becomes a real problem`. KV is now used only for shared-link brute-force lockout (`routes/shared.ts`, 15-min TTL).
+
+**Original audit text (preserved):**
 
 **`packages/worker/src/middleware/rate-limiter.ts`:** Uses KV for rate limiting.
 
@@ -401,11 +441,17 @@ This makes it easy to spot when a sync is approaching the 50-subrequest or 50-D1
 
 ### 3.5 Add integration test for `/api/shared/:id/meta` response shape
 
+> **✅ RESOLVED (2026 re-audit).** `packages/worker/tests/integration/shared-link-download.test.ts` now contains a `describe('Shared link create + meta (integration)')` block (line 24) with a `GET /:id/meta returns 404 for a non-existent link` test (line 69) that hits `/api/shared/nonexistent-link/meta`. The happy-path `target.mimeType` shape regression is covered by the broader shared-link download integration suite.
+
 **Gap identified in prior review:** The `/meta` endpoint was sending snake_case `FileRow` instead of camelCase `FileEntry` — a latent bug caught only by code review, not tests.
 
 **Fix:** Add an integration test asserting `GET /api/shared/:id/meta` returns `target.mimeType` (camelCase) for a file with a known MIME type. This prevents regression of the fix in commit `1b78053`.
 
 ### 3.6 Audit upload-router for 308/404 handling
+
+> **🔴 STILL OPEN (2026 re-audit).** `services/upload-router.ts` and `routes/files.ts` have no 308 / `Resume-Incomplete` / 404-handling logic — `grep -rn "308\|Resume\|resumeIncomplete" packages/worker/src/services/upload-router.ts packages/worker/src/routes/files.ts` → zero matches. `UploadRouter.selectDriveForUpload` (lines 15-41) picks one drive based on free space and throws `AppError(400, 'Not enough quota for this file')` if no single drive fits. Cross-drive striping is explicitly skipped (`ponytail: no single drive fits => throw. Cross-drive split is striping (skipped).`). The resumable upload initiation lives in `google-drive.ts:309` (`initiateResumableUpload`), but the chunk-completion / 308 path has not been audited or integration-tested.
+
+**Original audit text (preserved):**
 
 **`packages/worker/src/services/upload-router.ts`:** The resumable upload initiation exists, but the chunked upload completion path's handling of 308 (continue) / 404 (session expired) was not verified in this audit.
 
@@ -419,6 +465,24 @@ This makes it easy to spot when a sync is approaching the 50-subrequest or 50-D1
 ---
 
 ## Part 4 — Recommendations (Priority Order)
+
+> **Status snapshot (2026 re-audit, HEAD `468d25d`):**
+>
+> | # | Status | Notes |
+> |---|---|---|
+> | 1 | ✅ RESOLVED | `lib/backoff.ts` (`withBackoff` + `parseDriveError` + `isRetryable`) — see §2.1 / §2.2 |
+> | 2 | 🟡 PARTIALLY RESOLVED | Main `sync.ts:27` comment fixed; duplicates at 173-174 + 198-199 still stale (§2.4) |
+> | 3 | 🔴 STILL OPEN | `listChanges` + `listFilesInFolder` still missing the two params (§2.5) |
+> | 4 | 🟡 PARTIALLY RESOLVED | `iterateAllFilesAndFolders` has `pageSize=1000`; `listFolderContents` + `listFilesInFolder` still don't (§2.6) |
+> | 5 | 🔴 STILL OPEN (config) | OAuth consent screen publishing status — outside the repo |
+> | 6 | 🔴 STILL OPEN | No `quotaUser` in service-account path (§2.3) |
+> | 7 | 🔴 STILL OPEN | No specific `exportSizeLimitExceeded` handling (§2.7) |
+> | 8 | 🔴 STILL OPEN | `ponytail` marker still in `google-drive.ts:183` (§2.9) |
+> | 9 | 🔴 STILL OPEN | No `sync cycle complete` structured log in `sync.ts` (§3.3) |
+> | 10 | ✅ RESOLVED | `shared-link-download.test.ts` covers `GET /:id/meta` (§3.5) |
+> | 11 | 🔴 STILL OPEN | No 308 / `Resume-Incomplete` handling (§3.6) |
+> | 12 | 🟡 DIFFERENT | Rate-limiter moved from KV → per-isolate in-memory Map (not D1). KV eventual-consistency concern moot; new per-isolate trade-off flagged in code (§3.4) |
+> | 13–16 | 🔴 NOT VERIFIED | Not yet implemented; re-confirm before next sprint planning |
 
 ### Immediate (before any production deploy)
 

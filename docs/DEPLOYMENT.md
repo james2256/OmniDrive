@@ -59,7 +59,7 @@ You can skip this step entirely if you'll only connect Drives via Service Accoun
 The dev environment runs two processes concurrently via `concurrently`:
 
 - **Worker** (`packages/worker`): `wrangler dev --port 8888` — emulates Cloudflare Workers locally with local D1 and KV state stored under `packages/worker/.wrangler/`.
-- **Web** (`packages/web`): `vite` on port `5173` (or `WEB_PORT` from `.env`) — proxies `/api/*` to the Worker.
+- **Web** (`packages/web`): `vite` on port `8999` (or `WEB_PORT`/`PORT` from `.env`) — proxies `/api/*` and `/s3/*` to the Worker.
 
 ### 2.1 Clone & install
 
@@ -69,7 +69,7 @@ cd omnidrive
 npm install
 ```
 
-The root `package.json` declares the workspace; `npm install` from the root installs both `packages/worker` and `packages/web`. Native modules (`better-sqlite3`, `workerd`, `esbuild`, `sharp`) are gated by the `allowScripts` map (`package.json:47-52`).
+The root `package.json` declares the workspace; `npm install` from the root installs both `packages/worker` and `packages/web`. Native modules (`better-sqlite3`, `workerd`, `esbuild`, `sharp`) are gated by the `allowScripts` map (`package.json:51-56`).
 
 ### 2.2 Configure `.env`
 
@@ -162,8 +162,8 @@ Visit `http://localhost:8999`. The first user you register becomes the super adm
 ```bash
 npm run typecheck    # tsc --noEmit for both packages
 npm run lint         # eslint . (flat config + eslint-plugin-security)
-npm test             # vitest run for worker + web
-npm run test:worker  # vitest run for worker only (233 tests)
+npm test             # vitest run for worker unit + worker integration + web
+npm run test:worker  # vitest run for worker only (287 tests)
 npm run test:web     # vitest run for web only
 ```
 
@@ -234,12 +234,12 @@ docker compose up -d --build
 
 1. `dotenv.config()` — reads `.env` (or env vars from `docker-compose.yml`).
 2. Creates `DATA_DIR` (default `/app/data`).
-3. Opens `better-sqlite3` at `$DATA_DIR/omnidrive.sqlite`. **If new**, executes `src/db/schema.sql`. **If existing**, runs `ALTER TABLE sync_state ADD COLUMN next_page_token TEXT` (best-effort, ignored if column exists).
+3. Opens `better-sqlite3` at `$DATA_DIR/omnidrive.sqlite`. Creates a `d1_migrations` tracking table. **If new**, executes `src/db/schema.sql` and marks all migration files as already applied (so they don't get re-run). **If existing**, runs pending migration files in order, each in a transaction (BEGIN → exec SQL → INSERT into `d1_migrations` → COMMIT; ROLLBACK on error).
 4. Resets any `sync_state` rows stuck in `syncing` (interrupted by a previous crash/restart).
 5. Opens the KV shim SQLite at `$DATA_DIR/kv.sqlite`.
 6. Validates env via `validateEnv()` (throws on missing/malformed).
 7. Mounts static SPA + SPA fallback for non-`/api` paths.
-8. Schedules the `*/30 * * * *` cron job (mirror of the Worker's `scheduled` handler) — runs Drive sync, S3 lifecycle, automations, audit cleanup, retention policies, and D1 cleanup.
+8. Schedules the `*/30 * * * *` cron job (mirror of the Worker's `scheduled` handler) — runs Drive sync, S3 lifecycle (including multipart cleanup), automations, audit cleanup, retention policies, and D1 cleanup.
 9. Listens on `PORT` (default 8080).
 10. Graceful shutdown on `SIGTERM`/`SIGINT` — calls `setShuttingDown()` (interrupts in-flight syncs) then closes the HTTP server.
 
@@ -269,9 +269,7 @@ docker compose pull          # refresh base image
 docker compose up -d         # recreate container with new image
 ```
 
-The `node-server.ts:33-39` migration block runs on every boot, so the
-`next_page_token` column is added idempotently. **For schema changes beyond
-that, apply wrangler migrations against the local SQLite** (see §5).
+The `node-server.ts:26-73` migration block runs on every boot, applying any pending SQL migrations in order (each in a transaction). Schema changes are picked up automatically; no manual `wrangler d1 migrations apply` is needed on Docker. For schema inspection or manual SQL, see §6.2.
 
 ---
 
@@ -283,7 +281,7 @@ Production runs OmniDrive across four Cloudflare primitives:
 |-----------|----------------------------------------------------|
 | **Workers** | The Hono API (`packages/worker/src/index.ts`) + scheduled cron |
 | **Pages**  | The built React SPA (`packages/web/dist`)          |
-| **D1**     | The OmniDrive database (`schema.sql` + 4 migrations) |
+| **D1**     | The OmniDrive database (`schema.sql` + 9 migrations) |
 | **KV**     | OAuth state, shared-link lockouts, quota cache     |
 
 ### 4.1 One-shot deploy via the wizard
@@ -374,6 +372,11 @@ The migrations live in `packages/worker/migrations/`:
 | `0002_add_owned_by_me.sql`                    | `files.owned_by_me` / `drive_folders.owned_by_me`   |
 | `0003_add_drive_folders_is_trashed.sql`       | `drive_folders.is_trashed`                          |
 | `0004_add_drive_folders_is_starred.sql`       | `drive_folders.is_starred`                          |
+| `0005_add_files_cursor_index.sql`             | `files` cursor index for pagination                  |
+| `0006_audit_logs_set_null.sql`                | `audit_logs` nullable columns                       |
+| `0007_d1_perf_indexes_and_category_cache.sql` | D1 performance indexes + `category_cache` table     |
+| `0008_findrecent_perf_indexes.sql`            | Performance indexes for the recent-files query      |
+| `0009_add_users_is_blocked.sql`               | `users.is_blocked` flag                             |
 
 #### Step 5 — Set secrets
 
@@ -416,8 +419,10 @@ Build and deploy:
 
 ```bash
 npm run build -w packages/web
-npx wrangler pages deploy packages/web/dist --project-name=omnidrive-web
+npx wrangler pages deploy packages/web/dist --project-name=omnidrive --branch=main
 ```
+
+> The Pages project name is `omnidrive` (matches `packages/web/package.json`'s `deploy` script and the Makefile's `deploy-web` target).
 
 > **Same-origin recommendation**: For cookies to survive tab close on modern
 > browsers, keep `VITE_API_URL=` and route `/api/*` through the Pages host.
@@ -432,7 +437,7 @@ npx wrangler pages deploy packages/web/dist --project-name=omnidrive-web
 To run both Pages and Worker under one host (e.g. `omnidrive.example.com`):
 
 1. In the Cloudflare dashboard → **Workers & Pages → omnidrive-api → Custom Domains** → add `api.omnidrive.example.com`.
-2. In **Workers & Pages → omnidrive-web → Custom domains** → add `omnidrive.example.com`.
+2. In **Workers & Pages → omnidrive (Pages project) → Custom domains** → add `omnidrive.example.com`.
 3. Update `wrangler.toml` and Pages env: `FRONTEND_URL=https://omnidrive.example.com`, `WORKER_URL=https://api.omnidrive.example.com`.
 4. Re-push the two secrets that changed (`FRONTEND_URL`, `WORKER_URL`).
 5. Update Google OAuth redirect URI to `https://api.omnidrive.example.com/api/auth/callback`.
@@ -448,7 +453,7 @@ The Worker's `scheduled` handler is wired to fire every 30 minutes via
 - `AutomationEngine.processCronTrigger(ctx)` — cron-triggered automation rules
 - `AuditService.cleanupOldLogs(30)` — 30-day audit retention
 - `PolicyService.processAutoDeleteRetentionPolicies(...)` — data-retention policies
-- D1 cleanup: `sessions` (expired), `oauth_states` (>10 min), `quota_cache` (>1 h)
+- D1 cleanup: `sessions` (expired), `oauth_states` (>10 min), `quota_cache` (>1 h), `category_cache` (>1 h)
 
 You can also invoke it manually for debugging:
 
@@ -523,8 +528,8 @@ openssl rand -hex 32
 ### 5.3 Boot-time validation
 
 `packages/worker/src/lib/env.ts:7-17` defines a Zod schema. On the Worker,
-`index.ts:112-115` calls `validateEnv(env)` on every `fetch` (Workers has no
-boot hook). On the Node.js server, `node-server.ts:48-57` validates once at
+`index.ts:113-115` calls `validateEnv(env)` on every `fetch` (Workers has no
+boot hook). On the Node.js server, `node-server.ts:83-92` validates once at
 startup. Failures print:
 
 ```
@@ -597,8 +602,8 @@ docker compose down -v   # -v deletes the named volume
 ### 6.4 Adding a new migration
 
 ```bash
-# 1. Create the file with the next number
-echo "-- description" > packages/worker/migrations/0005_your_change.sql
+# 1. Create the file with the next number (current highest is 0009)
+echo "-- description" > packages/worker/migrations/0010_your_change.sql
 
 # 2. Apply locally to test
 npm run db:migrate:local -w packages/worker
@@ -607,10 +612,12 @@ npm run db:migrate:local -w packages/worker
 npm run db:migrate:remote -w packages/worker
 ```
 
-The Docker build does **not** automatically run wrangler migrations on the
-local SQLite (only the idempotent `next_page_token` ALTER in
-`node-server.ts:33-39`). To apply new migrations to a Docker deployment, exec
-into the container:
+On the Docker self-hosted target, the `node-server.ts:26-73` migration runner
+applies pending migration files in order on every boot (each in a transaction,
+tracked by the `d1_migrations` table). New migrations are picked up
+automatically on the next container restart — no need to exec into the
+container. To inspect or run ad-hoc SQL against the Docker SQLite, exec into
+the container:
 
 ```bash
 docker compose exec omnidrive node -e "
@@ -622,8 +629,7 @@ console.log('OK');
 "
 ```
 
-…or apply the new SQL file directly via `better-sqlite3`. The unified image
-ships `src/db/schema.sql` for this purpose.
+The unified image ships `src/db/schema.sql` for ad-hoc / recovery use.
 
 ---
 
@@ -743,7 +749,7 @@ s3.download_file("Marketing", "reports/report.pdf", "./downloaded.pdf")
 | Object ACLs / tagging                    | ❌      |
 
 See `docs/API.md#10-s3-object-storage-api` for the wire details and
-`packages/worker/tests/s3-api.test.ts` (33 tests) for the contract.
+`packages/worker/tests/s3-api.test.ts` (31 tests) for the contract.
 
 ### 7.5 Auth & RBAC
 
@@ -791,7 +797,7 @@ Non-safe methods (`POST`/`PUT`/`PATCH`/`DELETE`) must send an `Origin` or
 ### 8.4 429 "Too many requests"
 
 You hit a rate-limit bucket (see `docs/API.md#rate-limits`). Wait `Retry-After`
-seconds. If you legitimately need more, raise the limit in `index.ts:67-89`
+seconds. If you legitimately need more, raise the limit in `index.ts:67-90`
 (ponytail: per-isolate limiter; upgrade to a Durable Object or KV-backed limiter
 if brute-force becomes a real problem).
 
@@ -890,7 +896,7 @@ the tokens have since expired, the file owner needs to reconnect their Drive.
 `better-sqlite3` ships prebuilt binaries for most platforms but occasionally
 needs to compile from source. On Linux you'll need `build-essential`, `python3`,
 and the right `node-gyp` toolchain. The repo's `allowScripts` map
-(`package.json:47-52`) permits `better-sqlite3`'s install script. If it still
+(`package.json:51-56`) permits `better-sqlite3`'s install script. If it still
 fails:
 
 ```bash

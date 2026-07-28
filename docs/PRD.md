@@ -50,7 +50,7 @@ Three concrete differentiators:
 | G2 | Provide a stable S3-compatible API over Google Drive storage | rclone and aws-cli can `ls`, `cp`, `sync`, and run multipart uploads against `/s3` without errors |
 | G3 | Enable team collaboration with RBAC, audit logs, and quotas | A workspace owner can add members, assign roles, view audit logs, and set per-workspace storage limits |
 | G4 | Offer secure public sharing with revocation and abuse protection | Shared links support password, expiry, download limits, email gating, webhooks, and rate-limited brute-force protection |
-| G5 | Stay inside Cloudflare Workers free-tier limits under normal load | <43 subrequests per request, <128 MB memory per request, background sync completes within `*/30` cron budget |
+| G5 | Stay inside Cloudflare Workers free-tier limits under normal load | <45 subrequests per request, <128 MB memory per request, background sync completes within `*/30` cron budget |
 | G6 | Keep file bytes out of Worker memory | Browser streams uploads/downloads directly to/from Google Drive; Worker proxies bytes but does not buffer whole files |
 | G7 | Be self-hostable without Cloudflare | Docker Compose deployment runs the Worker on Node + better-sqlite3 + KV polyfill |
 
@@ -405,7 +405,7 @@ Endpoint: `https://<worker-url>/s3`. Auth: AWS Signature V4 (`s3-auth` middlewar
 
 | ID | Requirement | Target |
 |----|-------------|--------|
-| NFR-PERF-1 | Worker request budget | Stay within Cloudflare's 30-second CPU limit and 50-subrequest budget per request. Documented budget: 43 subrequests max (`docs/adr/0007-subrequest-budget-43.md`). |
+| NFR-PERF-1 | Worker request budget | Stay within Cloudflare's 30-second CPU limit and 50-subrequest budget per request. Documented budget: 45 subrequests max (`docs/adr/0007-subrequest-budget-43.md`). |
 | NFR-PERF-2 | Worker memory | Stay within 128 MB per request. Files are never buffered whole — uploads and downloads use streaming `duplex: 'half'` bodies; multipart parts are buffered as Drive files, not in memory. |
 | NFR-PERF-3 | Sync OOM safety | Initial sync uses generator-based iteration (`iterateAllFilesAndFolders`) — never loads the entire Drive file list into memory. Resume-able across restarts via `next_page_token` in `sync_state`. |
 | NFR-PERF-4 | Dashboard load | Lazy-load all post-login pages (`lazyWithRetry`) so login/public shells don't pull recharts + file UI (~900 KB) into the LCP path. |
@@ -459,8 +459,8 @@ Endpoint: `https://<worker-url>/s3`. Auth: AWS Signature V4 (`s3-auth` middlewar
 | NFR-MAINT-1 | Strict TypeScript | `tsconfig.base.json` enables `strict`, `noImplicitAny`, `noUnusedLocals`, `noUnusedParameters`, `noFallthroughCasesInSwitch`, `isolatedModules`. |
 | NFR-MAINT-2 | Zod on all routes | `zValidator` on every mutating route (ADR-0005). Centralised schemas in `lib/schemas.ts`. |
 | NFR-MAINT-3 | Repository pattern | All SQL lives in `repositories/*` (ADR-0003). Routes are thin orchestrators; services own business logic + RBAC. (Deferred: `routes/s3.ts` — see `// ponytail:` marker.) |
-| NFR-MAINT-4 | Test coverage | 370 tests across worker unit (246), worker integration (65, real D1 via Miniflare), and web (59). |
-| NFR-MAINT-5 | ADRs | Architecture decisions recorded in `docs/adr/` (10 ADRs to date). |
+| NFR-MAINT-4 | Test coverage | 424 tests across worker unit (287), worker integration (78, real D1 via Miniflare), and web (59). |
+| NFR-MAINT-5 | ADRs | Architecture decisions recorded in `docs/adr/` (8 ADRs to date). |
 
 ---
 
@@ -468,9 +468,9 @@ Endpoint: `https://<worker-url>/s3`. Auth: AWS Signature V4 (`s3-auth` middlewar
 
 | Constraint | Detail |
 |------------|--------|
-| **Runtime: Cloudflare Workers** | The backend is a Hono app on Cloudflare Workers. This imposes: 128 MB memory per request, 30-second CPU limit, 50-subrequest budget (OmniDrive targets 43 max — ADR-0007), no native Node APIs (`fs`, `child_process`), no long-lived processes. |
-| **Database: Cloudflare D1 (SQLite)** | D1 is SQLite at the edge. No triggers, no stored procedures. Single writer. Migrations via `wrangler d1 migrations apply` from `packages/worker/migrations/`. 23 tables, schema documented in `docs/SCHEMA.md`. |
-| **Cache: Cloudflare KV** | KV is eventually consistent across regions. Used only for shared-link rate-limit counters (low-volume, TTL-friendly). OAuth tokens, PKCE state, and quota cache live in D1 (not KV) since migration `0010`. |
+| **Runtime: Cloudflare Workers** | The backend is a Hono app on Cloudflare Workers. This imposes: 128 MB memory per request, 30-second CPU limit, 50-subrequest budget (OmniDrive targets 45 max — ADR-0007), no native Node APIs (`fs`, `child_process`), no long-lived processes. |
+| **Database: Cloudflare D1 (SQLite)** | D1 is SQLite at the edge. No triggers, no stored procedures. Single writer. Migrations via `wrangler d1 migrations apply` from `packages/worker/migrations/`. 24 tables, schema documented in `docs/SCHEMA.md`. |
+| **Cache: Cloudflare KV** | KV is eventually consistent across regions. Used only for shared-link rate-limit counters (low-volume, TTL-friendly). OAuth tokens, PKCE state, and quota cache live in D1 (not KV) — see ADR-0001 (KV→D1 migration at initial schema). |
 | **No traditional server** | The deployment is Workers + Pages on Cloudflare, or Docker Compose (`omnidrive-unified` image running `node-server.ts` + `better-sqlite3` + KV polyfill). There is no Express/Fastify server, no PostgreSQL, no Redis. |
 | **Frontend: React 19 + Vite** | SPA only. Pages lazy-loaded via `lazyWithRetry`. Routing via React Router v7. State via Zustand (client) + TanStack Query (server). Tailwind CSS 4 with CSS-first `@theme` config (no `tailwind.config.js`). |
 | **Auth: Google OAuth 2.0 only** | Drive connection requires Google OAuth (PKCE) or a Service Account JSON. There is no other cloud provider integration (Dropbox, OneDrive, etc.). |
@@ -660,7 +660,7 @@ All routes are mounted under `/api/*` (REST, cookie session) or `/s3/*` (AWS Sig
 
 ## 9. Data Model Summary
 
-Full schema in `docs/SCHEMA.md`. 23 tables grouped by domain:
+Full schema in `docs/SCHEMA.md`. 24 tables grouped by domain:
 
 ### 9.1 Users & Auth
 
@@ -680,6 +680,7 @@ Full schema in `docs/SCHEMA.md`. 23 tables grouped by domain:
 | `drive_folders` | Read-only cache of Google folder tree | `drive_account_id`, `google_folder_id`, `google_parent_id`, `name` |
 | `sync_state` | Per-drive sync state | `drive_account_id` (PK), `change_token`, `next_page_token` (resume checkpoint), `status` |
 | `quota_cache` | Google `storageQuota` cache (5-min TTL) | `drive_account_id` (PK), `payload` (JSON), `updated_at` |
+| `category_cache` | MIME-category bytes cache for dashboard donut (added in `0007_d1_perf_indexes_and_category_cache.sql`) | `drive_account_id` (PK), `payload` (JSON), `updated_at` |
 
 ### 9.3 Workspaces & RBAC
 
@@ -727,7 +728,7 @@ Full schema in `docs/SCHEMA.md`. 23 tables grouped by domain:
 | `shared_verify_lock:{linkId}` | Lockout flag after 20 wrong password attempts (15-min TTL) |
 | `shared_verify_fail:{linkId}` | Failed attempt counter (15-min TTL) |
 
-> All other previously-KV data (sessions, oauth_states, drive_tokens, quota_cache) has been migrated to D1 since migration `0010`.
+> All previously-KV data (sessions, oauth_states, drive_tokens, quota_cache) lives in D1 from the initial schema (`0001_initial_schema.sql`) — see ADR-0001.
 
 ---
 
@@ -814,7 +815,7 @@ These items are **not committed** — they are candidates the maintainers have c
 | Database schema, migrations, KV | `docs/SCHEMA.md` |
 | UI design system, bento grid, Tailwind 4 | `docs/DESIGN.md` |
 | AI agent guide, dev workflow | `docs/AGENTS.md` |
-| Architecture Decision Records (10 ADRs) | `docs/adr/` |
+| Architecture Decision Records (8 ADRs) | `docs/adr/` |
 | S3 compatibility design | `docs/superpowers/specs/2026-06-21-s3-object-storage-compatibility-design.md` |
 | Workspace-scoped S3 keys design | `docs/superpowers/specs/2026-06-23-workspace-s3-keys-design.md` |
 | Deploy script design | `docs/superpowers/specs/2026-06-22-deploy-script-improvement-design.md` |

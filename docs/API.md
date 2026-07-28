@@ -2,7 +2,7 @@
 
 OmniDrive's API is served by a single Cloudflare Worker (or, in the Docker self-hosted
 build, a Node.js process via `packages/worker/src/node-server.ts`). All routes are
-registered in `packages/worker/src/index.ts:91-101`:
+registered in `packages/worker/src/index.ts:92-102`:
 
 | Prefix            | Router file                        | Auth requirement                              |
 |-------------------|------------------------------------|-----------------------------------------------|
@@ -16,7 +16,7 @@ registered in `packages/worker/src/index.ts:91-101`:
 | `/api/admin`      | `routes/admin.ts`                  | Cookie session + super admin                  |
 | `/api/s3-credentials` | `routes/s3-credentials.ts`     | Cookie session                                |
 | `/s3`             | `routes/s3.ts`                     | AWS SigV4 (`s3AuthMiddleware`)                |
-| `/api/health`     | inline (`index.ts:104-106`)        | None                                          |
+| `/api/health`     | inline (`index.ts:105-107`)        | None                                          |
 
 ## Conventions
 
@@ -33,7 +33,7 @@ Authenticated endpoints require the `omnidrive_sid` cookie set by `/api/auth/log
 or `/api/auth/register`. The cookie is `HttpOnly`, `SameSite=Lax`, `Secure` (when
 `FRONTEND_URL` is HTTPS), and has a **7-day sliding TTL** (`SESSION_TTL_MS`,
 `lib/session-cookie.ts:3`). TTL is only refreshed if the session hasn't been touched
-in the last hour (`auth-guard.ts:54-59`).
+in the last hour (`auth-guard.ts:59-66`).
 
 The guard (`middleware/auth-guard.ts`) loads the session from D1 on every request,
 instantiates per-request services, and exposes them via `c.get()`. Missing/expired
@@ -49,7 +49,7 @@ cookies return `401` `{"error":"Not authenticated"|"Session expired"}`.
 ### Rate Limits
 
 Applied via `rate-limiter.ts` (sliding-window in-memory, per isolate). Limits
-defined in `index.ts:67-89`:
+defined in `index.ts:68-90`:
 
 | Path                        | Window   | Max | Key                         |
 |-----------------------------|----------|-----|-----------------------------|
@@ -140,7 +140,7 @@ and `BOOTSTRAP_TOKEN` env var is set, `invitation_code` must equal it.
 }
 ```
 
-**Errors:** `400` Username already exists · `400` Email already exists ·
+**Errors:** `409` Username already exists · `409` Email already exists ·
 `400` Invitation code required · `400` Invalid invitation code ·
 `400` Invitation code has reached its usage limit · `403` Bootstrap token required
 
@@ -161,7 +161,7 @@ and `BOOTSTRAP_TOKEN` env var is set, `invitation_code` must equal it.
 }
 ```
 
-**Errors:** `401` Invalid credentials
+**Errors:** `401` Invalid credentials · `403` Account blocked. Contact an administrator.
 
 ### `GET /api/auth/google`
 
@@ -249,6 +249,7 @@ session on **all** routes (`drivesRouter.use('*', authGuard)`)
 | `GET`    | `/:driveId/external-folders/:googleFolderId`        | Live list of an external folder's children    |
 | `GET`    | `/:driveId/folders/:googleFolderId`                | Read a Drive folder (DB-backed)               |
 | `POST`   | `/:driveId/folders/:googleFolderId/sync`           | Lazy-sync a single Drive folder               |
+| `GET`    | `/:driveId/folders/:googleFolderId/download-tree`   | Recursive file tree for client-side ZIP        |
 | `POST`   | `/:id/sync`                                         | Manual full-drive sync                        |
 | `POST`   | `/:driveId/folders`                                 | Create a Google Drive folder                  |
 | `PATCH`  | `/:driveId/folders/:googleFolderId/rename`         | Rename a Drive folder                          |
@@ -358,6 +359,28 @@ otherwise fetches live from Google, upserts rows, marks synced, and returns the
 new contents. Same response shape as the GET read endpoint.
 
 **Errors:** `404` Drive not found · `400` `{"error":"No tokens for drive"}` (auth expired)
+
+### `GET /api/drives/:driveId/folders/:googleFolderId/download-tree`
+
+Recursively lists all files in a Drive folder (including subfolders), persists
+them to D1 so the existing `GET /api/files/:id/download` endpoint works, and
+returns a flat array with relative paths for client-side ZIP assembly. Caps at
+500 files + 40 Google API calls to stay within the Free tier subrequest budget;
+sets `truncated: true` if either cap is hit.
+
+**200:**
+
+```json
+{
+  "files": [
+    { "id": "uuid", "name": "q1.pdf", "path": "reports/q1.pdf", "size": 1048576, "mimeType": "application/pdf" }
+  ],
+  "rootName": "Reports",
+  "truncated": false
+}
+```
+
+**Errors:** `404` `{"error":"Drive not found"}` (when `driveId` not owned by user)
 
 ### `POST /api/drives/:id/sync`
 
@@ -587,7 +610,7 @@ delete copy, revoke share).
 
 **200:** `{ "file": { /* updated FileEntry */ }, "success": true }`
 
-**Errors:** `400` File is already in the target drive · `404` Target drive not found or unauthorized ·
+**Errors:** `409` File is already in the target drive · `404` Target drive not found or unauthorized ·
 `500` Failed to move file to another drive
 
 ### `PATCH /api/files/:id/metadata`
@@ -749,22 +772,26 @@ primary drive.
 
 **Base path:** `/api/shared` · **Router:** `routes/shared.ts` · **Auth:** mixed —
 **management routes** (`POST /`, `GET /`, `PUT /:id`, `DELETE /:id`) require a
-cookie session; **public routes** (`GET /:id/meta`, `POST /:id/verify`,
-`POST /:id/email`, `GET /:id/download`) require neither session nor CSRF.
+cookie session; **public routes** require neither session nor auth-guard.
+Public routes are also exempt from CSRF for `GET` (safe method) and `POST /:id/verify`;
+other public `POST` routes (`/:id/email`) still pass the standard Origin/Referer CSRF check
+(automatically satisfied from the same-origin public page).
 
 A `sharedServices` middleware (`middleware/shared-services.ts`) is applied to
-`/api/shared/*` (`index.ts:95`) before the router.
+`/api/shared/*` (`index.ts:96`) before the router.
 
-| Method   | Path                | Auth        | Description                                |
-|----------|---------------------|-------------|--------------------------------------------|
-| `POST`   | `/`                 | Cookie      | Create a shared link                       |
-| `GET`    | `/`                 | Cookie      | List current user's shared links           |
-| `PUT`    | `/:id`              | Cookie      | Update a shared link                       |
-| `DELETE` | `/:id`              | Cookie      | Delete a shared link                       |
-| `GET`    | `/:id/meta`         | Public*     | Public metadata + access check             |
-| `POST`   | `/:id/verify`       | Public      | Submit password for password-protected     |
-| `POST`   | `/:id/email`        | Public      | Submit email for `requireEmail` gate       |
-| `GET`    | `/:id/download`     | Public*     | Download file via shared link              |
+| Method   | Path                       | Auth        | Description                                       |
+|----------|----------------------------|-------------|---------------------------------------------------|
+| `POST`   | `/`                        | Cookie      | Create a shared link                              |
+| `GET`    | `/`                        | Cookie      | List current user's shared links                  |
+| `PUT`    | `/:id`                     | Cookie      | Update a shared link                              |
+| `DELETE` | `/:id`                     | Cookie      | Delete a shared link                              |
+| `GET`    | `/:id/meta`                | Public*     | Public metadata + access check                    |
+| `POST`   | `/:id/verify`              | Public      | Submit password for password-protected            |
+| `POST`   | `/:id/email`               | Public      | Submit email for `requireEmail` gate              |
+| `GET`    | `/:id/download`            | Public*     | Download file via shared link (file target or `?fileId=` for folder target) |
+| `GET`    | `/:id/folder-contents`    | Public*     | List a shared folder's children (for browsing)    |
+| `GET`    | `/:id/download-tree`       | Public*     | Recursive file tree for client-side ZIP (folder links) |
 
 *Public routes still require an unexpired link, plus either an email-JWT cookie
 (when `requireEmail`) or a session-JWT cookie (when password-protected).
@@ -884,12 +911,62 @@ Downloads the file behind the link. Increments `download_count` atomically with
 Fires webhook (`{ action: "download", linkId }`) and logs `download` action in
 the background.
 
-**Headers:** `Content-Type`, `Content-Disposition: attachment; filename*=UTF-8''<encoded>`,
-`Content-Length` (omitted for `.pdf`/`.xlsx` exports).
+Two flows:
+- **File target** (no `?fileId=`): streams the file as an attachment.
+- **Folder target with `?fileId=<googleFileId>`**: streams a single file from
+  inside the shared folder tree. The file is verified to be inside the shared
+  folder (IDOR prevention via `isFileInSharedFolder`); other files return `404`.
+  Use `GET /:id/download-tree` for whole-folder ZIP-style downloads.
 
-**Errors:** `400` Folder download not supported yet · `403` Downloads are disabled for this link ·
-`403` Maximum download limit reached · `404` Link not found / File not found ·
+**Headers:** `Content-Type`, `Content-Disposition: attachment; filename*=UTF-8''<encoded>`,
+`Content-Length` (omitted for `.pdf`/`.xlsx` exports, and for folder-link downloads
+where the export size isn't known ahead of time).
+
+**Errors:** `400` `Use GET /:id/download-tree for folder downloads` (folder link without `?fileId=`) ·
+`403` Downloads are disabled for this link · `403` Maximum download limit reached ·
+`404` Link not found / File not found / File not found in this shared folder ·
 `410` Link expired · `502` Failed to download file
+
+### `GET /api/shared/:id/folder-contents`
+
+Lists a shared folder's immediate children (files + subfolders), for browsing a
+folder link from the public page. Only valid for folder-target links.
+
+**200:**
+
+```json
+{
+  "files": [ { "id": "googleFileId", "name": "report.pdf", "mimeType": "application/pdf", "size": 1048576, "thumbnailUrl": null } ],
+  "folders": [ { "id": "googleFolderId", "name": "Subfolder" } ]
+}
+```
+
+**Errors:** `404` Link not found / Folder not found · `400` Not a folder link ·
+`401` Password required · `403` Email required · `410` Link expired
+
+### `GET /api/shared/:id/download-tree`
+
+Returns a flat recursive file tree (with relative paths) for client-side ZIP
+assembly of a folder link. Caps at 500 files + 40 Google API calls; sets
+`truncated: true` if either cap is hit. Enforces `maxDownloads` (atomic
+`RETURNING` increment) and fires the same webhook/log as `/:id/download`.
+Requires `allowDownloads: true` on the link.
+
+**200:**
+
+```json
+{
+  "files": [
+    { "googleFileId": "1a2b3c", "name": "report.pdf", "path": "reports/q1.pdf", "size": 1048576, "mimeType": "application/pdf" }
+  ],
+  "rootName": "Reports",
+  "truncated": false
+}
+```
+
+**Errors:** `403` Downloads are disabled · `400` Not a folder link ·
+`404` Link not found / Folder not found · `403` Maximum download limit reached ·
+`401` Password required · `403` Email required · `410` Link expired
 
 ---
 
@@ -1043,14 +1120,17 @@ session **+ super admin** (`is_super_admin = 1`). The super-admin guard is
 applied at the router level (`admin.ts:15-21`); members get `403 Forbidden:
 Super Admin access required`.
 
-| Method   | Path                | Description                              |
-|----------|---------------------|------------------------------------------|
-| `GET`    | `/invitations`      | List all invitation codes                |
-| `POST`   | `/invitations`      | Create a new invitation code             |
-| `DELETE` | `/invitations/:id`  | Delete an invitation code                |
-| `GET`    | `/audit-logs`       | Recent audit logs (all workspaces)       |
-| `GET`    | `/users`            | List all users                           |
-| `POST`   | `/users`            | Create a user (member or super_admin)    |
+| Method   | Path                | Description                                          |
+|----------|---------------------|------------------------------------------------------|
+| `GET`    | `/invitations`      | List all invitation codes                            |
+| `POST`   | `/invitations`      | Create a new invitation code                         |
+| `DELETE` | `/invitations/:id`  | Delete an invitation code                            |
+| `GET`    | `/audit-logs`       | Recent audit logs (all workspaces)                   |
+| `GET`    | `/users`            | List all users (with `status: active \| blocked`)    |
+| `POST`   | `/users`            | Create a user (member or super_admin)                |
+| `PATCH`  | `/users/:id/role`   | Promote/demote (self-protected, last-admin guarded)  |
+| `PATCH`  | `/users/:id/status`| Block/unblock (self-protected; block deletes sessions) |
+| `DELETE` | `/users/:id`        | Permanently delete (self + last-super-admin guarded)  |
 
 ### `POST /api/admin/invitations`
 
@@ -1105,7 +1185,7 @@ must be ≥0.
       "name": "Alice",
       "avatarUrl": null,
       "role": "super_admin",            // "super_admin" | "member"
-      "status": "active"                // currently always "active"
+      "status": "active"                 // "active" | "blocked" (reflects users.is_blocked)
     }
   ]
 }
@@ -1136,7 +1216,52 @@ Password is validated by `passwordSchema` (same rules as register).
 }
 ```
 
-**Errors:** `400` Username already exists · `400` Email already exists
+**Errors:** `409` Username already exists · `409` Email already exists
+
+### `PATCH /api/admin/users/:id/role`
+
+Promote to (or demote from) super admin. Self-protection: callers cannot change
+their own role. Last-super-admin protection: the last remaining super admin
+cannot be demoted.
+
+**Body** (`adminUpdateRoleSchema`):
+
+```json
+{ "role": "super_admin" }              // "super_admin" | "member"
+```
+
+**200:** `{ "success": true }`
+
+**Errors:** `400` Cannot change your own role · `400` Cannot demote the last super admin
+
+### `PATCH /api/admin/users/:id/status`
+
+Block or unblock a user. Blocking immediately deletes all of the user's
+sessions (kick-out); the login route also rejects blocked users with `403
+Account blocked. Contact an administrator.`. Self-protection: callers cannot
+block their own account.
+
+**Body** (`adminUpdateStatusSchema`):
+
+```json
+{ "status": "blocked" }               // "active" | "blocked"
+```
+
+**200:** `{ "success": true }`
+
+**Errors:** `400` Cannot block your own account
+
+### `DELETE /api/admin/users/:id`
+
+Permanently delete a user (cascades to all owned data via D1 FK cascade).
+Self-protection: callers cannot delete their own account. Last-super-admin
+protection: the last remaining super admin cannot be deleted (defense-in-depth
+— the router-level super-admin guard also means no super-admin-only route
+could manage users if the last one were removed).
+
+**200:** `{ "success": true }`
+
+**Errors:** `400` Cannot delete your own account · `400` Cannot delete the last super admin
 
 ---
 
@@ -1378,7 +1503,7 @@ inserts a `files` row, and deletes the temp folder.
 
 ## 11. Health Check
 
-**Path:** `/api/health` · **Auth:** none · Defined inline in `index.ts:104-106`.
+**Path:** `/api/health` · **Auth:** none · Defined inline in `index.ts:105-107`.
 
 **200:**
 
@@ -1392,7 +1517,7 @@ inserts a `files` row, and deletes the temp folder.
 
 ### Scheduled jobs
 
-The Worker's `scheduled` handler (`index.ts:116-137`) runs on the cron
+The Worker's `scheduled` handler (`index.ts:117-143`) runs on the cron
 `*/30 * * * *` (`wrangler.toml:9-10`). It triggers:
 
 - `runScheduledSync(env)` — incremental Drive sync via the Google Drive Changes API
@@ -1401,14 +1526,15 @@ The Worker's `scheduled` handler (`index.ts:116-137`) runs on the cron
 - `AutomationEngine.processCronTrigger(ctx)` — runs `cron`-trigger automations
 - `AuditService.cleanupOldLogs(30)` — deletes audit logs older than 30 days
 - `PolicyService.processAutoDeleteRetentionPolicies(...)` — runs data-retention policies
-- D1 cleanup: expired `sessions`, `oauth_states` (>10 min), `quota_cache` (>1 h)
+- D1 cleanup: expired `sessions`, `oauth_states` (>10 min), `quota_cache` (>1 h),
+  `category_cache` (>1 h)
 
 In the Docker (node-server) build, the same handler is invoked by `node-cron`
 on the same schedule (`node-server.ts:84-90`).
 
 ### Per-request service injection
 
-`auth-guard.ts:42-50` instantiates the following services per request (so routes
+`auth-guard.ts:50-57` instantiates the following services per request (so routes
 avoid `new`-ing them inline):
 
 - `FileService`, `FolderService`, `DriveService`, `WorkspaceService`

@@ -92,7 +92,7 @@ enabled = false          # disable tracing (save noise & cost)
 
 The four documents below are the **source of truth** for the project's domain, data, UI, and history. Read the relevant one **before** writing/changing code so you don't struggle to find components and waste tokens. Each document has a list of sections (anchors) — jump directly with `read` + `offset`/`limit` rather than reading the whole file.
 
-### `ARCHITECTURE.md` — System Architecture (301 lines)
+### `ARCHITECTURE.md` — System Architecture (442 lines)
 
 **Read when:** touching backend/frontend flow, auth, sync, S3, deploy, or needing the big picture.
 
@@ -111,7 +111,7 @@ The four documents below are the **source of truth** for the project's domain, d
 | `#environment-configuration` | Required env vars |
 | `#testing-strategy` | Vitest, high-value test areas |
 
-### `SCHEMA.md` — D1 Database Schema (413 lines)
+### `SCHEMA.md` — D1 Database Schema (484 lines)
 
 **Read when:** changing tables, adding columns, writing a migration, or querying D1.
 
@@ -119,11 +119,11 @@ The four documents below are the **source of truth** for the project's domain, d
 |------------------|---------|
 | `#relationship-diagram` | Mermaid ERD of all tables |
 | `#tables` | Column + type details per table (drive_accounts, files, workspaces, …) — including `quota_override` |
-| `#incremental-migrations` | List of `0001`–`0007` + changes |
+| `#incremental-migrations` | List of `0001`–`0009` + changes |
 | `#database-commands` | `make db-migrate-local/remote`, factory reset |
 | `#kv-store-not-d1` | KV keys (`tokens:`, `quota:`, `oauth_state:`) |
 
-### `DESIGN.md` — UI & Design System (229 lines)
+### `DESIGN.md` — UI & Design System (309 lines)
 
 **Read when:** creating/changing UI components, pages, styling, or color tokens.
 
@@ -140,9 +140,9 @@ The four documents below are the **source of truth** for the project's domain, d
 | `#guide-to-adding-new-ui` | New UI checklist |
 | `#anti-patterns-do-not` | What to avoid |
 
-### `CHANGELOG.md` — Change History (366 lines)
+### `CHANGELOG.md` — Change History (409 lines)
 
-**Read when:** starting a session (check `[Unreleased]`), finishing a task (record under `[Unreleased]`), or finding when a feature/bug was introduced. Uses Keep a Changelog format. Latest entries this session: Home redesign to bento grid (Concept 3) + brand palette recalibration (Option B — cobalt accent `#2563EB`) + drive identity color tokens (`--drive-1`..`--drive-5`).
+**Read when:** starting a session (check `[Unreleased]`), finishing a task (record under `[Unreleased]`), or finding when a feature/bug was introduced. Uses Keep a Changelog format. Latest entries this session: Home redesign to bento grid (Concept 3) + brand palette recalibration (Option B — cobalt accent `#2563EB`) + drive identity color tokens (`--drive-1`..`--drive-6`).
 
 > **Rule:** every task that changes behavior/UI library must add an entry under `[Unreleased]` in `CHANGELOG.md`. See "Adding a New Feature" step 5.
 
@@ -203,7 +203,7 @@ node scripts/onboard-deploy.mjs   # initial setup/deploy wizard
 - Auth: `omnidrive_sid` cookie + D1 session (`sessions` table, `middleware/auth-guard.ts`)
 - S3: separate route at `/s3/*` with SigV4 (`middleware/s3-auth.ts`)
 - Errors: use `AppError` from `lib/errors.ts`
-- Database: D1 (SQLite) — schema in `src/db/schema.sql`, incremental migrations `0001`–`0007`
+- Database: D1 (SQLite) — schema in `src/db/schema.sql`, incremental migrations `0001`–`0009`
 - Types: `src/types/env.ts` for `Env`, `SessionData`, `AppContext`
 
 ### Frontend (`packages/web`)
@@ -281,7 +281,7 @@ Copy `.env.example` → `.env` at the root. Required variables:
 | `GOOGLE_CLIENT_ID` | worker | Google Drive OAuth |
 | `GOOGLE_CLIENT_SECRET` | worker | Google Drive OAuth |
 | `JWT_SECRET` | worker | Signing session token |
-| `TOKEN_ENCRYPTION_KEY` | worker | Encrypt OAuth token in KV |
+| `TOKEN_ENCRYPTION_KEY` | worker | Encrypt OAuth token in D1 (`drive_tokens` table) |
 | `FRONTEND_URL` | worker | CORS origin |
 | `WORKER_URL` | worker | OAuth callback redirect |
 | `VITE_API_URL` | web | API base URL at build time |
@@ -303,7 +303,7 @@ The full navigation map (when to read + section anchors) is in the **"Project Do
 | File | Content | Last updated |
 |------|---------|--------------|
 | `docs/ARCHITECTURE.md` | Diagrams, data flow, system components, quota/capacity | This session (capacity editor ref moved to Settings) |
-| `docs/SCHEMA.md` | D1 tables, relations, indexes, migrations `0001`–`0007` | Previous session (`quota_override` + migration `0007`) |
+| `docs/SCHEMA.md` | D1 tables, relations, indexes, migrations `0001`–`0009` | Previous session (`quota_override` + migration `0007` + `category_cache` + perf indexes) |
 | `docs/DESIGN.md` | Cobalt color tokens, bento layout, component patterns | This session (bento dashboard + Option B palette) |
 | `docs/CHANGELOG.md` | Version history (`[Unreleased]` + `0.9.7` downward) | This session (bento redesign + cobalt palette + drive tokens) |
 | `README.md` | User guide & setup | Unchanged (already rebranded to OmniDrive) |

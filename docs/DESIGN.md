@@ -37,18 +37,20 @@ Defined in `packages/web/src/index.css` via `@theme` (Tailwind v4 CSS-first conf
 @import "tw-animate-css";
 
 @theme {
-  --color-background: #f8fafc;          /* Canvas — slate floor, deliberately not pure white */
-  --color-foreground: #0f172a;          /* Ink — slate-900 */
+  --color-background: #F3F4F6;          /* Canvas — slate-100 floor */
+  --color-foreground: #0F172A;          /* Ink — slate-900 */
   --color-primary: #2563EB;             /* Cobalt blue — brand CTA/accent  */
-  --color-primary-foreground: #ffffff;
-  --color-surface: #eef2f7;             /* Surface-soft — sidebar, shell, section bands */
-  --color-card: #ffffff;                /* Surface-card — grounded panels, one step darker than canvas */
+  --color-primary-foreground: #FFFFFF;
+  --color-surface: #E5E7EB;             /* Surface — gray-200 sidebar/shell */
+  --color-card: #FCFCFD;                /* Card — near-white panels (lighter than floor) */
 
   --radius-lg: 0.5rem;
   --radius-md: calc(0.5rem - 2px);
   --radius-sm: calc(0.5rem - 4px);
 }
 ```
+
+Drive identity colors are defined in `:root` (inside `@layer base`, not `@theme`) and consumed by `getDriveColor(index)` — `--drive-1` (cobalt `#2563EB`) through `--drive-6` (cyan `#06B6D4`) in round-robin order.
 
 ### Tailwind 4 Migration Notes
 
@@ -80,19 +82,19 @@ Any new clickable element that is not a native `<button>` should use `role="butt
 
 | Layer | Token | Hex | Role |
 |-------|-------|-----|------|
-| Canvas (floor) | `bg-background` | `#f8fafc` | Page floor — slate-50, lighter than cards |
-| Surface (shell) | `bg-surface` | `#eef2f7` | Sidebar, app shell, section divider |
-| Card (grounded) | `bg-card` | `#ffffff` | Panel cards — **darker than floor** (grounded, not floating) |
-| Ink (main text) | `text-foreground` | `#0f172a` | Slate-900 near-black, not cool gray |
-| Primary (accent) | `bg-primary` | `#2563EB` | Cobalt blue — brand override (
+| Canvas (floor) | `bg-background` | `#F3F4F6` | Page floor — slate-100 / gray-100 |
+| Surface (shell) | `bg-surface` | `#E5E7EB` | Sidebar, app shell, section divider — gray-200 (slightly darker than floor) |
+| Card (panel) | `bg-card` | `#FCFCFD` | Panel cards — near-white (lighter than floor) |
+| Ink (main text) | `text-foreground` | `#0F172A` | Slate-900 near-black, not cool gray |
+| Primary (accent) | `bg-primary` | `#2563EB` | Cobalt blue — brand override |
 
 ### Color Usage
 
 | Token | Usage |
 |-------|-------|
-| `bg-background` | Page floor / canvas (`#f8fafc` slate-50 — lighter than cards) |
-| `bg-surface` | App shell & sidebar (`#eef2f7` surface-soft) |
-| `bg-card` | All elevated surfaces — bento cards, modal, dropdown, context menu, input, InfoPanel, toast (`#ffffff` clean white panel) |
+| `bg-background` | Page floor / canvas (`#F3F4F6` slate-100) |
+| `bg-surface` | App shell & sidebar (`#E5E7EB` gray-200) |
+| `bg-card` | All elevated surfaces — bento cards, modal, dropdown, context menu, input, InfoPanel, toast (`#FCFCFD` near-white panel) |
 | `border-slate-*` | Cool gray borders (consistent cool tone matching the brand). Inputs/selects/bento cards pin to `border-slate-300` or `border-slate-200` — see **Tailwind 4 Migration Notes** below for why bare `border` is forbidden |
 | `text-foreground` | Main text (`#0f172a` slate ink) |
 | `text-slate-*` | Secondary text, muted, navigation (cool gray — consistent cool tone, not cool `text-gray-*`) |
@@ -155,19 +157,23 @@ Menu order (from `Sidebar.tsx`):
 
 | Route | Page | Purpose |
 |-------|------|---------|
+| `/home` | `LandingPage` | Public landing page |
+| `/privacy` | `PrivacyPolicyPage` | Public privacy policy |
+| `/terms` | `TermsOfServicePage` | Public terms of service |
 | `/setup` | `SetupPage` | First-run admin setup |
 | `/login` | `LoginPage` | Login/register |
 | `/` | `DashboardPage` | Home — bento grid: storage hero (large % + QuotaBar), per-type donut breakdown (Recharts), quick-access tiles, connected drives, recent files, empty state when no drive yet, admin tile for `super_admin` |
 | `/files/:folderId?` | `FilesPage` | File browser |
+| `/external/:folderId?` | `ExternalPage` | Items I own that live outside My Drive (computer backups + shared-with-me) |
 | `/search` | `SearchPage` | Global search |
 | `/workspaces` | `WorkspacesPage` | Workspace tabs (files, members, audit, settings) |
 | `/automations` | `AutomationsPage` | Automation rules |
-| `/settings` | `SettingsPage` | Drives, S3 credentials |
+| `/settings` | `SettingsPage` | Account, Drives, S3 credentials |
 | `/shared` | `SharedLinksPage` | Manage shared links |
 | `/shared/:id` | `PublicSharedPage` | Public share view (no auth) |
 | `/trash` | `TrashPage` | Trashed files |
 | `/starred` | `StarredPage` | Starred files |
-| `/admin/users` | `AdminUsersPage` | User management |
+| `/admin/users` | `AdminUsersPage` | User management (super_admin only) |
 
 ### Dashboard Bento Grid
 
@@ -190,10 +196,13 @@ The home dashboard (`DashboardPage.tsx`) uses an asymmetric 4-column bento grid 
 
 ### Primitives (`components/ui/`)
 
-- `button.tsx` — CVA variants
+- `Button.tsx` — CVA variants
+- `Input.tsx` — text input
+- `Spinner.tsx` — loading spinner
+- `Toast.tsx` + `ToastContainer` — toast notifications
 - `dialog.tsx` — Modal (Radix Dialog)
-- `dropdown-menu.tsx` — Dropdown menu
-- `context-menu.tsx` — Right-click menu
+- `dropdown-menu.tsx` — Dropdown menu (Radix)
+- `context-menu.tsx` — Right-click menu (Radix)
 
 ### File & Drive
 
@@ -247,14 +256,14 @@ The home dashboard (`DashboardPage.tsx`) uses an asymmetric 4-column bento grid 
 
 | Store | Responsibility |
 |-------|----------------|
-| `authStore` | User session |
-| `driveStore` | Connected drives, quota |
+| `useAuthStore` | User session |
 | `useUIStore` | Sidebar open/close |
 | `useSelectionStore` | File selection state |
-| `uploadStore` | Upload queue |
-| `toastStore` | Notifications |
-| `sharedStore` | Shared links |
+| `useUploadStore` | Upload queue |
+| `useToastStore` | Notifications |
 | `useAutomationStore` | Automation rules |
+
+> Server state (drives, shared links, files, workspaces, etc.) is **not** in Zustand — it lives in TanStack Query via `useDrives`, `useSharedLinks`, `useFileMutations`, `useFolderMutations`, and `useMergedDrive` (ADR-0004).
 
 ## Responsive & Accessibility
 
@@ -291,9 +300,9 @@ The home dashboard (`DashboardPage.tsx`) uses an asymmetric 4-column bento grid 
 - Do not add a dark mode toggle without updating all tokens (not yet in the codebase)
 - Do not nest cards-inside-cards excessively
 - Do not use inline styles except for a temporary error boundary (`App.tsx` connection error)
-- Do not create custom button components — extend `components/ui/button.tsx`
+- Do not create custom button components — extend `components/ui/Button.tsx`
 - Do not use bare `border` (Tailwind 4 default is `currentColor`) or cool `border-gray-*` — use `border-slate-200` / `border-slate-300` for cool consistency
 
 ## Visual Reference
 
-Target aesthetic: **blue-brand with cobalt brand override** — slate sidebar `#eef2f7` (`bg-surface`), grounded cards `#ffffff` (`bg-card`, darker than the `#f8fafc` floor), cobalt primary `#2563EB`, pill navigation, asymmetric bento grid Dashboard, per-type donut breakdown.
+Target aesthetic: **blue-brand with cobalt brand override** — slate sidebar `#E5E7EB` (`bg-surface`), near-white panels `#FCFCFD` (`bg-card`, lighter than the `#F3F4F6` floor), cobalt primary `#2563EB`, pill navigation, asymmetric bento grid Dashboard, per-type donut breakdown.

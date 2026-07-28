@@ -145,7 +145,7 @@ npm run dev
 **Where to look:**
 - `packages/worker/src/services/file.service.ts` → `assertCanMutate(file, userId, 'editor')`
 - `packages/worker/src/services/shared.service.ts` → `assertCanShare(userId, targetType, targetId)`
-- `packages/worker/src/middleware/rbac.ts` → `hasPermission(role, requiredRole)`
+- `packages/worker/src/lib/rbac.ts` → `hasPermission(role, requiredRole)`
 
 **Role hierarchy:** viewer (1) → auditor (1) → commenter (2) → editor (3) → manager (4) → owner (5)
 

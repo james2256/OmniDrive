@@ -49,8 +49,8 @@ Open **http://localhost:8999** — redirects to `/setup` to create your first ad
 ### Running tests
 
 ```bash
-npm run test              # all tests (worker unit + web)
-npm run test:worker       # worker unit tests only (48 files)
+npm run test              # all tests (worker unit + integration + web)
+npm run test:worker       # worker unit tests only (46 files)
 npm run test:web          # web tests only (16 files)
 cd packages/worker && npm run test:integration   # integration tests (9 files, real D1 via Miniflare)
 npm run lint              # ESLint
@@ -69,19 +69,19 @@ packages/worker/          # Backend (Cloudflare Worker / Hono)
     routes/               # 10 route files — thin HTTP orchestrators (no SQL)
     services/             # 14 service files — business logic + RBAC (no SQL)
     repositories/         # 9 repository files — all SQL lives here
-    middleware/           # 11 middleware — auth, CORS, CSRF, rate limit, request ID, RBAC, S3 auth
-    lib/                  # 16 utility files — crypto, validation, env, logger, schemas, password, PKCE
+    middleware/           # 8 middleware — auth, CORS, CSRF, rate limit, request ID, S3 auth, security headers, shared services
+    lib/                  # 21 utility files — crypto, validation, env, logger, schemas, password, PKCE, RBAC, cursor, backoff, S3 XML, etc.
     db/                   # D1 schema (schema.sql)
-  migrations/             # 4 numbered SQL migrations
-  tests/                  # 48 unit test files
+  migrations/             # 9 numbered SQL migrations (0001–0009)
+  tests/                  # 46 unit test files (43 in tests/ + 3 in src/tests/)
   tests/integration/      # 9 integration test files (real D1 via Miniflare)
 
 packages/web/             # Frontend (React 19 + Vite)
   src/
     components/           # 6 directories: files, layout, legal, settings, ui, workspaces
-    pages/                # 19 page components (Dashboard, Files, Settings, Admin, Search, etc.)
+    pages/                # 17 page components (Dashboard, Files, Settings, Admin, Search, etc.)
     stores/               # 6 Zustand stores (auth, UI, upload, toast, selection, automation)
-    hooks/                # 5 TanStack Query hooks (drives, file mutations, folder mutations, shared links, merged drive)
+    hooks/                # 7 TanStack Query hooks (drives, file mutations, folder mutations, shared links, merged drive, clipboard, item modals)
     lib/                  # API client, query keys, invalidation helpers
     types/                # TypeScript types
 ```
@@ -108,7 +108,7 @@ All SQL lives in `repositories/`. The pattern is:
 - **Services** (`services/*.ts`): Business logic + RBAC + Google API calls. **No SQL strings.**
 - **Repositories** (`repositories/*.ts`): All SQL. Named by intent (`findById`, `findAllByUser`, `insertWithUniqueSlug`).
 
-6 of 10 routes have zero inline SQL. The remaining 4 (`s3.ts` with 37, `auth.ts` with 9, `drives.ts` with 3, `files.ts` with 1) are deferred with `ponytail:` comments — grep for `ponytail:` to find intentional deferrals.
+6 of 10 routes have zero inline SQL. The remaining 4 (`s3.ts` with 37, `auth.ts` with 9, `drives.ts` with 1, `admin.ts` with 1) still call `env.DB.prepare(...)` directly and are tracked with `ponytail:` comments — grep for `ponytail:` to find intentional deferrals.
 
 ### Error handling
 
@@ -150,9 +150,9 @@ Use Zod schemas in `lib/schemas.ts` + `zValidator` middleware:
 
 ```typescript
 import { zValidator } from '@hono/zod-validator';
-import { createFileSchema, zodErrorHook } from '../lib/schemas';
+import { createFolderSchema, zodErrorHook } from '../lib/schemas';
 
-filesRouter.post('/', zValidator('json', createFileSchema, zodErrorHook), async (c) => {
+foldersRouter.post('/', zValidator('json', createFolderSchema, zodErrorHook), async (c) => {
   const body = c.req.valid('json');
   // ...
 });
@@ -195,7 +195,7 @@ Use `// ponytail:` comments to mark intentional deferrals. These are grep-able:
 | **RBAC denied (403)** | Search for `assertCanMutate` or `assertCanShare` in `services/` — check the role + permission |
 | **Rate limited (429)** | `packages/worker/src/middleware/rate-limiter.ts` — in-memory sliding window |
 | **Quota/cost concerns** | `docs/AGENTS.md` → "Cost Principle" section |
-| **S3 API errors** | `packages/worker/src/routes/s3.ts` — 853 lines, uses `ponytail:` deferral |
+| **S3 API errors** | `packages/worker/src/routes/s3.ts` — 903 lines, uses `ponytail:` deferral |
 | **Session expired** | `packages/worker/src/middleware/auth-guard.ts` — 7-day sliding TTL, refreshed if untouched >1hr |
 | **Google Drive sync** | `packages/worker/src/services/sync.ts` — cron every 30 min, resume via `next_page_token` |
 

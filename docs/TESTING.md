@@ -8,10 +8,10 @@ OmniDrive has 3 test suites: worker unit tests, worker integration tests, and we
 
 | Suite | Files | Tests | Runner | D1 |
 |-------|-------|-------|--------|----|
-| Worker unit | 48 | 246 | Vitest | Mocked |
-| Worker integration | 9 | 65 | Vitest + `@cloudflare/vitest-pool-workers` | Real (Miniflare) |
+| Worker unit | 46 | 287 | Vitest | Mocked |
+| Worker integration | 9 | 78 | Vitest + `@cloudflare/vitest-pool-workers` | Real (Miniflare) |
 | Web component | 16 | 59 | Vitest + jsdom | N/A |
-| **Total** | **73** | **370** | | |
+| **Total** | **71** | **424** | | |
 
 ---
 
@@ -167,9 +167,9 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on every PR and push to `main`:
 1. `npm ci` — install deps
 2. `npm run lint` — ESLint
 3. `npm run typecheck` — TypeScript (both packages)
-4. `npm run test` — worker unit + web tests
+4. `npm run test` — runs `npm run test --prefix packages/worker`, then `npm run test:integration --prefix packages/worker`, then `npm run test --prefix packages/web` (worker unit → worker integration → web)
 
-Integration tests are NOT in CI (they require Miniflare + `wrangler.toml`). Run them locally before deploying.
+The integration suite requires `packages/worker/wrangler.toml` (gitignored — copy from `wrangler.example.toml`). On a fresh CI clone without `wrangler.toml`, the integration step may fail; copy the example file before invoking locally.
 
 ---
 

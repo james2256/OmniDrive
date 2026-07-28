@@ -10,7 +10,7 @@
 
 ## What is OmniDrive?
 
-OmniDrive lets you connect multiple Google Drive accounts and manage all your files from a single dashboard. It runs entirely on Cloudflare's edge network — Workers for the API, D1 for the database, and KV for session storage — so there's no traditional server to maintain.
+OmniDrive lets you connect multiple Google Drive accounts and manage all your files from a single dashboard. It runs entirely on Cloudflare's edge network — Workers for the API, D1 for the database and sessions, and KV for shared-link rate-limit counters — so there's no traditional server to maintain.
 
 ## Features
 
@@ -64,8 +64,8 @@ force_path_style = true
 | Layer | Technology |
 |-------|------------|
 | **Backend** | [Hono](https://hono.dev/) on [Cloudflare Workers](https://workers.cloudflare.com/) |
-| **Database** | [Cloudflare D1](https://developers.cloudflare.com/d1/) (SQLite) |
-| **Session Store** | [Cloudflare KV](https://developers.cloudflare.com/kv/) |
+| **Database** | [Cloudflare D1](https://developers.cloudflare.com/d1/) (SQLite) — sessions, OAuth state, drive tokens, quota/category cache |
+| **Rate-limit Counters** | [Cloudflare KV](https://developers.cloudflare.com/kv/) — shared-link password lockout only |
 | **Frontend** | [React 19](https://react.dev/) + [Vite 8](https://vite.dev/) |
 | **Styling** | [Tailwind CSS 4](https://tailwindcss.com/) (CSS-first `@theme` config) |
 | **State Management** | [Zustand](https://zustand.docs.pmnd.rs/) + [TanStack Query](https://tanstack.com/query) |
@@ -84,16 +84,16 @@ omnidrive/
 │   │   │   ├── routes/          # 10 route files (thin orchestrators)
 │   │   │   ├── services/        # 14 service files (business logic + RBAC)
 │   │   │   ├── repositories/    # 9 repository files (all SQL)
-│   │   │   ├── middleware/      # 11 middleware (auth, CORS, CSRF, rate limit, request ID, RBAC, S3 auth, shared services)
-│   │   │   ├── lib/             # 16 utility files (crypto, validation, env, logger, schemas, password, PKCE, cursor, etc.)
+│   │   │   ├── middleware/      # 8 middleware (auth, CORS, CSRF, rate limit, request ID, S3 auth, security headers, shared services)
+│   │   │   ├── lib/             # 21 utility files (crypto, validation, env, logger, schemas, password, PKCE, cursor, RBAC, S3 XML, backoff, etc.)
 │   │   │   ├── db/              # D1 schema
 │   │   │   └── types/           # TypeScript types
-│   │   ├── migrations/          # 5 D1 migrations
-│   │   └── tests/               # 42 unit test files + 9 integration test files
+│   │   ├── migrations/          # 9 D1 migrations (0001–0009)
+│   │   └── tests/               # 43 unit test files + 9 integration test files
 │   └── web/                 # React SPA (frontend)
 │       └── src/
 │           ├── components/      # 6 dirs: files, layout, legal, settings, ui, workspaces
-│           ├── pages/           # 20 pages (Dashboard, Files, Settings, Admin, Search, etc.)
+│           ├── pages/           # 17 pages (Dashboard, Files, Settings, Admin, Search, External, Landing, Login, Privacy, Terms, PublicShared, SharedLinks, Starred, Trash, Workspaces, Automations, Setup)
 │           ├── stores/          # 6 Zustand stores (auth, UI, upload, toast, selection, automation)
 │           ├── hooks/           # 5 TanStack Query hooks (drives, file mutations, folder mutations, shared links, merged drive)
 │           ├── lib/             # API client, query keys, invalidation helpers, utilities
@@ -109,13 +109,13 @@ omnidrive/
 │   ├── CONTRIBUTING.md      # Contributing guide
 │   └── adr/                 # 8 Architecture Decision Records
 ├── scripts/                 # Deployment + onboarding scripts
-├── Makefile                 # Deployment automation (10 targets)
+├── Makefile                 # Deployment automation (12 targets)
 └── package.json             # Monorepo root (npm workspaces)
 ```
 
-**Repository Pattern:** All SQL lives in `repositories/`. Services own business logic + RBAC. Routes are thin orchestrators (parse → validate → call service → return JSON). 8 of 10 routes have zero inline SQL; the remaining 2 (`s3.ts` with 37, `auth.ts /callback` with 8) are deferred with `ponytail:` comments.
+**Repository Pattern:** All SQL lives in `repositories/`. Services own business logic + RBAC. Routes are thin orchestrators (parse → validate → call service → return JSON). 6 of 10 routes have zero inline SQL; `s3.ts` (37 calls) and `auth.ts` (9 calls in `/callback`) are deferred via `ponytail:` comments; `admin.ts` and `drives.ts` have 1 one-off query each.
 
-**Testing:** 67 test files (42 worker unit + 9 worker integration + 16 web component) run against real D1 via Miniflare. Run with `npm test`.
+**Testing:** 68 test files (43 worker unit + 9 worker integration + 16 web component) run against real D1 via Miniflare. Run with `npm test`.
 
 **Structured Logging:** Every request gets a UUID (`x-request-id` header). All error logs are JSON with `requestId`, `path`, `errorClass`, and `stack` — filterable in `wrangler tail`.
 
