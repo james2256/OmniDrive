@@ -237,50 +237,60 @@ authRouter.get('/callback', async (c) => {
   );
   const googleUser = await authService.fetchUserInfo(tokens.accessToken);
 
-  await db
-    .prepare('UPDATE users SET google_id = ? WHERE id = ?')
-    .bind(googleUser.id, targetUserId)
-    .run();
-
-  let drive = (await db
+  // Do all reads + CPU work before writes so writes can be batched atomically.
+  const drive = (await db
     .prepare('SELECT id FROM drive_accounts WHERE google_account_id = ? AND user_id = ?')
     .bind(googleUser.id, targetUserId)
-    .first()) as { id: string };
+    .first()) as { id: string } | null;
+
+  let driveId: string;
+  const stmts: D1PreparedStatement[] = [
+    db.prepare('UPDATE users SET google_id = ? WHERE id = ?').bind(googleUser.id, targetUserId),
+  ];
+
   if (!drive) {
     const res = (await db
       .prepare('SELECT COUNT(*) as count FROM drive_accounts WHERE user_id = ?')
       .bind(targetUserId)
       .first()) as { count: number };
     const isPrimary = res.count === 0 ? 1 : 0;
-    const driveId = generateId();
-    await db
-      .prepare(
-        'INSERT INTO drive_accounts (id, user_id, google_account_id, email, name, is_primary, root_folder_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      )
-      .bind(
-        driveId,
-        targetUserId,
-        googleUser.id,
-        googleUser.email,
-        googleUser.name || googleUser.email,
-        isPrimary,
-        null,
-      )
-      .run();
-    drive = { id: driveId };
+    driveId = generateId();
+    stmts.push(
+      db
+        .prepare(
+          'INSERT INTO drive_accounts (id, user_id, google_account_id, email, name, is_primary, root_folder_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        )
+        .bind(
+          driveId,
+          targetUserId,
+          googleUser.id,
+          googleUser.email,
+          googleUser.name || googleUser.email,
+          isPrimary,
+          null,
+        ),
+    );
+  } else {
+    driveId = drive.id;
   }
 
-  await db
-    .prepare(
-      'INSERT INTO drive_tokens (drive_account_id, encrypted_tokens, updated_at) VALUES (?, ?, ?) ' +
-        'ON CONFLICT(drive_account_id) DO UPDATE SET encrypted_tokens = excluded.encrypted_tokens, updated_at = excluded.updated_at',
-    )
-    .bind(drive.id, await encrypt(JSON.stringify(tokens), c.env.TOKEN_ENCRYPTION_KEY), Date.now())
-    .run();
+  const encryptedTokens = await encrypt(JSON.stringify(tokens), c.env.TOKEN_ENCRYPTION_KEY);
+  stmts.push(
+    db
+      .prepare(
+        'INSERT INTO drive_tokens (drive_account_id, encrypted_tokens, updated_at) VALUES (?, ?, ?) ' +
+          'ON CONFLICT(drive_account_id) DO UPDATE SET encrypted_tokens = excluded.encrypted_tokens, updated_at = excluded.updated_at',
+      )
+      .bind(driveId, encryptedTokens, Date.now()),
+  );
+
+  // Batch all D1 writes atomically — eliminates partial-failure window
+  // (e.g., google_id set but no drive_tokens row if INSERT fails).
+  await db.batch(stmts);
 
   const driveRow = await db
     .prepare('SELECT * FROM drive_accounts WHERE id = ?')
-    .bind(drive.id)
+    .bind(driveId)
     .first();
   if (driveRow) {
     const driveObj = mapDriveRow(driveRow as Record<string, unknown>);
