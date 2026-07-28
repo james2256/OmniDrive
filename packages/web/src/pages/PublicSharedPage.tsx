@@ -19,6 +19,8 @@ export function PublicSharedPage() {
   const [verifying, setVerifying] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [folderContents, setFolderContents] = useState<{ files: Array<{ id: string; name: string; mimeType: string; size: number }>; folders: Array<{ id: string; name: string }> } | null>(null);
+  const [folderContentsError, setFolderContentsError] = useState('');
+  const [folderContentsRetryKey, setFolderContentsRetryKey] = useState(0);
   const [folderDownloadOpen, setFolderDownloadOpen] = useState(false);
 
   const loadMeta = useCallback(async (skipLoadingState = false) => {
@@ -44,16 +46,18 @@ export function PublicSharedPage() {
     loadMeta();
   }, [loadMeta]);
 
-  // Fetch folder contents when meta loads (if it's a folder link and not password-gated)
+  // Fetch folder contents when meta loads (if it's a folder link and not password-gated).
+  // folderContentsRetryKey lets the Retry button re-trigger the fetch.
   useEffect(() => {
     if (meta?.type === 'folder' && id && !meta.requiresPassword) {
       const apiUrl = import.meta.env.VITE_API_URL || '';
+      setFolderContentsError('');
       fetch(`${apiUrl}/api/shared/${id}/folder-contents`, { credentials: 'include' })
         .then(res => res.ok ? res.json() : Promise.reject(new Error('Failed to load folder')))
-        .then(data => setFolderContents(data))
-        .catch(() => setFolderContents(null));
+        .then(data => { setFolderContents(data); setFolderContentsError(''); })
+        .catch(() => { setFolderContents(null); setFolderContentsError('Failed to load folder contents'); });
     }
-  }, [meta, id]);
+  }, [meta, id, folderContentsRetryKey]);
 
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -197,6 +201,14 @@ export function PublicSharedPage() {
                     })}
                   </>
                 )}
+              </div>
+            ) : folderContentsError ? (
+              <div className="flex flex-col items-center justify-center py-4 gap-2">
+                <CircleAlert size={20} className="text-red-400" />
+                <p className="text-sm text-slate-500">{folderContentsError}</p>
+                <Button variant="ghost" size="sm" onClick={() => setFolderContentsRetryKey(k => k + 1)}>
+                  Retry
+                </Button>
               </div>
             ) : (
               <div className="flex items-center justify-center py-4">

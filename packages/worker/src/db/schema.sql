@@ -1,3 +1,15 @@
+-- Timestamp convention:
+--   TEXT columns (DEFAULT datetime('now')) → "YYYY-MM-DD HH:MM:SS" (UTC, space separator)
+--     Used for: created_at, updated_at, synced_at, last_synced_at, etc.
+--     Bind Date values via toSQLiteDatetime() (lib/datetime.ts).
+--     Compare lexicographically (same format → correct ordering).
+--   INTEGER columns → epoch milliseconds (Date.now())
+--     Used for: sessions.expires_at, oauth_states.created_at, drive_tokens.updated_at,
+--     quota_cache.updated_at, category_cache.updated_at (machine-only, never displayed,
+--     compared via arithmetic).
+--   NEVER mix formats within a column — lexicographic comparison of ISO vs SQLite
+--   format breaks because space (0x20) < T (0x54). See policy.service.ts (C3 fix).
+
 -- Users (from local auth and Google OAuth)
 CREATE TABLE IF NOT EXISTS users (
     id              TEXT PRIMARY KEY,

@@ -50,13 +50,20 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({ onActionComplete, 
           }
         } else {
           const folder = selected.item;
-          if ('googleFolderId' in folder && folder.driveAccountId) {
-            if (isTrashView) {
-              await api.deleteDriveFolderPermanent(folder.driveAccountId, folder.googleFolderId);
-            } else {
-              await api.deleteDriveFolder(folder.driveAccountId, folder.googleFolderId);
+          if ('googleFolderId' in folder) {
+            // DriveFolder — use Google Drive folder delete endpoint.
+            // driveAccountId is optional on DriveFolder; fall back to driveId.
+            const driveId = folder.driveAccountId || folder.driveId;
+            if (!driveId) {
+              throw new Error('Cannot delete Drive folder without a drive ID');
             }
-          } else if ('id' in folder && folder.id) {
+            if (isTrashView) {
+              await api.deleteDriveFolderPermanent(driveId, folder.googleFolderId);
+            } else {
+              await api.deleteDriveFolder(driveId, folder.googleFolderId);
+            }
+          } else {
+            // WorkspaceFolder — use workspace folder delete endpoint.
             await api.deleteFolder(folder.id);
           }
         }
