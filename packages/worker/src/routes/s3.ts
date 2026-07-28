@@ -21,8 +21,8 @@ import {
   type S3MultipartPartRow,
   type WorkspaceFolderRow,
   type WorkspaceWithRoleRow,
-} from '../types';
-import type { DriveAccount } from '../types';
+} from '../types/db';
+import type { DriveAccount } from '../types/domain';
 import { createHash } from 'node:crypto';
 import { hasPermission } from '../lib/rbac';
 import type { WorkspaceRole } from '../lib/schemas';

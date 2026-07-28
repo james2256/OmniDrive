@@ -1,7 +1,8 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import type { Env } from '../types/env';
 import { computeDriveQuota } from '../lib/storage-quota';
-import { mapDriveRow, type DriveWithQuota } from '../types';
+import { mapDriveRow } from '../types/db';
+import type { DriveWithQuota } from '../types/domain';
 import { createDriveService } from '../middleware/shared-services';
 import { logErrorNoCtx } from '../lib/logger';
 

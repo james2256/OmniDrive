@@ -12,7 +12,7 @@ import {
   adminUpdateStatusSchema,
   zodErrorHook,
 } from '../lib/schemas';
-import { mapAuditLogRow } from '../types';
+import { mapAuditLogRow } from '../types/db';
 
 export const adminRouter = new Hono<AppContext>({ strict: false });
 

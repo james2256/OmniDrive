@@ -7,8 +7,8 @@ import { hashSharedPassword } from '../lib/password';
 import { validateWebhookUrlAsync } from '../lib/validation';
 import { AppError, NotFoundError, ForbiddenError } from '../lib/errors';
 import { getWorkspaceRole, hasPermission } from '../lib/rbac';
-import { mapSharedLinkRow, mapFileRow } from '../types';
-import type { SharedLink, FileRow, FileEntry } from '../types';
+import { mapSharedLinkRow, mapFileRow, type FileRow } from '../types/db';
+import type { SharedLink, FileEntry } from '../types/domain';
 
 /**
  * Business logic layer for shared links.

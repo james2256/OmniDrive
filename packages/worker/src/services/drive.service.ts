@@ -5,7 +5,7 @@ import { createDriveService } from '../middleware/shared-services';
 import { AppError } from '../lib/errors';
 import { generateId } from '../lib/id';
 import { encodeCursor } from '../lib/cursor';
-import { mapDriveRow, mapFileRow, mapDriveFolderRow } from '../types';
+import { mapDriveRow, mapFileRow, mapDriveFolderRow } from '../types/db';
 
 /**
  * Business logic layer for Google Drive account and folder operations.

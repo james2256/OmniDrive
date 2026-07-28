@@ -3,7 +3,7 @@ import type { AppContext } from '../types/env';
 import { generateId } from '../lib/id';
 import { authGuard } from '../middleware/auth-guard';
 import { AppError } from '../lib/errors';
-import { mapAutomationRuleRow } from '../types/index';
+import { mapAutomationRuleRow } from '../types/db';
 import { IS_ACTIVE, IS_INACTIVE } from '../services/automation.service';
 import { zValidator } from '@hono/zod-validator';
 import { createAutomationSchema, toggleAutomationSchema, zodErrorHook } from '../lib/schemas';

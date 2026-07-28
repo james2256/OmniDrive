@@ -12,7 +12,7 @@ import { UploadRouter } from '../services/upload-router';
 import { AutomationEngine } from '../services/automation.service';
 import { PolicyService } from '../services/policy.service';
 import { logError } from '../lib/logger';
-import { mapFileRow } from '../types';
+import { mapFileRow } from '../types/db';
 import { zValidator } from '@hono/zod-validator';
 import {
   renameFileSchema,

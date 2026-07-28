@@ -8,8 +8,7 @@ import { PolicyService } from './policy.service';
 import { getWorkspaceRole, hasPermission } from '../lib/rbac';
 import { AppError } from '../lib/errors';
 import { logErrorNoCtx } from '../lib/logger';
-import { mapFileRow, mapFolderRow, mapDriveFolderRow } from '../types';
-import type { FileRow } from '../types';
+import { mapFileRow, mapFolderRow, mapDriveFolderRow, type FileRow } from '../types/db';
 
 /**
  * Business logic layer for file operations.

@@ -6,7 +6,7 @@ import { zValidator } from '@hono/zod-validator';
 
 import type { AppContext } from '../types/env';
 import { authGuard } from '../middleware/auth-guard';
-import type { SharedLink } from '../types';
+import type { SharedLink } from '../types/domain';
 import { createDriveService } from '../middleware/shared-services';
 import { verifySharedPassword } from '../lib/password';
 import { logError } from '../lib/logger';

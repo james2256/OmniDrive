@@ -3,7 +3,7 @@ import type { AppContext, Env } from '../types/env';
 import { authGuard } from '../middleware/auth-guard';
 import { createDriveService } from '../middleware/shared-services';
 import { AppError } from '../lib/errors';
-import { mapDriveRow } from '../types';
+import { mapDriveRow } from '../types/db';
 import { syncDriveAccount, syncDriveFolder } from '../services/sync';
 import { decodeCursor } from '../lib/cursor';
 import { zValidator } from '@hono/zod-validator';

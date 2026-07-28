@@ -1,5 +1,6 @@
 import type { D1Database } from '@cloudflare/workers-types';
-import type { OAuthTokens, QuotaCache } from '../types/index';
+import type { OAuthTokens } from '../types/env';
+import type { QuotaCache } from '../types/domain';
 import { parseStorageQuota, QUOTA_CACHE_VERSION } from '../lib/storage-quota';
 import { NotFoundError, AuthError, UpstreamError } from '../lib/errors';
 import { withBackoff } from '../lib/backoff';

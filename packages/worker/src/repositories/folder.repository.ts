@@ -1,7 +1,7 @@
 import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types';
 import { generateId } from '../lib/id';
 import { batchInChunks } from '../lib/d1-batch';
-import type { DriveAccount } from '../types';
+import type { DriveAccount } from '../types/domain';
 import type { GDriveFolder } from '../services/google-drive';
 
 /**

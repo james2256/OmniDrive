@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { setCookie, deleteCookie, getCookie } from 'hono/cookie';
 import { hashPassword, verifyPassword } from '../lib/password';
 import type { AppContext, SessionData } from '../types/env';
-import type { UserRow } from '../types';
+import type { UserRow } from '../types/db';
 import { AuthService } from '../services/auth.service';
 import { AppError, ConflictError } from '../lib/errors';
 import { generateId } from '../lib/id';
@@ -13,7 +13,7 @@ import { registerSchema, loginSchema, changePasswordSchema, zodErrorHook } from 
 import { generatePKCE } from '../lib/pkce';
 import { encrypt } from '../lib/crypto';
 import { syncDriveAccount } from '../services/sync';
-import { mapDriveRow } from '../types';
+import { mapDriveRow } from '../types/db';
 import {
   SESSION_TTL_MS,
   sessionCookieOptions,

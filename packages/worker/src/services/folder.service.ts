@@ -6,8 +6,8 @@ import { getWorkspaceRole, hasPermission } from '../lib/rbac';
 import { encodeCursor } from '../lib/cursor';
 import { AppError } from '../lib/errors';
 import { generateId } from '../lib/id';
-import { mapFileRow } from '../types';
-import type { FileEntry } from '../types';
+import { mapFileRow } from '../types/db';
+import type { FileEntry } from '../types/domain';
 
 /**
  * Business logic layer for workspace folder operations.

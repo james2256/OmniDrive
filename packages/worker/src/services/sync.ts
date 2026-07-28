@@ -1,7 +1,7 @@
 import { NotFoundError } from '../lib/errors';
 import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types';
-import type { DriveAccount } from '../types/index';
-import { mapDriveRow } from '../types/index';
+import type { DriveAccount } from '../types/domain';
+import { mapDriveRow } from '../types/db';
 import {
   type GoogleDriveService,
   type GDriveFile,

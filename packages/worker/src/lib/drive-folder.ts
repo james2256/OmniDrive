@@ -1,4 +1,4 @@
-import type { DriveAccount } from '../types';
+import type { DriveAccount } from '../types/domain';
 
 export function resolveGoogleFolderId(
   drive: Pick<DriveAccount, 'rootFolderId'>,

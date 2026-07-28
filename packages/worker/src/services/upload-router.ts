@@ -1,4 +1,4 @@
-import type { DriveWithQuota } from '../types/index';
+import type { DriveWithQuota } from '../types/domain';
 import { AppError } from '../lib/errors';
 
 export class UploadRouter {

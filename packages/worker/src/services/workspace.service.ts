@@ -5,7 +5,8 @@ import { getWorkspaceRole, hasPermission, roleLevel } from '../lib/rbac';
 import { AppError, ConflictError } from '../lib/errors';
 import { generateId } from '../lib/id';
 import type { WorkspaceRole } from '../lib/schemas';
-import { mapAuditLogRow, type AuditLog } from '../types';
+import { mapAuditLogRow } from '../types/db';
+import type { AuditLog } from '../types/domain';
 
 /**
  * Business logic layer for workspace management.

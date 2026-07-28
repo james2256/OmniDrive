@@ -1,6 +1,6 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import { generateId } from '../lib/id';
-import type { SharedLinkRow } from '../types';
+import type { SharedLinkRow } from '../types/db';
 
 /**
  * Data access layer for `shared_links` and `shared_link_logs` tables.
