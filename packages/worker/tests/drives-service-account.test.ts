@@ -119,7 +119,7 @@ describe('POST /api/drives/service-account', () => {
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body).toEqual({ success: true, driveId: expect.any(String) });
+    expect(body).toEqual({ driveId: expect.any(String) });
     expect(runMock).toHaveBeenCalled();
     // Tokens now stored in D1 drive_tokens table, not KV
     expect(db.prepare).toHaveBeenCalledWith(expect.stringContaining('drive_tokens'));

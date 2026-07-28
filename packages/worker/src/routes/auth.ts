@@ -99,7 +99,7 @@ authRouter.post('/register', zValidator('json', registerSchema, zodErrorHook), a
 
   setCookie(c, 'omnidrive_sid', sessionId, sessionCookieOptions(c.env));
 
-  return c.json({ success: true, user: sessionData, isSuperAdmin: !!isSuperAdmin });
+  return c.json({ user: sessionData, isSuperAdmin: !!isSuperAdmin });
 });
 
 authRouter.post('/login', zValidator('json', loginSchema, zodErrorHook), async (c) => {
@@ -138,7 +138,7 @@ authRouter.post('/login', zValidator('json', loginSchema, zodErrorHook), async (
 
   setCookie(c, 'omnidrive_sid', sessionId, sessionCookieOptions(c.env));
 
-  return c.json({ success: true, user: sessionData });
+  return c.json({ user: sessionData });
 });
 
 // Initiates Google OAuth. Called via credentialed fetch from the SPA: the
@@ -338,7 +338,7 @@ authRouter.post(
       await authRepo.deleteAllSessions(userId);
     }
 
-    return c.json({ success: true });
+    return c.body(null, 204);
   },
 );
 
@@ -348,12 +348,12 @@ authRouter.post('/logout', authGuard, async (c) => {
     await c.get('authRepo').deleteSessionById(sid);
   }
   deleteCookie(c, 'omnidrive_sid', sessionDeleteCookieOptions(c.env));
-  return c.json({ success: true });
+  return c.body(null, 204);
 });
 
 // Revoke all sessions for the current user (e.g. after password change, compromise)
 authRouter.post('/sessions/revoke', authGuard, async (c) => {
   await c.get('authRepo').deleteAllSessions(c.get('userId'));
   deleteCookie(c, 'omnidrive_sid', sessionDeleteCookieOptions(c.env));
-  return c.json({ success: true });
+  return c.body(null, 204);
 });

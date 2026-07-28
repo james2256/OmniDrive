@@ -121,14 +121,14 @@ sharedRouter.put(
   async (c) => {
     const sharedService = c.get('sharedService');
     await sharedService.updateLink(c.get('userId'), c.req.param('id'), c.req.valid('json'));
-    return c.json({ success: true });
+    return c.body(null, 204);
   },
 );
 
 sharedRouter.delete('/:id', authGuard, async (c) => {
   const sharedService = c.get('sharedService');
   await sharedService.deleteLink(c.get('userId'), c.req.param('id'));
-  return c.json({ success: true });
+  return c.body(null, 204);
 });
 
 // ─── Public Endpoints (No Auth) ───
@@ -207,7 +207,7 @@ sharedRouter.post(
       'HS256',
     );
     setCookie(c, `shared_session_${link.id}`, token, sharedLinkCookieOptions(c.env));
-    return c.json({ success: true });
+    return c.body(null, 204);
   },
 );
 
@@ -236,7 +236,7 @@ sharedRouter.post(
     setCookie(c, `shared_email_${link.id}`, emailToken, sharedLinkCookieOptions(c.env));
 
     c.executionCtx.waitUntil(sharedService.logAction(link.id, 'email_access', email));
-    return c.json({ success: true });
+    return c.body(null, 204);
   },
 );
 

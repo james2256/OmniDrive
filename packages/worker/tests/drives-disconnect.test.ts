@@ -105,10 +105,8 @@ describe('DELETE /api/drives/:id', () => {
 
     const { app, env, requestInit } = buildApp(db);
     const res = await app.request(`/drives/${DRIVE_ID}`, requestInit, env);
-    const body = await res.json();
 
-    expect(res.status).toBe(200);
-    expect(body).toEqual({ success: true });
+    expect(res.status).toBe(204);
     expect(revokeSpy).toHaveBeenCalledWith(DRIVE_ID);
     // deleteDrive now uses db.batch() for cascade (includes drive_tokens deletion)
     expect(batchMock).toHaveBeenCalled();
@@ -141,7 +139,7 @@ describe('DELETE /api/drives/:id', () => {
     const { app, env, requestInit } = buildApp(db);
     const res = await app.request(`/drives/${DRIVE_ID}`, requestInit, env);
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(204);
     expect(revokeSpy).not.toHaveBeenCalled();
     // deleteDrive now uses db.batch() for cascade (includes drive_tokens deletion)
     expect(batchMock).toHaveBeenCalled();

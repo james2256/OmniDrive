@@ -25,6 +25,10 @@ export async function request<T>(path: string, options?: RequestInit): Promise<T
     throw new ApiError(response.status, body.error ?? `HTTP ${response.status}`);
   }
 
+  // 204 No Content has no body — return null instead of calling response.json()
+  // (which would throw SyntaxError on the empty body).
+  if (response.status === 204) return null as T;
+
   return response.json();
 }
 

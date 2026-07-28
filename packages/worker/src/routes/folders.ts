@@ -170,21 +170,21 @@ foldersRouter.put('/:id', zValidator('json', updateFolderSchema, zodErrorHook), 
     c.req.param('id'),
     c.req.valid('json'),
   );
-  return c.json({ success: true });
+  return c.body(null, 204);
 });
 
 // POST /:id/star
 foldersRouter.post('/:id/star', async (c) => {
   const folderService = c.get('folderService');
   await folderService.starFolder(c.get('userId'), c.req.param('id'));
-  return c.json({ success: true });
+  return c.body(null, 204);
 });
 
 // POST /:id/unstar
 foldersRouter.post('/:id/unstar', async (c) => {
   const folderService = c.get('folderService');
   await folderService.unstarFolder(c.get('userId'), c.req.param('id'));
-  return c.json({ success: true });
+  return c.body(null, 204);
 });
 
 // DELETE /:id — delete folder or workspace
@@ -196,12 +196,12 @@ foldersRouter.delete('/:id', async (c) => {
   // Try workspace deletion first (owner check inside service)
   const deleted = await folderService.deleteWorkspace(userId, folderId);
   if (deleted) {
-    return c.json({ success: true });
+    return c.body(null, 204);
   }
 
   // Not a workspace (or not owner) — try folder deletion
   await folderService.deleteFolder(userId, folderId);
-  return c.json({ success: true });
+  return c.body(null, 204);
 });
 
 // POST /:id/files — add files to folder or workspace
@@ -212,7 +212,7 @@ foldersRouter.post(
     const folderService = c.get('folderService');
     const { fileIds } = c.req.valid('json');
     await folderService.addFilesToFolder(c.get('userId'), c.req.param('id'), fileIds);
-    return c.json({ success: true });
+    return c.body(null, 204);
   },
 );
 
@@ -236,7 +236,7 @@ foldersRouter.post('/:id/sync', async (c) => {
     }
   }
 
-  return c.json({ success: true });
+  return c.body(null, 204);
 });
 
 // POST /:id/force-sync — force sync a specific folder
@@ -265,5 +265,5 @@ foldersRouter.post('/:id/force-sync', async (c) => {
 
   c.executionCtx.waitUntil(performBackgroundSync(c.env, folderId, driveId, userId));
 
-  return c.json({ success: true });
+  return c.body(null, 204);
 });

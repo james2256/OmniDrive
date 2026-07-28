@@ -105,7 +105,7 @@ describe('POST /auth/change-password', () => {
       updatedHash: null,
     });
     const res = await call({ currentPassword: OLD_PASSWORD, newPassword: NEW_PASSWORD });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(204);
     expect(state.updatedHash).toBeTruthy();
     expect(state.updatedHash).not.toBe(state.passwordHash);
     expect(state.deletedSessions).toContain(`others-except-${SESSION_ID}`);

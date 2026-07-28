@@ -55,7 +55,6 @@ adminRouter.post(
       .insertInvitation({ id, code: finalCode, createdBy: userId, maxUses: max_uses || 1 });
 
     return c.json({
-      success: true,
       invitation: {
         id,
         code: finalCode,
@@ -69,7 +68,7 @@ adminRouter.post(
 
 adminRouter.delete('/invitations/:id', async (c) => {
   await c.get('adminRepo').deleteInvitation(c.req.param('id'));
-  return c.json({ success: true });
+  return c.body(null, 204);
 });
 
 adminRouter.get('/audit-logs', async (c) => {
@@ -115,7 +114,6 @@ adminRouter.post('/users', zValidator('json', adminCreateUserSchema, zodErrorHoo
   });
 
   return c.json({
-    success: true,
     user: {
       id,
       username,
@@ -150,7 +148,7 @@ adminRouter.patch(
       }
     }
 
-    return c.json({ success: true });
+    return c.body(null, 204);
   },
 );
 
@@ -173,7 +171,7 @@ adminRouter.patch(
       await c.get('adminRepo').unblockUser(targetUserId);
     }
 
-    return c.json({ success: true });
+    return c.body(null, 204);
   },
 );
 
@@ -203,5 +201,5 @@ adminRouter.delete('/users/:id', async (c) => {
   }
 
   await c.get('adminRepo').deleteUser(targetUserId);
-  return c.json({ success: true });
+  return c.body(null, 204);
 });

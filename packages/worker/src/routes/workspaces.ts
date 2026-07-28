@@ -34,7 +34,7 @@ workspacesRouter.post(
   async (c) => {
     const { email, role } = c.req.valid('json');
     await c.get('workspaceService').addMember(c.get('userId'), c.req.param('id'), email, role);
-    return c.json({ success: true }, 201);
+    return c.body(null, 201);
   },
 );
 
@@ -43,7 +43,7 @@ workspacesRouter.delete('/:id/members/:targetUserId', async (c) => {
   await c
     .get('workspaceService')
     .removeMember(c.get('userId'), c.req.param('id'), c.req.param('targetUserId'));
-  return c.json({ success: true });
+  return c.body(null, 204);
 });
 
 // GET /:id/audit-logs — owner/manager/auditor only
@@ -81,7 +81,7 @@ workspacesRouter.delete('/:id/policies/:policyId', async (c) => {
   await c
     .get('workspaceService')
     .deletePolicy(c.get('userId'), c.req.param('id'), c.req.param('policyId'));
-  return c.json({ success: true });
+  return c.body(null, 204);
 });
 
 // PATCH /:id/folders/:folderId/metadata — editor required
@@ -93,6 +93,6 @@ workspacesRouter.patch(
     await c
       .get('workspaceService')
       .updateFolderMetadata(c.get('userId'), c.req.param('id'), c.req.param('folderId'), metadata);
-    return c.json({ success: true });
+    return c.body(null, 204);
   },
 );

@@ -34,7 +34,7 @@ automationsRouter.post('/', zValidator('json', createAutomationSchema, zodErrorH
     actions: JSON.stringify(actions),
   });
 
-  return c.json({ id, success: true }, 201);
+  return c.json({ id }, 201);
 });
 
 automationsRouter.patch(
@@ -46,6 +46,6 @@ automationsRouter.patch(
       .get('automationRepo')
       .toggleActive(c.req.param('id'), c.get('userId'), is_active ? IS_ACTIVE : IS_INACTIVE);
     if (!changed) throw new AppError(404, 'Automation rule not found');
-    return c.json({ success: true });
+    return c.body(null, 204);
   },
 );

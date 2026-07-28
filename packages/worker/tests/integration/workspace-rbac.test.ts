@@ -239,7 +239,7 @@ describe('Workspace RBAC (integration)', () => {
       },
       env,
     );
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(204);
 
     const { results: logs } = await env.DB.prepare(
       'SELECT action_type, resource_id FROM audit_logs WHERE workspace_id = ? AND action_type = ?',

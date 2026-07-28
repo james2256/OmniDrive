@@ -19,26 +19,22 @@ export const foldersApi = {
     id: string,
     data: { name?: string; parentId?: string | null; icon?: string; color?: string },
   ) =>
-    request<{ success: boolean }>(`/api/folders/${id}`, {
+    request<void>(`/api/folders/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
-  deleteFolder: (id: string) =>
-    request<{ success: boolean }>(`/api/folders/${id}`, { method: 'DELETE' }),
+  deleteFolder: (id: string) => request<void>(`/api/folders/${id}`, { method: 'DELETE' }),
   getWorkspaceTree: () => request<{ folders: WorkspaceFolder[] }>('/api/folders/tree'),
   addFilesToWorkspace: (id: string, fileIds: string[]) =>
-    request<{ success: boolean }>(`/api/folders/${id}/files`, {
+    request<void>(`/api/folders/${id}/files`, {
       method: 'POST',
       body: JSON.stringify({ fileIds }),
     }),
-  syncWorkspace: (id: string) =>
-    request<{ success: boolean }>(`/api/folders/${id}/sync`, { method: 'POST' }),
+  syncWorkspace: (id: string) => request<void>(`/api/folders/${id}/sync`, { method: 'POST' }),
   forceSyncFolder: (id: string, driveId: string) =>
-    request<{ success: boolean }>(`/api/folders/${id}/force-sync?driveId=${driveId}`, {
+    request<void>(`/api/folders/${id}/force-sync?driveId=${driveId}`, {
       method: 'POST',
     }),
-  starFolder: (id: string) =>
-    request<{ success: boolean }>(`/api/folders/${id}/star`, { method: 'POST' }),
-  unstarFolder: (id: string) =>
-    request<{ success: boolean }>(`/api/folders/${id}/unstar`, { method: 'POST' }),
+  starFolder: (id: string) => request<void>(`/api/folders/${id}/star`, { method: 'POST' }),
+  unstarFolder: (id: string) => request<void>(`/api/folders/${id}/unstar`, { method: 'POST' }),
 };

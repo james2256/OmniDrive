@@ -15,5 +15,5 @@ export const s3Api = {
       body: JSON.stringify({ description, workspaceId }),
     }),
   deleteS3Credential: (id: string) =>
-    request<{ success: boolean }>(`/api/s3-credentials/${id}`, { method: 'DELETE' }),
+    request<void>(`/api/s3-credentials/${id}`, { method: 'DELETE' }),
 };

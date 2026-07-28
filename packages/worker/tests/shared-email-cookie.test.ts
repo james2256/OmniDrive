@@ -112,7 +112,7 @@ describe('shared_email cookie signing', () => {
       executionCtx,
     );
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(204);
     const setCookie = res.headers.get('set-cookie') ?? '';
     expect(setCookie).toContain(`shared_email_${LINK_ID}=`);
     expect(setCookie).not.toContain('visitor@example.com');

@@ -276,7 +276,6 @@ describe('S3 Auth Middleware', () => {
 
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
-    expect(body.success).toBe(true);
     expect(body.userId).toBe(USER_ID);
   });
 
@@ -365,7 +364,6 @@ describe('S3 Auth Middleware', () => {
 
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
-    expect(body.success).toBe(true);
     expect(body.userId).toBe(USER_ID);
   });
 
@@ -589,7 +587,6 @@ describe('S3 Auth Middleware', () => {
 
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
-    expect(body.success).toBe(true);
     expect(body.userId).toBe(USER_ID);
     expect(body.s3WorkspaceId).toBe('workspace-123');
   });
@@ -631,7 +628,6 @@ describe('S3 Auth Middleware', () => {
 
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
-    expect(body.success).toBe(true);
     expect(body.userId).toBe(USER_ID);
     expect(body.s3WorkspaceId).toBe(null);
   });

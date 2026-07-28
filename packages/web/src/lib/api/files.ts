@@ -55,35 +55,31 @@ export const filesApi = {
     }
   },
   moveFile: (id: string, workspaceFolderId?: string | null) =>
-    request<{ success: boolean }>(`/api/files/${id}/move`, {
+    request<void>(`/api/files/${id}/move`, {
       method: 'PATCH',
       body: JSON.stringify({ workspaceFolderId }),
     }),
   renameFile: (id: string, name: string) =>
-    request<{ success: boolean }>(`/api/files/${id}/rename`, {
+    request<void>(`/api/files/${id}/rename`, {
       method: 'PATCH',
       body: JSON.stringify({ name }),
     }),
-  deleteFile: (id: string) =>
-    request<{ success: boolean }>(`/api/files/${id}`, { method: 'DELETE' }),
+  deleteFile: (id: string) => request<void>(`/api/files/${id}`, { method: 'DELETE' }),
   moveFileToDrive: (id: string, targetDriveId: string) =>
     request<{ file: FileEntry }>(`/api/files/${id}/move-drive`, {
       method: 'POST',
       body: JSON.stringify({ targetDriveId }),
     }),
   getTrashFiles: () => request<{ files: FileEntry[]; folders: DriveFolder[] }>('/api/files/trash'),
-  restoreFile: (id: string) =>
-    request<{ success: boolean }>(`/api/files/${id}/restore`, { method: 'POST' }),
+  restoreFile: (id: string) => request<void>(`/api/files/${id}/restore`, { method: 'POST' }),
   deleteFilePermanent: (id: string) =>
-    request<{ success: boolean }>(`/api/files/${id}/permanent`, { method: 'DELETE' }),
+    request<void>(`/api/files/${id}/permanent`, { method: 'DELETE' }),
   getStarred: () =>
     request<{ files: FileEntry[]; folders: WorkspaceFolder[]; driveFolders: DriveFolder[] }>(
       '/api/files/starred',
     ),
-  starFile: (id: string) =>
-    request<{ success: boolean }>(`/api/files/${id}/star`, { method: 'POST' }),
-  unstarFile: (id: string) =>
-    request<{ success: boolean }>(`/api/files/${id}/unstar`, { method: 'POST' }),
+  starFile: (id: string) => request<void>(`/api/files/${id}/star`, { method: 'POST' }),
+  unstarFile: (id: string) => request<void>(`/api/files/${id}/unstar`, { method: 'POST' }),
   getRecentFiles: () =>
     request<{ files: FileEntry[]; folders: WorkspaceFolder[] }>('/api/files/recent'),
   getFileCategoryOverview: () =>
@@ -96,12 +92,12 @@ export const filesApi = {
       others: number;
     }>('/api/files/category-overview'),
   updateFileMetadata: (fileId: string, metadata: Record<string, string>) =>
-    request<{ success: boolean }>(`/api/files/${fileId}/metadata`, {
+    request<void>(`/api/files/${fileId}/metadata`, {
       method: 'PATCH',
       body: JSON.stringify({ metadata }),
     }),
   updateFolderMetadata: (workspaceId: string, folderId: string, metadata: Record<string, string>) =>
-    request<{ success: boolean }>(`/api/workspaces/${workspaceId}/folders/${folderId}/metadata`, {
+    request<void>(`/api/workspaces/${workspaceId}/folders/${folderId}/metadata`, {
       method: 'PATCH',
       body: JSON.stringify({ metadata }),
     }),

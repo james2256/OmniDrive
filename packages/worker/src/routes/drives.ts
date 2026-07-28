@@ -308,7 +308,7 @@ drivesRouter.post(
       c.executionCtx.waitUntil(syncDriveAccount(driveObj, db, driveService));
     }
 
-    return c.json({ success: true, driveId });
+    return c.json({ driveId });
   },
 );
 
@@ -364,7 +364,7 @@ drivesRouter.post('/:id/sync', async (c) => {
   // so the user doesn't have to wait for the entire sync to complete
   c.executionCtx.waitUntil(syncDriveAccount(drive, c.env.DB, driveService));
 
-  return c.json({ success: true });
+  return c.body(null, 204);
 });
 
 // ─── Lazy folder sync endpoint ───
@@ -431,7 +431,7 @@ drivesRouter.delete('/:driveId/folders/:googleFolderId', async (c) => {
     c.req.param('driveId'),
     c.req.param('googleFolderId'),
   );
-  return c.json({ success: true });
+  return c.body(null, 204);
 });
 
 // Restore a trashed Google Drive folder (Google Drive untrash + DB is_trashed=0)
@@ -442,7 +442,7 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/restore', async (c) => {
     c.req.param('driveId'),
     c.req.param('googleFolderId'),
   );
-  return c.json({ success: true });
+  return c.body(null, 204);
 });
 
 // Permanently delete a Google Drive folder (cannot be undone)
@@ -453,7 +453,7 @@ drivesRouter.delete('/:driveId/folders/:googleFolderId/permanent', async (c) => 
     c.req.param('driveId'),
     c.req.param('googleFolderId'),
   );
-  return c.json({ success: true });
+  return c.body(null, 204);
 });
 
 // Create a Google Drive folder (optionally inside a parent folder)
@@ -469,7 +469,7 @@ drivesRouter.post(
       name.trim(),
       parentId || undefined,
     );
-    return c.json({ success: true, googleFolderId });
+    return c.json({ googleFolderId });
   },
 );
 
@@ -481,7 +481,7 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/star', async (c) => {
     c.req.param('driveId'),
     c.req.param('googleFolderId'),
   );
-  return c.json({ success: true });
+  return c.body(null, 204);
 });
 
 // Unstar a Google Drive folder
@@ -492,7 +492,7 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/unstar', async (c) => {
     c.req.param('driveId'),
     c.req.param('googleFolderId'),
   );
-  return c.json({ success: true });
+  return c.body(null, 204);
 });
 
 // Rename a Google Drive folder
@@ -508,7 +508,7 @@ drivesRouter.patch(
       c.req.param('googleFolderId'),
       name,
     );
-    return c.json({ success: true });
+    return c.body(null, 204);
   },
 );
 
@@ -532,13 +532,13 @@ drivesRouter.patch(
         isFolder,
       );
 
-    return c.json({ success: true });
+    return c.body(null, 204);
   },
 );
 
 drivesRouter.delete('/:id', async (c) => {
   await c.get('driveService').disconnectDrive(c.get('userId'), c.req.param('id'));
-  return c.json({ success: true });
+  return c.body(null, 204);
 });
 
 // GET /api/drives/:driveId/folders/:googleFolderId/download-tree

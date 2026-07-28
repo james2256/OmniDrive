@@ -110,9 +110,7 @@ describe('PATCH /files/:id/move', () => {
       } as AppContext['Bindings'],
     );
 
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body).toEqual({ success: true });
+    expect(res.status).toBe(204);
     expect(db.updateBinds()).toEqual([FOLDER_ID, WORKSPACE_ID, FILE_ID, USER_ID]);
   });
 });

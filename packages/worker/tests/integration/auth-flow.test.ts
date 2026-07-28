@@ -79,11 +79,10 @@ describe('Auth flow (integration)', () => {
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
-      success: boolean;
       user: { userId: string; username: string; role: string };
       isSuperAdmin: boolean;
     };
-    expect(body.success).toBe(true);
+    expect(body.user).toBeDefined();
     expect(body.user.username).toBe('alice');
     expect(body.user.role).toBe('super_admin');
     expect(body.isSuperAdmin).toBe(true);
@@ -232,7 +231,7 @@ describe('Auth session security (integration)', () => {
       },
       env,
     );
-    expect(changeRes.status).toBe(200);
+    expect(changeRes.status).toBe(204);
 
     // The other session should be revoked (401)
     const me1 = await app.request(
@@ -283,7 +282,7 @@ describe('Auth session security (integration)', () => {
       },
       env,
     );
-    expect(logoutRes.status).toBe(200);
+    expect(logoutRes.status).toBe(204);
 
     const me = await app.request(
       '/api/auth/me',
@@ -328,7 +327,7 @@ describe('Auth session security (integration)', () => {
       },
       env,
     );
-    expect(revokeRes.status).toBe(200);
+    expect(revokeRes.status).toBe(204);
 
     // Both sessions should be revoked
     const me1 = await app.request(
@@ -493,7 +492,7 @@ describe('Admin delete user — last-super-admin protection (integration)', () =
       },
       env,
     );
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(204);
   });
 
   it('last-admin guard: admin cannot delete the only other super admin (defense-in-depth)', async () => {
@@ -521,7 +520,7 @@ describe('Admin delete user — last-super-admin protection (integration)', () =
       },
       env,
     );
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(204);
   });
 
   it('admin can delete a non-admin member (last-admin guard does not apply)', async () => {
@@ -535,6 +534,6 @@ describe('Admin delete user — last-super-admin protection (integration)', () =
       },
       env,
     );
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(204);
   });
 });

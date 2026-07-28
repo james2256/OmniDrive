@@ -91,7 +91,7 @@ filesRouter.get('/starred', async (c) => {
 filesRouter.delete('/:id', async (c) => {
   const fileService = c.get('fileService');
   await fileService.trashFile(c.get('userId'), c.req.param('id'));
-  return c.json({ success: true });
+  return c.body(null, 204);
 });
 
 // Rename file
@@ -99,7 +99,7 @@ filesRouter.patch('/:id/rename', zValidator('json', renameFileSchema, zodErrorHo
   const fileService = c.get('fileService');
   const { name } = c.req.valid('json');
   await fileService.renameFile(c.get('userId'), c.req.param('id'), name);
-  return c.json({ success: true });
+  return c.body(null, 204);
 });
 
 // Move file to different virtual folder
@@ -111,7 +111,7 @@ filesRouter.patch('/:id/move', zValidator('json', moveFileSchema, zodErrorHook),
     c.req.param('id'),
     workspaceFolderId ?? null,
   );
-  return c.json({ success: true });
+  return c.body(null, 204);
 });
 
 // Move file to another drive
@@ -187,7 +187,6 @@ filesRouter.post(
 
       return c.json({
         file: mapFileRow(updatedFile as unknown as Record<string, unknown>),
-        success: true,
       });
     } catch (error) {
       logError(c, 'Move drive failed', error);
@@ -425,7 +424,7 @@ filesRouter.post(
       ),
     );
 
-    return c.json({ file: mapFileRow(created as Record<string, unknown>), success: true }, 201);
+    return c.json({ file: mapFileRow(created as Record<string, unknown>) }, 201);
   },
 );
 
@@ -439,26 +438,26 @@ filesRouter.get('/trash', async (c) => {
 filesRouter.post('/:id/restore', async (c) => {
   const fileService = c.get('fileService');
   await fileService.restoreFile(c.get('userId'), c.req.param('id'));
-  return c.json({ success: true });
+  return c.body(null, 204);
 });
 
 filesRouter.post('/:id/star', async (c) => {
   const fileService = c.get('fileService');
   await fileService.starFile(c.get('userId'), c.req.param('id'));
-  return c.json({ success: true });
+  return c.body(null, 204);
 });
 
 filesRouter.post('/:id/unstar', async (c) => {
   const fileService = c.get('fileService');
   await fileService.unstarFile(c.get('userId'), c.req.param('id'));
-  return c.json({ success: true });
+  return c.body(null, 204);
 });
 
 // DELETE /api/files/:id/permanent
 filesRouter.delete('/:id/permanent', async (c) => {
   const fileService = c.get('fileService');
   await fileService.permanentDelete(c.get('userId'), c.req.param('id'));
-  return c.json({ success: true });
+  return c.body(null, 204);
 });
 
 filesRouter.patch(
@@ -468,7 +467,7 @@ filesRouter.patch(
     const fileService = c.get('fileService');
     const { metadata } = c.req.valid('json');
     await fileService.updateMetadata(c.get('userId'), c.req.param('id'), metadata);
-    return c.json({ success: true });
+    return c.body(null, 204);
   },
 );
 

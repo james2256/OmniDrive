@@ -162,9 +162,7 @@ describe('S3 Credentials API', () => {
       },
       env,
     );
-    expect(deleteRes.status).toBe(200);
-    const deleteBody = (await deleteRes.json()) as any;
-    expect(deleteBody.success).toBe(true);
+    expect(deleteRes.status).toBe(204);
     expect(deletedId).toBe('cred-123');
   });
 

@@ -64,5 +64,5 @@ s3CredentialsRouter.get('/', async (c) => {
 
 s3CredentialsRouter.delete('/:id', async (c) => {
   await c.get('s3CredentialsRepo').delete(c.req.param('id'), c.get('userId'));
-  return c.json({ success: true });
+  return c.body(null, 204);
 });

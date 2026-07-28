@@ -22,7 +22,7 @@ export const workspacesApi = {
       body: JSON.stringify(data),
     }),
   deleteWorkspacePolicy: (workspaceId: string, policyId: string) =>
-    request<{ success: boolean }>(`/api/workspaces/${workspaceId}/policies/${policyId}`, {
+    request<void>(`/api/workspaces/${workspaceId}/policies/${policyId}`, {
       method: 'DELETE',
     }),
 };

@@ -9,7 +9,7 @@ export const sharedApi = {
     });
   },
   updateSharedLink: async (id: string, payload: Partial<CreateSharedLinkPayload>) => {
-    return request(`/api/shared/${id}`, {
+    return request<void>(`/api/shared/${id}`, {
       method: 'PUT',
       body: JSON.stringify(payload),
     });
@@ -18,7 +18,7 @@ export const sharedApi = {
     return request<{ links: SharedLink[] }>('/api/shared');
   },
   deleteSharedLink: async (id: string) => {
-    return request<{ success: boolean }>(`/api/shared/${id}`, { method: 'DELETE' });
+    return request<void>(`/api/shared/${id}`, { method: 'DELETE' });
   },
   getSharedMeta: async (id: string) => {
     try {
@@ -31,7 +31,7 @@ export const sharedApi = {
     }
   },
   verifySharedPassword: async (id: string, password: string) => {
-    return request<{ success: boolean }>(`/api/shared/${id}/verify`, {
+    return request<void>(`/api/shared/${id}/verify`, {
       method: 'POST',
       body: JSON.stringify({ password }),
     }).catch((error) => {
