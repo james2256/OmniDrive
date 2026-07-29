@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { WorkspaceTreeNode } from '../../../src/components/workspaces/WorkspaceTreeNode';

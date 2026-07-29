@@ -78,6 +78,9 @@ describe('FolderDownloadModal', () => {
       createObjectURL: vi.fn().mockReturnValue('blob:fake-url'),
       revokeObjectURL: vi.fn(),
     });
+    // Suppress jsdom "Not implemented: navigation to another Document" warnings
+    // emitted when the component calls anchor.click() to trigger a download.
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -227,28 +230,19 @@ describe('FolderDownloadModal', () => {
         rootName: 'MyFolder',
       }),
     );
-    const clickSpy = vi.fn();
-    // Stub HTMLAnchorElement.prototype.click so we can assert it fired.
-    const origClick = HTMLAnchorElement.prototype.click;
-    HTMLAnchorElement.prototype.click = clickSpy;
+    render(
+      <FolderDownloadModal
+        open
+        onClose={vi.fn()}
+        driveId="d-1"
+        folderId="f-1"
+        folderName="MyFolder"
+      />,
+    );
 
-    try {
-      render(
-        <FolderDownloadModal
-          open
-          onClose={vi.fn()}
-          driveId="d-1"
-          folderId="f-1"
-          folderName="MyFolder"
-        />,
-      );
-
-      await waitFor(() => {
-        expect(clickSpy).toHaveBeenCalledTimes(1);
-      });
-    } finally {
-      HTMLAnchorElement.prototype.click = origClick;
-    }
+    await waitFor(() => {
+      expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('shows error message when the download-tree fetch fails (Res.ok=false)', async () => {
