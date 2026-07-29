@@ -52,9 +52,9 @@ export function WorkspaceMainView({
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-card min-w-0">
+    <div className="flex-1 flex flex-col h-full min-w-0">
       {/* Header Area */}
-      <div className="px-3 sm:px-6 pt-3 sm:pt-4 pb-3 border-b border-slate-200 flex flex-col gap-2">
+      <div className="p-4 sm:p-6 border-b border-slate-200 flex flex-col gap-2">
         {/* Breadcrumbs + sidebar toggle */}
         <div className="flex items-center text-xs sm:text-sm text-slate-500 gap-2 min-w-0">
           {onToggleSidebar && (
@@ -119,7 +119,7 @@ export function WorkspaceMainView({
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-auto bg-slate-50">
+      <div className="flex-1 overflow-auto">
         {activeTab === 'files' && <WorkspaceFilesTab {...fileTabProps} />}
         {activeTab === 'members' && <WorkspaceMembersTab />}
         {activeTab === 'settings' && <WorkspaceSettingsTab workspaceId={activeFolder.id} />}

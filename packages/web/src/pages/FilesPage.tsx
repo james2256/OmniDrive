@@ -85,7 +85,7 @@ export function FilesPage() {
 
   return (
     <DropZone>
-      <div className="flex flex-col h-full w-full">
+      <div className="p-4 sm:p-6 space-y-6">
         <PageHeader
           title={
             folderId === 'root' ? 'My Drive' : (breadcrumb[breadcrumb.length - 1]?.name ?? 'Folder')
@@ -164,7 +164,7 @@ export function FilesPage() {
             <p className="text-slate-500">Loading folder contents...</p>
           </div>
         ) : drives.length === 0 ? (
-          <div className="text-center p-12 text-slate-500 border rounded-lg bg-card m-4 flex flex-col items-center shadow-sm">
+          <div className="text-center p-12 text-slate-500 border rounded-xl bg-card flex flex-col items-center">
             <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
               <Info size={24} className="text-slate-500" />
             </div>
@@ -183,7 +183,7 @@ export function FilesPage() {
             </Button>
           </div>
         ) : (
-          <div className="flex-1 overflow-auto bg-card rounded-lg border border-slate-200 m-4 shadow-sm">
+          <div className="flex-1 bg-card rounded-xl border border-slate-200 overflow-hidden">
             <FileGrid
               files={filteredFiles}
               subfolders={filteredSubfolders}

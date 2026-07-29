@@ -121,7 +121,7 @@ export function ExternalPage() {
   const getDriveInfo = useGetDriveInfo(drives);
 
   return (
-    <div className="flex flex-col h-full w-full">
+    <div className="p-4 sm:p-6 space-y-6">
       <PageHeader
         title={
           folderId ? (breadcrumb[breadcrumb.length - 1]?.name ?? 'Folder') : 'My External Items'
@@ -154,63 +154,61 @@ export function ExternalPage() {
         breadcrumb={<Breadcrumb items={breadcrumb} driveId={driveIdParam || undefined} />}
       />
 
-      <div className="p-4 sm:p-6 space-y-6">
-        {isLoading ? (
-          <div className="flex justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      {isLoading ? (
+        <div className="flex justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        </div>
+      ) : (isTopLevel ? externalInfinite.error : folderQuery.error) ? (
+        <ErrorState
+          onRetry={() => (isTopLevel ? externalInfinite.refetch() : folderQuery.refetch())}
+        />
+      ) : filteredSubfolders.length > 0 || filteredFiles.length > 0 ? (
+        <>
+          <div className="bg-card rounded-xl border border-slate-200 overflow-hidden">
+            <FileGrid
+              files={filteredFiles}
+              subfolders={filteredSubfolders}
+              getDriveInfo={getDriveInfo}
+              isTargetShared={isTargetShared}
+              errorDrives={new Set<string>()}
+              actions={{
+                onNavigateFolder: (id: string, driveId: string) =>
+                  navigate(`/external/${id}?driveId=${driveId}`),
+                onPreviewFile: itemModals.setPreviewFile,
+                onShare: (id: string, type: 'file' | 'folder') =>
+                  itemModals.setShareTarget({ id, type }),
+                onRenameFileRequest: itemModals.handleRenameFileRequest,
+                onRenameFolderRequest: itemModals.handleRenameFolderRequest,
+                onDeleteFile: itemModals.handleDeleteFile,
+                onDeleteFolder: itemModals.handleDeleteFolder,
+                onDownloadFolder: (driveId: string, folderId: string, name: string) =>
+                  itemModals.setFolderDownloadTarget({ driveId, folderId, name }),
+                onMove: (items: SelectedItem[]) => itemModals.setMoveTarget(items),
+                onViewInfo: itemModals.handleViewInfo,
+                onToggleStar: itemModals.toggleStar,
+              }}
+            />
           </div>
-        ) : (isTopLevel ? externalInfinite.error : folderQuery.error) ? (
-          <ErrorState
-            onRetry={() => (isTopLevel ? externalInfinite.refetch() : folderQuery.refetch())}
-          />
-        ) : filteredSubfolders.length > 0 || filteredFiles.length > 0 ? (
-          <>
-            <div className="bg-card rounded-xl border border-slate-200 overflow-hidden">
-              <FileGrid
-                files={filteredFiles}
-                subfolders={filteredSubfolders}
-                getDriveInfo={getDriveInfo}
-                isTargetShared={isTargetShared}
-                errorDrives={new Set<string>()}
-                actions={{
-                  onNavigateFolder: (id: string, driveId: string) =>
-                    navigate(`/external/${id}?driveId=${driveId}`),
-                  onPreviewFile: itemModals.setPreviewFile,
-                  onShare: (id: string, type: 'file' | 'folder') =>
-                    itemModals.setShareTarget({ id, type }),
-                  onRenameFileRequest: itemModals.handleRenameFileRequest,
-                  onRenameFolderRequest: itemModals.handleRenameFolderRequest,
-                  onDeleteFile: itemModals.handleDeleteFile,
-                  onDeleteFolder: itemModals.handleDeleteFolder,
-                  onDownloadFolder: (driveId: string, folderId: string, name: string) =>
-                    itemModals.setFolderDownloadTarget({ driveId, folderId, name }),
-                  onMove: (items: SelectedItem[]) => itemModals.setMoveTarget(items),
-                  onViewInfo: itemModals.handleViewInfo,
-                  onToggleStar: itemModals.toggleStar,
-                }}
-              />
+          {hasMore && (
+            <div className="flex justify-center mt-4">
+              <Button
+                variant="ghost"
+                onClick={() => externalInfinite.fetchNextPage()}
+                disabled={externalInfinite.isFetchingNextPage}
+                className="text-primary bg-primary/10 border border-primary/20 hover:bg-primary/20"
+              >
+                {externalInfinite.isFetchingNextPage ? 'Loading...' : 'Load More'}
+              </Button>
             </div>
-            {hasMore && (
-              <div className="flex justify-center mt-4">
-                <Button
-                  variant="ghost"
-                  onClick={() => externalInfinite.fetchNextPage()}
-                  disabled={externalInfinite.isFetchingNextPage}
-                  className="text-primary bg-primary/10 border border-primary/20 hover:bg-primary/20"
-                >
-                  {externalInfinite.isFetchingNextPage ? 'Loading...' : 'Load More'}
-                </Button>
-              </div>
-            )}
-          </>
-        ) : (
-          <EmptyState
-            icon={FolderInput}
-            title="No external items"
-            description="Files and folders shared with you will appear here"
-          />
-        )}
-      </div>
+          )}
+        </>
+      ) : (
+        <EmptyState
+          icon={FolderInput}
+          title="No external items"
+          description="Files and folders shared with you will appear here"
+        />
+      )}
 
       {/* Shared file/folder modals (preview, share, rename, delete, move, etc.) */}
       <ItemModals

@@ -216,7 +216,7 @@ export function WorkspacesPage() {
   );
 
   return (
-    <div className="flex h-full w-full overflow-hidden bg-card relative">
+    <div className="flex h-full w-full overflow-hidden relative">
       {/* Mobile backdrop */}
       {wsSidebarOpen && (
         <div
