@@ -19,6 +19,7 @@ import { qk } from '../lib/queryKeys';
 import type { FileEntry } from '../types';
 import { useToggleStar } from '../hooks/useFileMutations';
 import {
+  Home,
   HardDrive,
   RefreshCw,
   Clock,
@@ -37,6 +38,7 @@ import {
   Users,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
+import { PageHeader } from '../components/layout/PageHeader';
 
 type CategoryOverview = {
   images: number;
@@ -153,33 +155,31 @@ export function DashboardPage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
-      {/* Greeting + refresh */}
-      <div className="flex items-center justify-between gap-2 sm:gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-semibold text-slate-800">
-            {greeting()}
-            {user ? `, ${firstName(user.name)}` : ''}
-          </h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            {hasDrives
-              ? `${driveCount} drive${driveCount > 1 ? 's' : ''} connected · ${formatFileSize(totalFree)} free`
-              : 'Connect a Google Drive to get started'}
-          </p>
-        </div>
-        <Button
-          aria-label="Refresh dashboard"
-          variant="secondary"
-          className="gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm rounded-lg hover:bg-slate-50 flex-shrink-0"
-          onClick={() => {
-            queryClient.invalidateQueries({ queryKey: qk.recent });
-            queryClient.invalidateQueries({ queryKey: qk.category });
-            addToast('info', 'Refreshed');
-          }}
-        >
-          <RefreshCw size={14} />
-          <span className="hidden sm:inline">Refresh</span>
-        </Button>
-      </div>
+      <PageHeader
+        title={`${greeting()}${user ? `, ${firstName(user.name)}` : ''}`}
+        icon={Home}
+        description={
+          hasDrives
+            ? `${driveCount} drive${driveCount > 1 ? 's' : ''} connected · ${formatFileSize(totalFree)} free`
+            : 'Connect a Google Drive to get started'
+        }
+        actions={
+          <Button
+            aria-label="Refresh dashboard"
+            variant="secondary"
+            className="gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm rounded-lg hover:bg-slate-50 flex-shrink-0"
+            onClick={() => {
+              queryClient.invalidateQueries({ queryKey: qk.recent });
+              queryClient.invalidateQueries({ queryKey: qk.category });
+              addToast('info', 'Refreshed');
+            }}
+          >
+            <RefreshCw size={14} />
+            <span className="hidden sm:inline">Refresh</span>
+          </Button>
+        }
+        bordered={false}
+      />
 
       {/* Loading skeleton — matches bento shape */}
       {isLoading && (

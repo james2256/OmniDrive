@@ -120,6 +120,10 @@ vi.mock('lucide-react', () => ({
   Star: () => <svg data-testid="star-icon" />,
 }));
 
+vi.mock('../components/layout/FilesToolbar', () => ({
+  FilesToolbar: () => null,
+}));
+
 describe('StarredPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();

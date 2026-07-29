@@ -4,12 +4,13 @@ import { useUploadStore } from '../stores/useUploadStore';
 import { authApi } from '../lib/api/auth';
 import { useDrives, useGetDriveInfo } from '../hooks/useDrives';
 import { Breadcrumb } from '../components/Breadcrumb';
+import { PageHeader } from '../components/layout/PageHeader';
 import { FileGrid } from '../components/files/FileGrid';
 import { DropZone } from '../components/DropZone';
 import { UploadModal } from '../components/UploadModal';
 import { CreateFolderModal } from '../components/CreateFolderModal';
 import { ItemModals } from '../components/files/ItemModals';
-import { Upload, FolderPlus, Info } from 'lucide-react';
+import { Upload, FolderPlus, Info, HardDrive } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { useToastStore } from '../stores/useToastStore';
 import { useSharedLinks, useIsTargetSharedCallback } from '../hooks/useSharedLinks';
@@ -85,6 +86,12 @@ export function FilesPage() {
   return (
     <DropZone>
       <div className="flex flex-col h-full w-full">
+        <PageHeader
+          title={
+            folderId === 'root' ? 'My Drive' : (breadcrumb[breadcrumb.length - 1]?.name ?? 'Folder')
+          }
+          icon={HardDrive}
+        />
         {/* Toolbar */}
         <FilesToolbar
           searchQuery={searchQuery}

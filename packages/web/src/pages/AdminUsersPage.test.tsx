@@ -31,6 +31,7 @@ vi.mock('lucide-react', () => ({
   TriangleAlert: () => <div data-testid="triangle-alert-icon" />,
   LoaderCircle: () => <div data-testid="loader-circle-icon" />,
   UserPlus: () => <div data-testid="user-plus-icon" />,
+  UserCog: () => <div data-testid="user-cog-icon" />,
 }));
 
 vi.mock('../components/ui/dropdown-menu', () => ({

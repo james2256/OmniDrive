@@ -48,17 +48,10 @@ export function FileGrid(props: FileGridProps) {
     [files, sortField, sortDirection],
   );
 
-  const uniqueDriveCount = React.useMemo(() => {
-    const ids = new Set<string>();
-    for (const file of files) {
-      if (file.driveAccountId) ids.add(file.driveAccountId);
-    }
-    for (const folder of subfolders) {
-      if ('driveAccountId' in folder && folder.driveAccountId) ids.add(folder.driveAccountId);
-    }
-    return ids.size;
-  }, [files, subfolders]);
-  const showDriveColumn = showDriveColumnProp ?? uniqueDriveCount > 1;
+  // Drive column always shows by default — users want to see which drive each
+  // item belongs to, even when all items in the view are from the same drive.
+  // Pages can still opt out via `showDriveColumn={false}`.
+  const showDriveColumn = showDriveColumnProp ?? true;
 
   const renderDriveBadge = (driveAccountId?: string, fallbackEmail?: string) => {
     if (!driveAccountId) return null;

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { ComponentProps } from 'react';
-import { FolderPlus, RefreshCw, ChevronRight, PanelLeft } from 'lucide-react';
+import { FolderPlus, RefreshCw, ChevronRight, PanelLeft, FolderTree } from 'lucide-react';
 import type { WorkspaceFolder, BreadcrumbItem } from '../../types';
 import { WorkspaceFilesTab } from './WorkspaceFilesTab';
 import { WorkspaceMembersTab } from './WorkspaceMembersTab';
@@ -77,9 +77,12 @@ export function WorkspaceMainView({
 
         {/* Title & Actions */}
         <div className="flex items-center justify-between gap-2">
-          <h1 className="text-lg sm:text-2xl font-semibold text-slate-900 truncate">
-            {activeFolder.name}
-          </h1>
+          <div className="flex items-center gap-2 min-w-0">
+            <FolderTree size={20} className="text-slate-400 flex-shrink-0" aria-hidden />
+            <h1 className="text-xl sm:text-2xl font-semibold text-slate-800 truncate">
+              {activeFolder.name}
+            </h1>
+          </div>
           <div className="flex gap-1.5 sm:gap-2 flex-shrink-0">
             <Button
               onClick={onCreateFolder}

@@ -188,7 +188,7 @@ describe('FilesPage', () => {
     render(<FilesPage />);
 
     expect(screen.getByTestId('breadcrumb')).toBeTruthy();
-    expect(screen.getByText('My Drive')).toBeTruthy();
+    expect(screen.getAllByText('My Drive').length).toBeGreaterThan(0);
     expect(screen.getByTestId('file-grid')).toBeTruthy();
     expect(screen.getByTestId('drop-zone')).toBeTruthy();
     // Upload button: desktop version has text, mobile version has title

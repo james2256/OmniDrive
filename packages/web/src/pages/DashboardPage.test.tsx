@@ -79,6 +79,7 @@ vi.mock('recharts', () => ({
 }));
 
 vi.mock('lucide-react', () => ({
+  Home: () => <svg data-testid="home-icon" />,
   HardDrive: () => <svg data-testid="hdd-icon" />,
   RefreshCw: () => <svg data-testid="refresh-icon" />,
   Clock: () => <svg data-testid="clock-icon" />,

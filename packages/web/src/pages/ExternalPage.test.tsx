@@ -342,8 +342,8 @@ describe('ExternalPage', () => {
     render(<ExternalPage />);
     expect(screen.getByText('in-folder.pdf')).toBeTruthy();
     expect(screen.getByText('Sub Folder')).toBeTruthy();
-    expect(screen.getByText('My External Items')).toBeTruthy();
-    expect(screen.getByText('Folder 1')).toBeTruthy();
+    expect(screen.getAllByText('My External Items').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Folder 1').length).toBeGreaterThan(0);
   });
 
   it('renders loading state at folder level while folder query is loading', () => {

@@ -9,6 +9,7 @@ import { FilesToolbar } from '../components/layout/FilesToolbar';
 import { ItemModals } from '../components/files/ItemModals';
 import { ErrorState } from '../components/ErrorState';
 import { EmptyState } from '../components/EmptyState';
+import { PageHeader } from '../components/layout/PageHeader';
 import { FolderInput } from 'lucide-react';
 import { drivesApi } from '../lib/api/drives';
 import { useDrives, useGetDriveInfo } from '../hooks/useDrives';
@@ -121,6 +122,13 @@ export function ExternalPage() {
 
   return (
     <div className="flex flex-col h-full w-full">
+      <PageHeader
+        title={
+          folderId ? (breadcrumb[breadcrumb.length - 1]?.name ?? 'Folder') : 'My External Items'
+        }
+        icon={FolderInput}
+        description={folderId ? undefined : 'Files and folders shared with you or in other drives'}
+      />
       <FilesToolbar
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}

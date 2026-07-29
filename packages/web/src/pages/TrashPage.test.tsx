@@ -122,6 +122,10 @@ vi.mock('lucide-react', () => ({
   Trash2: () => <svg data-testid="trash-icon" />,
 }));
 
+vi.mock('../components/layout/FilesToolbar', () => ({
+  FilesToolbar: () => null,
+}));
+
 describe('TrashPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();

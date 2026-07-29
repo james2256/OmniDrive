@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useToastStore } from '../stores/useToastStore';
-import { ShieldAlert, Plus, EllipsisVertical, UserPlus } from 'lucide-react';
+import { ShieldAlert, Plus, EllipsisVertical, UserPlus, UserCog } from 'lucide-react';
 import type { AdminUser } from '../types';
 import { adminApi } from '../lib/api/admin';
 import type { Invitation } from '../types';
@@ -21,6 +21,7 @@ import {
   DropdownMenuSeparator,
 } from '../components/ui/dropdown-menu';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { PageHeader } from '../components/layout/PageHeader';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { ListSkeleton } from '../components/EmptyState';
@@ -292,9 +293,24 @@ export const AdminUsersPage: React.FC = () => {
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl sm:text-2xl font-semibold text-slate-800">Users</h1>
-      </div>
+      <PageHeader
+        title="Users"
+        icon={UserCog}
+        description="Manage admin users and invitation codes"
+        actions={
+          activeTab === 'users' && (
+            <Button
+              variant="primary"
+              size="md"
+              className="rounded-md gap-1"
+              onClick={() => setIsAddUserModalOpen(true)}
+            >
+              <Plus size={18} />
+              <span className="hidden sm:inline">Add User</span>
+            </Button>
+          )
+        }
+      />
 
       <div className="flex border-b border-slate-200 mb-4 sm:mb-6 gap-4 sm:gap-6">
         <Button
@@ -316,18 +332,6 @@ export const AdminUsersPage: React.FC = () => {
       <div className="flex-1 overflow-y-auto">
         {activeTab === 'users' && (
           <div>
-            <div className="flex justify-end mb-4">
-              <Button
-                variant="primary"
-                size="md"
-                className="rounded-md"
-                onClick={() => setIsAddUserModalOpen(true)}
-              >
-                <Plus size={20} />
-                <span>Add User</span>
-              </Button>
-            </div>
-
             <div className="bg-card border border-slate-200 rounded-lg overflow-hidden overflow-x-auto">
               {isLoadingUsers ? (
                 <div className="p-4 sm:p-6">

@@ -1,6 +1,8 @@
-import { useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { PageHeader } from '../components/layout/PageHeader';
+import { FilesToolbar } from '../components/layout/FilesToolbar';
 import { FileGrid } from '../components/files/FileGrid';
 import { BulkActionBar } from '../components/layout/BulkActionBar';
 import { ItemModals } from '../components/files/ItemModals';
@@ -10,6 +12,7 @@ import { useSharedLinks, useIsTargetSharedCallback } from '../hooks/useSharedLin
 import { useItemModals } from '../hooks/useItemModals';
 import { qk } from '../lib/queryKeys';
 import { useSelectionStore } from '../stores/useSelectionStore';
+import { useUIStore } from '../stores/useUIStore';
 import type { FileEntry } from '../types';
 import { EmptyState, ListSkeleton } from '../components/EmptyState';
 import { ErrorState } from '../components/ErrorState';
@@ -23,6 +26,8 @@ export function StarredPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { selectedItems } = useSelectionStore();
+  const { viewMode, setViewMode, isInfoPanelOpen, toggleInfoPanel } = useUIStore();
+  const [searchQuery, setSearchQuery] = useState('');
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.starred,
@@ -33,6 +38,13 @@ export function StarredPage() {
   const wsFolders = data?.folders ?? [];
   const driveFolders = data?.driveFolders ?? [];
   const allFolders = [...wsFolders, ...driveFolders];
+
+  const filteredFiles = files.filter((f) =>
+    f.name.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
+  const filteredFolders = allFolders.filter((f) =>
+    f.name.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
 
   const refresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: qk.starred });
@@ -49,33 +61,45 @@ export function StarredPage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl sm:text-2xl font-semibold text-slate-800">Starred</h1>
-      </div>
+      <PageHeader
+        title="Starred"
+        icon={Star}
+        description="Files and folders you've starred for quick access"
+      />
 
-      <BulkActionBar
-        onActionComplete={refresh}
-        onMoveRequested={() => itemModals.setMoveTarget(selectedItems)}
-        onMoveDriveRequested={() => {
-          const fileItems = selectedItems
-            .filter((i) => i.type === 'file')
-            .map((i) => i.item as FileEntry);
-          itemModals.setMoveDriveFiles(fileItems);
-        }}
+      <FilesToolbar
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        viewMode={viewMode}
+        setViewMode={setViewMode}
+        isInfoPanelOpen={isInfoPanelOpen}
+        toggleInfoPanel={toggleInfoPanel}
+        bulkActionBar={
+          <BulkActionBar
+            onActionComplete={refresh}
+            onMoveRequested={() => itemModals.setMoveTarget(selectedItems)}
+            onMoveDriveRequested={() => {
+              const fileItems = selectedItems
+                .filter((i) => i.type === 'file')
+                .map((i) => i.item as FileEntry);
+              itemModals.setMoveDriveFiles(fileItems);
+            }}
+          />
+        }
       />
 
       {isLoading ? (
         <ListSkeleton rows={6} />
       ) : error ? (
         <ErrorState onRetry={() => refetch()} />
-      ) : files.length > 0 || allFolders.length > 0 ? (
+      ) : filteredFiles.length > 0 || filteredFolders.length > 0 ? (
         <div className="bg-card rounded-xl border border-slate-200 overflow-hidden">
           <FileGrid
-            files={files}
-            subfolders={allFolders}
+            files={filteredFiles}
+            subfolders={filteredFolders}
             getDriveInfo={getDriveInfo}
             isTargetShared={isTargetShared}
-            viewMode="list"
+            viewMode={viewMode}
             actions={{
               // Double-click on a folder navigates to the appropriate view.
               // driveId='virtual' for workspace folders, real drive id for

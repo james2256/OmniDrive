@@ -18,6 +18,7 @@ import { useSharedLinks, useRevokeSharedLink } from '../hooks/useSharedLinks';
 import { useClipboard } from '../hooks/useClipboard';
 import { EmptyState, ListSkeleton } from '../components/EmptyState';
 import { ErrorState } from '../components/ErrorState';
+import { PageHeader } from '../components/layout/PageHeader';
 import { Button } from '../components/ui/Button';
 import type { SharedLink } from '../types';
 import { formatAbsoluteDate } from '../lib/utils';
@@ -47,14 +48,11 @@ export function SharedLinksPage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-semibold text-slate-800">Shared Links</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            Manage files and folders you have shared with others.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Shared Links"
+        icon={LinkIcon}
+        description="Manage files and folders you have shared with others"
+      />
 
       {isLoading ? (
         <ListSkeleton rows={4} />

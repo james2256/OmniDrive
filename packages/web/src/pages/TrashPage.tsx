@@ -1,11 +1,14 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { PageHeader } from '../components/layout/PageHeader';
+import { FilesToolbar } from '../components/layout/FilesToolbar';
 import { FileGrid } from '../components/files/FileGrid';
 import { BulkActionBar } from '../components/layout/BulkActionBar';
 import { filesApi } from '../lib/api/files';
 import { useDrives, useGetDriveInfo } from '../hooks/useDrives';
 import { useSharedLinks, useIsTargetSharedCallback } from '../hooks/useSharedLinks';
 import { qk } from '../lib/queryKeys';
+import { useUIStore } from '../stores/useUIStore';
 import type { FileEntry } from '../types';
 import { FilePreviewModal } from '../components/FilePreviewModal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -20,6 +23,8 @@ export function TrashPage() {
   const drives = useMemo(() => drivesData?.drives ?? [], [drivesData]);
   const { data: sharedLinks = [] } = useSharedLinks();
   const isTargetShared = useIsTargetSharedCallback(sharedLinks);
+  const { viewMode, setViewMode, isInfoPanelOpen, toggleInfoPanel } = useUIStore();
+  const [searchQuery, setSearchQuery] = useState('');
 
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
   const [confirmFileDelete, setConfirmFileDelete] = useState<string | null>(null);
@@ -36,6 +41,13 @@ export function TrashPage() {
   const fileResults = data?.files ?? [];
   const folderResults = data?.folders ?? [];
 
+  const filteredFiles = fileResults.filter((f) =>
+    f.name.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
+  const filteredFolders = folderResults.filter((f) =>
+    f.name.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
+
   const restoreFileMut = useRestoreFile();
   const permanentDeleteFileMut = usePermanentDeleteFile();
   const restoreDriveFolderMut = useRestoreDriveFolder();
@@ -50,15 +62,25 @@ export function TrashPage() {
 
   const getDriveInfo = useGetDriveInfo(drives);
 
-  const hasItems = fileResults.length > 0 || folderResults.length > 0;
+  const hasItems = filteredFiles.length > 0 || filteredFolders.length > 0;
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl sm:text-2xl font-semibold text-slate-800">Trash</h1>
-      </div>
+      <PageHeader
+        title="Trash"
+        icon={Trash2}
+        description="Deleted files and folders — permanently removed after 30 days"
+      />
 
-      <BulkActionBar isTrashView={true} onActionComplete={() => {}} />
+      <FilesToolbar
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        viewMode={viewMode}
+        setViewMode={setViewMode}
+        isInfoPanelOpen={isInfoPanelOpen}
+        toggleInfoPanel={toggleInfoPanel}
+        bulkActionBar={<BulkActionBar isTrashView={true} onActionComplete={() => {}} />}
+      />
 
       {isLoading ? (
         <ListSkeleton rows={6} />
@@ -67,11 +89,11 @@ export function TrashPage() {
       ) : hasItems ? (
         <div className="bg-card rounded-xl border border-slate-200 overflow-hidden">
           <FileGrid
-            files={fileResults}
-            subfolders={folderResults}
+            files={filteredFiles}
+            subfolders={filteredFolders}
             getDriveInfo={getDriveInfo}
             isTargetShared={isTargetShared}
-            viewMode="list"
+            viewMode={viewMode}
             isTrashView={true}
             actions={{
               onPreviewFile: setPreviewFile,
