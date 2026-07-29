@@ -1,0 +1,382 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { FileRepository } from '../src/repositories/file.repository';
+
+/**
+ * Direct unit tests for FileRepository. Verifies SQL fragments and bind values
+ * for each public method. Complementary to integration/repositories.test.ts.
+ *
+ * NOTE: the task spec referenced methods named `insert`, `starFile`, `unstarFile`,
+ * and `permanentDelete` — none of those exact names exist. The actual exports
+ * are `insertUploaded`, `star`, `unstar`, and `delete`. Tests cover the actual
+ * exports. (`star`/`unstar` return Promise<boolean> based on meta.changes; `delete`
+ * returns the D1Result without a cascade.)
+ */
+
+describe('FileRepository', () => {
+  let repo: FileRepository;
+  let mockPrepare: ReturnType<typeof vi.fn>;
+  let mockBind: ReturnType<typeof vi.fn>;
+  let mockAll: ReturnType<typeof vi.fn>;
+  let mockFirst: ReturnType<typeof vi.fn>;
+  let mockRun: ReturnType<typeof vi.fn>;
+  let mockBatch: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAll = vi.fn().mockResolvedValue({ results: [] });
+    mockFirst = vi.fn().mockResolvedValue(null);
+    mockRun = vi.fn().mockResolvedValue({ success: true, meta: { changes: 1 } });
+    mockBind = vi.fn().mockReturnValue({ all: mockAll, first: mockFirst, run: mockRun });
+    mockPrepare = vi.fn().mockReturnValue({
+      bind: mockBind,
+      all: mockAll,
+      first: mockFirst,
+      run: mockRun,
+    });
+    mockBatch = vi
+      .fn()
+      .mockImplementation(async (stmts: unknown[]) =>
+        stmts.map(() => ({ success: true, meta: { changes: 1 } })),
+      );
+    const mockDb = { prepare: mockPrepare, batch: mockBatch } as any;
+    repo = new FileRepository(mockDb);
+  });
+
+  // ─── reads ───
+
+  describe('findById', () => {
+    it('selects * by file id (single bind)', async () => {
+      mockFirst.mockResolvedValueOnce({ id: 'f-1', name: 'doc.pdf' });
+
+      const result = await repo.findById('f-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain('SELECT * FROM files WHERE id = ?');
+      expect(mockBind).toHaveBeenCalledWith('f-1');
+      expect(result).toEqual(expect.objectContaining({ id: 'f-1' }));
+    });
+  });
+
+  describe('findRecent', () => {
+    it('uses a UNION CTE with per-branch LIMIT (5 binds: userId, limit x3, userId, limit)', async () => {
+      mockAll.mockResolvedValueOnce({ results: [{ id: 'f-1' }] });
+
+      await repo.findRecent('u-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain('WITH branch1 AS');
+      expect(sql).toContain('branch2 AS');
+      expect(sql).toContain('UNION');
+      expect(sql).toContain(
+        'ORDER BY COALESCE(f.google_modified_at, f.synced_at, f.updated_at) DESC',
+      );
+      // Default limit=20; binds: [userId, limit, userId, limit, limit]
+      expect(mockBind).toHaveBeenCalledWith('u-1', 20, 'u-1', 20, 20);
+    });
+
+    it('passes a custom limit through to both branches + the outer query', async () => {
+      await repo.findRecent('u-1', 50);
+      expect(mockBind).toHaveBeenCalledWith('u-1', 50, 'u-1', 50, 50);
+    });
+  });
+
+  describe('findStarred', () => {
+    it('selects starred non-trashed files for a user, JOIN drive_accounts', async () => {
+      mockAll.mockResolvedValueOnce({ results: [{ id: 'f-1', is_starred: 1 }] });
+
+      await repo.findStarred('u-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain('f.is_starred = 1');
+      expect(sql).toContain('f.is_trashed = 0');
+      expect(sql).toContain('JOIN drive_accounts d');
+      expect(sql).toContain('ORDER BY f.created_at DESC');
+      expect(mockBind).toHaveBeenCalledWith('u-1');
+    });
+  });
+
+  describe('findTrashed', () => {
+    it('selects trashed files for a user, ORDER BY updated_at DESC', async () => {
+      mockAll.mockResolvedValueOnce({ results: [{ id: 'f-1', is_trashed: 1 }] });
+
+      await repo.findTrashed('u-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain('f.is_trashed = 1');
+      expect(sql).toContain('ORDER BY f.updated_at DESC');
+      expect(mockBind).toHaveBeenCalledWith('u-1');
+    });
+  });
+
+  describe('searchFiles', () => {
+    it('selects with just userId + default limit when no query/workspace/metadata', async () => {
+      mockAll.mockResolvedValueOnce({ results: [] });
+
+      await repo.searchFiles('u-1', null, null, null);
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain('SELECT * FROM (');
+      expect(sql).toContain('UNION');
+      // binds: [userId, userId, limit=50]
+      expect(mockBind).toHaveBeenCalledWith('u-1', 'u-1', 50);
+    });
+
+    it('appends LIKE clause + bind when query is provided', async () => {
+      await repo.searchFiles('u-1', 'report', null, null);
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain('AND f.name LIKE ?');
+      // binds: [userId, '%report%', userId, '%report%', limit]
+      expect(mockBind).toHaveBeenCalledWith('u-1', '%report%', 'u-1', '%report%', 50);
+    });
+
+    it('trims the query before wrapping in %...', async () => {
+      await repo.searchFiles('u-1', '  spaced  ', null, null);
+      expect(mockBind).toHaveBeenCalledWith('u-1', '%spaced%', 'u-1', '%spaced%', 50);
+    });
+
+    it('appends workspace_id filter when workspaceId is set', async () => {
+      await repo.searchFiles('u-1', null, 'ws-1', null);
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain('AND f.workspace_id = ?');
+      // binds: [userId, 'ws-1', userId, 'ws-1', limit]
+      expect(mockBind).toHaveBeenCalledWith('u-1', 'ws-1', 'u-1', 'ws-1', 50);
+    });
+
+    it('appends json_extract filter for each metadata key', async () => {
+      await repo.searchFiles('u-1', null, null, { author: 'alice', type: 'pdf' });
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      // json_extract appears once per metadata entry.
+      expect(sql).toContain("json_extract(f.metadata, '$.' || ?) = ?");
+      // The metadata filter is applied to BOTH branches — each key/value appears twice in binds.
+      // binds: [userId, 'author', 'alice', 'type', 'pdf', userId, 'author', 'alice', 'type', 'pdf', limit]
+      const binds = mockBind.mock.calls[0];
+      expect(binds).toHaveLength(11);
+      expect(binds[0]).toBe('u-1');
+      expect(binds[1]).toBe('author');
+      expect(binds[2]).toBe('alice');
+      expect(binds[3]).toBe('type');
+      expect(binds[4]).toBe('pdf');
+      expect(binds[5]).toBe('u-1'); // second branch user_id
+      expect(binds[10]).toBe(50); // limit
+    });
+
+    it('rejects metadata keys with non-alphanumeric/underscore/dot chars (injection guard)', async () => {
+      await repo.searchFiles('u-1', null, null, { 'evil; DROP--': 'value' });
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      // The malicious key is rejected by the /^[a-zA-Z0-9_.]+$/ guard — no json_extract added.
+      expect(sql).not.toContain('json_extract');
+      // binds: [userId, userId, limit] (no metadata binds)
+      expect(mockBind).toHaveBeenCalledWith('u-1', 'u-1', 50);
+    });
+
+    it('passes a custom limit through (default 50)', async () => {
+      await repo.searchFiles('u-1', null, null, null, 25);
+      expect(mockBind).toHaveBeenCalledWith('u-1', 'u-1', 25);
+    });
+  });
+
+  // ─── mutations ───
+
+  describe('insertUploaded', () => {
+    it('INSERTs the file then re-fetches via SELECT (2 prepare calls)', async () => {
+      mockFirst.mockResolvedValueOnce({ id: 'f-1', name: 'doc.pdf' });
+
+      const result = await repo.insertUploaded({
+        id: 'f-1',
+        userId: 'u-1',
+        driveAccountId: 'd-1',
+        workspaceId: 'ws-1',
+        workspaceFolderId: null,
+        googleFileId: 'g-1',
+        googleParentId: 'root',
+        name: 'doc.pdf',
+        mimeType: 'application/pdf',
+        size: 1024,
+        thumbnailUrl: null,
+        webViewLink: null,
+        webContentLink: null,
+        googleCreatedAt: '2026-01-01',
+        googleModifiedAt: '2026-01-02',
+      });
+
+      // 2 prepare calls: INSERT + SELECT
+      expect(mockPrepare).toHaveBeenCalledTimes(2);
+      const insertSql = mockPrepare.mock.calls[0][0] as string;
+      expect(insertSql).toContain('INSERT INTO files');
+      expect(insertSql).toContain("datetime('now')");
+      // 15 binds for INSERT
+      expect(mockBind).toHaveBeenNthCalledWith(
+        1,
+        'f-1',
+        'u-1',
+        'd-1',
+        'ws-1',
+        null,
+        'g-1',
+        'root',
+        'doc.pdf',
+        'application/pdf',
+        1024,
+        null,
+        null,
+        null,
+        '2026-01-01',
+        '2026-01-02',
+      );
+      // 2nd call: SELECT * to return the inserted row.
+      const selectSql = mockPrepare.mock.calls[1][0] as string;
+      expect(selectSql).toContain('SELECT * FROM files WHERE id = ?');
+      expect(mockBind).toHaveBeenNthCalledWith(2, 'f-1');
+      expect(result).toEqual(expect.objectContaining({ id: 'f-1' }));
+    });
+  });
+
+  describe('markTrashed', () => {
+    it('UPDATEs is_trashed=1 scoped to user (two binds)', async () => {
+      await repo.markTrashed('f-1', 'u-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toBe('UPDATE files SET is_trashed = 1 WHERE id = ? AND user_id = ?');
+      expect(mockBind).toHaveBeenCalledWith('f-1', 'u-1');
+    });
+  });
+
+  describe('markUntrashed', () => {
+    it('UPDATEs is_trashed=0 with updated_at=CURRENT_TIMESTAMP (two binds)', async () => {
+      await repo.markUntrashed('f-1', 'u-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain('UPDATE files SET is_trashed = 0, updated_at = CURRENT_TIMESTAMP');
+      expect(sql).toContain('WHERE id = ? AND user_id = ?');
+      expect(mockBind).toHaveBeenCalledWith('f-1', 'u-1');
+    });
+  });
+
+  describe('rename', () => {
+    it('UPDATEs name with updated_at=CURRENT_TIMESTAMP (three binds: name, fileId, userId)', async () => {
+      await repo.rename('f-1', 'u-1', 'new-name.pdf');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain(
+        'UPDATE files SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?',
+      );
+      expect(mockBind).toHaveBeenCalledWith('new-name.pdf', 'f-1', 'u-1');
+    });
+  });
+
+  describe('star', () => {
+    it('UPDATEs is_starred=1, returns true when meta.changes > 0', async () => {
+      const changed = await repo.star('f-1', 'u-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain('UPDATE files SET is_starred = 1 WHERE id = ? AND user_id = ?');
+      expect(mockBind).toHaveBeenCalledWith('f-1', 'u-1');
+      expect(changed).toBe(true);
+    });
+
+    it('returns false when meta.changes === 0 (file/user mismatch)', async () => {
+      mockRun.mockResolvedValueOnce({ success: true, meta: { changes: 0 } });
+      const changed = await repo.star('f-missing', 'u-1');
+      expect(changed).toBe(false);
+    });
+  });
+
+  describe('unstar', () => {
+    it('UPDATEs is_starred=0, returns true when meta.changes > 0', async () => {
+      const changed = await repo.unstar('f-1', 'u-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain('UPDATE files SET is_starred = 0 WHERE id = ? AND user_id = ?');
+      expect(mockBind).toHaveBeenCalledWith('f-1', 'u-1');
+      expect(changed).toBe(true);
+    });
+
+    it('returns false when meta.changes === 0', async () => {
+      mockRun.mockResolvedValueOnce({ success: true, meta: { changes: 0 } });
+      const changed = await repo.unstar('f-missing', 'u-1');
+      expect(changed).toBe(false);
+    });
+  });
+
+  describe('delete', () => {
+    it('DELETEs a file scoped to user (two binds)', async () => {
+      await repo.delete('f-1', 'u-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toBe('DELETE FROM files WHERE id = ? AND user_id = ?');
+      expect(mockBind).toHaveBeenCalledWith('f-1', 'u-1');
+    });
+  });
+
+  describe('updateMetadata', () => {
+    it('UPDATEs metadata, two binds (metadata, fileId), no user scope', async () => {
+      await repo.updateMetadata('f-1', '{"author":"alice"}');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toBe('UPDATE files SET metadata = ? WHERE id = ?');
+      expect(mockBind).toHaveBeenCalledWith('{"author":"alice"}', 'f-1');
+    });
+  });
+
+  describe('updateDriveAssignment', () => {
+    it('UPDATEs drive_account_id + google_file_id + resets google_parent_id to "root"', async () => {
+      await repo.updateDriveAssignment('f-1', 'd-2', 'g-new');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain('UPDATE files');
+      expect(sql).toContain('SET drive_account_id = ?, google_file_id = ?');
+      expect(sql).toContain("google_parent_id = 'root'");
+      expect(sql).toContain('updated_at = CURRENT_TIMESTAMP');
+      expect(sql).toContain('WHERE id = ?');
+      expect(mockBind).toHaveBeenCalledWith('d-2', 'g-new', 'f-1');
+    });
+  });
+
+  describe('moveToWorkspaceFolder', () => {
+    it('UPDATEs workspace_folder_id + workspace_id, four binds', async () => {
+      await repo.moveToWorkspaceFolder('f-1', 'u-1', 'wf-1', 'ws-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain('UPDATE files SET workspace_folder_id = ?, workspace_id = ?');
+      expect(sql).toContain('updated_at = CURRENT_TIMESTAMP');
+      expect(sql).toContain('WHERE id = ? AND user_id = ?');
+      expect(mockBind).toHaveBeenCalledWith('wf-1', 'ws-1', 'f-1', 'u-1');
+    });
+
+    it('can null out both fields (move to workspace root)', async () => {
+      await repo.moveToWorkspaceFolder('f-1', 'u-1', null, 'ws-1');
+      expect(mockBind).toHaveBeenCalledWith(null, 'ws-1', 'f-1', 'u-1');
+    });
+  });
+
+  describe('invalidateCategoryCache', () => {
+    it('DELETEs category_cache rows for a user', async () => {
+      await repo.invalidateCategoryCache('u-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain('DELETE FROM category_cache WHERE user_id = ?');
+      expect(mockBind).toHaveBeenCalledWith('u-1');
+    });
+  });
+
+  describe('deleteAndInvalidateCache', () => {
+    it('runs a 2-statement batch: DELETE file + DELETE category_cache', async () => {
+      await repo.deleteAndInvalidateCache('f-1', 'u-1');
+
+      expect(mockBatch).toHaveBeenCalledTimes(1);
+      const stmts = mockBatch.mock.calls[0][0] as unknown[];
+      expect(stmts).toHaveLength(2);
+
+      const sqls = mockPrepare.mock.calls.map((c) => c[0] as string);
+      expect(sqls).toContain('DELETE FROM files WHERE id = ? AND user_id = ?');
+      expect(sqls).toContain('DELETE FROM category_cache WHERE user_id = ?');
+
+      expect(mockBind).toHaveBeenNthCalledWith(1, 'f-1', 'u-1');
+      expect(mockBind).toHaveBeenNthCalledWith(2, 'u-1');
+    });
+  });
+});

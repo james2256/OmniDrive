@@ -35,6 +35,7 @@ prompt.md
 *.patch
 diff.txt
 git_show.txt
+*.tsbuildinfo
 
 # Local D1/SQLite artifacts
 *.sqlite
