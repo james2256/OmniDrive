@@ -5,8 +5,8 @@ import { getWorkspaceRole, hasPermission, roleLevel } from '../lib/rbac';
 import { AppError, ConflictError } from '../lib/errors';
 import { generateId } from '../lib/id';
 import type { WorkspaceRole } from '../lib/schemas';
-import { mapAuditLogRow } from '../types/db';
-import type { AuditLog } from '../types/domain';
+import { mapAuditLogRow, mapWorkspacePolicyRow } from '../types/db';
+import type { AuditLog, WorkspacePolicy } from '../types/domain';
 
 /**
  * Business logic layer for workspace management.
@@ -177,14 +177,14 @@ export class WorkspaceService {
    * Get policies for a workspace.
    * RBAC: manager required (NOT membership).
    */
-  async getPolicies(userId: string, workspaceId: string) {
+  async getPolicies(userId: string, workspaceId: string): Promise<WorkspacePolicy[]> {
     const role = await getWorkspaceRole(this.db, workspaceId, userId);
     if (!role || !hasPermission(role, 'manager')) {
       throw new AppError(403, 'Forbidden');
     }
 
     const { results } = await this.workspaceRepo.findPolicies(workspaceId);
-    return results;
+    return results.map((r: Record<string, unknown>) => mapWorkspacePolicyRow(r));
   }
 
   /**
@@ -200,19 +200,20 @@ export class WorkspaceService {
       policyType: string;
       config: Record<string, unknown>;
     },
-  ): Promise<unknown> {
+  ): Promise<WorkspacePolicy | null> {
     const role = await getWorkspaceRole(this.db, workspaceId, userId);
     if (!role || !hasPermission(role, 'manager')) {
       throw new AppError(403, 'Forbidden');
     }
 
-    return this.workspaceRepo.createPolicy({
+    const row = await this.workspaceRepo.createPolicy({
       workspaceId,
       targetType: params.targetType,
       targetId: params.targetId,
       policyType: params.policyType,
       config: JSON.stringify(params.config),
     });
+    return row ? mapWorkspacePolicyRow(row as Record<string, unknown>) : null;
   }
 
   /**

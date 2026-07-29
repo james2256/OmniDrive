@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { workspacesApi } from '../lib/api/workspaces';
 import { foldersApi } from '../lib/api/folders';
 import { filesApi } from '../lib/api/files';
 import { useDrives, useGetDriveInfo } from '../hooks/useDrives';
 import { useSharedLinks, useIsTargetSharedCallback } from '../hooks/useSharedLinks';
 import { useItemModals } from '../hooks/useItemModals';
-import type { WorkspaceFolder, FileEntry, BreadcrumbItem } from '../types';
+import type { FileEntry, BreadcrumbItem } from '../types';
 import { WorkspaceSidebar } from '../components/workspaces/WorkspaceSidebar';
 import { WorkspaceMainView } from '../components/workspaces/WorkspaceMainView';
 import { CreateFolderModal } from '../components/CreateFolderModal';
@@ -16,13 +17,11 @@ import { useSelectionStore, type SelectedItem } from '../stores/useSelectionStor
 import { ItemModals } from '../components/files/ItemModals';
 import { SetRetentionPolicyDialog } from '../components/workspaces/SetRetentionPolicyDialog';
 import { ListSkeleton } from '../components/EmptyState';
+import { qk } from '../lib/queryKeys';
 
 export function WorkspacesPage() {
-  const [folders, setFolders] = useState<WorkspaceFolder[]>([]);
-  const [isLoadingTree, setIsLoadingTree] = useState(false);
+  const queryClient = useQueryClient();
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
-  const [files, setFiles] = useState<FileEntry[]>([]);
-  const [subfolders, setSubfolders] = useState<WorkspaceFolder[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [retentionTargetId, setRetentionTargetId] = useState<string | null>(null);
   const [createModal, setCreateModal] = useState<{ parentId: string | null; title: string } | null>(
@@ -42,54 +41,35 @@ export function WorkspacesPage() {
   );
   const [isRenaming, setIsRenaming] = useState(false);
 
-  const fetchTree = useCallback(async () => {
-    setIsLoadingTree(true);
-    try {
-      const res = await foldersApi.getWorkspaceTree();
-      setFolders(res.folders);
-    } catch {
-      addToast('error', 'Failed to load workspaces');
-    } finally {
-      setIsLoadingTree(false);
-    }
-  }, [addToast]);
+  // Tree query — replaces manual fetchTree + isLoadingTree + folders state.
+  // Auto-fetches on mount; refetches on window focus; invalidated on rename/delete/create.
+  const { data: treeData, isLoading: isLoadingTree } = useQuery({
+    queryKey: qk.workspaceTree,
+    queryFn: () => foldersApi.getWorkspaceTree(),
+  });
+  const folders = useMemo(() => treeData?.folders ?? [], [treeData]);
 
-  const fetchContents = useCallback(
-    async (folderId: string, isStale?: () => boolean) => {
-      try {
-        const res = await foldersApi.getFolderContents(folderId);
-        if (isStale?.()) return;
-        setFiles(res.files);
-        setSubfolders(res.subfolders);
-      } catch {
-        if (isStale?.()) return;
-        addToast('error', 'Failed to load folder contents');
-      }
-    },
-    [addToast],
-  );
+  // Contents query — replaces manual fetchContents + files/subfolders state.
+  // enabled: !!activeFolderId prevents fetching when no folder is selected.
+  // TanStack Query handles stale/cancel internally (no manual isStale guard).
+  const { data: contentsData } = useQuery({
+    queryKey: qk.workspaceContents(activeFolderId ?? ''),
+    queryFn: () => foldersApi.getFolderContents(activeFolderId ?? ''),
+    enabled: !!activeFolderId,
+  });
+  const files = useMemo(() => contentsData?.files ?? [], [contentsData]);
+  const subfolders = useMemo(() => contentsData?.subfolders ?? [], [contentsData]);
 
+  // Clear selection when navigating between folders (UI state, not data state).
   useEffect(() => {
-    fetchTree();
-  }, [fetchTree]);
-
-  useEffect(() => {
-    let ignore = false;
-    if (activeFolderId) {
-      fetchContents(activeFolderId, () => ignore);
-    } else {
-      setFiles([]);
-      setSubfolders([]);
-    }
     clearSelection();
-    return () => {
-      ignore = true;
-    };
-  }, [activeFolderId, clearSelection, fetchContents]);
+  }, [activeFolderId, clearSelection]);
 
   const refreshContents = useCallback(() => {
-    if (activeFolderId) fetchContents(activeFolderId);
-  }, [activeFolderId, fetchContents]);
+    if (activeFolderId) {
+      queryClient.invalidateQueries({ queryKey: qk.workspaceContents(activeFolderId) });
+    }
+  }, [activeFolderId, queryClient]);
 
   const openCreateModal = (parentId?: string | null) => {
     const title = parentId ? 'New Folder' : 'New Workspace';
@@ -109,7 +89,7 @@ export function WorkspacesPage() {
     setIsRenaming(true);
     try {
       await foldersApi.updateFolder(renameTarget.id, { name: newName });
-      fetchTree();
+      queryClient.invalidateQueries({ queryKey: qk.workspaceTree });
       setRenameTarget(null);
     } catch {
       addToast('error', 'Failed to rename workspace');
@@ -130,7 +110,7 @@ export function WorkspacesPage() {
       if (activeFolderId === deleteTargetId) {
         setActiveFolderId(null);
       }
-      fetchTree();
+      queryClient.invalidateQueries({ queryKey: qk.workspaceTree });
     } catch {
       addToast('error', 'Failed to delete workspace');
     } finally {
@@ -145,7 +125,7 @@ export function WorkspacesPage() {
     try {
       await foldersApi.syncWorkspace(activeFolderId);
       addToast('success', 'Sync started.');
-      setTimeout(() => fetchContents(activeFolderId), 2000);
+      queryClient.invalidateQueries({ queryKey: qk.workspaceContents(activeFolderId) });
     } catch {
       addToast('error', 'Failed to start sync');
     } finally {
@@ -180,12 +160,12 @@ export function WorkspacesPage() {
       try {
         await filesApi.moveFile(id, null);
         addToast('success', 'Removed from workspace');
-        setFiles((prev) => prev.filter((f) => f.id !== id));
+        queryClient.invalidateQueries({ queryKey: qk.workspaceContents(activeFolderId ?? '') });
       } catch {
         addToast('error', 'Failed to remove from workspace');
       }
     },
-    [addToast],
+    [addToast, activeFolderId, queryClient],
   );
 
   const handleSetRetentionPolicy = useCallback((id: string, type: 'file' | 'folder') => {
@@ -289,7 +269,7 @@ export function WorkspacesPage() {
         parentId={createModal?.parentId ?? null}
         title={createModal?.title ?? 'New Folder'}
         onClose={() => setCreateModal(null)}
-        onSuccess={fetchTree}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: qk.workspaceTree })}
       />
       <ConfirmDialog
         open={deleteTargetId !== null}

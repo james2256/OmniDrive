@@ -12,4 +12,6 @@ export const qk = {
   search: (q: string) => ['search', q] as const,
   external: ['external'] as const,
   externalFolder: (driveId: string, folderId: string) => ['external', driveId, folderId] as const,
+  workspaceTree: ['workspaceTree'] as const,
+  workspaceContents: (folderId: string) => ['workspaceContents', folderId] as const,
 };

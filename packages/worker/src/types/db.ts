@@ -26,6 +26,7 @@ import type {
   AuditLog,
   Workspace,
   WorkspaceFolder,
+  WorkspacePolicy,
 } from './domain';
 
 // ─── Mappers ───
@@ -216,6 +217,19 @@ export function mapWorkspaceFolderRow(row: Record<string, unknown>): WorkspaceFo
     isStarred: row.is_starred === 1,
     lastSyncedAt: (row.last_synced_at as string) ?? null,
     syncStatus: (row.sync_status as 'idle' | 'syncing' | 'error') ?? 'idle',
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
+  };
+}
+
+export function mapWorkspacePolicyRow(row: Record<string, unknown>): WorkspacePolicy {
+  return {
+    id: row.id as string,
+    workspaceId: row.workspace_id as string,
+    targetType: row.target_type as 'workspace' | 'folder',
+    targetId: (row.target_id as string | null) ?? null,
+    policyType: row.policy_type as 'storage_quota' | 'data_retention',
+    config: row.config as string,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   };

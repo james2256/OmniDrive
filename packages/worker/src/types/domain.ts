@@ -172,3 +172,14 @@ export interface WorkspaceFolder {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface WorkspacePolicy {
+  id: string;
+  workspaceId: string;
+  targetType: 'workspace' | 'folder';
+  targetId: string | null;
+  policyType: 'storage_quota' | 'data_retention';
+  config: string;
+  createdAt: string;
+  updatedAt: string;
+}

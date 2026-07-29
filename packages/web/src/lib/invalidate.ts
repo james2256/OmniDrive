@@ -18,4 +18,7 @@ export function invalidateAfterFileMutation(qc: QueryClient) {
   qc.invalidateQueries({ queryKey: qk.category });
   // Prefix-match all search queries ('search', 'search|pro', 'search|project', ...)
   qc.invalidateQueries({ queryKey: ['search'] });
+  // Workspace tree + all folder contents (prefix-match)
+  qc.invalidateQueries({ queryKey: qk.workspaceTree });
+  qc.invalidateQueries({ queryKey: ['workspaceContents'] });
 }
