@@ -2,8 +2,10 @@ import React from 'react';
 import { useUIStore } from '../../stores/useUIStore';
 import { sortFiles, sortFolders } from '../../lib/sort-items';
 import { DriveBadge } from '../DriveBadge';
+import { EmptyState } from '../EmptyState';
 import { FileListView } from './FileListView';
 import { FileGridView } from './FileGridView';
+import { FolderOpen } from 'lucide-react';
 import type { FileGridProps } from './types';
 
 /**
@@ -68,11 +70,11 @@ export function FileGrid(props: FileGridProps) {
 
   if (files.length === 0 && subfolders.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-slate-500">
-        <p className="text-6xl mb-4">📂</p>
-        <p className="text-lg font-medium text-slate-500">This folder is empty</p>
-        <p className="text-sm mt-1">Drag &amp; drop files here or click Upload</p>
-      </div>
+      <EmptyState
+        icon={FolderOpen}
+        title="This folder is empty"
+        description="Drag & drop files here or click Upload"
+      />
     );
   }
 

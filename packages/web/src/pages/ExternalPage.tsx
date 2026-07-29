@@ -7,6 +7,9 @@ import { Breadcrumb } from '../components/Breadcrumb';
 import { BulkActionBar } from '../components/layout/BulkActionBar';
 import { FilesToolbar } from '../components/layout/FilesToolbar';
 import { ItemModals } from '../components/files/ItemModals';
+import { ErrorState } from '../components/ErrorState';
+import { EmptyState } from '../components/EmptyState';
+import { FolderInput } from 'lucide-react';
 import { drivesApi } from '../lib/api/drives';
 import { useDrives, useGetDriveInfo } from '../hooks/useDrives';
 import { useSharedLinks, useIsTargetSharedCallback } from '../hooks/useSharedLinks';
@@ -148,6 +151,10 @@ export function ExternalPage() {
           <div className="flex justify-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
           </div>
+        ) : (isTopLevel ? externalInfinite.error : folderQuery.error) ? (
+          <ErrorState
+            onRetry={() => (isTopLevel ? externalInfinite.refetch() : folderQuery.refetch())}
+          />
         ) : filteredSubfolders.length > 0 || filteredFiles.length > 0 ? (
           <>
             <div className="bg-card rounded-xl border border-slate-200 overflow-hidden">
@@ -189,9 +196,11 @@ export function ExternalPage() {
             )}
           </>
         ) : (
-          <div className="flex flex-col items-center justify-center py-20 text-slate-500">
-            <p className="text-lg">No external items found.</p>
-          </div>
+          <EmptyState
+            icon={FolderInput}
+            title="No external items"
+            description="Files and folders shared with you will appear here"
+          />
         )}
       </div>
 

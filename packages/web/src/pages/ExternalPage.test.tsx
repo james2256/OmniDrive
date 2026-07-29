@@ -228,8 +228,8 @@ describe('ExternalPage', () => {
       refetch: refetchInfiniteMock,
     });
     render(<ExternalPage />);
-    // No explicit error UI — falls through to the empty state.
-    expect(screen.getByText('No external items found.')).toBeTruthy();
+    // Error branch renders ErrorState with Retry button.
+    expect(screen.getByText('Something went wrong')).toBeTruthy();
   });
 
   it('renders empty state when top-level returns no items', () => {
@@ -243,7 +243,7 @@ describe('ExternalPage', () => {
       refetch: refetchInfiniteMock,
     });
     render(<ExternalPage />);
-    expect(screen.getByText('No external items found.')).toBeTruthy();
+    expect(screen.getByText('No external items')).toBeTruthy();
   });
 
   it('renders top-level files and folders from infinite query', () => {
@@ -369,7 +369,7 @@ describe('ExternalPage', () => {
       refetch: refetchFolderMock,
     });
     render(<ExternalPage />);
-    expect(screen.getByText('No external items found.')).toBeTruthy();
+    expect(screen.getByText('No external items')).toBeTruthy();
   });
 
   it('does not render Load More button at folder level', () => {
@@ -448,6 +448,6 @@ describe('ExternalPage', () => {
     expect(screen.getByText('top-file.pdf')).toBeTruthy();
     fireEvent.change(screen.getByTestId('search-input'), { target: { value: 'nope' } });
     // Search filter excludes the file — empty state shows.
-    expect(screen.getByText('No external items found.')).toBeTruthy();
+    expect(screen.getByText('No external items')).toBeTruthy();
   });
 });

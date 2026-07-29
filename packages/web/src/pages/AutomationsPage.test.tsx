@@ -66,7 +66,7 @@ describe('AutomationsPage', () => {
   it('renders empty state when there are no rules', () => {
     render(<AutomationsPage />);
 
-    expect(screen.getByText('No automation rules yet.')).toBeTruthy();
+    expect(screen.getByText('No automation rules')).toBeTruthy();
   });
 
   it('renders error banner when error is set', () => {
@@ -210,7 +210,7 @@ describe('AutomationsPage', () => {
     render(<AutomationsPage />);
 
     expect(screen.queryByText('Loading rules...')).toBeNull();
-    expect(screen.queryByText('No automation rules yet.')).toBeNull();
+    expect(screen.queryByText('No automation rules')).toBeNull();
     expect(screen.getByText('Auto-share')).toBeTruthy();
   });
 

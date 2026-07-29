@@ -37,6 +37,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   logout: async () => {
     try {
       await authApi.logout();
+    } catch {
+      // Best-effort: the finally block clears local state regardless.
+      // A failed logout API call doesn't affect the user's local logout
+      // — the session cookie expires on its own once the Worker restarts.
     } finally {
       // Drop all cached queries so a subsequent login as a different user
       // never renders the previous user's data (files, shared links, workspaces).

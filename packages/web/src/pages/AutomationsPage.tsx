@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { useAutomationStore } from '../stores/useAutomationStore';
 import { Button } from '../components/ui/Button';
+import { EmptyState } from '../components/EmptyState';
+import { Zap } from 'lucide-react';
 
 export function AutomationsPage() {
   const { rules, fetchRules, toggleRule, isLoading, error } = useAutomationStore();
@@ -24,7 +26,11 @@ export function AutomationsPage() {
             Loading rules...
           </div>
         ) : rules.length === 0 ? (
-          <div className="p-8 text-center text-slate-500">No automation rules yet.</div>
+          <EmptyState
+            icon={Zap}
+            title="No automation rules"
+            description="Create a rule to automate file actions."
+          />
         ) : (
           rules.map((rule) => (
             <div

@@ -151,20 +151,19 @@ describe('useAuthStore', () => {
     expect(queryClient.clear).toHaveBeenCalledTimes(1);
   });
 
-  it('logout still clears user and queryClient cache when the API call fails (finally block)', async () => {
+  it('logout still clears user and queryClient cache when the API call fails (catch swallows rejection)', async () => {
     useAuthStore.setState({
       user: mockUser,
       isAuthenticated: true,
     });
     (authApi.logout as Mock).mockRejectedValue(new Error('Network error'));
 
-    // The logout action uses try/finally with no catch — the rejection from
-    // authApi.logout() propagates, but the finally block still runs and clears
-    // local state. This mirrors how Header.tsx invokes logout() fire-and-forget.
-    await expect(useAuthStore.getState().logout()).rejects.toThrow('Network error');
+    // The catch block swallows the rejection — logout is best-effort.
+    // The finally block still runs and clears local state.
+    await useAuthStore.getState().logout();
 
     const state = useAuthStore.getState();
-    // finally block ran regardless of the rejection — user is logged out locally.
+    // finally block ran regardless — user is logged out locally.
     expect(state.user).toBeNull();
     expect(state.isAuthenticated).toBe(false);
     expect(state.authError).toBeNull();

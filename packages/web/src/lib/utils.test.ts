@@ -78,6 +78,11 @@ describe('formatFileSize', () => {
     // With the cap, i=5 (PB) and value overflows to 1024 PB-tier.
     expect(formatFileSize(1024 ** 6)).toBe('1024.0 PB');
   });
+
+  it('negative bytes → "0 B" (graceful fallback)', () => {
+    expect(formatFileSize(-1)).toBe('0 B');
+    expect(formatFileSize(-1024)).toBe('0 B');
+  });
 });
 
 describe('formatDriveLabel', () => {
@@ -131,22 +136,10 @@ describe('getDriveColor', () => {
     expect(getDriveColor(10)).toBe('var(--drive-1)');
   });
 
-  // BUG REPORT (do not fix): The spec assumes negative indices wrap to a
-  // neutral color. The source uses `colors[index % colors.length]`, but JS's
-  // `%` preserves the sign of the dividend, so `-1 % 5 === -1`. `colors[-1]`
-  // is `undefined`, not a color. The fix would be
-  // `colors[(index % n + n) % n]` — but per task instructions, REPORT only.
-  it('negative index → undefined (BUG: spec assumed neutral color)', () => {
-    expect(getDriveColor(-1)).toBeUndefined();
-    expect(getDriveColor(-2)).toBeUndefined();
-    expect(getDriveColor(-4)).toBeUndefined();
-  });
-
-  it('-5 wraps to var(--drive-1) (edge case: -5 % 5 === 0)', () => {
-    // -5 is exactly divisible by 5, so JS modulo returns 0 (well, -0, which
-    // behaves as 0 for array indexing). This is consistent with the modulo bug
-    // noted above — the source does not normalize negative dividends, so
-    // only negative multiples of 5 happen to land on a valid index.
+  it('negative index wraps correctly (modulo normalization)', () => {
+    expect(getDriveColor(-1)).toBe('var(--drive-5)');
+    expect(getDriveColor(-2)).toBe('var(--drive-4)');
+    expect(getDriveColor(-4)).toBe('var(--drive-2)');
     expect(getDriveColor(-5)).toBe('var(--drive-1)');
   });
 });
