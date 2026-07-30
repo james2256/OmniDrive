@@ -193,6 +193,14 @@ describe('S3 API compatibility endpoints', () => {
           }),
         };
       }),
+      batch: vi.fn(async (stmts: any[]) => {
+        // Execute each prepared statement's run() sequentially (matches D1 batch semantics)
+        const results = [];
+        for (const stmt of stmts) {
+          results.push(await stmt.run());
+        }
+        return results;
+      }),
     };
 
     return {

@@ -697,11 +697,10 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
     } catch (err) {
       logError(c, 'Failed to delete old file from Google Drive', err);
     }
-    await db.prepare('DELETE FROM files WHERE id = ?').bind(existingFile.id).run();
   }
 
   const fileId = generateId();
-  await db
+  const insertStmt = db
     .prepare(
       `
     INSERT INTO files (
@@ -721,8 +720,18 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
       mimeType,
       contentLength,
       JSON.stringify({ md5: md5Hex }),
-    )
-    .run();
+    );
+
+  // Batch the D1 DELETE + INSERT atomically so a transient D1 failure can't
+  // leave the old row deleted with no new row (orphaned Google upload).
+  if (existingFile) {
+    await db.batch([
+      db.prepare('DELETE FROM files WHERE id = ?').bind(existingFile.id),
+      insertStmt,
+    ]);
+  } else {
+    await insertStmt.run();
+  }
 
   // Update workspace storage usage (mirrors HTTP /api/files/upload/finalize)
   if (contentLength > 0) {
@@ -997,7 +1006,6 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
       } catch (err) {
         logError(c, 'Failed to delete old file from Google Drive', err);
       }
-      await db.prepare('DELETE FROM files WHERE id = ?').bind(existingFile.id).run();
     }
 
     // Calculate S3-compliant ETag
@@ -1009,7 +1017,7 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
 
     // Insert completed file record into database
     const fileId = generateId();
-    await db
+    const insertStmt = db
       .prepare(
         `
       INSERT INTO files (
@@ -1029,8 +1037,18 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
         'application/octet-stream',
         totalSize,
         JSON.stringify({ md5: s3Etag }),
-      )
-      .run();
+      );
+
+    // Batch the D1 DELETE + INSERT atomically so a transient D1 failure can't
+    // leave the old row deleted with no new row (orphaned Google upload).
+    if (existingFile) {
+      await db.batch([
+        db.prepare('DELETE FROM files WHERE id = ?').bind(existingFile.id),
+        insertStmt,
+      ]);
+    } else {
+      await insertStmt.run();
+    }
 
     // Update workspace storage usage (mirrors HTTP /api/files/upload/finalize)
     if (totalSize > 0) {

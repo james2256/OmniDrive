@@ -92,6 +92,10 @@ function wrapSqlite(db: Database.Database): D1Database {
   });
   return {
     prepare: (sql: string) => makeExecutor(sql),
+    batch: (stmts: { run: () => unknown }[]) => {
+      const results = stmts.map((s) => s.run());
+      return results;
+    },
   } as unknown as D1Database;
 }
 

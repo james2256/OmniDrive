@@ -20,6 +20,10 @@ declare module 'cloudflare:workers' {
 
 const ORIGIN = 'http://localhost:5173';
 
+// c.executionCtx.waitUntil is used for non-blocking quota-cache invalidation
+// after a successful move. The stub swallows the promise so the route completes.
+const executionCtx = { waitUntil: vi.fn() };
+
 // ─── Mock GoogleDriveService methods ───
 // `createDriveService(env)` is the factory the route calls to get a
 // GoogleDriveService for the cross-account share→copy→trash→revoke flow.
@@ -112,6 +116,7 @@ describe('POST /api/files/:id/move-drive (integration)', () => {
     mockDrive.revokeShare.mockReset();
     mockDrive.untrashFile.mockReset();
     mockDrive.deleteFile.mockReset();
+    executionCtx.waitUntil.mockReset();
     // Default happy-path implementations (individual tests override as needed).
     mockDrive.shareFile.mockResolvedValue('perm-123');
     mockDrive.copyFile.mockResolvedValue({ id: 'copied-123', name: 'report.pdf' });
@@ -137,6 +142,7 @@ describe('POST /api/files/:id/move-drive (integration)', () => {
         body: JSON.stringify({ targetDriveId: 'mv-target' }),
       },
       env,
+      executionCtx,
     );
 
     expect(res.status).toBe(200);
@@ -164,6 +170,9 @@ describe('POST /api/files/:id/move-drive (integration)', () => {
     // No rollback ops ran (move succeeded).
     expect(mockDrive.untrashFile).not.toHaveBeenCalled();
     expect(mockDrive.deleteFile).not.toHaveBeenCalled();
+
+    // Quota cache invalidation was scheduled (non-blocking) for both drives.
+    expect(executionCtx.waitUntil).toHaveBeenCalledTimes(1);
   });
 
   it('same-drive rejection: targetDriveId === sourceDriveId → 409, no Google API', async () => {
@@ -175,6 +184,7 @@ describe('POST /api/files/:id/move-drive (integration)', () => {
         body: JSON.stringify({ targetDriveId: 'mv-source' }),
       },
       env,
+      executionCtx,
     );
 
     expect(res.status).toBe(409);
@@ -194,6 +204,7 @@ describe('POST /api/files/:id/move-drive (integration)', () => {
         body: JSON.stringify({ targetDriveId: 'drive-not-yours' }),
       },
       env,
+      executionCtx,
     );
 
     expect(res.status).toBe(404);
@@ -215,6 +226,7 @@ describe('POST /api/files/:id/move-drive (integration)', () => {
         body: JSON.stringify({ targetDriveId: 'mv-target' }),
       },
       env,
+      executionCtx,
     );
 
     expect(res.status).toBe(500);
@@ -242,6 +254,7 @@ describe('POST /api/files/:id/move-drive (integration)', () => {
         body: JSON.stringify({ targetDriveId: 'mv-target' }),
       },
       env,
+      executionCtx,
     );
 
     expect(res.status).toBe(500);
@@ -277,6 +290,7 @@ describe('POST /api/files/:id/move-drive (integration)', () => {
         body: JSON.stringify({ targetDriveId: 'mv-target' }),
       },
       env,
+      executionCtx,
     );
 
     // Trash failure is swallowed (best-effort) — the move completes.

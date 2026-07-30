@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useAutomationStore } from '../stores/useAutomationStore';
 import { Button } from '../components/ui/Button';
 import { EmptyState } from '../components/EmptyState';
+import { PageHeader } from '../components/layout/PageHeader';
 import { Zap } from 'lucide-react';
 
 export function AutomationsPage() {
@@ -13,9 +14,7 @@ export function AutomationsPage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-2">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl sm:text-2xl font-semibold text-slate-800">Automation Rules</h1>
-      </div>
+      <PageHeader title="Automation Rules" />
 
       {error && <div className="p-3 bg-red-50 text-red-600 rounded-lg mb-4 text-sm">{error}</div>}
 

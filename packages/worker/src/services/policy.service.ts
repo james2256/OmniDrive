@@ -120,8 +120,12 @@ export class PolicyService {
           continue;
         }
 
-        await this.db.prepare('DELETE FROM files WHERE id = ?').bind(file.id).run();
-        await this.updateWorkspaceStorage(file.workspace_id, -file.size);
+        await this.db.batch([
+          this.db.prepare('DELETE FROM files WHERE id = ?').bind(file.id),
+          this.db
+            .prepare('UPDATE workspaces SET used_bytes = COALESCE(used_bytes, 0) + ? WHERE id = ?')
+            .bind(-file.size, file.workspace_id),
+        ]);
         deleted++;
       }
     }

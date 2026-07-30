@@ -76,11 +76,17 @@ export async function runLifecycleExpiration(env: Env): Promise<void> {
       FROM files f
       LEFT JOIN folder_path fp ON f.workspace_folder_id = fp.id
       WHERE f.workspace_id = ? AND f.is_trashed = 0
-        AND COALESCE(fp.path, '') || f.name LIKE ?
+        AND COALESCE(fp.path, '') || f.name LIKE ? ESCAPE '^'
         AND f.updated_at <= datetime('now', ?)
     `,
     )
-      .bind(rule.workspace_id, rule.workspace_id, rule.workspace_id, rule.prefix + '%', modifier)
+      .bind(
+        rule.workspace_id,
+        rule.workspace_id,
+        rule.workspace_id,
+        rule.prefix.replace(/[%_^]/g, (ch) => '^' + ch) + '%',
+        modifier,
+      )
       .all<{ id: string; drive_account_id: string; google_file_id: string }>();
 
     for (const file of expired ?? []) {

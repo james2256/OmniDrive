@@ -183,6 +183,16 @@ filesRouter.post(
         logError(c, 'Failed to trash original file', trashError);
       }
 
+      // Invalidate quota cache for both drives — the move changes used space
+      // on each. Non-blocking: the cache is read on next /api/drives/ GET,
+      // which will refetch from Google.
+      c.executionCtx.waitUntil(
+        Promise.all([
+          c.get('driveService').deleteQuotaCache(file.sourceDriveId),
+          c.get('driveService').deleteQuotaCache(targetDriveId),
+        ]),
+      );
+
       const updatedFile = await c.get('fileService').findById(fileId);
 
       return c.json({

@@ -5,6 +5,7 @@ import { FileGrid } from '../components/files/FileGrid';
 import { ShareModal } from '../components/ShareModal';
 import { MoveDriveModal } from '../components/MoveDriveModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
+import { PageHeader } from '../components/layout/PageHeader';
 import { filesApi } from '../lib/api/files';
 import { useDrives, useGetDriveInfo } from '../hooks/useDrives';
 import { useSharedLinks, useIsTargetSharedCallback } from '../hooks/useSharedLinks';
@@ -54,11 +55,7 @@ export function SearchPage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-2">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl sm:text-2xl font-semibold text-slate-800">
-          {query ? `Search results for "${query}"` : 'Search'}
-        </h1>
-      </div>
+      <PageHeader title={query ? `Search results for "${query}"` : 'Search'} />
 
       {!query ? (
         <div className="flex flex-col items-center justify-center py-20 text-slate-500">

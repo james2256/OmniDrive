@@ -18,7 +18,11 @@ export function decodeCursor<T = Record<string, unknown>>(cursor: string): T | n
       bytes[i] = binString.charCodeAt(i);
     }
     const str = new TextDecoder().decode(bytes);
-    return JSON.parse(str) as T;
+    const parsed = JSON.parse(str);
+    // Reject null/undefined — a cursor must be a JSON value (object or array).
+    // Crafted input that decodes to null is treated as "no cursor" (pagination
+    // starts from beginning) rather than passing null to SQL parameters.
+    return parsed === null ? null : (parsed as T);
   } catch {
     return null;
   }
