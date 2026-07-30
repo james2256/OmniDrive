@@ -37,7 +37,7 @@ export function ConfirmDialog({
       ? 'text-red-500'
       : variant === 'warning'
         ? 'text-amber-500'
-        : 'text-blue-500';
+        : 'text-primary';
   const buttonVariant =
     variant === 'danger' ? 'danger' : variant === 'warning' ? 'warning' : 'primary';
 

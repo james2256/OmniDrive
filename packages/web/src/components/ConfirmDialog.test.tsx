@@ -166,7 +166,7 @@ describe('ConfirmDialog', () => {
     );
 
     const icon = screen.getByTestId('triangle-alert-icon');
-    expect(icon.getAttribute('data-class')).toContain('text-blue-500');
+    expect(icon.getAttribute('data-class')).toContain('text-primary');
     expect(screen.getByRole('button', { name: 'Confirm' }).getAttribute('data-variant')).toBe(
       'primary',
     );

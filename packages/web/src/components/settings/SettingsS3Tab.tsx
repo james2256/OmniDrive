@@ -200,7 +200,7 @@ export function SettingsS3Tab() {
                       </td>
                       <td className="px-4 py-3.5 text-sm">
                         {key.workspaceId ? (
-                          <span className="px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full bg-primary/10 text-blue-700 border border-blue-150">
+                          <span className="px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full bg-primary/10 text-primary border border-primary/20">
                             Workspace: {key.workspaceName || 'Unknown'}
                           </span>
                         ) : (
@@ -343,7 +343,7 @@ export function SettingsS3Tab() {
                     <Button
                       onClick={() => handleCopy(createdCredential.accessKeyId, 'access')}
                       variant="ghost"
-                      className="gap-1 text-xs text-primary hover:text-blue-700 hover:bg-transparent px-0 py-0 rounded-none"
+                      className="gap-1 text-xs text-primary hover:text-primary hover:bg-transparent px-0 py-0 rounded-none"
                     >
                       {copiedAccessKey ? (
                         <>
@@ -371,7 +371,7 @@ export function SettingsS3Tab() {
                     <Button
                       onClick={() => handleCopy(createdCredential.secretAccessKey, 'secret')}
                       variant="ghost"
-                      className="gap-1 text-xs text-primary hover:text-blue-700 hover:bg-transparent px-0 py-0 rounded-none"
+                      className="gap-1 text-xs text-primary hover:text-primary hover:bg-transparent px-0 py-0 rounded-none"
                     >
                       {copiedSecretKey ? (
                         <>

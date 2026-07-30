@@ -133,7 +133,7 @@ export function FolderDownloadModal({
         <DialogBody>
           {status === 'listing' && (
             <div className="flex items-center gap-3 py-4">
-              <LoaderCircle className="w-5 h-5 text-blue-500 animate-spin" />
+              <LoaderCircle className="w-5 h-5 text-primary animate-spin" />
               <p className="text-sm text-slate-600">Preparing file list...</p>
             </div>
           )}
@@ -141,7 +141,7 @@ export function FolderDownloadModal({
           {status === 'downloading' && (
             <div className="py-4">
               <div className="flex items-center gap-3 mb-3">
-                <LoaderCircle className="w-5 h-5 text-blue-500 animate-spin" />
+                <LoaderCircle className="w-5 h-5 text-primary animate-spin" />
                 <p className="text-sm text-slate-600">
                   Downloading {progress.current} / {progress.total}
                 </p>

@@ -77,7 +77,7 @@ export function DriveAccountCard({
             <div className="text-xs text-slate-500">
               {drive.type === 'service_account' ? 'Service Account' : 'OAuth'}
               {drive.isPrimary && (
-                <span className="ml-1.5 text-blue-500 font-medium">· Primary</span>
+                <span className="ml-1.5 text-primary font-medium">· Primary</span>
               )}
               {drive.health === 'auth_expired' && (
                 <span
@@ -107,7 +107,7 @@ export function DriveAccountCard({
                 <span className="ml-1.5 text-amber-600 font-medium">· reconnect needed</span>
               )}
               {drive.syncStatus === 'syncing' && (
-                <span className="ml-1.5 text-blue-500 font-medium">· syncing</span>
+                <span className="ml-1.5 text-primary font-medium">· syncing</span>
               )}
             </div>
             {drive.lastSyncedAt && (

@@ -71,7 +71,7 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
         return <CircleAlert size={16} className="text-red-500" />;
       case 'uploading':
       case 'confirming':
-        return <LoaderCircle size={16} className="text-blue-500 animate-spin" />;
+        return <LoaderCircle size={16} className="text-primary animate-spin" />;
       default:
         return null;
     }
@@ -105,9 +105,9 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
               />
               <label
                 htmlFor="modal-file-upload"
-                className="cursor-pointer flex flex-col items-center gap-2 text-slate-500 hover:text-blue-500 transition-colors"
+                className="cursor-pointer flex flex-col items-center gap-2 text-slate-500 hover:text-primary transition-colors"
               >
-                <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-blue-500">
+                <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary">
                   <Upload size={20} />
                 </div>
                 <span className="text-sm font-medium">Click to select files</span>

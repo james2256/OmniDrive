@@ -97,7 +97,7 @@ export function MoveDriveModal({ files, onClose, onSuccess }: MoveDriveModalProp
                 >
                   <div className="flex-shrink-0 mr-2.5">
                     {isMoving && movingToDriveId === drive.id ? (
-                      <LoaderCircle className="w-4 h-4 text-blue-500 animate-spin" />
+                      <LoaderCircle className="w-4 h-4 text-primary animate-spin" />
                     ) : (
                       <HardDrive className="w-4 h-4 text-slate-400" />
                     )}

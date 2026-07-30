@@ -16,6 +16,16 @@
   --radius-sm: calc(0.5rem - 4px);
 }
 
+/*
+ * Color token convention:
+ * - text-primary: primary actions, CTAs, spinners on primary actions, status labels, badge text on primary backgrounds
+ * - text-blue-500: file-type icons only (Folder, Google Docs) — decorative, not primary
+ * - text-blue-400: shared-link Share2 indicators — decorative status
+ * - text-blue-700: links on white card backgrounds (better AA contrast than primary)
+ * - text-slate-*: all other text (overwhelming standard)
+ * - bg-blue-100 text-blue-700/800: badge color scheme (paired — do not migrate text alone)
+ */
+
 @layer base {
   body {
     @apply bg-background text-foreground m-0 p-0 font-sans;

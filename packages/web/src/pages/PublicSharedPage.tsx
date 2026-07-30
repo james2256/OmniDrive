@@ -98,7 +98,7 @@ export function PublicSharedPage() {
     if (loading) {
       return (
         <div className="bg-card border border-slate-200 rounded-2xl shadow-sm p-8 sm:p-10 max-w-sm w-full flex flex-col items-center text-center">
-          <LoaderCircle className="animate-spin text-blue-500 mb-4" size={40} />
+          <LoaderCircle className="animate-spin text-primary mb-4" size={40} />
           <p className="text-slate-500 font-medium text-sm">Loading...</p>
         </div>
       );
@@ -118,7 +118,7 @@ export function PublicSharedPage() {
       return (
         <div className="bg-card border border-slate-200 rounded-2xl shadow-sm p-8 sm:p-10 max-w-sm w-full">
           <div className="flex flex-col items-center text-center mb-6">
-            <Lock size={40} className="text-blue-500 mb-4" />
+            <Lock size={40} className="text-primary mb-4" />
             <h2 className="text-xl font-bold text-slate-800 mb-1">Password Required</h2>
             <p className="text-slate-500 text-sm">This shared link is protected by a password.</p>
           </div>
