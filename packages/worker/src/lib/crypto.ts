@@ -63,15 +63,12 @@ export async function decrypt(encoded: string, secret: string): Promise<string> 
 }
 
 export async function decryptOrPassthrough(value: string, secret: string): Promise<string> {
-  // ponytail: only accept plaintext with explicit 'plain:' marker — bare values are rejected
-  if (value.startsWith('plain:')) {
-    logNoCtx('warn', 'decryptOrPassthrough: falling back to explicit plaintext marker');
-    return value.slice(6);
-  }
+  // No plaintext bypass — all values must be encrypted.
+  // The 'plain:' marker was removed for security (no plaintext secrets in DB).
   try {
     return await decrypt(value, secret);
   } catch (e) {
-    logNoCtx('error', 'decryptOrPassthrough: decryption failed and no plain: marker', undefined, e);
-    throw new Error('Failed to decrypt value — no valid plaintext marker found', { cause: e });
+    logNoCtx('error', 'decryptOrPassthrough: decryption failed', undefined, e);
+    throw new Error('Failed to decrypt value', { cause: e });
   }
 }

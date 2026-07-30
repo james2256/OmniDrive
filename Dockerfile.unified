@@ -26,6 +26,7 @@ WORKDIR /app
 # Copy built node server
 COPY --from=builder /app/packages/worker/dist/node-server.cjs ./node-server.cjs
 COPY --from=builder /app/packages/worker/src/db/schema.sql ./src/db/schema.sql
+COPY --from=builder /app/packages/worker/migrations ./migrations
 
 # Copy built static frontend
 COPY --from=builder /app/packages/web/dist ./web/dist

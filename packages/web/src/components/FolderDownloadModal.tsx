@@ -42,6 +42,7 @@ export function FolderDownloadModal({
   const [status, setStatus] = useState<'listing' | 'downloading' | 'done' | 'error'>('listing');
   const [progress, setProgress] = useState({ current: 0, total: 0, currentName: '' });
   const [errorMsg, setErrorMsg] = useState('');
+  const [truncated, setTruncated] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -68,6 +69,7 @@ export function FolderDownloadModal({
           setErrorMsg('This folder is empty.');
           return;
         }
+        setTruncated(data.truncated === true);
 
         // 2. Download each file and stream into ZIP
         setStatus('downloading');
@@ -159,9 +161,20 @@ export function FolderDownloadModal({
           )}
 
           {status === 'done' && (
-            <div className="flex items-center gap-3 py-4">
-              <CheckCircle2 className="w-5 h-5 text-green-500" />
-              <p className="text-sm text-slate-600">Download complete!</p>
+            <div className="py-4 space-y-2">
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="w-5 h-5 text-green-500" />
+                <p className="text-sm text-slate-600">Download complete!</p>
+              </div>
+              {truncated && (
+                <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-800">
+                    Folder has more than {progress.total} files. Download was capped for
+                    performance. Download subfolders individually for the remaining files.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 

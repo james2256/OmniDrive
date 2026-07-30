@@ -670,6 +670,11 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
     /* non-JSON Google response */
   }
 
+  // Reject if Google did not return a file ID — prevents corrupt D1 rows
+  if (!gFile.id) {
+    return c.text('Google Drive did not return a file ID', 502);
+  }
+
   // Get the calculated MD5 hash after the stream has been fully consumed
   const md5Hex = getHash();
 
@@ -939,6 +944,11 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
       gFile = JSON.parse(rawBody);
     } catch {
       /* non-JSON Google response */
+    }
+
+    // Reject if Google did not return a file ID — prevents corrupt D1 rows
+    if (!gFile.id) {
+      return c.text('Google Drive did not return a file ID', 502);
     }
 
     // Check if file already exists in D1 under the same folder/name/workspace

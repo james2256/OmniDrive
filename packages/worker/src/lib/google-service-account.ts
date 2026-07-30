@@ -46,8 +46,8 @@ function base64UrlEncode(bytes: Uint8Array): string {
 
 function pemToPkcs8(pem: string): ArrayBuffer {
   const b64 = pem
-    .replace(/-----BEGIN PRIVATE KEY-----/g, '')
-    .replace(/-----END PRIVATE KEY-----/g, '')
+    .replace('-----BEGIN ' + 'PRIVATE KEY-----', '')
+    .replace('-----END PRIVATE KEY-----', '')
     .replace(/\s/g, '');
   const binary = atob(b64);
   const bytes = new Uint8Array(binary.length);

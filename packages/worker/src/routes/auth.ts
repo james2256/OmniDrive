@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { setCookie, deleteCookie, getCookie } from 'hono/cookie';
-import { hashPassword, verifyPassword } from '../lib/password';
+import { hashPassword, verifyPassword, timingSafeEqual } from '../lib/password';
 import type { AppContext, SessionData } from '../types/env';
 import type { UserRow } from '../types/db';
 import { AuthService } from '../services/auth.service';
@@ -58,7 +58,7 @@ authRouter.post('/register', zValidator('json', registerSchema, zodErrorHook), a
     // ponytail: optional BOOTSTRAP_TOKEN — if set, first registration requires it instead of being fully open
     const bootstrapToken = c.env.BOOTSTRAP_TOKEN;
     if (bootstrapToken) {
-      if (invitation_code !== bootstrapToken) {
+      if (!timingSafeEqual(invitation_code ?? '', bootstrapToken)) {
         throw new AppError(403, 'Bootstrap token required for first registration');
       }
     }
@@ -209,19 +209,19 @@ authRouter.get('/callback', async (c) => {
   if (!state) throw new AppError(400, 'Missing state parameter');
   const savedState = getCookie(c, 'oauth_state');
   deleteCookie(c, 'oauth_state', { path: '/' });
-  if (!savedState || state !== savedState) {
+  if (!savedState || !timingSafeEqual(state, savedState)) {
     throw new AppError(400, 'Invalid state parameter');
   }
 
   const db = c.env.DB;
 
-  // Retrieve PKCE verifier + userId from D1 (authoritative single-use state)
+  // Atomic single-use state consumption — DELETE ... RETURNING prevents TOCTOU race
+  // (two concurrent callbacks with the same state can't both read the row).
   const stateRow = (await db
-    .prepare('SELECT code_verifier, user_id FROM oauth_states WHERE state = ?')
+    .prepare('DELETE FROM oauth_states WHERE state = ? RETURNING code_verifier, user_id')
     .bind(state)
-    .first()) as { code_verifier: string; user_id: string };
+    .first()) as { code_verifier: string; user_id: string } | undefined;
   if (!stateRow) throw new AppError(400, 'OAuth state expired');
-  await db.prepare('DELETE FROM oauth_states WHERE state = ?').bind(state).run();
 
   const targetUserId = stateRow.user_id;
   const codeVerifier = stateRow.code_verifier;

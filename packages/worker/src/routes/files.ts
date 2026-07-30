@@ -148,7 +148,6 @@ filesRouter.post(
 
     let sharePermissionId: string | null = null;
     let copySuccessId: string | null = null;
-    let trashSuccess = false;
 
     try {
       sharePermissionId = await driveService.shareFile(
@@ -174,14 +173,15 @@ filesRouter.post(
         logError(c, 'Failed to revoke share after copy', revokeError);
       }
 
+      // Update D1 BEFORE trashing — if D1 fails, the original is still alive.
+      // Trash is best-effort (happens last, after D1 succeeds).
+      await c.get('fileService').updateDriveAssignment(fileId, targetDriveId, copiedFile.id);
+
       try {
         await driveService.trashFile(file.sourceDriveId, file.google_file_id);
-        trashSuccess = true;
       } catch (trashError) {
         logError(c, 'Failed to trash original file', trashError);
       }
-
-      await c.get('fileService').updateDriveAssignment(fileId, targetDriveId, copiedFile.id);
 
       const updatedFile = await c.get('fileService').findById(fileId);
 
@@ -191,14 +191,9 @@ filesRouter.post(
     } catch (error) {
       logError(c, 'Move drive failed', error);
 
-      if (trashSuccess) {
-        try {
-          await driveService.untrashFile(file.sourceDriveId, file.google_file_id);
-        } catch (e) {
-          logError(c, 'Rollback untrash failed', e);
-        }
-      }
-
+      // No untrash needed — trash happens after D1 update, so if we're in
+      // the catch block, either D1 failed (trash never ran) or trash failed
+      // (best-effort, already logged, move should still succeed).
       if (copySuccessId) {
         try {
           await driveService.deleteFile(targetDriveId, copySuccessId);
