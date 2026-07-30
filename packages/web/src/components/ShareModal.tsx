@@ -213,7 +213,7 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
             </form>
           ) : (
             <div className="flex flex-col gap-2">
-              <p className="text-xs text-slate-600 bg-primary/10 p-2 rounded-lg border border-blue-100">
+              <p className="text-xs text-slate-600 bg-primary/10 p-2 rounded-lg border border-primary/20">
                 Anyone with this link can access the {targetType}.
               </p>
               <div className="flex gap-2">

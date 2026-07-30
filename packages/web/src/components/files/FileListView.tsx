@@ -130,7 +130,7 @@ export function FileListView(props: FileListViewProps) {
               onMouseLeave={interactions.handleHoverEnd}
               className={`grid ${listGridClass} gap-0 items-center px-2 sm:px-4 py-2.5 cursor-pointer transition-colors border-b border-slate-200 group min-w-[500px] ${
                 isSelected
-                  ? 'bg-blue-100 hover:bg-blue-200'
+                  ? 'bg-primary/10 hover:bg-primary/20'
                   : hasError
                     ? 'bg-red-50 hover:bg-red-100'
                     : 'hover:bg-slate-50'
@@ -194,7 +194,7 @@ export function FileListView(props: FileListViewProps) {
               onMouseEnter={() => interactions.handleFileHover(file)}
               onMouseLeave={interactions.handleHoverEnd}
               className={`grid ${listGridClass} gap-0 items-center px-2 sm:px-4 py-2.5 cursor-pointer transition-colors border-b border-slate-200 group min-w-[500px] ${
-                isSelected ? 'bg-blue-100 hover:bg-blue-200' : 'hover:bg-slate-50'
+                isSelected ? 'bg-primary/10 hover:bg-primary/20' : 'hover:bg-slate-50'
               }`}
             >
               <div className="flex items-center justify-center">

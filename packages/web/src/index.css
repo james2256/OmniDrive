@@ -22,8 +22,10 @@
  * - text-blue-500: file-type icons only (Folder, Google Docs) — decorative, not primary
  * - text-blue-400: shared-link Share2 indicators — decorative status
  * - text-blue-700: links on white card backgrounds (better AA contrast than primary)
+ * - text-blue-900: active workspace node label (AAA contrast on primary/10 — do not migrate)
  * - text-slate-*: all other text (overwhelming standard)
- * - bg-blue-100 text-blue-700/800: badge color scheme (paired — do not migrate text alone)
+ * - bg-primary/10 border-primary/20: selected states (file cards, list rows, drive selections, folder selections)
+ * - bg-blue-100 text-blue-700/800: badge color scheme (paired — better contrast than primary/10, do not migrate text alone)
  */
 
 @layer base {

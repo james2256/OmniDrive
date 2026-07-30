@@ -118,7 +118,7 @@ export function SharedLinksPage() {
                 <Button
                   variant="secondary"
                   onClick={() => copyToClipboard(link.id)}
-                  className="justify-center flex-1 py-2 px-4 rounded-lg border-slate-200 hover:bg-slate-50 hover:text-primary hover:border-blue-200"
+                  className="justify-center flex-1 py-2 px-4 rounded-lg border-slate-200 hover:bg-slate-50 hover:text-primary hover:border-primary/20"
                 >
                   {copiedId === link.id ? (
                     <>

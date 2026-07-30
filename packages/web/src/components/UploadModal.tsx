@@ -152,7 +152,7 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
             <div className="mb-2">
               <div className="flex flex-col gap-1.5">
                 <label
-                  className={`flex items-center gap-2.5 p-2 rounded-lg cursor-pointer border transition-colors ${!selectedDriveId ? 'bg-primary/10 border-blue-200' : 'border-slate-200 hover:bg-slate-50'}`}
+                  className={`flex items-center gap-2.5 p-2 rounded-lg cursor-pointer border transition-colors ${!selectedDriveId ? 'bg-primary/10 border-primary/20' : 'border-slate-200 hover:bg-slate-50'}`}
                 >
                   <input
                     type="radio"
@@ -167,7 +167,7 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
                 {drives.map((drive, i) => (
                   <label
                     key={drive.id}
-                    className={`flex items-center gap-2.5 p-2 rounded-lg cursor-pointer border transition-colors ${selectedDriveId === drive.id ? 'bg-primary/10 border-blue-200' : 'border-slate-200 hover:bg-slate-50'}`}
+                    className={`flex items-center gap-2.5 p-2 rounded-lg cursor-pointer border transition-colors ${selectedDriveId === drive.id ? 'bg-primary/10 border-primary/20' : 'border-slate-200 hover:bg-slate-50'}`}
                   >
                     <input
                       type="radio"

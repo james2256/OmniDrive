@@ -53,7 +53,7 @@ export function AddToWorkspaceModal({ open, file, onClose, onSuccess }: Props) {
               <button
                 key={folder.id}
                 onClick={() => setSelectedId(folder.id)}
-                className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${selectedId === folder.id ? 'bg-blue-100' : 'hover:bg-slate-50'}`}
+                className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${selectedId === folder.id ? 'bg-primary/10' : 'hover:bg-slate-50'}`}
               >
                 <Folder size={16} className="text-blue-500" />
                 {folder.name}

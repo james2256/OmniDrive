@@ -59,10 +59,10 @@ export function FileGridView(props: FileViewSharedProps) {
               onMouseLeave={interactions.handleHoverEnd}
               className={`p-3 border rounded-xl cursor-pointer flex flex-col gap-2 transition-all group relative ${
                 isSelected
-                  ? 'bg-blue-100 border-blue-300'
+                  ? 'bg-primary/10 border-primary/20'
                   : hasError
                     ? 'border-red-300 bg-red-50 hover:border-red-400'
-                    : 'border-slate-200 bg-card shadow-sm hover:bg-primary/10 hover:border-blue-200'
+                    : 'border-slate-200 bg-card shadow-sm hover:bg-primary/10 hover:border-primary/20'
               }`}
             >
               <input
@@ -122,8 +122,8 @@ export function FileGridView(props: FileViewSharedProps) {
               onMouseLeave={interactions.handleHoverEnd}
               className={`p-3 border rounded-xl cursor-pointer flex flex-col justify-between h-40 transition-all group relative ${
                 isSelected
-                  ? 'bg-blue-100 border-blue-300'
-                  : 'bg-card border-slate-200 shadow-sm hover:bg-primary/10 hover:border-blue-200'
+                  ? 'bg-primary/10 border-primary/20'
+                  : 'bg-card border-slate-200 shadow-sm hover:bg-primary/10 hover:border-primary/20'
               }`}
             >
               <input
