@@ -292,24 +292,11 @@ export const AdminUsersPage: React.FC = () => {
   };
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
+    <div className="p-2 sm:p-6 space-y-2">
       <PageHeader
         title="Users"
         icon={UserCog}
         description="Manage admin users and invitation codes"
-        actions={
-          activeTab === 'users' && (
-            <Button
-              variant="primary"
-              size="md"
-              className="rounded-md gap-1"
-              onClick={() => setIsAddUserModalOpen(true)}
-            >
-              <Plus size={18} />
-              <span className="hidden sm:inline">Add User</span>
-            </Button>
-          )
-        }
       />
 
       <div className="flex border-b border-slate-200 mb-4 sm:mb-6 gap-4 sm:gap-6">
@@ -332,6 +319,17 @@ export const AdminUsersPage: React.FC = () => {
       <div className="flex-1 overflow-y-auto">
         {activeTab === 'users' && (
           <div>
+            <div className="flex justify-end mb-4">
+              <Button
+                variant="primary"
+                size="md"
+                className="rounded-md"
+                onClick={() => setIsAddUserModalOpen(true)}
+              >
+                <Plus size={20} />
+                <span>Add User</span>
+              </Button>
+            </div>
             <div className="bg-card border border-slate-200 rounded-lg overflow-hidden overflow-x-auto">
               {isLoadingUsers ? (
                 <div className="p-4 sm:p-6">

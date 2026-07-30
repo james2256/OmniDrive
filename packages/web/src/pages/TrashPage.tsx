@@ -65,7 +65,7 @@ export function TrashPage() {
   const hasItems = filteredFiles.length > 0 || filteredFolders.length > 0;
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
+    <div className="p-2 sm:p-6 space-y-2">
       <PageHeader
         title="Trash"
         icon={Trash2}

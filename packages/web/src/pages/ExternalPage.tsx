@@ -121,7 +121,7 @@ export function ExternalPage() {
   const getDriveInfo = useGetDriveInfo(drives);
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
+    <div className="p-2 sm:p-6 space-y-2">
       <PageHeader
         title={
           folderId ? (breadcrumb[breadcrumb.length - 1]?.name ?? 'Folder') : 'My External Items'

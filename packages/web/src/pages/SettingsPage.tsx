@@ -6,7 +6,7 @@ import { SettingsS3Tab } from '../components/settings/SettingsS3Tab';
 
 export function SettingsPage() {
   return (
-    <div className="p-4 sm:p-6 space-y-6">
+    <div className="p-2 sm:p-6 space-y-2">
       <PageHeader
         title="Settings"
         icon={Settings}

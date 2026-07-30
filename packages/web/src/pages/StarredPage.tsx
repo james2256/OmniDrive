@@ -60,7 +60,7 @@ export function StarredPage() {
   });
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
+    <div className="p-2 sm:p-6 space-y-2">
       <PageHeader
         title="Starred"
         icon={Star}

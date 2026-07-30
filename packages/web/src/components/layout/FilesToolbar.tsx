@@ -60,8 +60,18 @@ export function FilesToolbar({
       {bulkActionBar}
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-        {/* Mobile Row 1: filter + view toggle + info | Desktop: right side */}
-        <div className="flex gap-2 items-center order-1 sm:order-2 sm:ml-auto w-full sm:w-auto">
+        {/* Breadcrumb — first on mobile, left side on desktop */}
+        {breadcrumb && (
+          <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden order-1 sm:order-1">
+            {breadcrumb}
+          </div>
+        )}
+
+        {/* Mobile Row 2: action buttons — after breadcrumb, before filter */}
+        {mobileActions && <div className="flex gap-2 sm:hidden order-2">{mobileActions}</div>}
+
+        {/* Filter + view toggle + info — last on mobile, right side on desktop */}
+        <div className="flex gap-2 items-center order-3 sm:order-2 sm:ml-auto w-full sm:w-auto">
           <div className="relative flex-1 sm:w-48 sm:flex-initial flex-shrink-0 sm:flex-shrink">
             <input
               type="text"
@@ -117,16 +127,6 @@ export function FilesToolbar({
           {/* Desktop: action buttons (New Folder / Upload) inline with filter row */}
           {actions && <div className="hidden sm:flex gap-2">{actions}</div>}
         </div>
-
-        {/* Mobile Row 2: action buttons */}
-        {mobileActions && <div className="flex gap-2 sm:hidden order-2">{mobileActions}</div>}
-
-        {/* Breadcrumb — below on mobile, left side on desktop */}
-        {breadcrumb && (
-          <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden order-3 sm:order-1">
-            {breadcrumb}
-          </div>
-        )}
       </div>
     </>
   );
