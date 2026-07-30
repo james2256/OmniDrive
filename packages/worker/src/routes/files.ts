@@ -381,6 +381,26 @@ filesRouter.post(
 
     const id = generateId();
     const fileSize = parseInt(gFile.size || '0', 10);
+
+    // Re-check quota with ACTUAL size (from Google) before creating the D1 row.
+    // Init checks the client-declared size; a client can declare size:1 at init
+    // and stream more bytes through the proxy. Google records the real size —
+    // use it here. Placed BEFORE finalizeUpload so a failed check creates no
+    // D1 row (no cleanup needed, no Trash-UI pollution).
+    if (workspaceId && fileSize > 0) {
+      const policyService = new PolicyService(db, driveService);
+      const hasQuota = await policyService.checkQuota(workspaceId, fileSize);
+      if (!hasQuota) {
+        // File is already on Google Drive (can't un-upload). Trash best-effort.
+        try {
+          await driveService.trashFile(driveAccountId, gFile.id);
+        } catch {
+          /* best-effort — quota rejection is the primary signal */
+        }
+        throw new AppError(403, 'Storage quota exceeded');
+      }
+    }
+
     // Only set workspace_folder_id when a genuine workspace folder id is provided
     // (workspace upload context). The Drive-folder view passes parentFolderId only.
     const wsFolder = workspaceFolderId || null;

@@ -27,6 +27,7 @@ import { createHash } from 'node:crypto';
 import { hasPermission } from '../lib/rbac';
 import type { WorkspaceRole } from '../lib/schemas';
 import { parseLifecycleXml, serializeLifecycleXml } from '../services/s3-lifecycle';
+import { PolicyService } from '../services/policy.service';
 import { escapeXml, xmlError } from '../lib/s3-xml';
 import { logError } from '../lib/logger';
 
@@ -626,6 +627,17 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
   // 3. Perform Direct Google Drive Upload
   const driveService = createDriveService(c.env);
 
+  // Enforce workspace storage quota (mirrors HTTP /api/files/upload/init).
+  // Placed after driveService creation so the same instance is reused for
+  // both the check and the increment after the INSERT.
+  if (contentLength > 0) {
+    const policyService = new PolicyService(db, driveService);
+    const hasQuota = await policyService.checkQuota(workspace.id, contentLength);
+    if (!hasQuota) {
+      return xmlError(c, 'QuotaExceeded', 'Storage quota exceeded', 403);
+    }
+  }
+
   const pathParts = key.split('/');
   const fileName = pathParts.pop();
   const folderPath = pathParts.join('/');
@@ -711,6 +723,12 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
       JSON.stringify({ md5: md5Hex }),
     )
     .run();
+
+  // Update workspace storage usage (mirrors HTTP /api/files/upload/finalize)
+  if (contentLength > 0) {
+    const policyService = new PolicyService(db, driveService);
+    await policyService.updateWorkspaceStorage(workspace.id, contentLength);
+  }
 
   c.header('ETag', `"${md5Hex}"`);
   return c.text('', 200);
@@ -883,6 +901,15 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
     // Compute total size
     const totalSize = parts.reduce((acc, p) => acc + p.size, 0);
 
+    // Enforce workspace storage quota (mirrors HTTP /api/files/upload/init)
+    if (totalSize > 0) {
+      const policyService = new PolicyService(db, driveService);
+      const hasQuota = await policyService.checkQuota(workspace.id, totalSize);
+      if (!hasQuota) {
+        return xmlError(c, 'QuotaExceeded', 'Storage quota exceeded', 403);
+      }
+    }
+
     // Fetch drive account to get its root folder ID
     const driveAccount = (await db
       .prepare('SELECT * FROM drive_accounts WHERE id = ?')
@@ -1004,6 +1031,12 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
         JSON.stringify({ md5: s3Etag }),
       )
       .run();
+
+    // Update workspace storage usage (mirrors HTTP /api/files/upload/finalize)
+    if (totalSize > 0) {
+      const policyService = new PolicyService(db, driveService);
+      await policyService.updateWorkspaceStorage(workspace.id, totalSize);
+    }
 
     // Cleanup: Delete temp parts folder from Google Drive & clean SQLite state
     await driveService.deleteFile(upload.drive_account_id, upload.temp_folder_id);

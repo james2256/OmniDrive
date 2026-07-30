@@ -188,10 +188,12 @@ export class SharedRepository {
   /**
    * Atomically increment download count, enforcing maxDownloads limit.
    * Returns the new count if allowed, null if limit reached or link missing.
-   * Call BEFORE streaming — not in waitUntil. This preserves the
-   * "failed downloads don't burn quota" invariant: if the caller streams
-   * after this succeeds, the count is already committed; if the caller
-   * returns 403 (limit reached), no increment occurs.
+   * Call BEFORE streaming — not in waitUntil. NOTE: because the increment
+   * commits before the stream starts, a failed stream STILL burns the count.
+   * This is intentional: moving the increment after the stream would
+   * introduce a TOCTOU race (concurrent requests all pass the check before
+   * any increment) and a disconnect-abuse vector. The trade-off: a network
+   * blip costs one download attempt.
    */
   async incrementDownloadCountWithLimit(id: string): Promise<number | null> {
     const r = await this.db

@@ -80,8 +80,8 @@ async function getBaseUrls(target, defaultPort = '3000') {
   let defaultWorker = 'http://localhost:' + defaultPort;
 
   if (target === 'local') {
-    defaultFrontend = 'http://localhost:5173';
-    defaultWorker = 'http://localhost:8787';
+    defaultFrontend = 'http://localhost:8999';
+    defaultWorker = 'http://localhost:8888';
   } else if (target === 'cloudflare') {
     defaultFrontend = 'https://omnidrive.pages.dev';
     defaultWorker = 'https://omnidrive-api.serunix.workers.dev';
@@ -402,7 +402,7 @@ async function main() {
     }
 
     runCmdSilent(
-      'npx wrangler d1 execute omnidrive --local --file=packages/worker/src/db/schema.sql -c packages/worker/wrangler.toml',
+      'npx wrangler d1 migrations apply omnidrive --local -c packages/worker/wrangler.toml',
     );
 
     s2.stop('Local environment ready.');

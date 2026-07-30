@@ -156,6 +156,10 @@ describe('S3 API compatibility endpoints', () => {
                     ? { ...workspaceResolved, role: workspaceResolved.role || 'owner' }
                     : null;
                 }
+                if (sql.includes('SELECT used_bytes FROM workspaces')) {
+                  // checkQuota: workspace exists, 0 bytes used, no policy → allowed
+                  return { used_bytes: 0 };
+                }
                 if (sql.includes('SELECT id FROM workspace_folders')) {
                   return folderResolved;
                 }
