@@ -52,6 +52,8 @@ jobs:
           push: true
           tags: ${{ steps.meta-unified.outputs.tags }}
           labels: ${{ steps.meta-unified.outputs.labels }}
+          build-args: |
+            VITE_PUBLIC_URL=${{ vars.VITE_PUBLIC_URL || 'http://localhost:8999' }}
 
       - name: Release docker-compose.yml
         uses: softprops/action-gh-release@v2

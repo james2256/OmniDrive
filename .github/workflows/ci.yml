@@ -20,4 +20,6 @@ jobs:
       - run: npm run test
       - run: npm run build:worker
       - run: npm run build:web
+        env:
+          VITE_PUBLIC_URL: ${{ vars.VITE_PUBLIC_URL || 'http://localhost:8999' }}
       - run: npm run format:check

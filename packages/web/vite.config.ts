@@ -34,12 +34,16 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const port = parseInt(env.WEB_PORT || env.PORT || '8999', 10);
   const workerPort = parseInt(env.WORKER_PORT || '8888', 10);
-  const publicUrl = env.VITE_PUBLIC_URL?.replace(/\/+$/, '');
+  const publicUrl = env.VITE_PUBLIC_URL?.replace(/\/+$/, '') || 'http://localhost:8999';
 
-  if (!publicUrl || !/^https?:\/\//.test(publicUrl)) {
-    throw new Error(
-      'VITE_PUBLIC_URL is missing or not a valid http(s) URL. ' +
-        'Set it in .env (dev) or Cloudflare Pages env vars (prod).',
+  if (env.VITE_PUBLIC_URL && !/^https?:\/\//.test(env.VITE_PUBLIC_URL)) {
+    throw new Error('VITE_PUBLIC_URL is set but not a valid http(s) URL: ' + env.VITE_PUBLIC_URL);
+  }
+
+  if (!env.VITE_PUBLIC_URL) {
+    console.warn(
+      '[vite] VITE_PUBLIC_URL not set — using localhost fallback. ' +
+        'Set it in Cloudflare Pages env vars for correct sitemap/robots URLs.',
     );
   }
 

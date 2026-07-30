@@ -13,6 +13,8 @@ COPY packages/worker ./packages/worker
 COPY packages/web ./packages/web
 
 # Build frontend and node backend
+ARG VITE_PUBLIC_URL=http://localhost:8999
+ENV VITE_PUBLIC_URL=$VITE_PUBLIC_URL
 RUN npm run build:web
 RUN npm --workspace=@omnidrive/worker run build:node
 
