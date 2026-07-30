@@ -12,7 +12,7 @@ export function AutomationsPage() {
   }, [fetchRules]);
 
   return (
-    <div className="p-2 sm:p-6 space-y-2">
+    <div className="p-4 sm:p-6 space-y-2">
       <div className="flex items-center justify-between">
         <h1 className="text-xl sm:text-2xl font-semibold text-slate-800">Automation Rules</h1>
       </div>

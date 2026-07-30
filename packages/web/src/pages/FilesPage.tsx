@@ -85,7 +85,7 @@ export function FilesPage() {
 
   return (
     <DropZone>
-      <div className="p-2 sm:p-6 space-y-2">
+      <div className="p-4 sm:p-6 space-y-2">
         <PageHeader
           title={
             folderId === 'root' ? 'My Drive' : (breadcrumb[breadcrumb.length - 1]?.name ?? 'Folder')
