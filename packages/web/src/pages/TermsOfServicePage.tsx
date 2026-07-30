@@ -1,4 +1,5 @@
 import { PublicPageLayout } from '../components/legal/PublicPageLayout';
+import { PUBLIC_URL } from '../lib/site';
 
 export function TermsOfServicePage() {
   const effectiveDate = 'July 4, 2026';
@@ -11,8 +12,8 @@ export function TermsOfServicePage() {
         <h2 className="text-xl font-semibold text-slate-900">1. Acceptance of Terms</h2>
         <p>
           By accessing or using OmniDrive at{' '}
-          <a href="https://omnidrive-7w1.pages.dev" className="text-primary hover:underline">
-            omnidrive-7w1.pages.dev
+          <a href={PUBLIC_URL} className="text-primary hover:underline">
+            {PUBLIC_URL.replace(/^https?:\/\//, '')}
           </a>
           , you agree to these Terms of Service (&quot;Terms&quot;). If you do not agree, do not use
           the Service.

@@ -249,6 +249,7 @@ Copy `/.env.example` to `/.env` and fill in your values. This file is automatica
 | `FRONTEND_URL` | Frontend origin for CORS and redirects | `http://localhost:8999` |
 | `WORKER_URL` | Worker URL for OAuth callback | `http://localhost:8888` |
 | `VITE_API_URL` | Worker API base URL for the frontend (empty = same-origin) | |
+| `VITE_PUBLIC_URL` | Canonical public URL of the deployed site (robots.txt, sitemap, legal pages) | `http://localhost:8999` |
 | `GOOGLE_CLIENT_ID` | Google OAuth 2.0 Client ID | |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth 2.0 Client Secret | |
 | `JWT_SECRET` | Session JWT signing key (min 32 chars) | |

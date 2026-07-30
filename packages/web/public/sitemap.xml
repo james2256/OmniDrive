@@ -1,22 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://azadrive.my.id/home</loc>
+    <loc>__PUBLIC_URL__/home</loc>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://azadrive.my.id/terms</loc>
+    <loc>__PUBLIC_URL__/terms</loc>
     <changefreq>yearly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://azadrive.my.id/privacy</loc>
+    <loc>__PUBLIC_URL__/privacy</loc>
     <changefreq>yearly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://azadrive.my.id/login</loc>
+    <loc>__PUBLIC_URL__/login</loc>
     <changefreq>monthly</changefreq>
     <priority>0.3</priority>
   </url>

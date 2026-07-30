@@ -1,4 +1,5 @@
 import { PublicPageLayout } from '../components/legal/PublicPageLayout';
+import { PUBLIC_URL } from '../lib/site';
 
 export function PrivacyPolicyPage() {
   const effectiveDate = 'July 4, 2026';
@@ -12,8 +13,8 @@ export function PrivacyPolicyPage() {
         <p>
           OmniDrive (&quot;we&quot;, &quot;our&quot;, or &quot;the Service&quot;) is a unified
           multi-Google Drive storage gateway operated at{' '}
-          <a href="https://omnidrive-7w1.pages.dev" className="text-primary hover:underline">
-            omnidrive-7w1.pages.dev
+          <a href={PUBLIC_URL} className="text-primary hover:underline">
+            {PUBLIC_URL.replace(/^https?:\/\//, '')}
           </a>
           . This Privacy Policy explains how we collect, use, store, and protect information when
           you use OmniDrive, including data obtained from Google APIs.

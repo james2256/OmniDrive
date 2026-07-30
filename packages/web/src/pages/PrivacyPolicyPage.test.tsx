@@ -13,6 +13,9 @@ vi.mock('react-router-dom', () => ({
   ),
 }));
 
+// Mock PUBLIC_URL so tests don't require VITE_PUBLIC_URL env var.
+vi.mock('../lib/site', () => ({ PUBLIC_URL: 'https://test.example.com' }));
+
 describe('PrivacyPolicyPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -90,7 +93,7 @@ describe('PrivacyPolicyPage', () => {
   it('renders the OmniDrive homepage link', () => {
     render(<PrivacyPolicyPage />);
 
-    const homeLink = screen.getByText('omnidrive-7w1.pages.dev').closest('a');
-    expect(homeLink?.getAttribute('href')).toBe('https://omnidrive-7w1.pages.dev');
+    const homeLink = screen.getByText('test.example.com').closest('a');
+    expect(homeLink?.getAttribute('href')).toBe('https://test.example.com');
   });
 });

@@ -6,10 +6,10 @@ OmniDrive is a self-hostable edge storage gateway (fork of OmniDrive). It is not
 
 ## Pages
 
-- [Home](https://omnidrive-7w1.pages.dev/home): Public product landing page
-- [App / Login](https://omnidrive-7w1.pages.dev/login): Sign in or register (invitation code required for new accounts)
-- [Terms of Service](https://omnidrive-7w1.pages.dev/terms): Legal terms
-- [Privacy Policy](https://omnidrive-7w1.pages.dev/privacy): Privacy policy
+- [Home](__PUBLIC_URL__/home): Public product landing page
+- [App / Login](__PUBLIC_URL__/login): Sign in or register (invitation code required for new accounts)
+- [Terms of Service](__PUBLIC_URL__/terms): Legal terms
+- [Privacy Policy](__PUBLIC_URL__/privacy): Privacy policy
 
 ## Product
 
