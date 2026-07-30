@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useToastStore } from '../stores/useToastStore';
 import { ShieldAlert, Plus, EllipsisVertical, UserPlus, UserCog } from 'lucide-react';
-import type { AdminUser } from '../types';
 import { adminApi } from '../lib/api/admin';
 import type { Invitation } from '../types';
+import { qk } from '../lib/queryKeys';
 import {
   Dialog,
   DialogContent,
@@ -128,9 +129,7 @@ export const AdminUsersPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'users' | 'invitations'>('users');
 
   // Users Tab State
-  const [users, setUsers] = useState<AdminUser[]>([]);
-  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
-  const [usersError, setUsersError] = useState(false);
+  const queryClient = useQueryClient();
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
   const [invitationToDelete, setInvitationToDelete] = useState<string | null>(null);
   const [isDeletingInvitation, setIsDeletingInvitation] = useState(false);
@@ -155,44 +154,27 @@ export const AdminUsersPage: React.FC = () => {
   const [isDeletingUser, setIsDeletingUser] = useState(false);
 
   // Invitations Tab State
-  const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [inviteCode, setInviteCode] = useState('');
   const [inviteMaxUses, setInviteMaxUses] = useState(1);
 
-  const loadUsers = useCallback(async () => {
-    setIsLoadingUsers(true);
-    setUsersError(false);
-    try {
-      const res = await adminApi.getAdminUsers();
-      setUsers(res.users);
-    } catch (e: unknown) {
-      setUsersError(true);
-      addToast('error', 'Failed to load users');
-      console.error(e);
-    } finally {
-      setIsLoadingUsers(false);
-    }
-  }, [addToast]);
+  // Users query — replaces manual loadUsers + users/isLoadingUsers/usersError state.
+  // Both queries fetch on mount (no enabled flag) — deliberate: instant tab switch via cache.
+  const {
+    data: usersData,
+    isLoading: isLoadingUsers,
+    isError: usersError,
+  } = useQuery({
+    queryKey: qk.adminUsers,
+    queryFn: () => adminApi.getAdminUsers(),
+  });
+  const users = useMemo(() => usersData?.users ?? [], [usersData]);
 
-  const loadInvitations = useCallback(async () => {
-    try {
-      const res = await adminApi.getInvitations();
-      setInvitations(res.invitations);
-    } catch (e: unknown) {
-      addToast('error', 'Failed to load invitations');
-      console.error(e);
-    }
-  }, [addToast]);
-
-  useEffect(() => {
-    if (user?.role === 'super_admin') {
-      if (activeTab === 'users') {
-        loadUsers();
-      } else {
-        loadInvitations();
-      }
-    }
-  }, [user, activeTab, loadUsers, loadInvitations]);
+  // Invitations query — replaces manual loadInvitations + invitations state.
+  const { data: invitationsData } = useQuery({
+    queryKey: qk.adminInvitations,
+    queryFn: () => adminApi.getInvitations(),
+  });
+  const invitations = useMemo(() => invitationsData?.invitations ?? [], [invitationsData]);
 
   if (user?.role !== 'super_admin') {
     return (
@@ -212,7 +194,7 @@ export const AdminUsersPage: React.FC = () => {
       await adminApi.createInvitation(inviteCode, inviteMaxUses);
       setInviteCode('');
       setInviteMaxUses(1);
-      loadInvitations();
+      queryClient.invalidateQueries({ queryKey: qk.adminInvitations });
     } catch (e: unknown) {
       addToast(
         'error',
@@ -227,7 +209,7 @@ export const AdminUsersPage: React.FC = () => {
   const handleDeleteInvitation = async (id: string) => {
     try {
       await adminApi.deleteInvitation(id);
-      loadInvitations();
+      queryClient.invalidateQueries({ queryKey: qk.adminInvitations });
     } catch (e: unknown) {
       addToast(
         'error',
@@ -246,7 +228,7 @@ export const AdminUsersPage: React.FC = () => {
     try {
       await adminApi.updateUserRole(roleTarget.id, roleTarget.role);
       setRoleTarget(null);
-      loadUsers();
+      queryClient.invalidateQueries({ queryKey: qk.adminUsers });
       addToast(
         'success',
         `User ${roleTarget.role === 'super_admin' ? 'promoted to Super Admin' : 'demoted to Member'}`,
@@ -265,7 +247,7 @@ export const AdminUsersPage: React.FC = () => {
     try {
       await adminApi.updateUserStatus(statusTarget.id, statusTarget.status);
       setStatusTarget(null);
-      loadUsers();
+      queryClient.invalidateQueries({ queryKey: qk.adminUsers });
       addToast('success', `User ${statusTarget.status === 'blocked' ? 'blocked' : 'unblocked'}`);
     } catch (e: unknown) {
       addToast('error', e instanceof Error ? e.message : 'Failed to update status');
@@ -281,7 +263,7 @@ export const AdminUsersPage: React.FC = () => {
     try {
       await adminApi.deleteUser(deleteUserTarget.id);
       setDeleteUserTarget(null);
-      loadUsers();
+      queryClient.invalidateQueries({ queryKey: qk.adminUsers });
       addToast('success', 'User deleted');
     } catch (e: unknown) {
       addToast('error', e instanceof Error ? e.message : 'Failed to delete user');
@@ -336,7 +318,9 @@ export const AdminUsersPage: React.FC = () => {
                   <ListSkeleton rows={6} />
                 </div>
               ) : usersError ? (
-                <ErrorState onRetry={() => loadUsers()} />
+                <ErrorState
+                  onRetry={() => queryClient.invalidateQueries({ queryKey: qk.adminUsers })}
+                />
               ) : (
                 <table className="w-full text-left border-collapse min-w-[500px]">
                   <thead>
@@ -531,7 +515,7 @@ export const AdminUsersPage: React.FC = () => {
         onClose={() => setIsAddUserModalOpen(false)}
         onSuccess={() => {
           setIsAddUserModalOpen(false);
-          loadUsers();
+          queryClient.invalidateQueries({ queryKey: qk.adminUsers });
         }}
       />
 

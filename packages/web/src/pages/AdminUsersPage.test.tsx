@@ -5,6 +5,7 @@ import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/re
 import { AdminUsersPage } from './AdminUsersPage';
 import { useAuthStore } from '../stores/useAuthStore';
 import { adminApi } from '../lib/api/admin';
+import { useQuery } from '@tanstack/react-query';
 
 // Mock the auth store
 vi.mock('../stores/useAuthStore', () => ({
@@ -20,6 +21,17 @@ vi.mock('../lib/api/admin', () => ({
     createInvitation: vi.fn(),
     deleteInvitation: vi.fn(),
   },
+}));
+
+// Mock TanStack Query — useQuery returns data directly (never calls queryFn).
+vi.mock('@tanstack/react-query', () => ({
+  useQuery: vi.fn(),
+  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+}));
+
+// Mock queryKeys
+vi.mock('../lib/queryKeys', () => ({
+  qk: { adminUsers: ['adminUsers'], adminInvitations: ['adminInvitations'] },
 }));
 
 // Mock the lucide-react icons
@@ -74,6 +86,17 @@ describe('AdminUsersPage', () => {
     vi.clearAllMocks();
     (adminApi.getAdminUsers as Mock).mockResolvedValue({ users: [] });
     (adminApi.getInvitations as Mock).mockResolvedValue({ invitations: [] });
+    // useQuery mock returns data directly (queryFn is never called by the mock).
+    // Both queries fetch on mount — no enabled flag, no tab-conditional fetch.
+    (useQuery as Mock).mockImplementation(({ queryKey }) => {
+      if (queryKey[0] === 'adminUsers') {
+        return { data: { users: [] }, isLoading: false, isError: false };
+      }
+      if (queryKey[0] === 'adminInvitations') {
+        return { data: { invitations: [] }, isLoading: false, isError: false };
+      }
+      return { data: undefined, isLoading: false, isError: false };
+    });
   });
 
   afterEach(() => {
@@ -100,7 +123,8 @@ describe('AdminUsersPage', () => {
 
     expect(await screen.findByText('Users')).toBeTruthy();
     expect(screen.getByRole('button', { name: /add user/i })).toBeTruthy();
-    expect(adminApi.getAdminUsers).toHaveBeenCalledTimes(1);
+    // useQuery is called with the adminUsers key (queryFn is mocked, not called)
+    expect(useQuery).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ['adminUsers'] }));
   });
 
   it('opens and closes the add user modal', async () => {
@@ -135,12 +159,16 @@ describe('AdminUsersPage', () => {
 
     render(<AdminUsersPage />);
 
-    expect(adminApi.getAdminUsers).toHaveBeenCalledTimes(1);
+    // Both queries register on mount (no tab-conditional fetch after migration)
+    expect(useQuery).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ['adminUsers'] }));
+    expect(useQuery).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ['adminInvitations'] }),
+    );
 
     const invTab = await screen.findByText('Invitation Codes');
     fireEvent.click(invTab);
 
-    expect(adminApi.getInvitations).toHaveBeenCalledTimes(1);
+    // Tab click shows invitations UI (data already cached from mount)
     expect(screen.getByText('Create Code')).toBeTruthy();
   });
 });

@@ -14,4 +14,6 @@ export const qk = {
   externalFolder: (driveId: string, folderId: string) => ['external', driveId, folderId] as const,
   workspaceTree: ['workspaceTree'] as const,
   workspaceContents: (folderId: string) => ['workspaceContents', folderId] as const,
+  adminUsers: ['adminUsers'] as const,
+  adminInvitations: ['adminInvitations'] as const,
 };
