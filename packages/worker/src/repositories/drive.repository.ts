@@ -52,6 +52,18 @@ export class DriveRepository {
       .first<{ ok: number }>();
   }
 
+  /**
+   * Read the encrypted token blob for a drive. Used by `GoogleDriveService.loadTokens`
+   * (the first call per sync — subsequent calls hit the in-memory token cache).
+   * Returns `null` if no tokens row exists (the caller throws NotFoundError).
+   */
+  findEncryptedTokens(driveAccountId: string) {
+    return this.db
+      .prepare('SELECT encrypted_tokens FROM drive_tokens WHERE drive_account_id = ?')
+      .bind(driveAccountId)
+      .first<{ encrypted_tokens: string }>();
+  }
+
   /** Find the next drive (by created_at) to set as primary after deletion. */
   findNextDrive(userId: string) {
     return this.db
@@ -114,6 +126,38 @@ export class DriveRepository {
       .prepare('DELETE FROM quota_cache WHERE drive_account_id = ?')
       .bind(driveId)
       .run();
+  }
+
+  /**
+   * Read the cached quota payload + its `updated_at` timestamp. Used by
+   * `GoogleDriveService.getQuota` to check the 5-min TTL before hitting the
+   * Google API. Returns `null` if no cache row exists (cache miss).
+   */
+  findQuotaCache(driveAccountId: string) {
+    return this.db
+      .prepare('SELECT payload, updated_at FROM quota_cache WHERE drive_account_id = ?')
+      .bind(driveAccountId)
+      .first<{ payload: string; updated_at: number }>();
+  }
+
+  /**
+   * UPSERT a quota cache entry. The cache is keyed by `drive_account_id`
+   * (PRIMARY KEY), so `ON CONFLICT DO UPDATE` refreshes the payload + timestamp.
+   * Used by `GoogleDriveService.getQuota` after a fresh Google API fetch.
+   */
+  upsertQuotaCache(driveAccountId: string, payload: string, updatedAt: number) {
+    return this.db
+      .prepare(
+        'INSERT INTO quota_cache (drive_account_id, payload, updated_at) VALUES (?, ?, ?) ' +
+          'ON CONFLICT(drive_account_id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at',
+      )
+      .bind(driveAccountId, payload, updatedAt)
+      .run();
+  }
+
+  /** Delete quota cache entries older than `cutoff` (cron cleanup, 1h TTL). */
+  deleteExpiredQuotaCache(cutoff: number) {
+    return this.db.prepare('DELETE FROM quota_cache WHERE updated_at < ?').bind(cutoff).run();
   }
 
   /**

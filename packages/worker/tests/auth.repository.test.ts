@@ -266,4 +266,64 @@ describe('AuthRepository', () => {
       expect(result).toEqual({ id: 'inv-1' });
     });
   });
+
+  // ─── PR 3: session read/touch + oauth_states + cron cleanup ───
+
+  describe('findSession', () => {
+    it('SELECTs data, expires_at, touched_at by session id via .first()', async () => {
+      mockFirst.mockResolvedValueOnce({ data: '{}', expires_at: 999, touched_at: 0 });
+
+      const result = await repo.findSession('sess-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toBe('SELECT data, expires_at, touched_at FROM sessions WHERE id = ?');
+      expect(mockBind).toHaveBeenCalledWith('sess-1');
+      expect(result).toEqual({ data: '{}', expires_at: 999, touched_at: 0 });
+    });
+  });
+
+  describe('touchSession', () => {
+    it('UPDATEs expires_at + touched_at with optimistic-concurrency guard (4 binds)', async () => {
+      await repo.touchSession('sess-1', 9999, 1234, 1000);
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toBe(
+        'UPDATE sessions SET expires_at = ?, touched_at = ? WHERE id = ? AND touched_at = ?',
+      );
+      // Binds: newExpiresAt, now, sessionId, oldTouchedAt.
+      expect(mockBind).toHaveBeenCalledWith(9999, 1234, 'sess-1', 1000);
+    });
+  });
+
+  describe('deleteExpiredSessions', () => {
+    it('DELETEs sessions by expires_at < now, single bind', async () => {
+      await repo.deleteExpiredSessions(1700000000);
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toBe('DELETE FROM sessions WHERE expires_at < ?');
+      expect(mockBind).toHaveBeenCalledWith(1700000000);
+    });
+  });
+
+  describe('insertOAuthState', () => {
+    it('INSERTs PKCE state with 4 binds (state, verifier, userId, createdAt)', async () => {
+      await repo.insertOAuthState('state-1', 'verifier-1', 'u-1', 1700000000);
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toBe(
+        'INSERT INTO oauth_states (state, code_verifier, user_id, created_at) VALUES (?, ?, ?, ?)',
+      );
+      expect(mockBind).toHaveBeenCalledWith('state-1', 'verifier-1', 'u-1', 1700000000);
+    });
+  });
+
+  describe('deleteExpiredOAuthStates', () => {
+    it('DELETEs oauth_states by created_at < cutoff, single bind', async () => {
+      await repo.deleteExpiredOAuthStates(1700000000);
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toBe('DELETE FROM oauth_states WHERE created_at < ?');
+      expect(mockBind).toHaveBeenCalledWith(1700000000);
+    });
+  });
 });

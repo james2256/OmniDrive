@@ -5,6 +5,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { decrypt } from '../lib/crypto';
 import { hmacSha256, sha256 } from '../lib/crypto-s3';
 import { logError } from '../lib/logger';
+import { S3CredentialsRepository } from '../repositories/s3-credentials.repository';
 
 function returnXmlError(
   c: Context<AppContext>,
@@ -122,11 +123,9 @@ export const s3AuthMiddleware: MiddlewareHandler<AppContext> = async (c, next) =
   }
 
   // Look up credentials in the database
-  const db = c.env.DB;
-  const cred = (await db
-    .prepare('SELECT * FROM s3_credentials WHERE access_key_id = ?')
-    .bind(accessKeyId)
-    .first()) as S3CredentialRow | null;
+  const cred = (await new S3CredentialsRepository(c.env.DB).findByAccessKeyId(
+    accessKeyId,
+  )) as S3CredentialRow | null;
   if (!cred) {
     return returnXmlError(
       c,

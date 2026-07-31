@@ -50,4 +50,18 @@ export class S3CredentialsRepository {
       .bind(id, userId)
       .run();
   }
+
+  /**
+   * Find a credential by its public `access_key_id` (the S3 auth gateway).
+   * Used by `s3-auth` middleware to resolve the credential row for every S3
+   * API request (ListBuckets, PutObject, GetObject, …). Returns the full row
+   * including the encrypted secret — the caller decrypts + verifies the
+   * signature. No user scope — the access key identifies the credential.
+   */
+  findByAccessKeyId(accessKeyId: string) {
+    return this.db
+      .prepare('SELECT * FROM s3_credentials WHERE access_key_id = ?')
+      .bind(accessKeyId)
+      .first();
+  }
 }

@@ -14,6 +14,9 @@ import { logError } from './lib/logger';
 import { runScheduledSync } from './services/sync';
 import { runLifecycleExpiration, cleanupOrphanMultipartUploads } from './services/s3-lifecycle';
 import { AuditRepository } from './repositories/audit.repository';
+import { AuthRepository } from './repositories/auth.repository';
+import { DriveRepository } from './repositories/drive.repository';
+import { FileRepository } from './repositories/file.repository';
 import { PolicyService } from './services/policy.service';
 import { createDriveService } from './middleware/shared-services';
 
@@ -142,18 +145,14 @@ export default {
     await policyService.processAutoDeleteRetentionPolicies();
 
     // Light cleanup — cheap D1 DELETEs, safe to run after heavy tasks
-    await env.DB.prepare('DELETE FROM sessions WHERE expires_at < ?').bind(Date.now()).run();
+    const now = Date.now();
+    const authRepo = new AuthRepository(env.DB);
+    await authRepo.deleteExpiredSessions(now);
 
     // Cleanup expired OAuth states (10-min TTL) + stale quota/category cache (>1h old)
-    await env.DB.prepare('DELETE FROM oauth_states WHERE created_at < ?')
-      .bind(Date.now() - 10 * 60 * 1000)
-      .run();
-    await env.DB.prepare('DELETE FROM quota_cache WHERE updated_at < ?')
-      .bind(Date.now() - 60 * 60 * 1000)
-      .run();
-    await env.DB.prepare('DELETE FROM category_cache WHERE updated_at < ?')
-      .bind(Date.now() - 60 * 60 * 1000)
-      .run();
+    await authRepo.deleteExpiredOAuthStates(now - 10 * 60 * 1000);
+    await new DriveRepository(env.DB).deleteExpiredQuotaCache(now - 60 * 60 * 1000);
+    await new FileRepository(env.DB).deleteExpiredCategoryCache(now - 60 * 60 * 1000);
   },
 } satisfies ExportedHandler<Env>;
 

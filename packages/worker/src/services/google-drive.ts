@@ -5,6 +5,7 @@ import { parseStorageQuota, QUOTA_CACHE_VERSION } from '../lib/storage-quota';
 import { NotFoundError, AuthError, UpstreamError } from '../lib/errors';
 import { withBackoff } from '../lib/backoff';
 import { safeJsonParse } from '../lib/safe-json-parse';
+import { DriveRepository } from '../repositories/drive.repository';
 
 // ponytail: split into token/file/folder/sync modules when a 4th method group
 // is added or when extending becomes painful. Currently 27 methods across 4
@@ -56,14 +57,16 @@ export class GoogleDriveService {
   // Scoped to this instance: one GoogleDriveService per sync invocation, so the cache
   // lives only as long as needed and never serves cross-invocation stale tokens.
   private tokenCache: Map<string, { token: string; expiresAt: number }> = new Map();
+  private driveRepo: DriveRepository;
 
   constructor(
-    private db: D1Database,
+    db: D1Database,
     private clientId: string,
     private clientSecret: string,
     encryptionKey?: string,
   ) {
     this.encryptionKey = encryptionKey;
+    this.driveRepo = new DriveRepository(db);
   }
 
   // ─── HTTP helper (backoff + retry) ───
@@ -99,10 +102,7 @@ export class GoogleDriveService {
   // ─── Token Management ───
 
   private async loadTokens(driveAccountId: string): Promise<OAuthTokens> {
-    const row = await this.db
-      .prepare('SELECT encrypted_tokens FROM drive_tokens WHERE drive_account_id = ?')
-      .bind(driveAccountId)
-      .first<{ encrypted_tokens: string }>();
+    const row = await this.driveRepo.findEncryptedTokens(driveAccountId);
     if (!row?.encrypted_tokens) {
       throw new NotFoundError(`No tokens found for drive ${driveAccountId}`);
     }
@@ -168,13 +168,7 @@ export class GoogleDriveService {
     const encryptedTokens = this.encryptionKey
       ? await (await import('../lib/crypto')).encrypt(serialized, this.encryptionKey)
       : serialized;
-    await this.db
-      .prepare(
-        'INSERT INTO drive_tokens (drive_account_id, encrypted_tokens, updated_at) VALUES (?, ?, ?) ' +
-          'ON CONFLICT(drive_account_id) DO UPDATE SET encrypted_tokens = excluded.encrypted_tokens, updated_at = excluded.updated_at',
-      )
-      .bind(driveAccountId, encryptedTokens, Date.now())
-      .run();
+    await this.driveRepo.upsertTokens(driveAccountId, encryptedTokens, Date.now());
   }
 
   private async refreshServiceAccountToken(
@@ -260,10 +254,7 @@ export class GoogleDriveService {
   ): Promise<{ total: number; used: number; hasLimit: boolean }> {
     // Check D1 cache first. Cache entries carry the schema version so stale
     // pre-usageInDrive entries (which stored account-wide usage) are ignored.
-    const cacheRow = await this.db
-      .prepare('SELECT payload, updated_at FROM quota_cache WHERE drive_account_id = ?')
-      .bind(driveAccountId)
-      .first<{ payload: string; updated_at: number }>();
+    const cacheRow = await this.driveRepo.findQuotaCache(driveAccountId);
     if (cacheRow && Date.now() - cacheRow.updated_at < QUOTA_CACHE_TTL_MS) {
       const quota = safeJsonParse<QuotaCache | null>(cacheRow.payload, null);
       if (quota && quota.v === QUOTA_CACHE_VERSION && quota.total > 0) {
@@ -300,13 +291,7 @@ export class GoogleDriveService {
       hasLimit,
       updatedAt: new Date().toISOString(),
     } satisfies QuotaCache);
-    await this.db
-      .prepare(
-        'INSERT INTO quota_cache (drive_account_id, payload, updated_at) VALUES (?, ?, ?) ' +
-          'ON CONFLICT(drive_account_id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at',
-      )
-      .bind(driveAccountId, payload, Date.now())
-      .run();
+    await this.driveRepo.upsertQuotaCache(driveAccountId, payload, Date.now());
 
     return { total, used, hasLimit };
   }

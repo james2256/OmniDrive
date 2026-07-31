@@ -141,4 +141,23 @@ describe('S3CredentialsRepository', () => {
       expect(mockBind).toHaveBeenCalledWith('k-1', 'wrong-user');
     });
   });
+
+  // ─── PR 3: S3 auth gateway credential lookup ───
+
+  describe('findByAccessKeyId', () => {
+    it('SELECTs * by access_key_id (no user scope), via .first()', async () => {
+      mockFirst.mockResolvedValueOnce({
+        id: 'k-1',
+        access_key_id: 'OMNI123',
+        secret_key_enc: 'enc',
+      });
+
+      const result = await repo.findByAccessKeyId('OMNI123');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toBe('SELECT * FROM s3_credentials WHERE access_key_id = ?');
+      expect(mockBind).toHaveBeenCalledWith('OMNI123');
+      expect(result).toEqual({ id: 'k-1', access_key_id: 'OMNI123', secret_key_enc: 'enc' });
+    });
+  });
 });

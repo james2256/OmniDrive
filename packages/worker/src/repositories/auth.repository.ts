@@ -97,7 +97,30 @@ export class AuthRepository {
       .run();
   }
 
-  /** Delete a session by ID (for logout). */
+  /** Find a session row by ID (for auth-guard session validation). */
+  findSession(sessionId: string) {
+    return this.db
+      .prepare('SELECT data, expires_at, touched_at FROM sessions WHERE id = ?')
+      .bind(sessionId)
+      .first<{ data: string; expires_at: number; touched_at: number }>();
+  }
+
+  /**
+   * Optimistic-concurrency TTL extension: UPDATE only if `touched_at` still
+   * matches the value we read. The `WHERE touched_at = ?` guard prevents a
+   * lost-update race where two concurrent requests both try to extend the same
+   * session — only the first wins, saving ~90% of D1 writes vs unconditional
+   * extension on every request. Run by auth-guard when a session hasn't been
+   * touched in over an hour.
+   */
+  touchSession(sessionId: string, newExpiresAt: number, now: number, oldTouchedAt: number) {
+    return this.db
+      .prepare('UPDATE sessions SET expires_at = ?, touched_at = ? WHERE id = ? AND touched_at = ?')
+      .bind(newExpiresAt, now, sessionId, oldTouchedAt)
+      .run();
+  }
+
+  /** Delete a session by ID (for logout + expired/corrupted-session self-heal). */
   deleteSessionById(sessionId: string) {
     return this.db.prepare('DELETE FROM sessions WHERE id = ?').bind(sessionId).run();
   }
@@ -113,6 +136,32 @@ export class AuthRepository {
   /** Delete all sessions for a user (for sessions/revoke). */
   deleteAllSessions(userId: string) {
     return this.db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(userId).run();
+  }
+
+  /** Delete sessions whose `expires_at` is before `now` (cron cleanup). */
+  deleteExpiredSessions(now: number) {
+    return this.db.prepare('DELETE FROM sessions WHERE expires_at < ?').bind(now).run();
+  }
+
+  // ─── oauth_states ───
+
+  /**
+   * Persist a PKCE state + code_verifier + userId for an OAuth flow. The
+   * `created_at` timestamp drives a 10-min TTL (enforced by cleanup). Run by
+   * `buildDriveOAuthUrl` (shared by auth.ts /google and drives.ts /connect).
+   */
+  insertOAuthState(state: string, codeVerifier: string, userId: string, createdAt: number) {
+    return this.db
+      .prepare(
+        'INSERT INTO oauth_states (state, code_verifier, user_id, created_at) VALUES (?, ?, ?, ?)',
+      )
+      .bind(state, codeVerifier, userId, createdAt)
+      .run();
+  }
+
+  /** Delete OAuth states older than `cutoff` (cron cleanup, 10-min TTL). */
+  deleteExpiredOAuthStates(cutoff: number) {
+    return this.db.prepare('DELETE FROM oauth_states WHERE created_at < ?').bind(cutoff).run();
   }
 
   // ─── invitation_codes ───

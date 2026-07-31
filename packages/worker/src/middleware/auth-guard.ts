@@ -20,11 +20,10 @@ export const authGuard = createMiddleware<AppContext>(async (c, next) => {
     throw new AppError(401, 'Not authenticated');
   }
 
-  const row = await c.env.DB.prepare(
-    'SELECT data, expires_at, touched_at FROM sessions WHERE id = ?',
-  )
-    .bind(cookie)
-    .first<{ data: string; expires_at: number; touched_at: number }>();
+  // Constructed early — the session validation below needs it, and routes read
+  // it via c.get('authRepo') after c.set() below.
+  const authRepo = new AuthRepository(c.env.DB);
+  const row = await authRepo.findSession(cookie);
 
   if (!row) {
     throw new AppError(401, 'Session expired');
@@ -33,7 +32,7 @@ export const authGuard = createMiddleware<AppContext>(async (c, next) => {
   const now = Date.now();
 
   if (row.expires_at < now) {
-    await c.env.DB.prepare('DELETE FROM sessions WHERE id = ?').bind(cookie).run();
+    await authRepo.deleteSessionById(cookie);
     throw new AppError(401, 'Session expired');
   }
 
@@ -42,7 +41,7 @@ export const authGuard = createMiddleware<AppContext>(async (c, next) => {
     session = JSON.parse(row.data);
   } catch {
     // Corrupted session data — delete so the user can log in fresh (self-heal)
-    await c.env.DB.prepare('DELETE FROM sessions WHERE id = ?').bind(cookie).run();
+    await authRepo.deleteSessionById(cookie);
     throw new AppError(401, 'Session expired');
   }
   c.set('userId', session.userId);
@@ -72,17 +71,13 @@ export const authGuard = createMiddleware<AppContext>(async (c, next) => {
   c.set('automationRepo', new AutomationRepository(c.env.DB));
   c.set('s3CredentialsRepo', new S3CredentialsRepository(c.env.DB));
   c.set('adminRepo', new AdminRepository(c.env.DB));
-  c.set('authRepo', new AuthRepository(c.env.DB));
+  c.set('authRepo', authRepo);
 
   // ponytail: throttled sliding window — only extend TTL if session hasn't been touched
   // in the last hour, saving ~90% of D1 writes vs extending on every request.
   if (now - row.touched_at > EXTENSION_THRESHOLD) {
     const newExpiresAt = now + SESSION_TTL_MS;
-    await c.env.DB.prepare(
-      'UPDATE sessions SET expires_at = ?, touched_at = ? WHERE id = ? AND touched_at = ?',
-    )
-      .bind(newExpiresAt, now, cookie, row.touched_at)
-      .run();
+    await authRepo.touchSession(cookie, newExpiresAt, now, row.touched_at);
   }
 
   await next();

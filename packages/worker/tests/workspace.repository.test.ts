@@ -460,4 +460,19 @@ describe('WorkspaceRepository', () => {
       expect(results).toHaveLength(1);
     });
   });
+
+  // ─── PR 3: RBAC role primitive ───
+
+  describe('findMemberRole', () => {
+    it('SELECTs role by workspace_id + user_id via .first()', async () => {
+      mockFirst.mockResolvedValueOnce({ role: 'editor' });
+
+      const result = await repo.findMemberRole('ws-1', 'u-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toBe('SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?');
+      expect(mockBind).toHaveBeenCalledWith('ws-1', 'u-1');
+      expect(result).toEqual({ role: 'editor' });
+    });
+  });
 });

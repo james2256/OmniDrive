@@ -5,6 +5,7 @@ import { mapDriveRow } from '../types/db';
 import type { DriveWithQuota } from '../types/domain';
 import { createDriveService } from '../middleware/shared-services';
 import { logErrorNoCtx } from '../lib/logger';
+import { DriveRepository } from '../repositories/drive.repository';
 
 export async function resolveDrivesWithQuota(
   env: Env,
@@ -12,19 +13,14 @@ export async function resolveDrivesWithQuota(
   userId: string,
   onQuotaPersist?: (driveId: string, total: number, used: number) => void,
 ): Promise<DriveWithQuota[]> {
-  const { results } = await db
-    .prepare('SELECT * FROM drive_accounts WHERE user_id = ?')
-    .bind(userId)
-    .all();
+  const driveRepo = new DriveRepository(db);
+  const { results } = await driveRepo.findAllByUser(userId);
 
   const drives = results.map(mapDriveRow);
 
   return Promise.all(
     drives.map(async (drive) => {
-      const tokenRow = await db
-        .prepare('SELECT 1 as ok FROM drive_tokens WHERE drive_account_id = ?')
-        .bind(drive.id)
-        .first();
+      const tokenRow = await driveRepo.findTokenStatus(drive.id);
       if (!tokenRow) {
         const { freeSpace, usagePercent } = computeDriveQuota(drive);
         return { ...drive, freeSpace, usagePercent };

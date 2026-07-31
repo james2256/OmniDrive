@@ -420,4 +420,55 @@ describe('DriveRepository', () => {
       expect(mockBind).toHaveBeenCalledWith('u-1');
     });
   });
+
+  // ─── PR 3: drive_tokens read + quota_cache read/upsert/expiry ───
+
+  describe('findEncryptedTokens', () => {
+    it('SELECTs encrypted_tokens by drive_account_id via .first()', async () => {
+      mockFirst.mockResolvedValueOnce({ encrypted_tokens: 'enc-blob' });
+
+      const result = await repo.findEncryptedTokens('d-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toBe('SELECT encrypted_tokens FROM drive_tokens WHERE drive_account_id = ?');
+      expect(mockBind).toHaveBeenCalledWith('d-1');
+      expect(result).toEqual({ encrypted_tokens: 'enc-blob' });
+    });
+  });
+
+  describe('findQuotaCache', () => {
+    it('SELECTs payload + updated_at by drive_account_id via .first()', async () => {
+      mockFirst.mockResolvedValueOnce({ payload: '{"v":2}', updated_at: 1700000000 });
+
+      const result = await repo.findQuotaCache('d-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toBe('SELECT payload, updated_at FROM quota_cache WHERE drive_account_id = ?');
+      expect(mockBind).toHaveBeenCalledWith('d-1');
+      expect(result).toEqual({ payload: '{"v":2}', updated_at: 1700000000 });
+    });
+  });
+
+  describe('upsertQuotaCache', () => {
+    it('UPSERTs quota_cache payload + updated_at, 3 binds', async () => {
+      await repo.upsertQuotaCache('d-1', '{"v":2}', 1700000000);
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain('INSERT INTO quota_cache (drive_account_id, payload, updated_at)');
+      expect(sql).toContain('ON CONFLICT(drive_account_id) DO UPDATE SET');
+      expect(sql).toContain('payload = excluded.payload');
+      expect(sql).toContain('updated_at = excluded.updated_at');
+      expect(mockBind).toHaveBeenCalledWith('d-1', '{"v":2}', 1700000000);
+    });
+  });
+
+  describe('deleteExpiredQuotaCache', () => {
+    it('DELETEs quota_cache by updated_at < cutoff, single bind', async () => {
+      await repo.deleteExpiredQuotaCache(1700000000);
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toBe('DELETE FROM quota_cache WHERE updated_at < ?');
+      expect(mockBind).toHaveBeenCalledWith(1700000000);
+    });
+  });
 });

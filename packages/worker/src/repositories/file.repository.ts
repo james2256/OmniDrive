@@ -118,6 +118,11 @@ export class FileRepository {
     return this.db.prepare('DELETE FROM category_cache WHERE user_id = ?').bind(userId).run();
   }
 
+  /** Delete category cache entries older than `cutoff` (cron cleanup, 1h TTL). */
+  deleteExpiredCategoryCache(cutoff: number) {
+    return this.db.prepare('DELETE FROM category_cache WHERE updated_at < ?').bind(cutoff).run();
+  }
+
   /**
    * Search files with optional query, workspace filter, and metadata filter.
    * UNION form (not `OR EXISTS`) so each branch uses a different index:

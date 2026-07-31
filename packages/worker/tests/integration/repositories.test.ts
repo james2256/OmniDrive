@@ -10,6 +10,8 @@ import { WorkspaceRepository } from '../../src/repositories/workspace.repository
 import { SharedRepository } from '../../src/repositories/shared.repository';
 import { SyncStateRepository } from '../../src/repositories/sync-state.repository';
 import { AuditRepository } from '../../src/repositories/audit.repository';
+import { AuthRepository } from '../../src/repositories/auth.repository';
+import { FileRepository } from '../../src/repositories/file.repository';
 import { hashPassword } from '../../src/lib/password';
 
 declare module 'cloudflare:workers' {
@@ -1132,6 +1134,233 @@ describe('Repositories (integration)', () => {
       const { results } = await repo.findAllAutoDeleteRetentionPolicies();
       expect(results).toHaveLength(1);
       expect((results[0] as any).id).toBe('p-1');
+    });
+  });
+
+  // ─── PR 3: AuthRepository session + oauth_states ───
+
+  describe('AuthRepository PR3', () => {
+    it('findSession returns the session row by id', async () => {
+      await insertUser('u1', 'alice', 1);
+      await env.DB.prepare(
+        'INSERT INTO sessions (id, user_id, data, expires_at, touched_at) VALUES (?, ?, ?, ?, ?)',
+      )
+        .bind('sess-1', 'u1', '{"userId":"u1"}', Date.now() + 3600_000, Date.now())
+        .run();
+
+      const repo = new AuthRepository(env.DB);
+      const row = await repo.findSession('sess-1');
+      expect(row?.data).toBe('{"userId":"u1"}');
+      expect(row?.expires_at).toBeGreaterThan(Date.now());
+    });
+
+    it('touchSession updates expires_at + touched_at only when touched_at matches', async () => {
+      await insertUser('u1', 'alice', 1);
+      const oldTouched = Date.now() - 7200_000;
+      await env.DB.prepare(
+        'INSERT INTO sessions (id, user_id, data, expires_at, touched_at) VALUES (?, ?, ?, ?, ?)',
+      )
+        .bind('sess-1', 'u1', '{}', oldTouched + 3600_000, oldTouched)
+        .run();
+
+      const repo = new AuthRepository(env.DB);
+      const now = Date.now();
+      await repo.touchSession('sess-1', now + 3600_000, now, oldTouched);
+
+      const row = await env.DB.prepare('SELECT expires_at, touched_at FROM sessions WHERE id = ?')
+        .bind('sess-1')
+        .first<{ expires_at: number; touched_at: number }>();
+      expect(row?.touched_at).toBe(now);
+      expect(row?.expires_at).toBe(now + 3600_000);
+    });
+
+    it('deleteExpiredSessions removes only expired rows', async () => {
+      await insertUser('u1', 'alice', 1);
+      await env.DB.prepare(
+        'INSERT INTO sessions (id, user_id, data, expires_at, touched_at) VALUES (?, ?, ?, ?, ?)',
+      )
+        .bind('sess-expired', 'u1', '{}', Date.now() - 1000, Date.now())
+        .run();
+      await env.DB.prepare(
+        'INSERT INTO sessions (id, user_id, data, expires_at, touched_at) VALUES (?, ?, ?, ?, ?)',
+      )
+        .bind('sess-valid', 'u1', '{}', Date.now() + 3600_000, Date.now())
+        .run();
+
+      const repo = new AuthRepository(env.DB);
+      await repo.deleteExpiredSessions(Date.now());
+
+      const expired = await env.DB.prepare('SELECT id FROM sessions WHERE id = ?')
+        .bind('sess-expired')
+        .first();
+      expect(expired).toBeNull();
+      const valid = await env.DB.prepare('SELECT id FROM sessions WHERE id = ?')
+        .bind('sess-valid')
+        .first();
+      expect(valid).not.toBeNull();
+    });
+
+    it('insertOAuthState + deleteExpiredOAuthStates round-trip', async () => {
+      await insertUser('u1', 'alice', 1);
+      const repo = new AuthRepository(env.DB);
+      const now = Date.now();
+      await repo.insertOAuthState('state-fresh', 'verifier', 'u1', now);
+      await repo.insertOAuthState('state-stale', 'verifier', 'u1', now - 20 * 60 * 1000);
+
+      await repo.deleteExpiredOAuthStates(now - 10 * 60 * 1000);
+
+      const stale = await env.DB.prepare('SELECT state FROM oauth_states WHERE state = ?')
+        .bind('state-stale')
+        .first();
+      expect(stale).toBeNull();
+      const fresh = await env.DB.prepare('SELECT state FROM oauth_states WHERE state = ?')
+        .bind('state-fresh')
+        .first();
+      expect(fresh).not.toBeNull();
+    });
+  });
+
+  // ─── PR 3: DriveRepository token read + quota cache + expiry ───
+
+  describe('DriveRepository PR3', () => {
+    it('findEncryptedTokens returns the encrypted blob', async () => {
+      await insertUser('u1', 'alice', 1);
+      await insertDrive('d1', 'u1', 'a@b.com', 1);
+      await env.DB.prepare(
+        'INSERT INTO drive_tokens (drive_account_id, encrypted_tokens, updated_at) VALUES (?, ?, ?)',
+      )
+        .bind('d1', 'enc-blob', Date.now())
+        .run();
+
+      const repo = new DriveRepository(env.DB);
+      const row = await repo.findEncryptedTokens('d1');
+      expect(row?.encrypted_tokens).toBe('enc-blob');
+    });
+
+    it('findQuotaCache + upsertQuotaCache round-trip', async () => {
+      await insertUser('u1', 'alice', 1);
+      await insertDrive('d1', 'u1', 'a@b.com', 1);
+      const repo = new DriveRepository(env.DB);
+      await repo.upsertQuotaCache('d1', '{"v":2}', Date.now());
+
+      const row = await repo.findQuotaCache('d1');
+      expect(row?.payload).toBe('{"v":2}');
+    });
+
+    it('deleteExpiredQuotaCache removes only stale rows', async () => {
+      await insertUser('u1', 'alice', 1);
+      await insertDrive('d1', 'u1', 'a@b.com', 1);
+      const now = Date.now();
+      await env.DB.prepare(
+        'INSERT INTO quota_cache (drive_account_id, payload, updated_at) VALUES (?, ?, ?)',
+      )
+        .bind('d1', '{"old":1}', now - 2 * 3600_000)
+        .run();
+      await insertDrive('d2', 'u1', 'b@b.com', 0);
+      await env.DB.prepare(
+        'INSERT INTO quota_cache (drive_account_id, payload, updated_at) VALUES (?, ?, ?)',
+      )
+        .bind('d2', '{"new":1}', now)
+        .run();
+
+      const repo = new DriveRepository(env.DB);
+      await repo.deleteExpiredQuotaCache(now - 3600_000);
+
+      const stale = await env.DB.prepare(
+        'SELECT payload FROM quota_cache WHERE drive_account_id = ?',
+      )
+        .bind('d1')
+        .first();
+      expect(stale).toBeNull();
+      const fresh = await env.DB.prepare(
+        'SELECT payload FROM quota_cache WHERE drive_account_id = ?',
+      )
+        .bind('d2')
+        .first();
+      expect(fresh).not.toBeNull();
+    });
+  });
+
+  // ─── PR 3: S3CredentialsRepository.findByAccessKeyId + WorkspaceRepository.findMemberRole + FileRepository.deleteExpiredCategoryCache ───
+
+  describe('S3CredentialsRepository.findByAccessKeyId', () => {
+    it('returns the credential row by access_key_id (no user scope)', async () => {
+      await insertUser('u1', 'alice', 1);
+      await env.DB.prepare(
+        'INSERT INTO s3_credentials (id, user_id, access_key_id, secret_key_enc, description, workspace_id) VALUES (?, ?, ?, ?, ?, ?)',
+      )
+        .bind('k-1', 'u1', 'OMNI123', 'enc-secret', 'my key', null)
+        .run();
+
+      const repo = new S3CredentialsRepository(env.DB);
+      const row = await repo.findByAccessKeyId('OMNI123');
+      expect(row?.id).toBe('k-1');
+      expect(row?.access_key_id).toBe('OMNI123');
+    });
+  });
+
+  describe('WorkspaceRepository.findMemberRole', () => {
+    it('returns the role for a workspace member', async () => {
+      await insertUser('u1', 'alice', 1);
+      await env.DB.prepare('INSERT INTO workspaces (id, name, owner_id) VALUES (?, ?, ?)')
+        .bind('ws-1', 'WS', 'u1')
+        .run();
+      await env.DB.prepare(
+        'INSERT INTO workspace_members (id, workspace_id, user_id, role) VALUES (?, ?, ?, ?)',
+      )
+        .bind('m-1', 'ws-1', 'u1', 'owner')
+        .run();
+
+      const repo = new WorkspaceRepository(env.DB);
+      const row = await repo.findMemberRole('ws-1', 'u1');
+      expect(row?.role).toBe('owner');
+    });
+
+    it('returns null for a non-member', async () => {
+      await insertUser('u1', 'alice', 1);
+      await insertUser('u2', 'bob', 0);
+      await env.DB.prepare('INSERT INTO workspaces (id, name, owner_id) VALUES (?, ?, ?)')
+        .bind('ws-1', 'WS', 'u1')
+        .run();
+      await env.DB.prepare(
+        'INSERT INTO workspace_members (id, workspace_id, user_id, role) VALUES (?, ?, ?, ?)',
+      )
+        .bind('m-1', 'ws-1', 'u1', 'owner')
+        .run();
+
+      const repo = new WorkspaceRepository(env.DB);
+      const row = await repo.findMemberRole('ws-1', 'u2');
+      expect(row).toBeNull();
+    });
+  });
+
+  describe('FileRepository.deleteExpiredCategoryCache', () => {
+    it('removes only stale category cache entries', async () => {
+      await insertUser('u1', 'alice', 1);
+      await insertUser('u2', 'bob', 0);
+      const now = Date.now();
+      await env.DB.prepare(
+        'INSERT INTO category_cache (user_id, payload, updated_at) VALUES (?, ?, ?)',
+      )
+        .bind('u1', '{"old":1}', now - 2 * 3600_000)
+        .run();
+      await env.DB.prepare(
+        'INSERT INTO category_cache (user_id, payload, updated_at) VALUES (?, ?, ?)',
+      )
+        .bind('u2', '{"new":1}', now)
+        .run();
+
+      const repo = new FileRepository(env.DB);
+      await repo.deleteExpiredCategoryCache(now - 3600_000);
+
+      const stale = await env.DB.prepare('SELECT user_id FROM category_cache WHERE user_id = ?')
+        .bind('u1')
+        .first();
+      expect(stale).toBeNull();
+      const fresh = await env.DB.prepare('SELECT user_id FROM category_cache WHERE user_id = ?')
+        .bind('u2')
+        .first();
+      expect(fresh).not.toBeNull();
     });
   });
 });

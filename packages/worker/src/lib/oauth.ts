@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import { setCookie } from 'hono/cookie';
 import { generatePKCE } from './pkce';
+import { AuthRepository } from '../repositories/auth.repository';
 import type { AppContext, Env } from '../types/env';
 
 export interface BuildOAuthUrlOptions {
@@ -35,11 +36,7 @@ export async function buildDriveOAuthUrl(
   const { codeVerifier, codeChallenge } = await generatePKCE();
 
   // Store state + PKCE verifier + userId in D1 (10-min TTL via created_at).
-  await env.DB.prepare(
-    'INSERT INTO oauth_states (state, code_verifier, user_id, created_at) VALUES (?, ?, ?, ?)',
-  )
-    .bind(state, codeVerifier, userId, Date.now())
-    .run();
+  await new AuthRepository(env.DB).insertOAuthState(state, codeVerifier, userId, Date.now());
 
   const isSecure = env.WORKER_URL.startsWith('https://');
   setCookie(c, 'oauth_state', state, {

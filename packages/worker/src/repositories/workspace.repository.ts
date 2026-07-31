@@ -257,6 +257,18 @@ export class WorkspaceRepository {
       .first<{ count: number }>();
   }
 
+  /**
+   * Read a user's workspace role (the RBAC primitive). Used by the lib/rbac
+   * `getWorkspaceRole` utility, which is called from 18 sites across services +
+   * routes. Returns `null` if the user is not a member of the workspace.
+   */
+  findMemberRole(workspaceId: string, userId: string) {
+    return this.db
+      .prepare('SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?')
+      .bind(workspaceId, userId)
+      .first<{ role: string }>();
+  }
+
   /** Remove a member from a workspace. */
   removeMember(workspaceId: string, targetUserId: string) {
     return this.db
