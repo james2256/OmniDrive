@@ -154,7 +154,7 @@ Nine repositories exist today, one per logical domain:
 
 **Rule:** routes are thin orchestrators — they validate input (Zod), call a service, and return JSON. Services own business logic and RBAC (`assertCanMutate`). Repositories own SQL.
 
-**Deferred:** `routes/s3.ts` (854 lines, 37 inline `db.prepare(...)` calls) is intentionally **not** migrated to a repository yet — the S3 XML / SigV4 / multipart logic is interleaved with SQL inside the `PUT`/`POST` handlers, and extracting it safely requires the integration-test coverage that now exists (see Testing Strategy). A `// ponytail:` marker at the top of the file records the deferral and the trigger condition.
+**Deferred:** `routes/s3.ts` (1,076 lines, 31 inline `db.prepare(...)` calls) is intentionally **not** migrated to a repository yet — the S3 XML / SigV4 / multipart logic is interleaved with SQL inside the `PUT`/`POST` handlers, and extracting it safely requires the integration-test coverage that now exists (see Testing Strategy). A `// ponytail:` marker at the top of the file records the deferral and the trigger condition.
 
 ### Middleware
 

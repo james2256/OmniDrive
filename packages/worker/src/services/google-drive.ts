@@ -210,7 +210,7 @@ export class GoogleDriveService {
     }
   }
 
-  // ponytail: last-write-wins refresh — sync is mostly serial (activeSyncs guard); add single-flight lock if races become a problem
+  // ponytail: last-write-wins refresh — sync is mostly serial (D1 sync_state lock); add single-flight lock if races become a problem
   private async refreshToken(
     driveAccountId: string,
     refreshToken: string,

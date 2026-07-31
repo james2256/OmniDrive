@@ -82,8 +82,8 @@ omnidrive/
 │   ├── worker/              # Cloudflare Worker (API backend)
 │   │   ├── src/
 │   │   │   ├── routes/          # 10 route files (thin orchestrators)
-│   │   │   ├── services/        # 14 service files (business logic + RBAC)
-│   │   │   ├── repositories/    # 9 repository files (all SQL)
+│   │   │   ├── services/        # 15 service files (business logic + RBAC)
+│   │   │   ├── repositories/    # 10 repository files (all SQL)
 │   │   │   ├── middleware/      # 8 middleware (auth, CORS, CSRF, rate limit, request ID, S3 auth, security headers, shared services)
 │   │   │   ├── lib/             # 21 utility files (crypto, validation, env, logger, schemas, password, PKCE, cursor, RBAC, S3 XML, backoff, etc.)
 │   │   │   ├── db/              # D1 schema

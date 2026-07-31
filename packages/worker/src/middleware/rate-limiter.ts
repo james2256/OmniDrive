@@ -1,5 +1,6 @@
 import type { Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
+import type { AppContext } from '../types/env';
 
 interface RateLimitEntry {
   timestamps: number[];
@@ -29,6 +30,12 @@ interface RateLimitOptions {
   windowMs: number;
   maxRequests: number;
   keyFn?: (c: Context) => string;
+  /**
+   * When true, use Cloudflare KV for cross-isolate rate limiting instead of
+   * the per-isolate in-memory Map. Adds ~50ms latency per request but ensures
+   * the limit is enforced globally across all Workers isolates.
+   */
+  useKV?: boolean;
 }
 
 export function rateLimiter(opts: RateLimitOptions) {
@@ -38,20 +45,48 @@ export function rateLimiter(opts: RateLimitOptions) {
   // module-level Map meant one POST /api/auth/login incremented both the
   // login bucket and the global bucket under the same key — exhausting the
   // login budget in as few as 5 attempts (5 × 2 = 10).
-  // ponytail: per-isolate limit — upgrade to Durable Object/KV if brute-force becomes a real problem
   const store: RateLimitStore = { map: new Map(), lastCleanup: Date.now() };
   allStores.push(store);
 
-  return createMiddleware(async (c, next) => {
-    cleanup(store, opts.windowMs);
-
+  return createMiddleware<AppContext>(async (c, next) => {
     const key = opts.keyFn
       ? opts.keyFn(c)
       : (c.req.header('CF-Connecting-IP') ?? c.req.header('X-Real-IP') ?? 'unknown');
 
     const now = Date.now();
-    const entry = store.map.get(key) ?? { timestamps: [] };
 
+    if (opts.useKV && c.env.KV) {
+      // Cross-isolate rate limiting via KV (eventual consistency — may allow
+      // 1-2 extra requests during propagation, but better than per-isolate
+      // which allows N × maxRequests across N isolates).
+      const kvKey = `ratelimit:${key}`;
+      const raw = await c.env.KV.get(kvKey);
+      let timestamps: number[];
+      try {
+        timestamps = raw ? JSON.parse(raw) : [];
+      } catch {
+        timestamps = []; // corrupted KV data — treat as empty (reset the window)
+      }
+      const valid = timestamps.filter((t) => now - t < opts.windowMs);
+
+      if (valid.length >= opts.maxRequests) {
+        const retryAfter = Math.ceil((valid[0] + opts.windowMs - now) / 1000);
+        c.header('Retry-After', String(retryAfter));
+        return c.json({ error: 'Too many requests' }, 429);
+      }
+
+      valid.push(now);
+      await c.env.KV.put(kvKey, JSON.stringify(valid), {
+        expirationTtl: Math.ceil(opts.windowMs / 1000),
+      });
+
+      return next();
+    }
+
+    // Per-isolate in-memory fallback (no KV available or useKV not set)
+    cleanup(store, opts.windowMs);
+
+    const entry = store.map.get(key) ?? { timestamps: [] };
     entry.timestamps = entry.timestamps.filter((t) => now - t < opts.windowMs);
 
     if (entry.timestamps.length >= opts.maxRequests) {

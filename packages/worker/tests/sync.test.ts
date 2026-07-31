@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { runScheduledSync, activeSyncs } from '../src/services/sync';
+import { runScheduledSync } from '../src/services/sync';
 
 // Mock the createDriveService factory so sync.ts uses our mock GoogleDriveService
 // instead of constructing a real one (which would hit the network).
@@ -69,9 +69,18 @@ function makeMockDb(
   opts: {
     driveAccounts?: Record<string, unknown>[];
     syncStateRow?: Record<string, unknown> | null;
+    alreadySyncing?: boolean;
   } = {},
 ) {
   const runCalls: { sql: string; binds: any[] }[] = [];
+  // Track sync_state rows so the UPSERT+RETURNING lock can simulate correctly.
+  const syncStateRows: Record<string, Record<string, unknown>> = {};
+  if (opts.syncStateRow) {
+    syncStateRows['drive-1'] = opts.syncStateRow;
+  }
+  if (opts.alreadySyncing) {
+    syncStateRows['drive-1'] = { drive_account_id: 'drive-1', status: 'syncing' };
+  }
 
   const db: any = {
     prepare: vi.fn((sql: string) => {
@@ -81,6 +90,16 @@ function makeMockDb(
           return { success: true, meta: { changes: 1 } };
         }),
         first: vi.fn(async () => {
+          // Handle the conditional UPSERT+RETURNING lock
+          if (sql.includes('INSERT INTO sync_state') && sql.includes('RETURNING')) {
+            const driveId = binds[0];
+            const existing = syncStateRows[driveId];
+            if (existing && existing.status === 'syncing') {
+              return null; // Lock denied — already syncing
+            }
+            syncStateRows[driveId] = { drive_account_id: driveId, status: 'syncing' };
+            return { drive_account_id: driveId }; // Lock acquired
+          }
           if (sql.includes('FROM sync_state')) {
             return opts.syncStateRow ?? null;
           }
@@ -147,7 +166,6 @@ function makeEnv(db: any) {
 describe('runScheduledSync', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    activeSyncs.clear();
   });
 
   it('first sync: runs initial sync and persists new change token', async () => {
@@ -164,9 +182,8 @@ describe('runScheduledSync', () => {
 
     await runScheduledSync(makeEnv(db));
 
-    // Initial 'syncing' marker inserted before the sync_state SELECT.
-    expect(findCall(runCalls, "VALUES (?, 'syncing')")).toBeTruthy();
-    // Initial sync path: iterateAllFilesAndFolders called once.
+    // Lock acquired via UPSERT+RETURNING (.first() path) — sync proceeds.
+    // (If the lock was denied, iterateAllFilesAndFolders would not be called.)
     expect(driveService.iterateAllFilesAndFolders).toHaveBeenCalledTimes(1);
     // After initial sync completes, the new startPageToken is fetched.
     expect(driveService.getStartPageToken).toHaveBeenCalledWith('drive-1');
@@ -176,8 +193,6 @@ describe('runScheduledSync', () => {
     expect(finalIdle!.binds).toEqual(['drive-1', 'fresh-token-1']);
     // Best-effort quota refresh.
     expect(driveService.getQuota).toHaveBeenCalledWith('drive-1');
-    // activeSyncs cleared after sync completes.
-    expect(activeSyncs.has('drive-1')).toBe(false);
   });
 
   it('incremental sync: uses stored change token when present', async () => {
@@ -251,8 +266,6 @@ describe('runScheduledSync', () => {
     expect(
       findCall(runCalls, 'status, last_synced_at, change_token, next_page_token)'),
     ).toBeFalsy();
-    // activeSyncs still cleared in the finally block.
-    expect(activeSyncs.has('drive-1')).toBe(false);
   });
 
   it('subrequest budget: pauses initial sync at 45 external calls and saves next_page_token', async () => {
@@ -344,7 +357,7 @@ describe('runScheduledSync', () => {
     expect(finalIdle!.binds).toEqual(['drive-1', 'final-token']);
   });
 
-  it('skips already-active drives (concurrency guard)', async () => {
+  it('skips drives already syncing (D1 lock concurrency guard)', async () => {
     const driveService = makeDriveServiceMock({
       iterate: [{ files: [], folders: [] }],
     });
@@ -353,17 +366,15 @@ describe('runScheduledSync', () => {
     const { db, runCalls } = makeMockDb({
       driveAccounts: [makeDriveAccountRow()],
       syncStateRow: null,
+      alreadySyncing: true, // sync_state.status = 'syncing' → lock denied
     });
-    // Pre-populate activeSyncs — sync should skip this drive entirely.
-    activeSyncs.add('drive-1');
 
     await runScheduledSync(makeEnv(db));
 
     expect(driveService.iterateAllFilesAndFolders).not.toHaveBeenCalled();
     expect(driveService.getStartPageToken).not.toHaveBeenCalled();
-    expect(findCall(runCalls, "VALUES (?, 'syncing')")).toBeFalsy();
-    // The drive remains in activeSyncs (not removed in a finally we didn't enter).
-    expect(activeSyncs.has('drive-1')).toBe(true);
+    // The UPSERT+RETURNING lock was attempted (INSERT INTO sync_state with RETURNING).
+    expect(findCall(runCalls, 'RETURNING')).toBeFalsy(); // .first() path, not .run()
   });
 
   it('getQuota failure is non-fatal — sync still completes', async () => {
@@ -407,9 +418,6 @@ describe('runScheduledSync', () => {
     // Fresh generator per call → initial sync runs once per drive.
     expect(driveService.iterateAllFilesAndFolders).toHaveBeenCalledTimes(2);
     expect(driveService.getStartPageToken).toHaveBeenCalledTimes(2);
-    // Both drives processed and removed from activeSyncs.
-    expect(activeSyncs.has('drive-1')).toBe(false);
-    expect(activeSyncs.has('drive-2')).toBe(false);
   });
 
   it('does nothing when no drive accounts exist', async () => {

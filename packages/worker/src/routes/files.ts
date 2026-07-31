@@ -190,7 +190,7 @@ filesRouter.post(
         Promise.all([
           c.get('driveService').deleteQuotaCache(file.sourceDriveId),
           c.get('driveService').deleteQuotaCache(targetDriveId),
-        ]),
+        ]).catch((e) => logError(c, 'Quota cache invalidation failed', e)),
       );
 
       const updatedFile = await c.get('fileService').findById(fileId);

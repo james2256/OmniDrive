@@ -1,11 +1,7 @@
 import { test, expect, vi } from 'vitest';
 import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types';
-import { activeSyncs, runScheduledSync } from '../services/sync';
+import { runScheduledSync } from '../services/sync';
 import { batchInChunks } from '../lib/d1-batch';
-
-test('activeSyncs lock exists', () => {
-  expect(activeSyncs).toBeInstanceOf(Set);
-});
 
 test('batchInChunks chunks statements per D1 batch() guidance', async () => {
   const batch = vi.fn().mockResolvedValue([]);
@@ -21,14 +17,16 @@ test('batchInChunks chunks statements per D1 batch() guidance', async () => {
 });
 
 test('runScheduledSync does not throw on empty drive list', async () => {
-  // Verify that runScheduledSync is a function that returns a Promise
-  // (it was changed from Promise.allSettled to for...of — this test confirms
-  // the function signature is stable and doesn't throw on empty results).
+  // Verify that runScheduledSync completes without error when there are no drives.
+  // The function should make the initial SELECT for drive_accounts, find 0 rows,
+  // and exit the loop without calling any sync logic.
   const allMock = vi.fn().mockResolvedValue({ results: [] });
+  const firstMock = vi.fn().mockResolvedValue(null);
   const mockDb = {
     prepare: vi.fn().mockReturnValue({
       all: allMock,
-      bind: vi.fn().mockReturnValue({ all: allMock }),
+      first: firstMock,
+      bind: vi.fn().mockReturnValue({ all: allMock, first: firstMock }),
     }),
   } as unknown as D1Database;
 
@@ -39,6 +37,7 @@ test('runScheduledSync does not throw on empty drive list', async () => {
     TOKEN_ENCRYPTION_KEY: '',
   });
 
-  // With 0 drives, activeSyncs should be empty
-  expect(activeSyncs.size).toBe(0);
+  // With 0 drives, the drive_accounts SELECT ran but no sync_state lock was attempted.
+  expect(allMock).toHaveBeenCalledTimes(1);
+  expect(firstMock).not.toHaveBeenCalled();
 });

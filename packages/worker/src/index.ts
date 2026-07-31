@@ -68,8 +68,8 @@ app.onError((err, c) => {
 });
 
 // Rate limiters — applied before auth to protect login/register
-app.use('/api/auth/login', rateLimiter({ windowMs: 60_000, maxRequests: 10 }));
-app.use('/api/auth/register', rateLimiter({ windowMs: 600_000, maxRequests: 10 }));
+app.use('/api/auth/login', rateLimiter({ windowMs: 60_000, maxRequests: 10, useKV: true }));
+app.use('/api/auth/register', rateLimiter({ windowMs: 600_000, maxRequests: 10, useKV: true }));
 app.use(
   '/api/shared/:id/verify',
   rateLimiter({

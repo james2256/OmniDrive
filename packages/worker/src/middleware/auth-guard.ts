@@ -78,8 +78,10 @@ export const authGuard = createMiddleware<AppContext>(async (c, next) => {
   // in the last hour, saving ~90% of D1 writes vs extending on every request.
   if (now - row.touched_at > EXTENSION_THRESHOLD) {
     const newExpiresAt = now + SESSION_TTL_MS;
-    await c.env.DB.prepare('UPDATE sessions SET expires_at = ?, touched_at = ? WHERE id = ?')
-      .bind(newExpiresAt, now, cookie)
+    await c.env.DB.prepare(
+      'UPDATE sessions SET expires_at = ?, touched_at = ? WHERE id = ? AND touched_at = ?',
+    )
+      .bind(newExpiresAt, now, cookie, row.touched_at)
       .run();
   }
 

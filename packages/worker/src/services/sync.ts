@@ -57,8 +57,6 @@ function isOwnedByMe(owners: GDriveOwner[] | undefined): boolean {
   return owners?.some((o) => o.me === true) ?? false;
 }
 
-export const activeSyncs = new Set<string>();
-
 /** Batch-upsert lazy-loaded folder contents (used by drives route).
  * Uses batchInChunks directly since statements are mixed file+folder. */
 export async function batchUpsertFolderContents(
@@ -95,21 +93,14 @@ export async function syncDriveFolder(
   _workspaceFolderId: string,
   userId: string,
 ): Promise<void> {
-  if (activeSyncs.has(driveId)) return;
+  const row = await env.DB.prepare('SELECT * FROM drive_accounts WHERE id = ? AND user_id = ?')
+    .bind(driveId, userId)
+    .first();
+  if (!row) throw new NotFoundError('Drive not found');
 
-  activeSyncs.add(driveId);
-  try {
-    const row = await env.DB.prepare('SELECT * FROM drive_accounts WHERE id = ? AND user_id = ?')
-      .bind(driveId, userId)
-      .first();
-    if (!row) throw new NotFoundError('Drive not found');
-
-    const drive = mapDriveRow(row as Record<string, unknown>);
-    const driveService = createDriveService(env);
-    await syncDriveAccount(drive, env.DB, driveService);
-  } finally {
-    activeSyncs.delete(driveId);
-  }
+  const drive = mapDriveRow(row as Record<string, unknown>);
+  const driveService = createDriveService(env);
+  await syncDriveAccount(drive, env.DB, driveService);
 }
 
 export async function syncDriveAccount(
@@ -117,12 +108,18 @@ export async function syncDriveAccount(
   db: D1Database,
   driveService: GoogleDriveService,
 ): Promise<void> {
-  await db
+  // Cross-isolate lock: INSERT if no row, UPDATE only if not already syncing.
+  // If RETURNING returns null, another isolate (or direct caller) is syncing.
+  const lockAcquired = await db
     .prepare(
-      "INSERT INTO sync_state (drive_account_id, status) VALUES (?, 'syncing') ON CONFLICT(drive_account_id) DO UPDATE SET status = 'syncing', error_message = NULL",
+      `INSERT INTO sync_state (drive_account_id, status) VALUES (?, 'syncing')
+       ON CONFLICT(drive_account_id) DO UPDATE SET status = 'syncing', error_message = NULL
+       WHERE sync_state.status != 'syncing'
+       RETURNING drive_account_id`,
     )
     .bind(drive.id)
-    .run();
+    .first();
+  if (!lockAcquired) return; // already syncing — another isolate or direct caller
 
   try {
     const syncState = await db
@@ -391,15 +388,10 @@ export async function runScheduledSync(env: {
 
   for (const drive of driveAccounts) {
     if (getIsShuttingDown()) break;
-    if (activeSyncs.has(drive.id)) continue;
-
-    activeSyncs.add(drive.id);
     try {
       await syncDriveAccount(drive, env.DB, driveService);
     } catch (err) {
       logErrorNoCtx('Sync error for drive', err, { driveId: drive.id, driveEmail: drive.email });
-    } finally {
-      activeSyncs.delete(drive.id);
     }
   }
 }

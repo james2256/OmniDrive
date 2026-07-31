@@ -136,8 +136,12 @@ drivesRouter.get('/', async (c) => {
 
   const drives = await driveService.listDrives(userId);
 
+  // Free-tier subrequest budget: each getQuota does 1-3 D1 reads + 1 Google API call.
+  // 10 drives × 3 = 30 subrequests (safe). Beyond 10, skip live fetch to avoid
+  // exceeding the 50-subrequest limit. Users with >10 drives see cached quota only.
+  const MAX_QUOTA_FETCHES = 10;
   const drivesWithQuota = await Promise.all(
-    drives.map(async (drive) => {
+    drives.slice(0, MAX_QUOTA_FETCHES).map(async (drive) => {
       const hasTokens = await driveService.hasValidTokens(drive.id);
       if (!hasTokens) {
         const computed = computeDriveQuota(drive);
@@ -192,6 +196,15 @@ drivesRouter.get('/', async (c) => {
       }
     }),
   );
+  // Append remaining drives with cached quota (no live Google API fetch)
+  for (let i = MAX_QUOTA_FETCHES; i < drives.length; i++) {
+    const drive = drives[i];
+    drivesWithQuota.push({
+      ...drive,
+      ...computeDriveQuota(drive),
+      health: drive.syncStatus === 'error' ? ('error' as const) : ('connected' as const),
+    });
+  }
 
   const aggregate = {
     totalQuota: drivesWithQuota.reduce((sum, d) => sum + d.totalQuota, 0),

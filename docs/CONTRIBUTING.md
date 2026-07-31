@@ -67,12 +67,12 @@ OmniDrive is a monorepo with two packages:
 packages/worker/          # Backend (Cloudflare Worker / Hono)
   src/
     routes/               # 10 route files — thin HTTP orchestrators (no SQL)
-    services/             # 14 service files — business logic + RBAC (no SQL)
-    repositories/         # 9 repository files — all SQL lives here
+    services/             # 15 service files — business logic + RBAC (no SQL)
+    repositories/         # 10 repository files — all SQL lives here
     middleware/           # 8 middleware — auth, CORS, CSRF, rate limit, request ID, S3 auth, security headers, shared services
     lib/                  # 21 utility files — crypto, validation, env, logger, schemas, password, PKCE, RBAC, cursor, backoff, S3 XML, etc.
     db/                   # D1 schema (schema.sql)
-  migrations/             # 9 numbered SQL migrations (0001–0009)
+  migrations/             # 10 numbered SQL migrations (0001–0010)
   tests/                  # 46 unit test files (43 in tests/ + 3 in src/tests/)
   tests/integration/      # 9 integration test files (real D1 via Miniflare)
 
@@ -108,7 +108,7 @@ All SQL lives in `repositories/`. The pattern is:
 - **Services** (`services/*.ts`): Business logic + RBAC + Google API calls. **No SQL strings.**
 - **Repositories** (`repositories/*.ts`): All SQL. Named by intent (`findById`, `findAllByUser`, `insertWithUniqueSlug`).
 
-6 of 10 routes have zero inline SQL. The remaining 4 (`s3.ts` with 37, `auth.ts` with 9, `drives.ts` with 1, `admin.ts` with 1) still call `env.DB.prepare(...)` directly and are tracked with `ponytail:` comments — grep for `ponytail:` to find intentional deferrals.
+8 of 10 routes have zero inline SQL. The remaining 2 (`s3.ts` with 31, `auth.ts` with 7) still call `env.DB.prepare(...)` directly and are tracked with `ponytail:` comments — grep for `ponytail:` to find intentional deferrals.
 
 ### Error handling
 
@@ -176,12 +176,23 @@ Conventional Commits: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`
 
 ### Deferred decisions
 
-Use `// ponytail:` comments to mark intentional deferrals. These are grep-able:
+Use `// ponytail:` comments to mark intentional deferrals — code that is
+deliberately not yet refactored, with a clear trigger condition for when to
+do the refactor. These are grep-able:
 
 ```typescript
 // ponytail: extract @omnidrive/shared-types workspace when a 3rd type drifts
 // ponytail: migrate to S3Repository when extending S3 protocol support
 ```
+
+**Format:** `// ponytail: <action> when <trigger condition>`
+
+**When to use:**
+- You're aware of debt but the trigger hasn't been met (e.g., "split when a 4th method group is added")
+- The fix would be risky without test coverage that doesn't exist yet
+- A Free-tier constraint prevents the ideal solution (e.g., "upgrade to Durable Object when brute-force becomes a real problem")
+
+**When the trigger is met:** Do the refactor. Remove the `ponytail:` comment. The 33 current usages can be found with `grep -rn "ponytail:" packages/worker/src`.
 
 ---
 
@@ -195,7 +206,7 @@ Use `// ponytail:` comments to mark intentional deferrals. These are grep-able:
 | **RBAC denied (403)** | Search for `assertCanMutate` or `assertCanShare` in `services/` — check the role + permission |
 | **Rate limited (429)** | `packages/worker/src/middleware/rate-limiter.ts` — in-memory sliding window |
 | **Quota/cost concerns** | `docs/AGENTS.md` → "Cost Principle" section |
-| **S3 API errors** | `packages/worker/src/routes/s3.ts` — 903 lines, uses `ponytail:` deferral |
+| **S3 API errors** | `packages/worker/src/routes/s3.ts` — 1,076 lines, uses `ponytail:` deferral |
 | **Session expired** | `packages/worker/src/middleware/auth-guard.ts` — 7-day sliding TTL, refreshed if untouched >1hr |
 | **Google Drive sync** | `packages/worker/src/services/sync.ts` — cron every 30 min, resume via `next_page_token` |
 
