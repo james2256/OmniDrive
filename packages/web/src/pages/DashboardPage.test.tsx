@@ -16,10 +16,14 @@ vi.mock('../hooks/useFileMutations', () => ({
   useStarFile: () => ({ mutate: vi.fn() }),
   useUnstarFile: () => ({ mutate: vi.fn() }),
   useToggleStar: () => vi.fn(),
+  useDeleteFile: () => ({ mutate: vi.fn() }),
+  useRenameFile: () => ({ mutate: vi.fn() }),
 }));
 vi.mock('../hooks/useFolderMutations', () => ({
   useStarFolder: () => ({ mutate: vi.fn() }),
   useUnstarFolder: () => ({ mutate: vi.fn() }),
+  useDeleteDriveFolder: () => ({ mutate: vi.fn() }),
+  useRenameDriveFolder: () => ({ mutate: vi.fn() }),
 }));
 vi.mock('../stores/useAuthStore', () => ({ useAuthStore: vi.fn() }));
 vi.mock('../stores/useToastStore', () => ({ useToastStore: () => ({ addToast: vi.fn() }) }));
@@ -55,14 +59,28 @@ vi.mock('../components/files/FileGrid', () => ({
   ),
 }));
 
-vi.mock('../components/ShareModal', () => ({
-  ShareModal: () => null,
+vi.mock('../hooks/useItemModals', () => ({
+  useItemModals: () => ({
+    setShareTarget: vi.fn(),
+    setMoveDriveFiles: vi.fn(),
+    setPreviewFile: vi.fn(),
+    setMoveTarget: vi.fn(),
+    setWorkspaceTarget: vi.fn(),
+    setFolderDownloadTarget: vi.fn(),
+    setRenameFile: vi.fn(),
+    setRenameFolder: vi.fn(),
+    setDeleteFile: vi.fn(),
+    setDeleteFolder: vi.fn(),
+    toggleStar: vi.fn(),
+    handleRenameFileRequest: vi.fn(),
+    handleRenameFolderRequest: vi.fn(),
+    handleDeleteFile: vi.fn(),
+    handleDeleteFolder: vi.fn(),
+    handleViewInfo: vi.fn(),
+  }),
 }));
-vi.mock('../components/MoveDriveModal', () => ({
-  MoveDriveModal: () => null,
-}));
-vi.mock('../components/FilePreviewModal', () => ({
-  FilePreviewModal: () => null,
+vi.mock('../components/files/ItemModals', () => ({
+  ItemModals: () => null,
 }));
 
 vi.mock('react-router-dom', () => ({

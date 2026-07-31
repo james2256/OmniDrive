@@ -10,6 +10,8 @@ import { DropZone } from '../components/DropZone';
 import { UploadModal } from '../components/UploadModal';
 import { CreateFolderModal } from '../components/CreateFolderModal';
 import { ItemModals } from '../components/files/ItemModals';
+import { ErrorState } from '../components/ErrorState';
+import { ListSkeleton } from '../components/EmptyState';
 import { Upload, FolderPlus, Info, HardDrive } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { useToastStore } from '../stores/useToastStore';
@@ -158,11 +160,10 @@ export function FilesPage() {
           breadcrumb={<Breadcrumb items={breadcrumb} driveId={driveIdParam || undefined} />}
         />
 
-        {isLoading || isDrivesLoading ? (
-          <div className="flex flex-col items-center justify-center p-16">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4" />
-            <p className="text-slate-500">Loading folder contents...</p>
-          </div>
+        {errorDrives.size > 0 && drives.length === 0 ? (
+          <ErrorState onRetry={refresh} />
+        ) : isLoading || isDrivesLoading ? (
+          <ListSkeleton rows={6} />
         ) : drives.length === 0 ? (
           <div className="text-center p-12 text-slate-500 border rounded-xl bg-card flex flex-col items-center">
             <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">

@@ -165,6 +165,8 @@ describe('FilesPage', () => {
       breadcrumb: [{ id: 'root', name: 'My Drive' }],
       isLoading: false,
       error: null,
+      errorDrives: new Set(),
+      refresh: vi.fn(),
     });
     (useSharedLinks as Mock).mockReturnValue({ data: [] });
     (useUploadStore as Mock).mockReturnValue({ showModal: false, setShowModal: vi.fn() });
@@ -215,6 +217,8 @@ describe('FilesPage', () => {
       breadcrumb: [{ id: 'root', name: 'My Drive' }],
       isLoading: false,
       error: null,
+      errorDrives: new Set(),
+      refresh: vi.fn(),
     });
 
     render(<FilesPage />);
@@ -265,6 +269,8 @@ describe('FilesPage', () => {
       breadcrumb: [{ id: 'root', name: 'My Drive' }],
       isLoading: false,
       error: null,
+      errorDrives: new Set(),
+      refresh: vi.fn(),
     });
 
     render(<FilesPage />);

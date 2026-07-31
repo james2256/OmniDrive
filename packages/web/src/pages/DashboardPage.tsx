@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
@@ -7,16 +7,14 @@ import { useSharedLinks, useIsTargetSharedCallback } from '../hooks/useSharedLin
 import { useAuthStore } from '../stores/useAuthStore';
 import { QuotaBar } from '../components/QuotaBar';
 import { FileGrid } from '../components/files/FileGrid';
-import { ShareModal } from '../components/ShareModal';
-import { MoveDriveModal } from '../components/MoveDriveModal';
-import { FilePreviewModal } from '../components/FilePreviewModal';
+import { useItemModals } from '../hooks/useItemModals';
+import { ItemModals } from '../components/files/ItemModals';
 import { EmptyState, ListSkeleton } from '../components/EmptyState';
 import { ErrorState } from '../components/ErrorState';
 import { formatFileSize, getDriveColor } from '../lib/utils';
 import { filesApi } from '../lib/api/files';
 import { useToastStore } from '../stores/useToastStore';
 import { qk } from '../lib/queryKeys';
-import type { FileEntry } from '../types';
 import { useToggleStar } from '../hooks/useFileMutations';
 import {
   Home,
@@ -87,12 +85,6 @@ export function DashboardPage() {
   const isTargetShared = useIsTargetSharedCallback(sharedLinks);
   const getDriveInfo = useGetDriveInfo(drives);
 
-  const [shareTarget, setShareTarget] = useState<{ id: string; type: 'file' | 'folder' } | null>(
-    null,
-  );
-  const [moveDriveFiles, setMoveDriveFiles] = useState<FileEntry[]>([]);
-  const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
-
   const {
     data: recentData,
     isLoading: isRecentLoading,
@@ -104,6 +96,12 @@ export function DashboardPage() {
   });
   const recentFiles = (recentData?.files ?? []).slice(0, 8);
   const recentFolders = (recentData?.folders ?? []).slice(0, 8);
+
+  const itemModals = useItemModals({
+    onRefresh: refetchRecent,
+    allFolders: [],
+    files: recentFiles,
+  });
 
   const { data: category } = useQuery<CategoryOverview | null>({
     queryKey: qk.category,
@@ -431,9 +429,9 @@ export function DashboardPage() {
                 isTargetShared={isTargetShared}
                 viewMode="list"
                 actions={{
-                  onShare: (id, type) => setShareTarget({ id, type }),
-                  onMoveDrive: (file) => setMoveDriveFiles([file]),
-                  onPreviewFile: setPreviewFile,
+                  onShare: (id, type) => itemModals.setShareTarget({ id, type }),
+                  onMoveDrive: (file) => itemModals.setMoveDriveFiles([file]),
+                  onPreviewFile: itemModals.setPreviewFile,
                   onToggleStar: toggleStar,
                 }}
               />
@@ -482,28 +480,7 @@ export function DashboardPage() {
         </div>
       )}
 
-      <ShareModal
-        open={!!shareTarget}
-        targetType={shareTarget?.type ?? 'file'}
-        targetId={shareTarget?.id ?? ''}
-        onClose={() => setShareTarget(null)}
-      />
-
-      {moveDriveFiles.length > 0 && (
-        <MoveDriveModal
-          files={moveDriveFiles}
-          onClose={() => setMoveDriveFiles([])}
-          onSuccess={() => {
-            setMoveDriveFiles([]);
-          }}
-        />
-      )}
-
-      <FilePreviewModal
-        open={!!previewFile}
-        file={previewFile ?? undefined}
-        onClose={() => setPreviewFile(null)}
-      />
+      <ItemModals modals={itemModals} driveId={drives[0]?.id ?? ''} onRefresh={refetchRecent} />
     </div>
   );
 }

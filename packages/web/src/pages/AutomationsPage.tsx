@@ -14,7 +14,7 @@ export function AutomationsPage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-2">
-      <PageHeader title="Automation Rules" />
+      <PageHeader title="Automation Rules" icon={Zap} />
 
       {error && <div className="p-3 bg-red-50 text-red-600 rounded-lg mb-4 text-sm">{error}</div>}
 

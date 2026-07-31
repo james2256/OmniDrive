@@ -8,7 +8,7 @@ import { BulkActionBar } from '../components/layout/BulkActionBar';
 import { FilesToolbar } from '../components/layout/FilesToolbar';
 import { ItemModals } from '../components/files/ItemModals';
 import { ErrorState } from '../components/ErrorState';
-import { EmptyState } from '../components/EmptyState';
+import { EmptyState, ListSkeleton } from '../components/EmptyState';
 import { PageHeader } from '../components/layout/PageHeader';
 import { FolderInput } from 'lucide-react';
 import { drivesApi } from '../lib/api/drives';
@@ -155,9 +155,7 @@ export function ExternalPage() {
       />
 
       {isLoading ? (
-        <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-        </div>
+        <ListSkeleton rows={6} />
       ) : (isTopLevel ? externalInfinite.error : folderQuery.error) ? (
         <ErrorState
           onRetry={() => (isTopLevel ? externalInfinite.refetch() : folderQuery.refetch())}

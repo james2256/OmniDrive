@@ -10,8 +10,24 @@ import { useSearchParams } from 'react-router-dom';
 // Stable mock refs.
 const refetchMock = vi.hoisted(() => vi.fn());
 const toggleStarMock = vi.hoisted(() => vi.fn());
-const invalidateMock = vi.hoisted(() => vi.fn());
-const invalidateQueriesMock = vi.hoisted(() => vi.fn());
+const itemModalsMock = vi.hoisted(() => ({
+  setShareTarget: vi.fn(),
+  setMoveDriveFiles: vi.fn(),
+  setPreviewFile: vi.fn(),
+  setMoveTarget: vi.fn(),
+  setWorkspaceTarget: vi.fn(),
+  setFolderDownloadTarget: vi.fn(),
+  setRenameFile: vi.fn(),
+  setRenameFolder: vi.fn(),
+  setDeleteFile: vi.fn(),
+  setDeleteFolder: vi.fn(),
+  toggleStar: vi.fn(),
+  handleRenameFileRequest: vi.fn(),
+  handleRenameFolderRequest: vi.fn(),
+  handleDeleteFile: vi.fn(),
+  handleDeleteFolder: vi.fn(),
+  handleViewInfo: vi.fn(),
+}));
 
 vi.mock('react-router-dom', () => ({
   useSearchParams: vi.fn(),
@@ -21,14 +37,27 @@ vi.mock('../hooks/useSharedLinks', () => ({
   useSharedLinks: vi.fn(() => ({ data: [] })),
   useIsTargetSharedCallback: () => vi.fn(),
 }));
-vi.mock('../hooks/useFileMutations', () => ({ useToggleStar: () => toggleStarMock }));
+vi.mock('../hooks/useFileMutations', () => ({
+  useToggleStar: () => toggleStarMock,
+  useDeleteFile: () => ({ mutate: vi.fn() }),
+  useRenameFile: () => ({ mutate: vi.fn() }),
+}));
+vi.mock('../hooks/useFolderMutations', () => ({
+  useDeleteDriveFolder: () => ({ mutate: vi.fn() }),
+  useRenameDriveFolder: () => ({ mutate: vi.fn() }),
+}));
 vi.mock('../stores/useToastStore', () => ({ useToastStore: () => ({ addToast: vi.fn() }) }));
 vi.mock('@tanstack/react-query', () => ({
   useQuery: vi.fn(),
-  useQueryClient: () => ({ invalidateQueries: invalidateQueriesMock }),
 }));
 vi.mock('../lib/queryKeys', () => ({ qk: { search: (q: string) => ['search', q] } }));
-vi.mock('../lib/invalidate', () => ({ invalidateAfterFileMutation: invalidateMock }));
+
+vi.mock('../hooks/useItemModals', () => ({
+  useItemModals: () => itemModalsMock,
+}));
+vi.mock('../components/files/ItemModals', () => ({
+  ItemModals: () => null,
+}));
 
 vi.mock('../components/files/FileGrid', () => ({
   FileGrid: ({ files, subfolders, actions }: any) => (
@@ -62,38 +91,6 @@ vi.mock('../components/files/FileGrid', () => ({
   ),
 }));
 
-vi.mock('../components/ShareModal', () => ({
-  ShareModal: ({ open, targetId, targetType }: any) =>
-    open ? (
-      <div data-testid="share-modal" data-target-id={targetId} data-target-type={targetType}>
-        ShareModal
-      </div>
-    ) : null,
-}));
-
-vi.mock('../components/MoveDriveModal', () => ({
-  MoveDriveModal: ({ files, onClose, onSuccess }: any) =>
-    files.length > 0 ? (
-      <div data-testid="move-drive-modal">
-        <button data-testid="move-drive-close" onClick={onClose}>
-          Close
-        </button>
-        <button data-testid="move-drive-success" onClick={onSuccess}>
-          Success
-        </button>
-      </div>
-    ) : null,
-}));
-
-vi.mock('../components/FilePreviewModal', () => ({
-  FilePreviewModal: ({ open, file }: any) =>
-    open ? (
-      <div data-testid="preview-modal" data-file-id={file?.id}>
-        Preview
-      </div>
-    ) : null,
-}));
-
 vi.mock('../components/EmptyState', () => ({
   EmptyState: ({ title }: any) => <div data-testid="empty-state">{title}</div>,
   ListSkeleton: () => <div data-testid="skeleton">Loading...</div>,
@@ -111,6 +108,7 @@ vi.mock('../components/ErrorState', () => ({
 
 vi.mock('lucide-react', () => ({
   Star: () => <svg data-testid="star-icon" />,
+  Search: () => <svg data-testid="search-icon" />,
 }));
 
 describe('SearchPage', () => {
@@ -202,7 +200,7 @@ describe('SearchPage', () => {
     expect(screen.getByText('Drive Folder')).toBeTruthy();
   });
 
-  it('opens ShareModal with correct target when share button clicked', () => {
+  it('calls setShareTarget with correct target when share button clicked', () => {
     (useQuery as Mock).mockReturnValue({
       data: {
         files: [{ id: 'f1', name: 'report.pdf', isStarred: false, mimeType: 'application/pdf' }],
@@ -215,12 +213,10 @@ describe('SearchPage', () => {
     });
     render(<SearchPage />);
     fireEvent.click(screen.getByTestId('share-f1'));
-    const modal = screen.getByTestId('share-modal');
-    expect(modal.getAttribute('data-target-id')).toBe('f1');
-    expect(modal.getAttribute('data-target-type')).toBe('file');
+    expect(itemModalsMock.setShareTarget).toHaveBeenCalledWith({ id: 'f1', type: 'file' });
   });
 
-  it('opens MoveDriveModal when move-drive clicked and invalidates on success', () => {
+  it('calls setMoveDriveFiles when move-drive clicked', () => {
     (useQuery as Mock).mockReturnValue({
       data: {
         files: [{ id: 'f1', name: 'report.pdf', isStarred: false, mimeType: 'application/pdf' }],
@@ -233,29 +229,10 @@ describe('SearchPage', () => {
     });
     render(<SearchPage />);
     fireEvent.click(screen.getByTestId('move-drive-f1'));
-    expect(screen.getByTestId('move-drive-modal')).toBeTruthy();
-    fireEvent.click(screen.getByTestId('move-drive-success'));
-    expect(invalidateMock).toHaveBeenCalledTimes(1);
+    expect(itemModalsMock.setMoveDriveFiles).toHaveBeenCalledTimes(1);
   });
 
-  it('closes MoveDriveModal when close button clicked', () => {
-    (useQuery as Mock).mockReturnValue({
-      data: {
-        files: [{ id: 'f1', name: 'report.pdf', isStarred: false, mimeType: 'application/pdf' }],
-        folders: [],
-        driveFolders: [],
-      },
-      isLoading: false,
-      error: null,
-      refetch: refetchMock,
-    });
-    render(<SearchPage />);
-    fireEvent.click(screen.getByTestId('move-drive-f1'));
-    fireEvent.click(screen.getByTestId('move-drive-close'));
-    expect(screen.queryByTestId('move-drive-modal')).toBeNull();
-  });
-
-  it('opens FilePreviewModal with the correct file when preview clicked', () => {
+  it('calls setPreviewFile with the correct file when preview clicked', () => {
     (useQuery as Mock).mockReturnValue({
       data: {
         files: [{ id: 'f1', name: 'report.pdf', isStarred: false, mimeType: 'application/pdf' }],
@@ -268,8 +245,9 @@ describe('SearchPage', () => {
     });
     render(<SearchPage />);
     fireEvent.click(screen.getByTestId('preview-f1'));
-    const modal = screen.getByTestId('preview-modal');
-    expect(modal.getAttribute('data-file-id')).toBe('f1');
+    expect(itemModalsMock.setPreviewFile).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'f1' }),
+    );
   });
 
   it('calls toggleStar with the correct args when star button clicked', () => {

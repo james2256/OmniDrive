@@ -79,7 +79,7 @@ export function TrashPage() {
         setViewMode={setViewMode}
         isInfoPanelOpen={isInfoPanelOpen}
         toggleInfoPanel={toggleInfoPanel}
-        bulkActionBar={<BulkActionBar isTrashView={true} onActionComplete={() => {}} />}
+        bulkActionBar={<BulkActionBar isTrashView={true} onActionComplete={refetch} />}
       />
 
       {isLoading ? (

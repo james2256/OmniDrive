@@ -214,7 +214,7 @@ describe('ExternalPage', () => {
       refetch: refetchInfiniteMock,
     });
     render(<ExternalPage />);
-    expect(document.querySelector('.animate-spin')).toBeTruthy();
+    expect(document.querySelector('[aria-label="Loading"]')).toBeTruthy();
   });
 
   it('renders empty state when top-level infinite query has an error', () => {
@@ -356,7 +356,7 @@ describe('ExternalPage', () => {
       refetch: refetchFolderMock,
     });
     render(<ExternalPage />);
-    expect(document.querySelector('.animate-spin')).toBeTruthy();
+    expect(document.querySelector('[aria-label="Loading"]')).toBeTruthy();
   });
 
   it('renders empty state when folder drill-in returns no items', () => {

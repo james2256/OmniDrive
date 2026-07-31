@@ -12,6 +12,7 @@ import {
   UserCog,
   Home,
   FolderInput,
+  Zap,
 } from 'lucide-react';
 import { SidebarStorage } from './SidebarStorage';
 import pkg from '../../../../../package.json';
@@ -62,6 +63,10 @@ export const Sidebar: React.FC = () => {
         <NavLink to="/workspaces" className={navLinkClass}>
           <FolderTree size={20} />
           {isSidebarOpen && <span>Workspaces</span>}
+        </NavLink>
+        <NavLink to="/automations" className={navLinkClass}>
+          <Zap size={20} />
+          {isSidebarOpen && <span>Automations</span>}
         </NavLink>
         <NavLink to="/trash" className={navLinkClass}>
           <Trash2 size={20} />
