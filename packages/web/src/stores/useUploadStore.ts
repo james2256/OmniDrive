@@ -45,10 +45,47 @@ export const useUploadStore = create<UploadState>((set, get) => ({
     set({ isUploading: true });
     const { queue } = get();
 
+    // Resolve per-file parentFolderId for folder uploads. When the user drops a
+    // folder, the browser sets `webkitRelativePath` on each File (e.g.
+    // "projects/src/index.ts"). We group by the directory portion and call
+    // `/folders/ensure` once per unique path to create the real Google Drive
+    // folder hierarchy, then use the returned leaf folder ID as the
+    // `parentFolderId` for each file inside that path.
+    const folderCache = new Map<string, string>(); // dirPath → driveFolderId
+    const resolveParentForItem = async (file: File): Promise<string | undefined> => {
+      const relPath = (file as File & { webkitRelativePath?: string }).webkitRelativePath;
+      if (!relPath || !relPath.includes('/')) return parentFolderId;
+      const dirPath = relPath.split('/').slice(0, -1).join('/');
+      if (!dirPath) return parentFolderId;
+
+      const cached = folderCache.get(dirPath);
+      if (cached) return cached;
+
+      // Ensure the folder path exists on the target drive. The drive must be
+      // known (selected or auto-resolved) — folder upload requires a concrete
+      // drive because the folder hierarchy is created on one specific drive.
+      const targetDriveId = driveAccountId;
+      if (!targetDriveId) {
+        // Can't ensure folders without a selected drive — fall back to flat
+        // upload into the current parent. The user will see files land flat.
+        return parentFolderId;
+      }
+      const { googleFolderId } = await filesApi.ensureFolder(
+        targetDriveId,
+        dirPath,
+        parentFolderId,
+      );
+      folderCache.set(dirPath, googleFolderId);
+      return googleFolderId;
+    };
+
     for (const item of queue) {
       if (item.status !== 'pending') continue;
 
       try {
+        // Resolve this file's parent folder (flat or nested).
+        const itemParentId = await resolveParentForItem(item.file);
+
         // Update status
         set((state) => ({
           queue: state.queue.map((q) =>
@@ -62,7 +99,7 @@ export const useUploadStore = create<UploadState>((set, get) => ({
           mimeType: item.file.type || 'application/octet-stream',
           size: item.file.size,
           driveAccountId,
-          parentFolderId,
+          parentFolderId: itemParentId,
         });
 
         // 2. Upload via Worker proxy (bypasses Google CORS restriction)
@@ -82,7 +119,7 @@ export const useUploadStore = create<UploadState>((set, get) => ({
         await filesApi.confirmUpload({
           googleFileId: uploadResponse.id,
           driveAccountId: actualDriveId,
-          parentFolderId,
+          parentFolderId: itemParentId,
         });
 
         set((state) => ({

@@ -1,7 +1,7 @@
 import { Folder, Star, Share2 } from 'lucide-react';
 import { useSelectionStore } from '../../stores/useSelectionStore';
 import { formatFileSize, formatRelativeTime } from '../../lib/utils';
-import { FileIcon } from './FileIcon';
+import { FileThumbnail } from './FileThumbnail';
 import { ItemContextMenu } from './ItemContextMenu';
 import { useItemInteractions } from './useItemInteractions';
 import { isGoogleNative, getFolderIdentifier } from './utils';
@@ -137,8 +137,11 @@ export function FileGridView(props: FileViewSharedProps) {
                 }}
               />
               <div className="flex justify-between items-start">
-                <div className="text-3xl ml-5">
-                  <FileIcon mimeType={file.mimeType} />
+                <div className="ml-5">
+                  <FileThumbnail
+                    file={file}
+                    className="w-12 h-12 rounded object-cover border border-slate-200"
+                  />
                 </div>
                 <div className="flex gap-1 items-center">
                   {file.isStarred && (

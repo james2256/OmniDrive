@@ -19,6 +19,7 @@ import { logError } from '../lib/logger';
 import { zValidator } from '@hono/zod-validator';
 import {
   createDriveFolderSchema,
+  ensureDriveFolderSchema,
   renameDriveFolderSchema,
   serviceAccountSchema,
   moveWithinDriveSchema,
@@ -456,6 +457,58 @@ drivesRouter.post(
       parentId || undefined,
     );
     return c.json({ googleFolderId });
+  },
+);
+
+/**
+ * Ensure a nested folder path exists on a drive, creating folders as needed.
+ * Used by folder upload — the web client sends `projects/src/utils` + a parent
+ * (the current view), and this walks each segment, creating real Google Drive
+ * folders via `driveService.createDriveFolder` (which handles RBAC + Google
+ * API + D1 insert). Returns the leaf folder's Google ID so the caller can use
+ * it as `parentFolderId` for the files inside that path.
+ *
+ * Idempotent: if a folder already exists at a segment (by name + parent), it's
+ * reused — so retries don't create duplicates.
+ */
+drivesRouter.post(
+  '/:driveId/folders/ensure',
+  zValidator('json', ensureDriveFolderSchema, zodErrorHook),
+  async (c) => {
+    const driveService = c.get('driveService');
+    const driveRepo = new DriveRepository(c.env.DB);
+    const userId = c.get('userId');
+    const driveId = c.req.param('driveId');
+    const { path, parentFolderId } = c.req.valid('json');
+
+    const segments = path.split('/').filter(Boolean);
+    if (segments.length === 0) {
+      throw new ValidationError('Path must contain at least one folder name');
+    }
+
+    let currentParentId = parentFolderId || undefined;
+
+    for (const segment of segments) {
+      // Check if this folder already exists (by name + parent) — idempotent.
+      const existing = await driveRepo.findDriveFolderByParentAndName(
+        driveId,
+        currentParentId ?? null,
+        segment,
+      );
+      if (existing) {
+        currentParentId = existing.google_folder_id;
+        continue;
+      }
+      // Create the folder via the RBAC-wrapped service method.
+      currentParentId = await driveService.createDriveFolder(
+        userId,
+        driveId,
+        segment,
+        currentParentId,
+      );
+    }
+
+    return c.json({ googleFolderId: currentParentId });
   },
 );
 

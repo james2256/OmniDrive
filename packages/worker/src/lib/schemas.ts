@@ -170,6 +170,17 @@ export const createDriveFolderSchema = z.object({
   parentId: z.string().optional(),
 });
 
+/**
+ * Ensure a nested folder path exists (creating as needed). Used by folder upload
+ * — the web client sends `projects/src/utils` and the worker walks each segment,
+ * creating real Google Drive folders. Returns the leaf folder's Google ID so
+ * the caller can use it as `parentFolderId` for files inside that path.
+ */
+export const ensureDriveFolderSchema = z.object({
+  path: z.string().min(1, 'Path is required').max(2048, 'Path too long'),
+  parentFolderId: z.string().nullable().optional(),
+});
+
 export const renameDriveFolderSchema = z.object({
   name: z.string().min(1, 'Folder name is required').max(255, 'Name too long'),
 });

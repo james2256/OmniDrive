@@ -42,6 +42,16 @@ export const filesApi = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+  /**
+   * Ensure a nested folder path exists on a drive (creating as needed).
+   * Returns the leaf folder's Google ID for use as `parentFolderId` in
+   * subsequent `initiateUpload` calls. Used by folder upload.
+   */
+  ensureFolder: (driveId: string, path: string, parentFolderId?: string) =>
+    request<{ googleFolderId: string }>(`/api/drives/${driveId}/folders/ensure`, {
+      method: 'POST',
+      body: JSON.stringify({ path, parentFolderId }),
+    }),
   uploadViaProxy: async (
     uploadUrl: string,
     file: File,

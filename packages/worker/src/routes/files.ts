@@ -496,11 +496,22 @@ filesRouter.patch(
   },
 );
 
-function isPreviewableImageMime(mime: string): boolean {
-  return mime.startsWith('image/') || mime === 'application/vnd.google-apps.photo';
+function isPreviewableMime(mime: string): boolean {
+  if (mime.startsWith('image/') || mime === 'application/vnd.google-apps.photo') return true;
+  if (mime === 'application/pdf') return true;
+  // Google Workspace files export to PDF (docs/slides/drawings) via previewMode.
+  if (mime.startsWith('application/vnd.google-apps.')) return true;
+  if (mime.startsWith('video/')) return true;
+  if (mime.startsWith('audio/')) return true;
+  if (mime.startsWith('text/')) return true;
+  return false;
 }
 
-// GET /api/files/:id/preview — inline image stream for authenticated preview
+// GET /api/files/:id/preview — inline content stream for authenticated preview.
+// Supports images, PDFs, Google Workspace files (exported to PDF), video, audio,
+// and text. Sets Content-Disposition: inline so the browser renders rather than
+// downloads. Google Workspace files are exported as PDF via downloadFile's
+// previewMode flag so they render in an <iframe>.
 filesRouter.get('/:id/preview', async (c) => {
   const userId = c.get('userId');
   const fileId = c.req.param('id');
@@ -509,7 +520,7 @@ filesRouter.get('/:id/preview', async (c) => {
   const file = await fileService.getFileForRead(userId, fileId);
 
   const mimeType = (file.mime_type as string) || '';
-  if (!isPreviewableImageMime(mimeType)) {
+  if (!isPreviewableMime(mimeType)) {
     throw new AppError(415, 'Preview not available for this file type');
   }
 
@@ -517,16 +528,19 @@ filesRouter.get('/:id/preview', async (c) => {
 
   let stream: ReadableStream<Uint8Array>;
   let finalMimeType = mimeType === 'application/vnd.google-apps.photo' ? 'image/jpeg' : mimeType;
+  let isExport = false;
 
   try {
     const downloadResult = await driveService.downloadFile(
       file.drive_account_id as string,
       file.google_file_id as string,
       file.mime_type as string,
+      true, // previewMode — force PDF export for Google Workspace files (iframe-renderable)
     );
     stream = downloadResult.stream;
     if (downloadResult.exportedMimeType) {
       finalMimeType = downloadResult.exportedMimeType;
+      isExport = true;
     }
   } catch (e: unknown) {
     logError(c, 'Preview error', e);
@@ -536,7 +550,8 @@ filesRouter.get('/:id/preview', async (c) => {
   c.header('Content-Type', finalMimeType);
   c.header('Content-Disposition', 'inline');
   c.header('Cache-Control', 'private, max-age=300');
-  if (file.size) {
+  // Skip Content-Length for exports (the exported size differs from file.size).
+  if (file.size && !isExport) {
     c.header('Content-Length', String(file.size));
   }
 
@@ -556,6 +571,7 @@ filesRouter.get('/:id/download', async (c) => {
   let stream: ReadableStream<Uint8Array>;
   let finalMimeType = (file.mime_type as string) || 'application/octet-stream';
   let finalFileName = file.name as string;
+  let isExport = false;
 
   try {
     const downloadResult = await driveService.downloadFile(
@@ -568,6 +584,7 @@ filesRouter.get('/:id/download', async (c) => {
     if (downloadResult.exportedMimeType && downloadResult.exportedExtension) {
       finalMimeType = downloadResult.exportedMimeType;
       finalFileName = `${finalFileName}${downloadResult.exportedExtension}`;
+      isExport = true;
     }
   } catch (e: unknown) {
     logError(c, 'Download error', e);
@@ -579,7 +596,9 @@ filesRouter.get('/:id/download', async (c) => {
     'Content-Disposition',
     `attachment; filename*=UTF-8''${encodeURIComponent(finalFileName)}`,
   );
-  if (file.size && !finalFileName.endsWith('.pdf') && !finalFileName.endsWith('.xlsx')) {
+  // Skip Content-Length for exports (the exported size differs from file.size).
+  // Mirrors the /preview route's logic for consistency.
+  if (file.size && !isExport) {
     c.header('Content-Length', String(file.size));
   }
 

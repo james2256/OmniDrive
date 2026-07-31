@@ -34,6 +34,8 @@ vi.mock('../stores/useToastStore', () => ({
 vi.mock('lucide-react', () => ({
   X: (props: any) => <svg data-testid="x-icon" {...props} />,
   Upload: (props: any) => <svg data-testid="upload-icon" {...props} />,
+  FolderUp: (props: any) => <svg data-testid="folder-up-icon" {...props} />,
+  FileUp: (props: any) => <svg data-testid="file-up-icon" {...props} />,
   Check: (props: any) => <svg data-testid="check-icon" {...props} />,
   CircleAlert: (props: any) => <svg data-testid="circle-alert-icon" {...props} />,
   LoaderCircle: (props: any) => (

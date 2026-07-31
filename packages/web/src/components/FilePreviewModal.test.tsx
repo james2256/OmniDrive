@@ -210,31 +210,33 @@ describe('FilePreviewModal', () => {
     expect(openLink?.getAttribute('href')).toBe('https://drive.google.com/open?id=abc');
   });
 
-  it('does NOT render image preview area for non-image mime types (pdf)', () => {
+  it('renders PDF preview area (iframe) for PDF mime types', () => {
     const file = makeFile({ mimeType: 'application/pdf' });
     render(<FilePreviewModal open file={file} onClose={vi.fn()} />);
 
+    // PDFs now render inline — the image preview area is NOT used (no <img>),
+    // but the PDF branch shows a loading state then an <iframe>.
     expect(screen.queryByAltText('photo.jpg')).toBeNull();
-    expect(screen.queryByText('Loading preview…')).toBeNull();
-    expect(screen.queryByText('Preview unavailable')).toBeNull();
+    // fetchFilePreviewBlob is called for PDFs (the useEffect fetches the blob).
+    expect(fetchFilePreviewBlob).toHaveBeenCalledWith('file-1');
     // Metadata grid still renders (default size 2048 → 2.0 KB)
     expect(screen.getByText('2.0 KB')).toBeTruthy();
   });
 
-  it('does NOT render image preview area for non-image mime types (text)', () => {
+  it('renders text preview area for text mime types', () => {
     const file = makeFile({ mimeType: 'text/plain' });
     render(<FilePreviewModal open file={file} onClose={vi.fn()} />);
 
     expect(screen.queryByAltText('photo.jpg')).toBeNull();
-    expect(fetchFilePreviewBlob).not.toHaveBeenCalled();
+    expect(fetchFilePreviewBlob).toHaveBeenCalledWith('file-1');
   });
 
-  it('does NOT render image preview area for non-image mime types (video)', () => {
+  it('renders video preview area for video mime types', () => {
     const file = makeFile({ mimeType: 'video/mp4' });
     render(<FilePreviewModal open file={file} onClose={vi.fn()} />);
 
     expect(screen.queryByAltText('photo.jpg')).toBeNull();
-    expect(fetchFilePreviewBlob).not.toHaveBeenCalled();
+    expect(fetchFilePreviewBlob).toHaveBeenCalledWith('file-1');
   });
 
   it('does not render body or footer when file is undefined', () => {

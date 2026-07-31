@@ -411,6 +411,7 @@ export class GoogleDriveService {
     driveAccountId: string,
     googleFileId: string,
     mimeType?: string,
+    previewMode?: boolean,
   ): Promise<{
     stream: ReadableStream<Uint8Array>;
     exportedMimeType?: string;
@@ -425,8 +426,15 @@ export class GoogleDriveService {
     // Handle Google Workspace documents by exporting them
     if (mimeType && mimeType.startsWith('application/vnd.google-apps.')) {
       if (mimeType === 'application/vnd.google-apps.spreadsheet') {
-        exportedMimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-        exportedExtension = '.xlsx';
+        if (previewMode) {
+          // Sheets → PDF for inline preview (iframe-renderable). The /download
+          // route omits previewMode, so downloads still get .xlsx (editable).
+          exportedMimeType = 'application/pdf';
+          exportedExtension = '.pdf';
+        } else {
+          exportedMimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+          exportedExtension = '.xlsx';
+        }
       } else if (mimeType === 'application/vnd.google-apps.document') {
         exportedMimeType = 'application/pdf';
         exportedExtension = '.pdf';

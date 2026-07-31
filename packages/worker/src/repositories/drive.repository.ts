@@ -558,6 +558,29 @@ export class DriveRepository {
   }
 
   /**
+   * Find a drive folder by name + parent (within one drive). Used by the
+   * `/folders/ensure` endpoint to check whether a folder already exists before
+   * creating it — so folder upload doesn't create duplicate folders on retry.
+   * `googleParentId` is null for root-level folders.
+   */
+  findDriveFolderByParentAndName(driveId: string, googleParentId: string | null, name: string) {
+    if (googleParentId === null) {
+      return this.db
+        .prepare(
+          'SELECT google_folder_id FROM drive_folders WHERE drive_account_id = ? AND google_parent_id IS NULL AND name = ? AND is_trashed = 0',
+        )
+        .bind(driveId, name)
+        .first<{ google_folder_id: string }>();
+    }
+    return this.db
+      .prepare(
+        'SELECT google_folder_id FROM drive_folders WHERE drive_account_id = ? AND google_parent_id = ? AND name = ? AND is_trashed = 0',
+      )
+      .bind(driveId, googleParentId, name)
+      .first<{ google_folder_id: string }>();
+  }
+
+  /**
    * Find a drive folder's `drive_account_id` + `name` by `google_folder_id`
    * alone (no `drive_account_id` scope). Used by `SharedService.resolveFolderTarget`
    * for public shared-link download, where only the link's `targetId` (the Google

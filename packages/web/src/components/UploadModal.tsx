@@ -1,4 +1,4 @@
-import { X, Upload, Check, CircleAlert, LoaderCircle } from 'lucide-react';
+import { X, Upload, Check, CircleAlert, LoaderCircle, FolderUp, FileUp } from 'lucide-react';
 import { useUploadStore } from '../stores/useUploadStore';
 import { useDrives } from '../hooks/useDrives';
 import { useToastStore } from '../stores/useToastStore';
@@ -28,6 +28,7 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
   const drives = drivesData?.drives ?? [];
   const { addToast } = useToastStore();
   const [selectedDriveId, setSelectedDriveId] = useState<string>(driveId || '');
+  const [folderMode, setFolderMode] = useState(false);
 
   useEffect(() => {
     setSelectedDriveId(driveId || '');
@@ -94,7 +95,8 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
             <div className="py-6 flex flex-col items-center justify-center">
               <input
                 type="file"
-                multiple
+                multiple={!folderMode || undefined}
+                {...(folderMode ? { webkitdirectory: '', directory: '' as unknown as string } : {})}
                 onChange={(e) => {
                   if (e.target.files && e.target.files.length > 0) {
                     useUploadStore.getState().addFiles(Array.from(e.target.files));
@@ -108,10 +110,28 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
                 className="cursor-pointer flex flex-col items-center gap-2 text-slate-500 hover:text-primary transition-colors"
               >
                 <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary">
-                  <Upload size={20} />
+                  {folderMode ? <FolderUp size={20} /> : <Upload size={20} />}
                 </div>
-                <span className="text-sm font-medium">Click to select files</span>
+                <span className="text-sm font-medium">
+                  {folderMode ? 'Click to select a folder' : 'Click to select files'}
+                </span>
               </label>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-3 text-xs text-slate-500"
+                onClick={() => setFolderMode((f) => !f)}
+              >
+                {folderMode ? (
+                  <>
+                    <FileUp size={14} className="mr-1" /> Switch to files
+                  </>
+                ) : (
+                  <>
+                    <FolderUp size={14} className="mr-1" /> Upload a folder
+                  </>
+                )}
+              </Button>
             </div>
           ) : (
             <div className="max-h-[160px] overflow-y-auto mb-2">
