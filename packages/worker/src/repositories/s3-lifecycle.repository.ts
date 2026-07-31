@@ -63,4 +63,40 @@ export class S3LifecycleRepository {
       .bind(uploadId)
       .run();
   }
+
+  // ─── S3 Lifecycle Rule CRUD (used by S3 protocol route) ───
+
+  /** Find all lifecycle rules for a workspace. */
+  findRules(workspaceId: string) {
+    return this.db
+      .prepare(
+        'SELECT prefix, expiration_days, enabled FROM s3_lifecycle_rules WHERE workspace_id = ?',
+      )
+      .bind(workspaceId)
+      .all();
+  }
+
+  /** Delete all lifecycle rules for a workspace (before replacing). */
+  deleteRules(workspaceId: string) {
+    return this.db
+      .prepare('DELETE FROM s3_lifecycle_rules WHERE workspace_id = ?')
+      .bind(workspaceId)
+      .run();
+  }
+
+  /** Insert or replace a single lifecycle rule. */
+  replaceRule(
+    id: string,
+    workspaceId: string,
+    prefix: string,
+    expirationDays: number,
+    enabled: number,
+  ) {
+    return this.db
+      .prepare(
+        'INSERT OR REPLACE INTO s3_lifecycle_rules (id, workspace_id, prefix, expiration_days, enabled) VALUES (?, ?, ?, ?, ?)',
+      )
+      .bind(id, workspaceId, prefix, expirationDays, enabled)
+      .run();
+  }
 }

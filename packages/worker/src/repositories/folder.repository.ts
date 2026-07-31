@@ -281,4 +281,70 @@ export class FolderRepository {
   async upsertMany(stmts: D1PreparedStatement[]): Promise<void> {
     await batchInChunks(this.db, stmts);
   }
+
+  // ─── S3 protocol support ───
+
+  /**
+   * Find a workspace folder by workspace + name + parent (S3 key path resolution).
+   * Returns { id } or null. Used by getOrCreateWorkspaceFolder.
+   */
+  findFolderByPath(workspaceId: string, name: string, parentId: string | null) {
+    return this.db
+      .prepare(
+        `SELECT id FROM workspace_folders 
+         WHERE workspace_id = ? AND name = ? AND (parent_id = ? OR (parent_id IS NULL AND ? IS NULL))`,
+      )
+      .bind(workspaceId, name, parentId, parentId)
+      .first<{ id: string }>();
+  }
+
+  /** Insert a workspace folder (S3 key path creation). */
+  insertFolder(id: string, workspaceId: string, name: string, parentId: string | null) {
+    return this.db
+      .prepare(
+        'INSERT INTO workspace_folders (id, workspace_id, name, parent_id) VALUES (?, ?, ?, ?)',
+      )
+      .bind(id, workspaceId, name, parentId)
+      .run();
+  }
+
+  /**
+   * List files as flat S3 keys using a recursive CTE. Used by S3 ListObjectsV2.
+   * The caller provides the escaped prefix and optional cursor; the repo owns
+   * the SQL (including the dynamic cursor clause construction).
+   */
+  listFilesAsS3Keys(
+    workspaceId: string,
+    escapedPrefix: string,
+    cursor: { key: string; id: string } | null,
+    maxKeys: number,
+  ) {
+    const cursorClause = cursor ? " AND (COALESCE(fp.path, '') || f.name, f.id) > (?, ?)" : '';
+    const binds: (string | number)[] = [workspaceId, workspaceId, workspaceId, escapedPrefix];
+    if (cursor) binds.push(cursor.key, cursor.id);
+    binds.push(maxKeys + 1); // +1 to detect truncation
+
+    return this.db
+      .prepare(
+        `
+      WITH RECURSIVE folder_path(id, path) AS (
+          SELECT id, name || '/' FROM workspace_folders WHERE parent_id IS NULL AND workspace_id = ?
+          UNION ALL
+          SELECT f.id, fp.path || f.name || '/'
+          FROM workspace_folders f
+          JOIN folder_path fp ON f.parent_id = fp.id
+          WHERE f.workspace_id = ?
+      )
+      SELECT f.id, f.name, f.size, f.updated_at, f.metadata, COALESCE(fp.path, '') || f.name as s3_key
+      FROM files f
+      LEFT JOIN folder_path fp ON f.workspace_folder_id = fp.id
+      WHERE f.workspace_id = ? AND f.is_trashed = 0
+        AND COALESCE(fp.path, '') || f.name LIKE ? ESCAPE '^'${cursorClause}
+      ORDER BY COALESCE(fp.path, '') || f.name, f.id
+      LIMIT ?
+    `,
+      )
+      .bind(...binds)
+      .all();
+  }
 }

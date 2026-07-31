@@ -73,6 +73,11 @@ export class DriveRepository {
     return this.db.prepare('SELECT * FROM drive_accounts WHERE id = ?').bind(driveId).first();
   }
 
+  /** Find all drives for a user (no sync_state JOIN — plain SELECT *). */
+  findAllByUser(userId: string) {
+    return this.db.prepare('SELECT * FROM drive_accounts WHERE user_id = ?').bind(userId).all();
+  }
+
   /**
    * Find all drives that have tokens, from a list of drive IDs.
    * Used by upload/init to verify at least one drive has valid tokens.

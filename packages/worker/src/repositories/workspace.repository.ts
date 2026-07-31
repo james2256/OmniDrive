@@ -78,6 +78,37 @@ export class WorkspaceRepository {
       .bind(sizeDelta, workspaceId);
   }
 
+  /** List all workspaces for a user (S3 ListBuckets). Scopes to s3WorkspaceId if set. */
+  findBucketsByUser(userId: string, s3WorkspaceId: string | null = null) {
+    return this.db
+      .prepare(
+        `SELECT w.id, w.name, w.created_at 
+         FROM workspaces w 
+         JOIN workspace_members wm ON w.id = wm.workspace_id 
+         WHERE wm.user_id = ? 
+           AND (? IS NULL OR w.id = ?)
+         ORDER BY w.name`,
+      )
+      .bind(userId, s3WorkspaceId, s3WorkspaceId)
+      .all();
+  }
+
+  /**
+   * Resolve a bucket name to a workspace + role for the user (S3 resolveBucket).
+   * If s3WorkspaceId is provided, scopes the query to that workspace.
+   */
+  resolveBucket(bucketName: string, userId: string, s3WorkspaceId: string | null) {
+    return this.db
+      .prepare(
+        `SELECT w.id, wm.role FROM workspaces w
+         JOIN workspace_members wm ON w.id = wm.workspace_id
+         WHERE w.name = ? AND wm.user_id = ?
+           AND (? IS NULL OR w.id = ?)`,
+      )
+      .bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId)
+      .first();
+  }
+
   // ─── Mutations ───
 
   /** Create a workspace + add the creator as 'owner' member. Returns the workspace ID. */

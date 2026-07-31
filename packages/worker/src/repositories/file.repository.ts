@@ -558,4 +558,75 @@ export class FileRepository {
   async upsertMany(stmts: D1PreparedStatement[]): Promise<void> {
     await batchInChunks(this.db, stmts);
   }
+
+  // ─── S3 protocol support ───
+
+  /**
+   * Find a file by workspace + name + folder (full row). Used by S3
+   * HeadObject, DeleteObject, and AbortMultipartUpload where the full
+   * file metadata is needed.
+   */
+  findByWorkspaceKeyFull(workspaceId: string, name: string, folderId: string | null) {
+    return this.db
+      .prepare(
+        `SELECT * FROM files 
+         WHERE workspace_id = ? AND name = ? AND (workspace_folder_id = ? OR (workspace_folder_id IS NULL AND ? IS NULL))
+           AND is_trashed = 0`,
+      )
+      .bind(workspaceId, name, folderId, folderId)
+      .first();
+  }
+
+  /**
+   * Find a file by workspace + name + folder (minimal columns). Used by S3
+   * PutObject and CompleteMultipartUpload where only id, drive_account_id,
+   * and google_file_id are needed for the atomic replace.
+   */
+  findByWorkspaceKeyMinimal(workspaceId: string, name: string, folderId: string | null) {
+    return this.db
+      .prepare(
+        `SELECT id, drive_account_id, google_file_id FROM files
+         WHERE workspace_id = ? AND name = ? AND (workspace_folder_id = ? OR (workspace_folder_id IS NULL AND ? IS NULL))
+           AND is_trashed = 0`,
+      )
+      .bind(workspaceId, name, folderId, folderId)
+      .first();
+  }
+
+  /**
+   * Return a prepared INSERT statement (not run) for S3 object creation.
+   * Used in db.batch([deleteStmt, insertStmt]) for atomic object-replace.
+   */
+  insertS3ObjectStmt(params: {
+    id: string;
+    userId: string;
+    driveAccountId: string;
+    workspaceId: string;
+    folderId: string | null;
+    googleFileId: string;
+    name: string;
+    mimeType: string;
+    size: number;
+    metadata: string;
+  }): D1PreparedStatement {
+    return this.db
+      .prepare(
+        `INSERT INTO files (
+          id, user_id, drive_account_id, workspace_id, workspace_folder_id, 
+          google_file_id, name, mime_type, size, metadata, google_created_at, google_modified_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+      )
+      .bind(
+        params.id,
+        params.userId,
+        params.driveAccountId,
+        params.workspaceId,
+        params.folderId,
+        params.googleFileId,
+        params.name,
+        params.mimeType,
+        params.size,
+        params.metadata,
+      );
+  }
 }
