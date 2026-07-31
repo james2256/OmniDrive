@@ -225,7 +225,7 @@ export function FilePreviewModal({ open, file, onClose }: FilePreviewModalProps)
         {file && (
           <DialogBody>
             {isImage && (
-              <div className="mb-6 rounded-xl overflow-hidden bg-slate-50 border border-slate-200 flex justify-center items-center p-2 min-h-[200px]">
+              <div className="mb-6 rounded-xl overflow-hidden bg-slate-50 border border-slate-200 flex justify-center items-center min-h-[200px]">
                 {isLoading ? (
                   <div className="flex flex-col items-center justify-center text-slate-500 py-12">
                     <LoaderCircle className="w-8 h-8 animate-spin mb-2" />
@@ -248,7 +248,7 @@ export function FilePreviewModal({ open, file, onClose }: FilePreviewModalProps)
             )}
 
             {isPdf && (
-              <div className="mb-6 rounded-xl overflow-hidden bg-slate-50 border border-slate-200 min-h-[400px] flex items-center justify-center p-4">
+              <div className="mb-6 rounded-xl overflow-hidden bg-slate-50 border border-slate-200 min-h-[400px] flex items-center justify-center">
                 {isLoading ? (
                   <div className="flex flex-col items-center justify-center text-slate-500 py-12">
                     <LoaderCircle className="w-8 h-8 animate-spin mb-2" />
@@ -289,8 +289,8 @@ export function FilePreviewModal({ open, file, onClose }: FilePreviewModalProps)
             )}
 
             {isAudio && (
-              <div className="mb-6 rounded-xl bg-slate-50 border border-slate-200 p-4">
-                <div className="flex items-center gap-3 mb-3">
+              <div className="mb-6 rounded-xl bg-slate-50 border border-slate-200">
+                <div className="flex items-center gap-3 m-4 mb-3">
                   <FileIcon mimeType={file.mimeType} className="w-8 h-8 text-blue-500" />
                   <span className="text-sm text-slate-600">Audio file</span>
                 </div>
@@ -308,7 +308,7 @@ export function FilePreviewModal({ open, file, onClose }: FilePreviewModalProps)
             )}
 
             {(isCsv || isXlsx) && (
-              <div className="mb-6 rounded-xl bg-slate-50 border border-slate-200 p-4 max-h-[60vh] overflow-auto">
+              <div className="mb-6 rounded-xl bg-slate-50 border border-slate-200 max-h-[60vh] overflow-auto">
                 {(() => {
                   const rows = isCsv ? csvRows : xlsxRows;
                   if (isLoading) {
@@ -323,7 +323,7 @@ export function FilePreviewModal({ open, file, onClose }: FilePreviewModalProps)
                     return <span className="text-sm text-slate-500">Preview unavailable</span>;
                   }
                   return (
-                    <table className="w-full text-sm border-collapse">
+                    <table className="w-full text-sm border-collapse m-4">
                       <thead>
                         <tr className="border-b-2 border-slate-300">
                           {rows[0].map((h, i) => (
@@ -354,19 +354,19 @@ export function FilePreviewModal({ open, file, onClose }: FilePreviewModalProps)
             )}
 
             {isDocx && (
-              <div className="mb-6 rounded-xl bg-white border border-slate-200 p-4 max-h-[60vh] overflow-auto">
+              <div className="mb-6 rounded-xl bg-white border border-slate-200 max-h-[60vh] overflow-auto">
                 {isLoading && (
                   <div className="flex items-center text-slate-500">
                     <LoaderCircle className="w-4 h-4 animate-spin mr-2" />
                     <span className="text-sm">Loading…</span>
                   </div>
                 )}
-                <div ref={docxContainerRef} />
+                <div ref={docxContainerRef} className="m-4" />
               </div>
             )}
 
             {isPptx && (
-              <div className="mb-6 rounded-xl overflow-hidden bg-slate-50 border border-slate-200 min-h-[400px] flex items-center justify-center p-4">
+              <div className="mb-6 rounded-xl overflow-hidden bg-slate-50 border border-slate-200 min-h-[400px] flex items-center justify-center">
                 {isLoading ? (
                   <div className="flex flex-col items-center text-slate-500 py-12">
                     <LoaderCircle className="w-8 h-8 animate-spin mb-2" />
