@@ -210,12 +210,11 @@ describe('FilePreviewModal', () => {
     expect(openLink?.getAttribute('href')).toBe('https://drive.google.com/open?id=abc');
   });
 
-  it('renders PDF preview area (iframe) for PDF mime types', () => {
+  it('renders PDF preview area (canvas) for PDF mime types', () => {
     const file = makeFile({ mimeType: 'application/pdf' });
     render(<FilePreviewModal open file={file} onClose={vi.fn()} />);
 
-    // PDFs now render inline — the image preview area is NOT used (no <img>),
-    // but the PDF branch shows a loading state then an <iframe>.
+    // PDFs render via pdf.js canvas (not <iframe>) — works on all devices.
     expect(screen.queryByAltText('photo.jpg')).toBeNull();
     // fetchFilePreviewBlob is called for PDFs (the useEffect fetches the blob).
     expect(fetchFilePreviewBlob).toHaveBeenCalledWith('file-1');

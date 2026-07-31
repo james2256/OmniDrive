@@ -3,7 +3,7 @@ import { useUIStore } from '../../stores/useUIStore';
 import { useSelectionStore, type SelectedItem } from '../../stores/useSelectionStore';
 import { formatFileSize, formatRelativeTime } from '../../lib/utils';
 import { type SortField } from '../../lib/sort-items';
-import { FileThumbnail } from './FileThumbnail';
+import { FileIcon } from './FileIcon';
 import { ItemContextMenu } from './ItemContextMenu';
 import { MetadataBadges } from './MetadataBadges';
 import { useItemInteractions } from './useItemInteractions';
@@ -211,7 +211,7 @@ export function FileListView(props: FileListViewProps) {
               </div>
               <div className="flex items-center gap-2 min-w-0 pl-1">
                 <span className="text-lg sm:text-xl flex-shrink-0">
-                  <FileThumbnail file={file} className="w-6 h-6 rounded object-cover" />
+                  <FileIcon mimeType={file.mimeType} />
                 </span>
                 <span className="text-sm text-slate-800 truncate" title={file.name}>
                   {file.name}

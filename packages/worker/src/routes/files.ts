@@ -496,6 +496,21 @@ filesRouter.patch(
   },
 );
 
+/**
+ * MIME types under `application/*` that are text-based (source/config files)
+ * and should be previewed as text. Mirrors the web-side TEXT_APPLICATION_TYPES
+ * constant so both layers agree on what's text-previewable.
+ */
+const TEXT_APPLICATION_TYPES = new Set([
+  'application/json',
+  'application/xml',
+  'application/javascript',
+  'application/x-yaml',
+  'application/rtf',
+  'application/x-sh',
+  'application/x-php',
+]);
+
 function isPreviewableMime(mime: string): boolean {
   if (mime.startsWith('image/') || mime === 'application/vnd.google-apps.photo') return true;
   if (mime === 'application/pdf') return true;
@@ -504,6 +519,12 @@ function isPreviewableMime(mime: string): boolean {
   if (mime.startsWith('video/')) return true;
   if (mime.startsWith('audio/')) return true;
   if (mime.startsWith('text/')) return true;
+  // Text-based application/* types (JSON, XML, JS, YAML, RTF, shell, PHP)
+  if (TEXT_APPLICATION_TYPES.has(mime)) return true;
+  // Office Open XML (xlsx, docx, pptx) — rendered client-side via lazy-loaded libs
+  if (mime.startsWith('application/vnd.openxmlformats-officedocument.')) return true;
+  // Legacy Office (xls, doc) — xlsx renderer handles xls; doc gets "not available"
+  if (mime === 'application/vnd.ms-excel' || mime === 'application/msword') return true;
   return false;
 }
 

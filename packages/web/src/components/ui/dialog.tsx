@@ -77,7 +77,7 @@ DialogHeader.displayName = 'DialogHeader';
 /** Scrollable dialog body — sits between header (border-b) and footer (border-t). */
 const DialogBody = React.forwardRef<React.ElementRef<'div'>, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('p-4 overflow-y-auto', className)} {...props} />
+    <div ref={ref} className={cn('p-4 overflow-y-auto flex-1 min-h-0', className)} {...props} />
   ),
 );
 DialogBody.displayName = 'DialogBody';
