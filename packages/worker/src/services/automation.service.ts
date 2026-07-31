@@ -1,8 +1,9 @@
 import type { RuleCondition, AutomationRule, RuleAction } from '../types/automation';
 import type { Env } from '../types/env';
-import { generateId } from '../lib/id';
 import type { GoogleDriveService } from './google-drive';
 import { logErrorNoCtx } from '../lib/logger';
+import { FileRepository } from '../repositories/file.repository';
+import { AutomationRepository } from '../repositories/automation.repository';
 
 export const TRIGGER_EVENT: AutomationRule['triggerType'] = 'event';
 export const TRIGGER_CRON: AutomationRule['triggerType'] = 'cron';
@@ -160,6 +161,8 @@ export class AutomationEngine {
   }
 
   private async executeActions(ruleId: string, file: DbFile, actions: RuleAction[]) {
+    const fileRepo = new FileRepository(this.env.DB);
+    const automationRepo = new AutomationRepository(this.env.DB);
     try {
       const stmts: D1PreparedStatement[] = [];
 
@@ -169,11 +172,7 @@ export class AutomationEngine {
           (action as RuleAction & { target_folder_id?: string }).target_folder_id;
 
         if (action.type === ACTION_MOVE && targetFolderId) {
-          stmts.push(
-            this.env.DB.prepare(
-              'UPDATE files SET workspace_folder_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-            ).bind(targetFolderId as string, file.id),
-          );
+          stmts.push(fileRepo.updateWorkspaceFolderStmt(file.id, targetFolderId as string));
         } else if (action.type === ACTION_DELETE) {
           // Call Google Drive API to trash the file so sync doesn't revert it.
           // If the API call fails, skip the D1 update — the file would reappear
@@ -187,20 +186,13 @@ export class AutomationEngine {
             logErrorNoCtx('Automation DELETE: Google API call failed', err, { fileId: file.id });
             continue;
           }
-          stmts.push(
-            this.env.DB.prepare('UPDATE files SET is_trashed = ? WHERE id = ?').bind(
-              IS_TRASHED,
-              file.id,
-            ),
-          );
+          stmts.push(fileRepo.markTrashedStmt(file.id, IS_TRASHED));
         }
       }
 
       if (actions.length > 0) {
         stmts.push(
-          this.env.DB.prepare(
-            'INSERT INTO automation_logs (id, rule_id, status, details) VALUES (?, ?, ?, ?)',
-          ).bind(generateId(), ruleId, 'success', JSON.stringify({ fileId: file.id })),
+          automationRepo.insertLogStmt(ruleId, 'success', JSON.stringify({ fileId: file.id })),
         );
       }
 
@@ -209,11 +201,7 @@ export class AutomationEngine {
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      await this.env.DB.prepare(
-        'INSERT INTO automation_logs (id, rule_id, status, details) VALUES (?, ?, ?, ?)',
-      )
-        .bind(generateId(), ruleId, 'error', errorMessage)
-        .run();
+      await automationRepo.insertLogStmt(ruleId, 'error', errorMessage).run();
     }
   }
 }

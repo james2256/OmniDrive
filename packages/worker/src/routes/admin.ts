@@ -192,9 +192,7 @@ adminRouter.delete('/users/:id', async (c) => {
   // net in case the admin guard is ever relaxed or bypassed.
   const target = await c.get('adminRepo').findSuperAdminStatus(targetUserId);
   if (target?.is_super_admin) {
-    const { count } = (await c.env.DB.prepare(
-      'SELECT COUNT(*) as count FROM users WHERE is_super_admin = 1',
-    ).first<{ count: number }>()) ?? { count: 0 };
+    const count = await c.get('adminRepo').countSuperAdmins();
     if (count <= 1) {
       throw new AppError(400, 'Cannot delete the last super admin');
     }

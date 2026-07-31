@@ -1,4 +1,5 @@
-import type { D1Database } from '@cloudflare/workers-types';
+import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types';
+import { generateId } from '../lib/id';
 
 /**
  * Data access layer for the `automation_rules` table.
@@ -48,5 +49,15 @@ export class AutomationRepository {
       .bind(isActive, ruleId, userId)
       .run();
     return meta.changes > 0;
+  }
+
+  /**
+   * Return a prepared automation_logs INSERT statement (not run) for batch
+   * operations. Used by AutomationEngine to log success/error per file.
+   */
+  insertLogStmt(ruleId: string, status: string, details: string): D1PreparedStatement {
+    return this.db
+      .prepare('INSERT INTO automation_logs (id, rule_id, status, details) VALUES (?, ?, ?, ?)')
+      .bind(generateId(), ruleId, status, details);
   }
 }

@@ -21,6 +21,14 @@ export class AdminRepository {
       .first<{ is_super_admin: number }>();
   }
 
+  /** Count super admins — used by the last-super-admin guard before deletion. */
+  async countSuperAdmins(): Promise<number> {
+    const { count } = (await this.db
+      .prepare('SELECT COUNT(*) as count FROM users WHERE is_super_admin = 1')
+      .first<{ count: number }>()) ?? { count: 0 };
+    return count;
+  }
+
   /** Find all users (admin view) — limited fields, most recent 100. */
   findAllUsers() {
     return this.db

@@ -1,6 +1,8 @@
 import type { Env } from '../types/env';
 import { createDriveService } from '../middleware/shared-services';
 import { logErrorNoCtx } from '../lib/logger';
+import { S3LifecycleRepository } from '../repositories/s3-lifecycle.repository';
+import { FileRepository } from '../repositories/file.repository';
 
 export interface LifecycleRule {
   prefix: string;
@@ -51,52 +53,28 @@ ${rulesXml}
  * Files already trashed are skipped via is_trashed = 0.
  */
 export async function runLifecycleExpiration(env: Env): Promise<void> {
-  const { results: rules } = await env.DB.prepare(
-    'SELECT id, workspace_id, prefix, expiration_days FROM s3_lifecycle_rules WHERE enabled = 1',
-  ).all<{ id: string; workspace_id: string; prefix: string; expiration_days: number }>();
+  const s3LifecycleRepo = new S3LifecycleRepository(env.DB);
+  const fileRepo = new FileRepository(env.DB);
+
+  const { results: rules } = await s3LifecycleRepo.findEnabledRules();
 
   if (!rules?.length) return;
 
   const driveService = createDriveService(env);
 
   for (const rule of rules) {
-    // Reuse the ListObjects CTE to build S3 keys, then filter by prefix + age.
-    const modifier = `-${rule.expiration_days} days`;
-    const { results: expired } = await env.DB.prepare(
-      `
-      WITH RECURSIVE folder_path(id, path) AS (
-          SELECT id, name || '/' FROM workspace_folders WHERE parent_id IS NULL AND workspace_id = ?
-          UNION ALL
-          SELECT f.id, fp.path || f.name || '/'
-          FROM workspace_folders f
-          JOIN folder_path fp ON f.parent_id = fp.id
-          WHERE f.workspace_id = ?
-      )
-      SELECT f.id, f.drive_account_id, f.google_file_id
-      FROM files f
-      LEFT JOIN folder_path fp ON f.workspace_folder_id = fp.id
-      WHERE f.workspace_id = ? AND f.is_trashed = 0
-        AND COALESCE(fp.path, '') || f.name LIKE ? ESCAPE '^'
-        AND f.updated_at <= datetime('now', ?)
-    `,
-    )
-      .bind(
-        rule.workspace_id,
-        rule.workspace_id,
-        rule.workspace_id,
-        rule.prefix.replace(/[%_^]/g, (ch) => '^' + ch) + '%',
-        modifier,
-      )
-      .all<{ id: string; drive_account_id: string; google_file_id: string }>();
+    // Escape LIKE wildcards in the prefix (matches s3.ts ListObjectsV2 pattern).
+    const escapedPrefix = rule.prefix.replace(/[%_^]/g, (ch) => '^' + ch) + '%';
+    const { results: expired } = await s3LifecycleRepo.findExpiredFiles(
+      rule.workspace_id,
+      escapedPrefix,
+      rule.expiration_days,
+    );
 
     for (const file of expired ?? []) {
       try {
         await driveService.trashFile(file.drive_account_id, file.google_file_id);
-        await env.DB.prepare(
-          'UPDATE files SET is_trashed = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-        )
-          .bind(file.id)
-          .run();
+        await fileRepo.markTrashedSystem(file.id);
       } catch (e) {
         // Best-effort: skip this file, keep processing the rest.
         logErrorNoCtx('Lifecycle expire failed for file', e, { fileId: file.id });
@@ -116,9 +94,9 @@ export async function runLifecycleExpiration(env: Env): Promise<void> {
  * spanning >24h gets reaped; make it configurable if long-running uploads appear.
  */
 export async function cleanupOrphanMultipartUploads(env: Env): Promise<void> {
-  const { results: orphans } = await env.DB.prepare(
-    "SELECT upload_id, drive_account_id, temp_folder_id FROM s3_multipart_uploads WHERE created_at < datetime('now','-1 day')",
-  ).all<{ upload_id: string; drive_account_id: string; temp_folder_id: string }>();
+  const s3LifecycleRepo = new S3LifecycleRepository(env.DB);
+
+  const { results: orphans } = await s3LifecycleRepo.findOrphanUploads();
 
   if (!orphans?.length) return;
 
@@ -131,8 +109,6 @@ export async function cleanupOrphanMultipartUploads(env: Env): Promise<void> {
       // Best-effort: the temp folder may already be gone; still drop the DB row.
       logErrorNoCtx('Failed to delete orphan multipart temp folder from Google Drive', err);
     }
-    await env.DB.prepare('DELETE FROM s3_multipart_uploads WHERE upload_id = ?')
-      .bind(upload.upload_id)
-      .run();
+    await s3LifecycleRepo.deleteUpload(upload.upload_id);
   }
 }

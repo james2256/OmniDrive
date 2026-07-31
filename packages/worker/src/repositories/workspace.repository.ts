@@ -1,4 +1,4 @@
-import type { D1Database } from '@cloudflare/workers-types';
+import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types';
 import { generateId } from '../lib/id';
 
 /**
@@ -60,6 +60,22 @@ export class WorkspaceRepository {
   /** Check if a workspace exists (by ID only, no membership check). */
   exists(workspaceId: string) {
     return this.db.prepare('SELECT id FROM workspaces WHERE id = ?').bind(workspaceId).first();
+  }
+
+  /** Find a workspace by ID (no membership check). Returns the full row. */
+  findById(workspaceId: string) {
+    return this.db.prepare('SELECT * FROM workspaces WHERE id = ?').bind(workspaceId).first();
+  }
+
+  /**
+   * Return a prepared used_bytes UPDATE statement (not run) for batch operations.
+   * Used by PolicyService retention auto-delete to batch DELETE file + UPDATE
+   * used_bytes atomically. `sizeDelta` may be negative (deletion).
+   */
+  updateUsedBytesStmt(workspaceId: string, sizeDelta: number): D1PreparedStatement {
+    return this.db
+      .prepare('UPDATE workspaces SET used_bytes = COALESCE(used_bytes, 0) + ? WHERE id = ?')
+      .bind(sizeDelta, workspaceId);
   }
 
   // ─── Mutations ───

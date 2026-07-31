@@ -3,6 +3,8 @@ import type { GoogleDriveService } from './google-drive';
 import { logErrorNoCtx } from '../lib/logger';
 import { toSQLiteDatetime } from '../lib/datetime';
 import { safeJsonParse } from '../lib/safe-json-parse';
+import { FileRepository } from '../repositories/file.repository';
+import { WorkspaceRepository } from '../repositories/workspace.repository';
 
 export class PolicyService {
   constructor(
@@ -130,10 +132,8 @@ export class PolicyService {
         }
 
         await this.db.batch([
-          this.db.prepare('DELETE FROM files WHERE id = ?').bind(file.id),
-          this.db
-            .prepare('UPDATE workspaces SET used_bytes = COALESCE(used_bytes, 0) + ? WHERE id = ?')
-            .bind(-file.size, file.workspace_id),
+          new FileRepository(this.db).deleteByIdStmt(file.id),
+          new WorkspaceRepository(this.db).updateUsedBytesStmt(file.workspace_id, -file.size),
         ]);
         deleted++;
       }

@@ -267,6 +267,17 @@ export class FileRepository {
       .run();
   }
 
+  /**
+   * Mark a file trashed without user scoping — for system operations (lifecycle
+   * cron, automation engine) that don't have a userId. Updates updated_at.
+   */
+  markTrashedSystem(fileId: string) {
+    return this.db
+      .prepare('UPDATE files SET is_trashed = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+      .bind(fileId)
+      .run();
+  }
+
   markUntrashed(fileId: string, userId: string) {
     return this.db
       .prepare(
@@ -306,6 +317,35 @@ export class FileRepository {
       .prepare('DELETE FROM files WHERE id = ? AND user_id = ?')
       .bind(fileId, userId)
       .run();
+  }
+
+  /**
+   * Return a prepared DELETE statement (not run) for batch operations.
+   * Used by PolicyService retention auto-delete to batch DELETE + used_bytes
+   * UPDATE atomically. No userId scoping — system operation.
+   */
+  deleteByIdStmt(fileId: string): D1PreparedStatement {
+    return this.db.prepare('DELETE FROM files WHERE id = ?').bind(fileId);
+  }
+
+  /**
+   * Return a prepared workspace_folder_id UPDATE statement (not run) for batch
+   * operations. Used by AutomationEngine to batch move actions.
+   */
+  updateWorkspaceFolderStmt(fileId: string, folderId: string): D1PreparedStatement {
+    return this.db
+      .prepare(
+        'UPDATE files SET workspace_folder_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      )
+      .bind(folderId, fileId);
+  }
+
+  /**
+   * Return a prepared is_trashed UPDATE statement (not run) for batch operations.
+   * Used by AutomationEngine to batch delete (trash) actions. No userId scoping.
+   */
+  markTrashedStmt(fileId: string, isTrashed: number): D1PreparedStatement {
+    return this.db.prepare('UPDATE files SET is_trashed = ? WHERE id = ?').bind(isTrashed, fileId);
   }
 
   /** Atomically delete a file and invalidate its user's category cache. */

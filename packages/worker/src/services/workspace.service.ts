@@ -59,7 +59,7 @@ export class WorkspaceService {
   /** Create a workspace + add the creator as 'owner'. Returns the workspace row. */
   async createWorkspace(userId: string, name: string): Promise<unknown> {
     const workspaceId = await this.workspaceRepo.createWorkspace(name, userId);
-    return this.db.prepare('SELECT * FROM workspaces WHERE id = ?').bind(workspaceId).first();
+    return this.workspaceRepo.findById(workspaceId);
   }
 
   /**
