@@ -1,6 +1,7 @@
 import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types';
 import { generateId } from '../lib/id';
 import { batchInChunks } from '../lib/d1-batch';
+import { safeJsonParse } from '../lib/safe-json-parse';
 import type { FileRow } from '../types/db';
 import type { DriveAccount } from '../types/domain';
 import type { GDriveFile } from '../services/google-drive';
@@ -95,7 +96,7 @@ export class FileRepository {
       .first<{ payload: string; updated_at: number }>();
     if (cacheRow && Date.now() - cacheRow.updated_at < FileRepository.CATEGORY_CACHE_TTL_MS) {
       return {
-        results: JSON.parse(cacheRow.payload) as { mime_type: string; total_size: number }[],
+        results: safeJsonParse(cacheRow.payload, [] as { mime_type: string; total_size: number }[]),
       };
     }
 

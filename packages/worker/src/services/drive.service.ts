@@ -2,7 +2,7 @@ import type { D1Database } from '@cloudflare/workers-types';
 import { DriveRepository } from '../repositories/drive.repository';
 import type { GoogleDriveService } from './google-drive';
 import { createDriveService } from '../middleware/shared-services';
-import { AppError } from '../lib/errors';
+import { NotFoundError, ForbiddenError } from '../lib/errors';
 import { generateId } from '../lib/id';
 import { encodeCursor } from '../lib/cursor';
 import { mapDriveRow, mapFileRow, mapDriveFolderRow } from '../types/db';
@@ -27,6 +27,13 @@ export class DriveService {
     });
   }
 
+  /** Find a drive by ID + user, throw NotFoundError if missing/unauthorized. */
+  private async getDriveOrThrow(driveId: string, userId: string) {
+    const drive = await this.driveRepo.findByIdAndUser(driveId, userId);
+    if (!drive) throw new NotFoundError('Drive not found');
+    return drive;
+  }
+
   /** Create a Google Drive folder via the API, then persist to D1 so it appears immediately. */
   async createDriveFolder(
     userId: string,
@@ -34,8 +41,7 @@ export class DriveService {
     name: string,
     parentId?: string,
   ): Promise<string> {
-    const drive = await this.driveRepo.findByIdAndUser(driveId, userId);
-    if (!drive) throw new AppError(404, 'Drive not found');
+    await this.getDriveOrThrow(driveId, userId);
 
     const googleFolderId = await this.googleDriveService.createFolder(
       driveId,
@@ -68,27 +74,21 @@ export class DriveService {
     googleFolderId: string,
     name: string,
   ): Promise<void> {
-    const drive = await this.driveRepo.findByIdAndUser(driveId, userId);
-    if (!drive) throw new AppError(404, 'Drive not found');
-
+    await this.getDriveOrThrow(driveId, userId);
     await this.googleDriveService.renameFile(driveId, googleFolderId, name);
     await this.driveRepo.renameDriveFolder(driveId, googleFolderId, name);
   }
 
   /** Trash a Google Drive folder via the API, then update the cache. */
   async trashDriveFolder(userId: string, driveId: string, googleFolderId: string): Promise<void> {
-    const drive = await this.driveRepo.findByIdAndUser(driveId, userId);
-    if (!drive) throw new AppError(404, 'Drive not found');
-
+    await this.getDriveOrThrow(driveId, userId);
     await this.googleDriveService.trashFolder(driveId, googleFolderId);
     await this.driveRepo.markDriveFolderTrashed(driveId, googleFolderId);
   }
 
   /** Restore a trashed Google Drive folder. */
   async restoreDriveFolder(userId: string, driveId: string, googleFolderId: string): Promise<void> {
-    const drive = await this.driveRepo.findByIdAndUser(driveId, userId);
-    if (!drive) throw new AppError(404, 'Drive not found');
-
+    await this.getDriveOrThrow(driveId, userId);
     await this.googleDriveService.untrashFolder(driveId, googleFolderId);
     await this.driveRepo.markDriveFolderUntrashed(driveId, googleFolderId);
   }
@@ -99,24 +99,20 @@ export class DriveService {
     driveId: string,
     googleFolderId: string,
   ): Promise<void> {
-    const drive = await this.driveRepo.findByIdAndUser(driveId, userId);
-    if (!drive) throw new AppError(404, 'Drive not found');
-
+    await this.getDriveOrThrow(driveId, userId);
     await this.googleDriveService.deleteFile(driveId, googleFolderId);
     await this.driveRepo.deleteDriveFolder(driveId, googleFolderId);
   }
 
   /** Star a Google Drive folder (DB only — no Google API call needed). */
   async starDriveFolder(userId: string, driveId: string, googleFolderId: string): Promise<void> {
-    const drive = await this.driveRepo.findByIdAndUser(driveId, userId);
-    if (!drive) throw new AppError(404, 'Drive not found');
+    await this.getDriveOrThrow(driveId, userId);
     await this.driveRepo.starDriveFolder(driveId, googleFolderId);
   }
 
   /** Unstar a Google Drive folder. */
   async unstarDriveFolder(userId: string, driveId: string, googleFolderId: string): Promise<void> {
-    const drive = await this.driveRepo.findByIdAndUser(driveId, userId);
-    if (!drive) throw new AppError(404, 'Drive not found');
+    await this.getDriveOrThrow(driveId, userId);
     await this.driveRepo.unstarDriveFolder(driveId, googleFolderId);
   }
 
@@ -216,12 +212,12 @@ export class DriveService {
     isFolder: boolean,
   ): Promise<void> {
     const drive = await this.driveRepo.findForMove(driveId, userId);
-    if (!drive) throw new AppError(404, 'Drive not found');
+    if (!drive) throw new NotFoundError('Drive not found');
 
     // Verify item ownership (can't move files you don't own)
     const item = await this.driveRepo.findItemOwnership(driveId, googleFileId, isFolder);
-    if (!item) throw new AppError(404, 'Item not found');
-    if (item.owned_by_me !== 1) throw new AppError(403, 'You can only move items you own');
+    if (!item) throw new NotFoundError('Item not found');
+    if (item.owned_by_me !== 1) throw new ForbiddenError('You can only move items you own');
 
     // Resolve root folder ID
     const rootFolderId = drive.root_folder_id || 'root';
@@ -251,7 +247,7 @@ export class DriveService {
    */
   async disconnectDrive(userId: string, driveId: string): Promise<void> {
     const row = await this.driveRepo.findFullByIdAndUser(driveId, userId);
-    if (!row) throw new AppError(404, 'Drive not found');
+    if (!row) throw new NotFoundError('Drive not found');
 
     const wasPrimary = (row as Record<string, unknown>).is_primary === 1;
     const driveType = (row as Record<string, unknown>).type as string;

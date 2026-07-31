@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import type { AppContext } from '../types/env';
 import { generateId } from '../lib/id';
 import { authGuard } from '../middleware/auth-guard';
-import { AppError } from '../lib/errors';
+import { NotFoundError } from '../lib/errors';
 import { mapAutomationRuleRow } from '../types/db';
 import { IS_ACTIVE, IS_INACTIVE } from '../services/automation.service';
 import { zValidator } from '@hono/zod-validator';
@@ -45,7 +45,7 @@ automationsRouter.patch(
     const changed = await c
       .get('automationRepo')
       .toggleActive(c.req.param('id'), c.get('userId'), is_active ? IS_ACTIVE : IS_INACTIVE);
-    if (!changed) throw new AppError(404, 'Automation rule not found');
+    if (!changed) throw new NotFoundError('Automation rule not found');
     return c.body(null, 204);
   },
 );

@@ -1,5 +1,5 @@
 import type { DriveWithQuota } from '../types/domain';
-import { AppError } from '../lib/errors';
+import { ValidationError, NotFoundError } from '../lib/errors';
 
 export class UploadRouter {
   constructor(private drives: DriveWithQuota[]) {}
@@ -14,13 +14,13 @@ export class UploadRouter {
    */
   selectDriveForUpload(fileSize: number, preferredDriveId?: string): DriveWithQuota {
     if (this.drives.length === 0) {
-      throw new AppError(400, 'No connected Drive accounts available');
+      throw new ValidationError('No connected Drive accounts available');
     }
 
     if (preferredDriveId) {
       const drive = this.drives.find((d) => d.id === preferredDriveId);
       if (!drive) {
-        throw new AppError(404, 'Preferred drive account not found');
+        throw new NotFoundError('Preferred drive account not found');
       }
       if (drive.freeSpace >= fileSize) {
         return drive;
@@ -33,7 +33,7 @@ export class UploadRouter {
     const bestDrive = sorted[0];
 
     if (bestDrive.freeSpace < fileSize) {
-      throw new AppError(400, 'Insufficient overall quota for this file');
+      throw new ValidationError('Insufficient overall quota for this file');
     }
 
     return bestDrive;

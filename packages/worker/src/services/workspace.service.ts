@@ -2,7 +2,7 @@ import type { D1Database } from '@cloudflare/workers-types';
 import { WorkspaceRepository } from '../repositories/workspace.repository';
 import { AuditService } from './audit.service';
 import { getWorkspaceRole, hasPermission, roleLevel } from '../lib/rbac';
-import { AppError, ConflictError } from '../lib/errors';
+import { AppError, ConflictError, ForbiddenError, NotFoundError } from '../lib/errors';
 import { generateId } from '../lib/id';
 import type { WorkspaceRole } from '../lib/schemas';
 import { mapAuditLogRow, mapWorkspacePolicyRow } from '../types/db';
@@ -75,19 +75,19 @@ export class WorkspaceService {
   ): Promise<void> {
     const currentUserRole = await getWorkspaceRole(this.db, workspaceId, userId);
     if (!currentUserRole || !hasPermission(currentUserRole, 'manager')) {
-      throw new AppError(403, 'Forbidden');
+      throw new ForbiddenError();
     }
 
     // Prevent role escalation: can't assign role >= own role
     const assignerLevel = roleLevel(currentUserRole);
     const targetLevel = roleLevel(role);
     if (targetLevel >= assignerLevel) {
-      throw new AppError(403, 'Cannot assign a role equal to or higher than your own');
+      throw new ForbiddenError('Cannot assign a role equal to or higher than your own');
     }
 
     const targetUser = await this.workspaceRepo.findUserByEmail(email);
     if (!targetUser) {
-      throw new AppError(404, 'User not found');
+      throw new NotFoundError('User not found');
     }
 
     try {
@@ -128,13 +128,13 @@ export class WorkspaceService {
 
     const currentUserRole = await getWorkspaceRole(this.db, workspaceId, userId);
     if (!currentUserRole || !hasPermission(currentUserRole, 'manager')) {
-      throw new AppError(403, 'Forbidden');
+      throw new ForbiddenError();
     }
 
     // Only owners can remove other owners; managers cannot remove owners
     const targetRole = await getWorkspaceRole(this.db, workspaceId, targetUserId);
     if (targetRole === 'owner' && currentUserRole !== 'owner') {
-      throw new AppError(403, 'Only an owner can remove another owner');
+      throw new ForbiddenError('Only an owner can remove another owner');
     }
 
     // Prevent removing the last owner — would orphan the workspace
@@ -166,7 +166,7 @@ export class WorkspaceService {
   async getAuditLogs(userId: string, workspaceId: string): Promise<AuditLog[]> {
     const role = await getWorkspaceRole(this.db, workspaceId, userId);
     if (!role || (role !== 'owner' && role !== 'manager' && role !== 'auditor')) {
-      throw new AppError(403, 'Forbidden');
+      throw new ForbiddenError();
     }
 
     const { results } = await this.workspaceRepo.findAuditLogs(workspaceId);
@@ -180,7 +180,7 @@ export class WorkspaceService {
   async getPolicies(userId: string, workspaceId: string): Promise<WorkspacePolicy[]> {
     const role = await getWorkspaceRole(this.db, workspaceId, userId);
     if (!role || !hasPermission(role, 'manager')) {
-      throw new AppError(403, 'Forbidden');
+      throw new ForbiddenError();
     }
 
     const { results } = await this.workspaceRepo.findPolicies(workspaceId);
@@ -203,7 +203,7 @@ export class WorkspaceService {
   ): Promise<WorkspacePolicy | null> {
     const role = await getWorkspaceRole(this.db, workspaceId, userId);
     if (!role || !hasPermission(role, 'manager')) {
-      throw new AppError(403, 'Forbidden');
+      throw new ForbiddenError();
     }
 
     const row = await this.workspaceRepo.createPolicy({
@@ -223,7 +223,7 @@ export class WorkspaceService {
   async deletePolicy(userId: string, workspaceId: string, policyId: string): Promise<void> {
     const role = await getWorkspaceRole(this.db, workspaceId, userId);
     if (!role || !hasPermission(role, 'manager')) {
-      throw new AppError(403, 'Forbidden');
+      throw new ForbiddenError();
     }
 
     await this.workspaceRepo.deletePolicy(policyId, workspaceId);
@@ -241,7 +241,7 @@ export class WorkspaceService {
   ): Promise<void> {
     const role = await getWorkspaceRole(this.db, workspaceId, userId);
     if (!role || !hasPermission(role, 'editor')) {
-      throw new AppError(403, 'Forbidden');
+      throw new ForbiddenError();
     }
 
     await this.db

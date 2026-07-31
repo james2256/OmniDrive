@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { AppContext } from '../types/env';
 import { authGuard } from '../middleware/auth-guard';
-import { AppError, ConflictError } from '../lib/errors';
+import { AppError, ConflictError, ForbiddenError } from '../lib/errors';
 import { generateId } from '../lib/id';
 import { hashPassword } from '../lib/password';
 import { zValidator } from '@hono/zod-validator';
@@ -22,7 +22,7 @@ adminRouter.use('*', authGuard);
 adminRouter.use('*', async (c, next) => {
   const user = await c.get('adminRepo').findSuperAdminStatus(c.get('userId'));
   if (!user || user.is_super_admin !== 1) {
-    throw new AppError(403, 'Forbidden: Super Admin access required');
+    throw new ForbiddenError('Super Admin access required');
   }
   await next();
 });

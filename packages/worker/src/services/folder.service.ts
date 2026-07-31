@@ -4,7 +4,7 @@ import { WorkspaceRepository } from '../repositories/workspace.repository';
 import { FileRepository } from '../repositories/file.repository';
 import { getWorkspaceRole, hasPermission } from '../lib/rbac';
 import { encodeCursor } from '../lib/cursor';
-import { AppError } from '../lib/errors';
+import { NotFoundError, ForbiddenError } from '../lib/errors';
 import { generateId } from '../lib/id';
 import { mapFileRow } from '../types/db';
 import type { FileEntry } from '../types/domain';
@@ -43,14 +43,14 @@ export class FolderService {
   /** Star a folder. RBAC: membership (any role). */
   async starFolder(userId: string, folderId: string): Promise<void> {
     const folder = await this.folderRepo.findMembership(folderId, userId);
-    if (!folder) throw new AppError(404, 'Folder not found or no access');
+    if (!folder) throw new NotFoundError('Folder not found or no access');
     await this.folderRepo.star(folderId);
   }
 
   /** Unstar a folder. RBAC: membership. */
   async unstarFolder(userId: string, folderId: string): Promise<void> {
     const folder = await this.folderRepo.findMembership(folderId, userId);
-    if (!folder) throw new AppError(404, 'Folder not found or no access');
+    if (!folder) throw new NotFoundError('Folder not found or no access');
     await this.folderRepo.unstar(folderId);
   }
 
@@ -65,11 +65,11 @@ export class FolderService {
   /** Delete a folder. RBAC: editor. */
   async deleteFolder(userId: string, folderId: string): Promise<void> {
     const folder = await this.folderRepo.findMembership(folderId, userId);
-    if (!folder) throw new AppError(404, 'Folder not found or no access');
+    if (!folder) throw new NotFoundError('Folder not found or no access');
 
     const role = await getWorkspaceRole(this.db, folder.workspace_id, userId);
     if (!role || !hasPermission(role, 'editor')) {
-      throw new AppError(403, 'Forbidden');
+      throw new ForbiddenError();
     }
 
     await this.folderRepo.delete(folderId);
@@ -106,7 +106,7 @@ export class FolderService {
     limit: number,
   ) {
     const ws = await this.workspaceRepo.findByIdAndMember(workspaceId, userId);
-    if (!ws) throw new AppError(404, 'Folder not found or no access');
+    if (!ws) throw new NotFoundError('Folder not found or no access');
 
     const currentFolder = {
       id: (ws as Record<string, unknown>).id as string,
@@ -182,7 +182,7 @@ export class FolderService {
     limit: number,
   ) {
     const folder = await this.folderRepo.findByIdWithWorkspace(folderId, userId);
-    if (!folder) throw new AppError(404, 'Folder not found or no access');
+    if (!folder) throw new NotFoundError('Folder not found or no access');
 
     const f = folder as Record<string, unknown>;
     const currentFolder = {
@@ -273,7 +273,7 @@ export class FolderService {
     if (!ws) {
       // parentId is a folder — get its workspace_id
       const folder = await this.folderRepo.findParentWorkspace(parentId, userId);
-      if (!folder) throw new AppError(404, 'Parent not found or no access');
+      if (!folder) throw new NotFoundError('Parent not found or no access');
       workspaceId = folder.workspace_id;
       actualParentId = parentId;
     }
@@ -314,7 +314,7 @@ export class FolderService {
 
     // It's a folder — check membership
     const folderMember = await this.folderRepo.findMembership(folderId, userId);
-    if (!folderMember) throw new AppError(404, 'Folder not found or no access');
+    if (!folderMember) throw new NotFoundError('Folder not found or no access');
 
     // Resolve parentId: null means clear (set to null), string means move to that parent
     let resolvedParentId: string | null | undefined = undefined;

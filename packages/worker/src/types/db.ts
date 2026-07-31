@@ -16,6 +16,7 @@
 import { DEFAULT_FOLDER_ICON, DEFAULT_FOLDER_COLOR } from '../constants';
 import type { AutomationRule, AutomationLog, RuleCondition, RuleAction } from './automation';
 import type { WorkspaceRole } from '../lib/schemas';
+import { safeJsonParse } from '../lib/safe-json-parse';
 import type {
   DriveAccount,
   VirtualFolder,
@@ -167,15 +168,15 @@ export function mapAutomationRuleRow(row: Record<string, unknown>): AutomationRu
     triggerType: row.trigger_type as 'event' | 'cron',
     triggerConfig:
       typeof row.trigger_config === 'string'
-        ? JSON.parse(row.trigger_config)
+        ? safeJsonParse(row.trigger_config, {})
         : (row.trigger_config as Record<string, unknown>) || {},
     conditions:
       typeof row.conditions === 'string'
-        ? JSON.parse(row.conditions)
+        ? safeJsonParse(row.conditions, [])
         : (row.conditions as RuleCondition[]) || [],
     actions:
       typeof row.actions === 'string'
-        ? JSON.parse(row.actions)
+        ? safeJsonParse(row.actions, [])
         : (row.actions as RuleAction[]) || [],
     isActive: row.is_active === 1,
     createdAt: row.created_at as string,

@@ -2,6 +2,7 @@ import type { D1Database } from '@cloudflare/workers-types';
 import type { GoogleDriveService } from './google-drive';
 import { logErrorNoCtx } from '../lib/logger';
 import { toSQLiteDatetime } from '../lib/datetime';
+import { safeJsonParse } from '../lib/safe-json-parse';
 
 export class PolicyService {
   constructor(
@@ -26,7 +27,7 @@ export class PolicyService {
 
     if (!policy) return true; // No quota set
 
-    const config = JSON.parse(policy.config) as { max_bytes: number };
+    const config = safeJsonParse(policy.config, { max_bytes: Infinity }) as { max_bytes: number };
     return workspace.used_bytes + incomingBytes <= config.max_bytes;
   }
 
@@ -44,7 +45,10 @@ export class PolicyService {
 
     if (!policy) return false;
 
-    const config = JSON.parse(policy.config) as { action: string; days?: number };
+    const config = safeJsonParse(policy.config, { action: 'prevent_deletion' }) as {
+      action: string;
+      days?: number;
+    };
     return config.action === 'prevent_deletion';
   }
 
@@ -72,7 +76,12 @@ export class PolicyService {
       }>();
 
     for (const policy of policies) {
-      const config = JSON.parse(policy.config) as { action: string; days: number };
+      const config = safeJsonParse(policy.config, null) as { action: string; days: number } | null;
+      // Skip corrupt or invalid policies — a missing/non-number `days` would
+      // crash the date arithmetic below. safeJsonParse already logged the row.
+      if (!config || config.action !== 'auto_delete' || typeof config.days !== 'number') {
+        continue;
+      }
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - config.days);
       const cutoffStr = toSQLiteDatetime(cutoffDate);

@@ -4,6 +4,7 @@ import type { QuotaCache } from '../types/domain';
 import { parseStorageQuota, QUOTA_CACHE_VERSION } from '../lib/storage-quota';
 import { NotFoundError, AuthError, UpstreamError } from '../lib/errors';
 import { withBackoff } from '../lib/backoff';
+import { safeJsonParse } from '../lib/safe-json-parse';
 
 // ponytail: split into token/file/folder/sync modules when a 4th method group
 // is added or when extending becomes painful. Currently 27 methods across 4
@@ -111,7 +112,13 @@ export class GoogleDriveService {
       const { decryptOrPassthrough } = await import('../lib/crypto');
       tokensJson = await decryptOrPassthrough(row.encrypted_tokens, this.encryptionKey);
     }
-    return JSON.parse(tokensJson) as OAuthTokens;
+    const tokens = safeJsonParse<OAuthTokens | null>(tokensJson, null);
+    if (!tokens) {
+      throw new AuthError(
+        'Stored Google Drive tokens are corrupt or missing. Reconnect the drive.',
+      );
+    }
+    return tokens;
   }
 
   async getValidToken(driveAccountId: string): Promise<string> {
@@ -258,8 +265,8 @@ export class GoogleDriveService {
       .bind(driveAccountId)
       .first<{ payload: string; updated_at: number }>();
     if (cacheRow && Date.now() - cacheRow.updated_at < QUOTA_CACHE_TTL_MS) {
-      const quota: QuotaCache = JSON.parse(cacheRow.payload);
-      if (quota.v === QUOTA_CACHE_VERSION && quota.total > 0) {
+      const quota = safeJsonParse<QuotaCache | null>(cacheRow.payload, null);
+      if (quota && quota.v === QUOTA_CACHE_VERSION && quota.total > 0) {
         return { total: quota.total, used: quota.used, hasLimit: quota.hasLimit };
       }
     }

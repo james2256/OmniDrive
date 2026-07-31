@@ -6,7 +6,7 @@ import type { GoogleDriveService } from './google-drive';
 import { createDriveService } from '../middleware/shared-services';
 import { PolicyService } from './policy.service';
 import { getWorkspaceRole, hasPermission } from '../lib/rbac';
-import { AppError } from '../lib/errors';
+import { AppError, NotFoundError, ForbiddenError } from '../lib/errors';
 import { logErrorNoCtx } from '../lib/logger';
 import { mapFileRow, mapFolderRow, mapDriveFolderRow, type FileRow } from '../types/db';
 
@@ -49,10 +49,7 @@ export class FileService {
    * RBAC: if file has workspace_id, caller must be 'editor'.
    */
   async trashFile(userId: string, fileId: string): Promise<void> {
-    const file = await this.fileRepo.findById(fileId);
-    if (!file) throw new AppError(404, 'File not found');
-
-    await this.assertCanMutate(file, userId, 'editor');
+    const file = await this.getFileOrThrow(fileId, userId, 'editor');
 
     await this.driveService.trashFile(file.drive_account_id, file.google_file_id);
     await this.fileRepo.markTrashed(fileId, file.user_id);
@@ -61,11 +58,8 @@ export class FileService {
 
   /** Restore a trashed file. RBAC: editor. */
   async restoreFile(userId: string, fileId: string): Promise<void> {
-    const file = await this.fileRepo.findById(fileId);
-    if (!file) throw new AppError(404, 'File not found');
-    if (file.is_trashed !== 1) throw new AppError(404, 'File not found in trash');
-
-    await this.assertCanMutate(file, userId, 'editor');
+    const file = await this.getFileOrThrow(fileId, userId, 'editor');
+    if (file.is_trashed !== 1) throw new NotFoundError('File not found in trash');
 
     await this.driveService.untrashFile(file.drive_account_id, file.google_file_id);
     await this.fileRepo.markUntrashed(fileId, file.user_id);
@@ -74,18 +68,15 @@ export class FileService {
 
   /** Permanently delete a trashed file. RBAC: editor + retention-policy check. */
   async permanentDelete(userId: string, fileId: string): Promise<void> {
-    const file = await this.fileRepo.findById(fileId);
-    if (!file) throw new AppError(404, 'File not found');
-    if (file.is_trashed !== 1) throw new AppError(404, 'File not found in trash');
-
-    await this.assertCanMutate(file, userId, 'editor');
+    const file = await this.getFileOrThrow(fileId, userId, 'editor');
+    if (file.is_trashed !== 1) throw new NotFoundError('File not found in trash');
 
     if (file.workspace_folder_id) {
       const protectedRet = await this.policyService.checkRetentionProtection(
         file.workspace_folder_id,
       );
       if (protectedRet) {
-        throw new AppError(403, 'Retention policy prevents deletion');
+        throw new ForbiddenError('Retention policy prevents deletion');
       }
     }
 
@@ -105,32 +96,23 @@ export class FileService {
 
   /** Rename a file. RBAC: editor. Calls Google Drive API first, then updates D1. */
   async renameFile(userId: string, fileId: string, name: string): Promise<void> {
-    const file = await this.fileRepo.findById(fileId);
-    if (!file) throw new AppError(404, 'File not found');
-
-    await this.assertCanMutate(file, userId, 'editor');
+    const file = await this.getFileOrThrow(fileId, userId, 'editor');
     await this.driveService.renameFile(file.drive_account_id, file.google_file_id, name);
     await this.fileRepo.rename(fileId, file.user_id, name);
   }
 
   /** Star a file. RBAC: viewer. */
   async starFile(userId: string, fileId: string): Promise<void> {
-    const file = await this.fileRepo.findById(fileId);
-    if (!file) throw new AppError(404, 'File not found');
-
-    await this.assertCanMutate(file, userId, 'viewer');
+    const file = await this.getFileOrThrow(fileId, userId, 'viewer');
     const changed = await this.fileRepo.star(fileId, file.user_id);
-    if (!changed) throw new AppError(404, 'File not found');
+    if (!changed) throw new NotFoundError('File not found');
   }
 
   /** Unstar a file. RBAC: viewer. */
   async unstarFile(userId: string, fileId: string): Promise<void> {
-    const file = await this.fileRepo.findById(fileId);
-    if (!file) throw new AppError(404, 'File not found');
-
-    await this.assertCanMutate(file, userId, 'viewer');
+    const file = await this.getFileOrThrow(fileId, userId, 'viewer');
     const changed = await this.fileRepo.unstar(fileId, file.user_id);
-    if (!changed) throw new AppError(404, 'File not found');
+    if (!changed) throw new NotFoundError('File not found');
   }
 
   /**
@@ -147,28 +129,24 @@ export class FileService {
     fileId: string,
     workspaceFolderId: string | null,
   ): Promise<void> {
-    const file = await this.fileRepo.findById(fileId);
-    if (!file) throw new AppError(404, 'File not found');
-
-    // Source RBAC: editor on source workspace, or owner if personal.
-    await this.assertCanMutate(file, userId, 'editor');
+    const file = await this.getFileOrThrow(fileId, userId, 'editor');
 
     let workspaceId: string | null = null;
 
     if (workspaceFolderId) {
       const folder = await this.folderRepo.findParentWorkspace(workspaceFolderId, userId);
-      if (!folder) throw new AppError(404, 'Folder not found');
+      if (!folder) throw new NotFoundError('Folder not found');
       workspaceId = folder.workspace_id;
 
       // Target RBAC: editor on target workspace.
       // (findParentWorkspace only checks membership, not role.)
       const role = await getWorkspaceRole(this.db, workspaceId, userId);
       if (!role || !hasPermission(role, 'editor')) {
-        throw new AppError(403, 'Forbidden');
+        throw new ForbiddenError();
       }
     } else if (file.workspace_id && file.user_id !== userId) {
       // Exfiltration guard: only the owner can remove a workspace file to personal storage.
-      throw new AppError(403, 'Only the file owner can remove it from a workspace');
+      throw new ForbiddenError('Only the file owner can remove it from a workspace');
     }
 
     // Use file.user_id so the UPDATE affects workspace files owned by other members.
@@ -181,28 +159,13 @@ export class FileService {
     fileId: string,
     metadata: Record<string, string>,
   ): Promise<void> {
-    const file = await this.fileRepo.findById(fileId);
-    if (!file) throw new AppError(404, 'File not found');
-
-    await this.assertCanMutate(file, userId, 'editor');
+    await this.getFileOrThrow(fileId, userId, 'editor');
     await this.fileRepo.updateMetadata(fileId, JSON.stringify(metadata));
   }
 
   /** Get file for preview/download — includes RBAC check. Returns the file row or throws. */
   async getFileForRead(userId: string, fileId: string): Promise<FileRow> {
-    const file = await this.fileRepo.findById(fileId);
-    if (!file) throw new AppError(404, 'File not found');
-
-    if (file.workspace_id) {
-      const role = await getWorkspaceRole(this.db, file.workspace_id, userId);
-      if (!role || !hasPermission(role, 'viewer')) {
-        throw new AppError(403, 'Forbidden');
-      }
-    } else if (file.user_id !== userId) {
-      throw new AppError(403, 'Forbidden');
-    }
-
-    return file;
+    return this.getFileOrThrow(fileId, userId, 'viewer');
   }
 
   /** Get the GoogleDriveService instance (for preview/download streaming). */
@@ -441,7 +404,7 @@ export class FileService {
    */
   async getForMoveDrive(userId: string, fileId: string) {
     const file = await this.fileRepo.findForMoveDrive(fileId, userId);
-    if (!file) throw new AppError(404, 'File not found');
+    if (!file) throw new NotFoundError('File not found');
     return file;
   }
 
@@ -477,6 +440,21 @@ export class FileService {
   }
 
   /**
+   * Find a file by ID, throw NotFoundError if missing, then assert RBAC.
+   * Collapses the repeated findById → 404 → assertCanMutate pattern.
+   */
+  private async getFileOrThrow(
+    fileId: string,
+    userId: string,
+    permission: 'viewer' | 'editor',
+  ): Promise<FileRow> {
+    const file = await this.fileRepo.findById(fileId);
+    if (!file) throw new NotFoundError('File not found');
+    await this.assertCanMutate(file, userId, permission);
+    return file;
+  }
+
+  /**
    * Assert that the user can mutate the file.
    * - If file is in a workspace: caller must have the required role
    * - If file is personal: caller must be the owner
@@ -489,10 +467,10 @@ export class FileService {
     if (file.workspace_id) {
       const role = await getWorkspaceRole(this.db, file.workspace_id, userId);
       if (!role || !hasPermission(role, permission)) {
-        throw new AppError(403, 'Forbidden');
+        throw new ForbiddenError();
       }
     } else if (file.user_id !== userId) {
-      throw new AppError(403, 'Forbidden');
+      throw new ForbiddenError();
     }
   }
 }

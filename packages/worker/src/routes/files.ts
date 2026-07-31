@@ -5,7 +5,7 @@ import type { AppContext } from '../types/env';
 import { generateId } from '../lib/id';
 import { authGuard } from '../middleware/auth-guard';
 import { createDriveService } from '../middleware/shared-services';
-import { AppError, ConflictError } from '../lib/errors';
+import { AppError, ConflictError, NotFoundError, ForbiddenError } from '../lib/errors';
 import { DriveRepository } from '../repositories/drive.repository';
 import { resolveDrivesWithQuota } from '../services/drive-quota';
 import { UploadRouter } from '../services/upload-router';
@@ -141,7 +141,7 @@ filesRouter.post(
     } | null;
 
     if (!targetDrive) {
-      throw new AppError(404, 'Target drive not found or unauthorized');
+      throw new NotFoundError('Target drive not found or unauthorized');
     }
 
     const driveService = createDriveService(c.env);
@@ -289,7 +289,7 @@ filesRouter.post('/upload/init', zValidator('json', uploadInitSchema, zodErrorHo
     const { getWorkspaceRole, hasPermission } = await import('../lib/rbac');
     const role = await getWorkspaceRole(db, workspaceId, userId);
     if (!role || !hasPermission(role, 'editor')) {
-      throw new AppError(403, 'Forbidden');
+      throw new ForbiddenError();
     }
   }
 
@@ -369,14 +369,14 @@ filesRouter.post(
       const { getWorkspaceRole, hasPermission } = await import('../lib/rbac');
       const role = await getWorkspaceRole(db, workspaceId, userId);
       if (!role || !hasPermission(role, 'editor')) {
-        throw new AppError(403, 'Forbidden');
+        throw new ForbiddenError();
       }
     }
 
     const drive = await c.get('driveService').findByIdAndUser(driveAccountId, userId);
 
     if (!drive) {
-      throw new AppError(404, 'Drive account not found or unauthorized');
+      throw new NotFoundError('Drive account not found or unauthorized');
     }
 
     // Fetch file metadata from Google Drive

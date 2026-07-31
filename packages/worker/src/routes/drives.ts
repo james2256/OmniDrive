@@ -1,5 +1,4 @@
 import { Hono } from 'hono';
-import { setCookie } from 'hono/cookie';
 import { AppError, ConflictError, ValidationError } from '../lib/errors';
 import type { AppContext } from '../types/env';
 import { authGuard } from '../middleware/auth-guard';
@@ -11,8 +10,8 @@ import type { FileEntry } from '../types/domain';
 import { generateId } from '../lib/id';
 import type { BreadcrumbItem } from '../types/api';
 import { buildDownloadTree } from '../services/download-tree';
-import { generatePKCE } from '../lib/pkce';
 import { decodeCursor } from '../lib/cursor';
+import { buildDriveOAuthUrl } from '../lib/oauth';
 import { computeDriveQuota } from '../lib/storage-quota';
 import { encrypt } from '../lib/crypto';
 import { resolveGoogleFolderId } from '../lib/drive-folder';
@@ -72,36 +71,10 @@ drivesRouter.get('/connect', async (c) => {
   const redirectUri = `${env.WORKER_URL}/api/auth/callback`;
   const scope = 'openid email profile https://www.googleapis.com/auth/drive';
 
-  const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
-  authUrl.searchParams.append('client_id', env.GOOGLE_CLIENT_ID);
-  authUrl.searchParams.append('redirect_uri', redirectUri);
-  authUrl.searchParams.append('response_type', 'code');
-  authUrl.searchParams.append('scope', scope);
-  authUrl.searchParams.append('access_type', 'offline');
-  authUrl.searchParams.append('prompt', 'select_account consent');
-
-  const state = crypto.randomUUID();
-  const { codeVerifier, codeChallenge } = await generatePKCE();
-
-  await env.DB.prepare(
-    'INSERT INTO oauth_states (state, code_verifier, user_id, created_at) VALUES (?, ?, ?, ?)',
-  )
-    .bind(state, codeVerifier, userId, Date.now())
-    .run();
-  const isSecure = env.WORKER_URL.startsWith('https://');
-  setCookie(c, 'oauth_state', state, {
-    path: '/',
-    httpOnly: true,
-    secure: isSecure,
-    sameSite: isSecure ? 'None' : 'Lax',
-    maxAge: 60 * 5,
+  const url = await buildDriveOAuthUrl(c, env, userId, redirectUri, scope, {
+    prompt: 'select_account consent',
   });
-
-  authUrl.searchParams.append('state', state);
-  authUrl.searchParams.append('code_challenge', codeChallenge);
-  authUrl.searchParams.append('code_challenge_method', 'S256');
-
-  return c.json({ url: authUrl.toString() });
+  return c.json({ url });
 });
 
 // GET /api/drives/external — list items you own that are not in My Drive

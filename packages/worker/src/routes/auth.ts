@@ -4,15 +4,15 @@ import { hashPassword, verifyPassword, timingSafeEqual } from '../lib/password';
 import type { AppContext, SessionData } from '../types/env';
 import type { UserRow } from '../types/db';
 import { AuthService } from '../services/auth.service';
-import { AppError, ConflictError } from '../lib/errors';
+import { AppError, ConflictError, NotFoundError } from '../lib/errors';
 import { generateId } from '../lib/id';
 import { authGuard } from '../middleware/auth-guard';
 import { createDriveService } from '../middleware/shared-services';
 import { zValidator } from '@hono/zod-validator';
 import { registerSchema, loginSchema, changePasswordSchema, zodErrorHook } from '../lib/schemas';
-import { generatePKCE } from '../lib/pkce';
 import { encrypt } from '../lib/crypto';
 import { syncDriveAccount } from '../services/sync';
+import { buildDriveOAuthUrl } from '../lib/oauth';
 import { mapDriveRow } from '../types/db';
 import {
   SESSION_TTL_MS,
@@ -162,37 +162,8 @@ authRouter.get('/google', authGuard, async (c) => {
   const redirectUri = `${env.WORKER_URL}/api/auth/callback`;
   const scope = 'openid email profile https://www.googleapis.com/auth/drive';
 
-  const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
-  authUrl.searchParams.append('client_id', env.GOOGLE_CLIENT_ID);
-  authUrl.searchParams.append('redirect_uri', redirectUri);
-  authUrl.searchParams.append('response_type', 'code');
-  authUrl.searchParams.append('scope', scope);
-  authUrl.searchParams.append('access_type', 'offline');
-  authUrl.searchParams.append('prompt', 'consent');
-
-  const state = crypto.randomUUID();
-  const { codeVerifier, codeChallenge } = await generatePKCE();
-
-  // Store state + PKCE verifier + userId in D1 (10-min TTL via created_at).
-  await env.DB.prepare(
-    'INSERT INTO oauth_states (state, code_verifier, user_id, created_at) VALUES (?, ?, ?, ?)',
-  )
-    .bind(state, codeVerifier, userId, Date.now())
-    .run();
-  const isSecure = env.WORKER_URL.startsWith('https://');
-  setCookie(c, 'oauth_state', state, {
-    path: '/',
-    httpOnly: true,
-    secure: isSecure,
-    sameSite: isSecure ? 'None' : 'Lax',
-    maxAge: 60 * 5,
-  });
-
-  authUrl.searchParams.append('state', state);
-  authUrl.searchParams.append('code_challenge', codeChallenge);
-  authUrl.searchParams.append('code_challenge_method', 'S256');
-
-  return c.json({ url: authUrl.toString() });
+  const url = await buildDriveOAuthUrl(c, env, userId, redirectUri, scope, { prompt: 'consent' });
+  return c.json({ url });
 });
 
 // ponytail: migrate /callback to AuthRepository when adding a new auth flow.
@@ -321,7 +292,7 @@ authRouter.post(
     const userId = c.get('userId');
     const authRepo = c.get('authRepo');
     const user = await authRepo.findPasswordHash(userId);
-    if (!user) throw new AppError(404, 'User not found');
+    if (!user) throw new NotFoundError('User not found');
 
     if (!(await verifyPassword(currentPassword, user.password_hash))) {
       throw new AppError(401, 'Current password is incorrect');
