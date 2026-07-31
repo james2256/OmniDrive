@@ -85,21 +85,29 @@ export class FileRepository {
    * only the SQL aggregation is cached here, matching quota_cache's pattern.
    * Sync upserts bypass FileService, so the TTL covers that path.
    */
-  static readonly CATEGORY_CACHE_TTL_MS = 5 * 60 * 1000;
 
+  /**
+   * No TTL — the cache lives until explicitly invalidated by a file mutation
+   * (upload, trash, restore, delete, or sync). The sync invalidation gap was
+   * closed by adding `invalidateCategoryCache` calls to sync.ts, and the
+   * hourly cron cleanup was removed from index.ts. This eliminates the
+   * periodic full-table scan that the 5-minute TTL forced on every dashboard
+   * visit.
+   */
   async getCategoryOverviewCached(
     userId: string,
   ): Promise<{ results: { mime_type: string; total_size: number }[] }> {
     const cacheRow = await this.db
-      .prepare('SELECT payload, updated_at FROM category_cache WHERE user_id = ?')
+      .prepare('SELECT payload FROM category_cache WHERE user_id = ?')
       .bind(userId)
-      .first<{ payload: string; updated_at: number }>();
-    if (cacheRow && Date.now() - cacheRow.updated_at < FileRepository.CATEGORY_CACHE_TTL_MS) {
+      .first<{ payload: string }>();
+    if (cacheRow) {
       return {
         results: safeJsonParse(cacheRow.payload, [] as { mime_type: string; total_size: number }[]),
       };
     }
 
+    // Cache miss — compute and store
     const { results } = await this.findCategoryOverview(userId);
 
     await this.db
@@ -113,14 +121,9 @@ export class FileRepository {
     return { results };
   }
 
-  /** Invalidate the category overview cache after a trash/restore/delete/upload. */
+  /** Invalidate the category overview cache after a trash/restore/delete/upload/sync. */
   invalidateCategoryCache(userId: string) {
     return this.db.prepare('DELETE FROM category_cache WHERE user_id = ?').bind(userId).run();
-  }
-
-  /** Delete category cache entries older than `cutoff` (cron cleanup, 1h TTL). */
-  deleteExpiredCategoryCache(cutoff: number) {
-    return this.db.prepare('DELETE FROM category_cache WHERE updated_at < ?').bind(cutoff).run();
   }
 
   /**
@@ -582,16 +585,26 @@ export class FileRepository {
    * Used by GET /:id? and POST /:id/force-sync for drive lookup.
    */
   findDriveIdForFolder(folderId: string, userId: string) {
+    // Rewritten as UNION so each branch uses its own index:
+    // - Branch 1 seeks idx_files_workspace_folder (workspace_folder_id)
+    // - Branch 2 seeks idx_files_user_workspace (user_id, workspace_id)
+    // The OR form forced a full table scan because D1/SQLite can't use a
+    // single index for OR conditions. The outer LIMIT 1 returns the first match.
     return this.db
       .prepare(
         `
-      SELECT DISTINCT d.id
-      FROM files f
-      JOIN drive_accounts d ON f.drive_account_id = d.id
-      WHERE (f.workspace_folder_id = ? OR f.workspace_id = ?) AND f.user_id = ? LIMIT 1
+      SELECT id FROM (
+        SELECT d.id FROM files f
+        JOIN drive_accounts d ON f.drive_account_id = d.id
+        WHERE f.workspace_folder_id = ? AND f.user_id = ?
+        UNION
+        SELECT d.id FROM files f
+        JOIN drive_accounts d ON f.drive_account_id = d.id
+        WHERE f.workspace_id = ? AND f.user_id = ?
+      ) LIMIT 1
     `,
       )
-      .bind(folderId, folderId, userId)
+      .bind(folderId, userId, folderId, userId)
       .first<{ id: string }>();
   }
 

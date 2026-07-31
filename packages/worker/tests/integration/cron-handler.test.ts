@@ -207,43 +207,9 @@ describe('Scheduled cron handler (integration)', () => {
     expect(fresh?.payload).toBe('{"f":1}');
   });
 
-  it('deletes stale category_cache entries older than 1 hour', async () => {
-    await env.DB.prepare('INSERT INTO users (id, username, password_hash) VALUES (?, ?, ?)')
-      .bind('cron-user-c', 'cronc', '$2a$10$dummy')
-      .run();
-
-    const now = Date.now();
-    // Stale: updated 2h ago (beyond the 1h TTL)
-    await env.DB.prepare(
-      'INSERT INTO category_cache (user_id, payload, updated_at) VALUES (?, ?, ?)',
-    )
-      .bind('cron-user-c', '{}', now - 2 * 60 * 60 * 1000)
-      .run();
-    // Fresh: updated now — needs a different user (PK = user_id)
-    await env.DB.prepare('INSERT INTO users (id, username, password_hash) VALUES (?, ?, ?)')
-      .bind('cron-user-c2', 'cronc2', '$2a$10$dummy')
-      .run();
-    await env.DB.prepare(
-      'INSERT INTO category_cache (user_id, payload, updated_at) VALUES (?, ?, ?)',
-    )
-      .bind('cron-user-c2', '{"f":1}', now)
-      .run();
-
-    await scheduled(scheduledController, env, ctx);
-
-    const stale = await env.DB.prepare('SELECT user_id FROM category_cache WHERE user_id = ?')
-      .bind('cron-user-c')
-      .first();
-    expect(stale).toBeNull();
-
-    const fresh = await env.DB.prepare<{ payload: string }>(
-      'SELECT payload FROM category_cache WHERE user_id = ?',
-    )
-      .bind('cron-user-c2')
-      .first();
-    expect(fresh).not.toBeNull();
-    expect(fresh?.payload).toBe('{"f":1}');
-  });
+  // Note: category_cache cron cleanup was removed — the cache now lives until
+  // explicitly invalidated by a file mutation (upload/trash/delete/sync), not
+  // purged hourly by the cron. See FileRepository.invalidateCategoryCache.
 
   it('cleans up audit logs older than 30 days and keeps recent ones', async () => {
     await env.DB.prepare('INSERT INTO users (id, username, password_hash) VALUES (?, ?, ?)')

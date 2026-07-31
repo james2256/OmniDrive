@@ -1281,7 +1281,7 @@ describe('Repositories (integration)', () => {
     });
   });
 
-  // ─── PR 3: S3CredentialsRepository.findByAccessKeyId + WorkspaceRepository.findMemberRole + FileRepository.deleteExpiredCategoryCache ───
+  // ─── PR 3: S3CredentialsRepository.findByAccessKeyId + WorkspaceRepository.findMemberRole + FileRepository.invalidateCategoryCache ───
 
   describe('S3CredentialsRepository.findByAccessKeyId', () => {
     it('returns the credential row by access_key_id (no user scope)', async () => {
@@ -1334,8 +1334,8 @@ describe('Repositories (integration)', () => {
     });
   });
 
-  describe('FileRepository.deleteExpiredCategoryCache', () => {
-    it('removes only stale category cache entries', async () => {
+  describe('FileRepository.invalidateCategoryCache', () => {
+    it("removes only the specified user's category cache entry", async () => {
       await insertUser('u1', 'alice', 1);
       await insertUser('u2', 'bob', 0);
       const now = Date.now();
@@ -1351,7 +1351,7 @@ describe('Repositories (integration)', () => {
         .run();
 
       const repo = new FileRepository(env.DB);
-      await repo.deleteExpiredCategoryCache(now - 3600_000);
+      await repo.invalidateCategoryCache('u1');
 
       const stale = await env.DB.prepare('SELECT user_id FROM category_cache WHERE user_id = ?')
         .bind('u1')

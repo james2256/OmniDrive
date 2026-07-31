@@ -480,15 +480,15 @@ describe('FileRepository', () => {
     });
   });
 
-  // ─── PR 3: category cache cron cleanup ───
+  // ─── category cache invalidation (no TTL — invalidated on mutation) ───
 
-  describe('deleteExpiredCategoryCache', () => {
-    it('DELETEs category_cache by updated_at < cutoff, single bind', async () => {
-      await repo.deleteExpiredCategoryCache(1700000000);
+  describe('invalidateCategoryCache', () => {
+    it('DELETEs category_cache by user_id, single bind', async () => {
+      await repo.invalidateCategoryCache('u-1');
 
       const sql = mockPrepare.mock.calls[0][0] as string;
-      expect(sql).toBe('DELETE FROM category_cache WHERE updated_at < ?');
-      expect(mockBind).toHaveBeenCalledWith(1700000000);
+      expect(sql).toBe('DELETE FROM category_cache WHERE user_id = ?');
+      expect(mockBind).toHaveBeenCalledWith('u-1');
     });
   });
 });

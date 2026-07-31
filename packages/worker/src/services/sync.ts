@@ -83,6 +83,9 @@ export async function batchUpsertFolderContents(
       .map((f) => fileRepo.buildUpsertStmt(drive, f, googleParentId, true)),
   ];
   await batchInChunks(db, stmts);
+  // Invalidate the category overview cache — the upserted files change the
+  // mime_type aggregation, so the dashboard must recompute on next visit.
+  await fileRepo.invalidateCategoryCache(drive.userId);
 }
 
 /**
@@ -157,6 +160,11 @@ export async function syncDriveAccount(
 
     await syncStateRepo.upsertError(drive.id, message);
   }
+
+  // Invalidate the category overview cache after any sync (initial or incremental).
+  // Sync upserts change file rows (new files, trashed flags, metadata updates),
+  // so the dashboard's mime_type aggregation must be recomputed on next visit.
+  await new FileRepository(db).invalidateCategoryCache(drive.userId);
 }
 
 async function performInitialSync(

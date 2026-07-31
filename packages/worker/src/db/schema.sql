@@ -165,6 +165,7 @@ CREATE INDEX IF NOT EXISTS idx_files_google_parent ON files(drive_account_id, go
 --   idx_files_ws_wsfol_trash_name_id     → findFilesInWorkspaceRoot (covering: sort eliminated)
 CREATE INDEX IF NOT EXISTS idx_files_workspace_trashed ON files(workspace_id, is_trashed);
 CREATE INDEX IF NOT EXISTS idx_files_user_parent_trashed_owned ON files(user_id, google_parent_id, is_trashed, owned_by_me);
+CREATE INDEX IF NOT EXISTS idx_files_external_cursor ON files(user_id, google_parent_id, is_trashed, owned_by_me, name, id);
 CREATE INDEX IF NOT EXISTS idx_files_user_starred_trashed ON files(user_id, is_starred, is_trashed);
 CREATE INDEX IF NOT EXISTS idx_files_ws_wsfol_trash_name_id ON files(workspace_id, workspace_folder_id, is_trashed, name, id);
 -- drive_folders LEFT JOIN by google_folder_id in shared-links listing. The
