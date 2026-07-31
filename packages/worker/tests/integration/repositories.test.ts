@@ -9,6 +9,7 @@ import { FolderRepository } from '../../src/repositories/folder.repository';
 import { WorkspaceRepository } from '../../src/repositories/workspace.repository';
 import { SharedRepository } from '../../src/repositories/shared.repository';
 import { SyncStateRepository } from '../../src/repositories/sync-state.repository';
+import { AuditRepository } from '../../src/repositories/audit.repository';
 import { hashPassword } from '../../src/lib/password';
 
 declare module 'cloudflare:workers' {
@@ -935,6 +936,202 @@ describe('Repositories (integration)', () => {
         .bind('sl1')
         .first<{ count: number }>();
       expect(logs!.count).toBe(0);
+    });
+  });
+
+  // ─── PR 2: AuditRepository (write + retention cleanup) ───
+
+  describe('AuditRepository', () => {
+    it('insertLogStmt returns a Stmt that inserts a row when run', async () => {
+      await insertUser('u1', 'alice', 1);
+      const repo = new AuditRepository(env.DB);
+
+      await repo
+        .insertLogStmt({
+          workspaceId: null,
+          actorId: 'u1',
+          actionType: 'user.login',
+        })
+        .run();
+
+      const row = await env.DB.prepare(
+        'SELECT actor_id, action_type FROM audit_logs WHERE actor_id = ?',
+      )
+        .bind('u1')
+        .first<{ actor_id: string; action_type: string }>();
+      expect(row?.actor_id).toBe('u1');
+      expect(row?.action_type).toBe('user.login');
+    });
+
+    it('insertLogStmt composes into db.batch for atomic member+audit writes', async () => {
+      await insertUser('u1', 'alice', 1);
+      await insertUser('u2', 'bob', 0);
+      await env.DB.prepare('INSERT INTO workspaces (id, name, owner_id) VALUES (?, ?, ?)')
+        .bind('ws-1', 'WS', 'u1')
+        .run();
+      const auditRepo = new AuditRepository(env.DB);
+      const workspaceRepo = new WorkspaceRepository(env.DB);
+
+      // Simulate WorkspaceService.addMember: batch member INSERT + audit INSERT.
+      await env.DB.batch([
+        workspaceRepo.addMemberStmt('m-1', 'ws-1', 'u2', 'editor'),
+        auditRepo.insertLogStmt({
+          workspaceId: 'ws-1',
+          actorId: 'u1',
+          actionType: 'member.invite',
+          resourceId: 'u2',
+          metadata: { role: 'editor' },
+        }),
+      ]);
+
+      // Both rows committed atomically.
+      const member = await env.DB.prepare(
+        'SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?',
+      )
+        .bind('ws-1', 'u2')
+        .first<{ role: string }>();
+      expect(member?.role).toBe('editor');
+      const log = await env.DB.prepare(
+        'SELECT action_type, resource_id, metadata FROM audit_logs WHERE actor_id = ?',
+      )
+        .bind('u1')
+        .first<{ action_type: string; resource_id: string; metadata: string }>();
+      expect(log?.action_type).toBe('member.invite');
+      expect(log?.resource_id).toBe('u2');
+      expect(JSON.parse(log!.metadata)).toEqual({ role: 'editor' });
+    });
+
+    it('cleanupOldLogs deletes logs older than N days, keeps recent ones', async () => {
+      await insertUser('u1', 'alice', 1);
+      // Old log: 35 days ago → deleted by cleanupOldLogs(30).
+      await env.DB.prepare(
+        `INSERT INTO audit_logs (id, workspace_id, actor_id, action_type, created_at)
+         VALUES (?, NULL, ?, ?, datetime('now','-35 days'))`,
+      )
+        .bind('log-old', 'u1', 'test.action')
+        .run();
+      // Fresh log: now → kept.
+      await env.DB.prepare(
+        'INSERT INTO audit_logs (id, workspace_id, actor_id, action_type) VALUES (?, NULL, ?, ?)',
+      )
+        .bind('log-fresh', 'u1', 'test.action')
+        .run();
+
+      const repo = new AuditRepository(env.DB);
+      await repo.cleanupOldLogs(30);
+
+      const old = await env.DB.prepare('SELECT id FROM audit_logs WHERE id = ?')
+        .bind('log-old')
+        .first();
+      expect(old).toBeNull();
+      const fresh = await env.DB.prepare('SELECT id FROM audit_logs WHERE id = ?')
+        .bind('log-fresh')
+        .first();
+      expect(fresh).not.toBeNull();
+    });
+  });
+
+  // ─── PR 2: WorkspaceRepository new reads + policy queries ───
+
+  describe('WorkspaceRepository PR2 reads', () => {
+    it('findWorkspacesWithRole returns w.* + role, ordered by created_at DESC', async () => {
+      await insertUser('u1', 'alice', 1);
+      await env.DB.prepare('INSERT INTO workspaces (id, name, owner_id) VALUES (?, ?, ?)')
+        .bind('ws-1', 'First', 'u1')
+        .run();
+      await env.DB.prepare('INSERT INTO workspaces (id, name, owner_id) VALUES (?, ?, ?)')
+        .bind('ws-2', 'Second', 'u1')
+        .run();
+      await env.DB.prepare(
+        'INSERT INTO workspace_members (id, workspace_id, user_id, role) VALUES (?, ?, ?, ?)',
+      )
+        .bind('m-1', 'ws-1', 'u1', 'owner')
+        .run();
+      await env.DB.prepare(
+        'INSERT INTO workspace_members (id, workspace_id, user_id, role) VALUES (?, ?, ?, ?)',
+      )
+        .bind('m-2', 'ws-2', 'u1', 'editor')
+        .run();
+
+      const repo = new WorkspaceRepository(env.DB);
+      const { results } = await repo.findWorkspacesWithRole('u1');
+
+      expect(results).toHaveLength(2);
+      // Both rows carry the role from workspace_members.
+      const first = results.find((r: any) => r.id === 'ws-1') as any;
+      const second = results.find((r: any) => r.id === 'ws-2') as any;
+      expect(first.role).toBe('owner');
+      expect(second.role).toBe('editor');
+    });
+
+    it('findUsedBytes returns the workspace used_bytes', async () => {
+      await insertUser('u1', 'alice', 1);
+      await env.DB.prepare(
+        'INSERT INTO workspaces (id, name, owner_id, used_bytes) VALUES (?, ?, ?, ?)',
+      )
+        .bind('ws-1', 'WS', 'u1', 4096)
+        .run();
+
+      const repo = new WorkspaceRepository(env.DB);
+      const result = await repo.findUsedBytes('ws-1');
+      expect(result?.used_bytes).toBe(4096);
+    });
+
+    it('findStorageQuotaPolicy returns null when no quota policy set', async () => {
+      await insertUser('u1', 'alice', 1);
+      await env.DB.prepare('INSERT INTO workspaces (id, name, owner_id) VALUES (?, ?, ?)')
+        .bind('ws-1', 'WS', 'u1')
+        .run();
+
+      const repo = new WorkspaceRepository(env.DB);
+      const result = await repo.findStorageQuotaPolicy('ws-1');
+      expect(result).toBeNull();
+    });
+
+    it('findRetentionPolicyForFolder returns the policy config protecting a folder', async () => {
+      await insertUser('u1', 'alice', 1);
+      await env.DB.prepare('INSERT INTO workspaces (id, name, owner_id) VALUES (?, ?, ?)')
+        .bind('ws-1', 'WS', 'u1')
+        .run();
+      await env.DB.prepare(
+        'INSERT INTO workspace_folders (id, workspace_id, name) VALUES (?, ?, ?)',
+      )
+        .bind('f-1', 'ws-1', 'Folder')
+        .run();
+      // Workspace-scoped retention policy → protects f-1.
+      await env.DB.prepare(
+        "INSERT INTO workspace_policies (id, workspace_id, target_type, target_id, policy_type, config) VALUES (?, ?, 'workspace', NULL, 'data_retention', ?)",
+      )
+        .bind('p-1', 'ws-1', JSON.stringify({ action: 'prevent_deletion' }))
+        .run();
+
+      const repo = new WorkspaceRepository(env.DB);
+      const result = await repo.findRetentionPolicyForFolder('f-1');
+      expect(result?.config).toContain('prevent_deletion');
+    });
+
+    it('findAllAutoDeleteRetentionPolicies returns only auto_delete policies', async () => {
+      await insertUser('u1', 'alice', 1);
+      await env.DB.prepare('INSERT INTO workspaces (id, name, owner_id) VALUES (?, ?, ?)')
+        .bind('ws-1', 'WS', 'u1')
+        .run();
+      // auto_delete policy → included.
+      await env.DB.prepare(
+        "INSERT INTO workspace_policies (id, workspace_id, target_type, policy_type, config) VALUES (?, ?, 'workspace', 'data_retention', ?)",
+      )
+        .bind('p-1', 'ws-1', JSON.stringify({ action: 'auto_delete', days: 7 }))
+        .run();
+      // prevent_deletion policy → excluded.
+      await env.DB.prepare(
+        "INSERT INTO workspace_policies (id, workspace_id, target_type, policy_type, config) VALUES (?, ?, 'workspace', 'data_retention', ?)",
+      )
+        .bind('p-2', 'ws-1', JSON.stringify({ action: 'prevent_deletion' }))
+        .run();
+
+      const repo = new WorkspaceRepository(env.DB);
+      const { results } = await repo.findAllAutoDeleteRetentionPolicies();
+      expect(results).toHaveLength(1);
+      expect((results[0] as any).id).toBe('p-1');
     });
   });
 });

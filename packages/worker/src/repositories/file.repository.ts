@@ -503,6 +503,76 @@ export class FileRepository {
   // ─── Sync engine support ───
 
   /**
+   * Find files that have expired under a data-retention auto-delete policy,
+   * joined to their drive for the Google file id + drive id needed to call the
+   * Drive API. The `target` discriminator selects the scope:
+   *  - `{ kind: 'workspace', workspaceId, cutoffStr }` → all non-trashed files in the workspace
+   *  - `{ kind: 'folder', workspaceId, folderId, cutoffStr }` → scoped to one folder
+   *
+   * The two flavors differ only in the WHERE clause (the folder branch adds
+   * `AND workspace_folder_id = ?`), so this method builds the SQL internally
+   * rather than letting the caller assemble it. Bind count differs by branch,
+   * but every value is still a bound parameter — no string interpolation.
+   */
+  findExpiredForRetention(
+    target:
+      | { kind: 'workspace'; workspaceId: string; cutoffStr: string }
+      | { kind: 'folder'; workspaceId: string; folderId: string; cutoffStr: string },
+  ) {
+    const base = `SELECT f.id, f.user_id, f.google_file_id, f.size, f.workspace_id, d.id as driveId
+                 FROM files f JOIN drive_accounts d ON f.drive_account_id = d.id
+                 WHERE f.workspace_id = ? AND f.created_at < ? AND f.is_trashed = 0`;
+    if (target.kind === 'workspace') {
+      return this.db.prepare(base).bind(target.workspaceId, target.cutoffStr).all<{
+        id: string;
+        user_id: string;
+        google_file_id: string;
+        size: number;
+        workspace_id: string;
+        driveId: string;
+      }>();
+    }
+    return this.db
+      .prepare(`${base} AND f.workspace_folder_id = ?`)
+      .bind(target.workspaceId, target.cutoffStr, target.folderId)
+      .all<{
+        id: string;
+        user_id: string;
+        google_file_id: string;
+        size: number;
+        workspace_id: string;
+        driveId: string;
+      }>();
+  }
+
+  /**
+   * Cursor-paginated scan of a user's non-trashed files for the automation cron.
+   * Mirrors the cursor pattern used by `findFilesInFolder` / `findExternalFiles`:
+   * the optional `AND (name, id) > (?, ?)` clause is appended only when a cursor
+   * is present, and the repo owns the SQL construction (the caller passes a
+   * structured cursor, not a SQL fragment).
+   */
+  findBatchForCron(
+    userId: string,
+    isTrashed: number,
+    cursor: { name: string; id: string } | null,
+    limit: number,
+  ) {
+    let sql = `SELECT * FROM files WHERE user_id = ? AND is_trashed = ?`;
+    const binds: (string | number)[] = [userId, isTrashed];
+    if (cursor) {
+      sql += ` AND (name, id) > (?, ?)`;
+      binds.push(cursor.name, cursor.id);
+    }
+    sql += ` ORDER BY name ASC, id ASC LIMIT ?`;
+    binds.push(limit);
+    return this.db
+      .prepare(sql)
+      .bind(...binds)
+      .all();
+  }
+
+  /**
    * Find the first drive ID associated with files in a folder/workspace.
    * Used by GET /:id? and POST /:id/force-sync for drive lookup.
    */

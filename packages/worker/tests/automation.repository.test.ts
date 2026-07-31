@@ -116,4 +116,39 @@ describe('AutomationRepository', () => {
       expect(mockBind).toHaveBeenNthCalledWith(2, 1, 'r-1', 'u-1');
     });
   });
+
+  // ─── PR 2: trigger-rule reads for the automation engine ───
+
+  describe('findActiveEventRulesForUser', () => {
+    it('SELECTs active event rules for a user, binds (event, 1, userId)', async () => {
+      mockAll.mockResolvedValueOnce({
+        results: [{ id: 'r-1', trigger_type: 'event', is_active: 1 }],
+      });
+
+      await repo.findActiveEventRulesForUser('u-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain(
+        'SELECT * FROM automation_rules WHERE trigger_type = ? AND is_active = ? AND user_id = ?',
+      );
+      // The repo binds the trigger-type + active-state literals so callers can't drift.
+      expect(mockBind).toHaveBeenCalledWith('event', 1, 'u-1');
+    });
+  });
+
+  describe('findActiveCronRules', () => {
+    it('SELECTs all active cron rules (no user scope), binds (cron, 1)', async () => {
+      mockAll.mockResolvedValueOnce({
+        results: [{ id: 'r-1', trigger_type: 'cron', is_active: 1 }],
+      });
+
+      await repo.findActiveCronRules();
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain(
+        'SELECT * FROM automation_rules WHERE trigger_type = ? AND is_active = ?',
+      );
+      expect(mockBind).toHaveBeenCalledWith('cron', 1);
+    });
+  });
 });

@@ -253,6 +253,53 @@ export class FolderRepository {
       .run();
   }
 
+  /**
+   * Update a workspace folder's `metadata` JSON column, scoped by id + workspace.
+   * The `workspace_id` scope is a defense-in-depth guard: even if a caller
+   * passes a folder id from another workspace, the UPDATE is a no-op.
+   */
+  updateMetadata(folderId: string, workspaceId: string, metadata: Record<string, unknown>) {
+    return this.db
+      .prepare('UPDATE workspace_folders SET metadata = ? WHERE id = ? AND workspace_id = ?')
+      .bind(JSON.stringify(metadata), folderId, workspaceId)
+      .run();
+  }
+
+  /**
+   * Find recent workspace folders for the dashboard — the folders a user can
+   * access (via workspace membership), most-recently-updated first, capped at 20.
+   * LEFT JOINs `workspaces` for the workspace name (`ws_name`). Mirrors the
+   * `findRecent` shape on FileRepository (folders + ws_name).
+   */
+  findRecentFolders(userId: string, limit = 20) {
+    return this.db
+      .prepare(
+        `
+      SELECT f.*, w.name as ws_name
+      FROM workspace_folders f
+      JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ?
+      LEFT JOIN workspaces w ON f.workspace_id = w.id
+      ORDER BY f.updated_at DESC
+      LIMIT ?
+    `,
+      )
+      .bind(userId, limit)
+      .all();
+  }
+
+  /**
+   * Find starred workspace folders for a user, with the workspace name JOIN.
+   * Mirrors `findStarred` on FileRepository (folders + ws_name).
+   */
+  findStarredFolders(userId: string) {
+    return this.db
+      .prepare(
+        'SELECT f.*, w.name as ws_name FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id JOIN workspaces w ON f.workspace_id = w.id WHERE wm.user_id = ? AND f.is_starred = 1 ORDER BY f.updated_at DESC',
+      )
+      .bind(userId)
+      .all();
+  }
+
   // ─── drive_folders UPSERT (sync engine) ───
 
   static readonly UPSERT_FOLDER_SQL = `INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name, is_synced, owned_by_me)

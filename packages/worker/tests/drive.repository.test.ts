@@ -370,4 +370,54 @@ describe('DriveRepository', () => {
       expect(mockBind).toHaveBeenCalledWith('d-1', 'g-folder-1', 'd-1');
     });
   });
+
+  // ─── PR 2: shared-link resolver + starred/trashed drive-folder reads ───
+
+  describe('findDriveFolderMetaByGoogleId', () => {
+    it('SELECTs drive_account_id + name by google_folder_id alone (no driveId scope)', async () => {
+      mockFirst.mockResolvedValueOnce({ drive_account_id: 'd-1', name: 'My Folder' });
+
+      const result = await repo.findDriveFolderMetaByGoogleId('gfolder-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toBe(
+        'SELECT drive_account_id, name FROM drive_folders WHERE google_folder_id = ?',
+      );
+      expect(mockBind).toHaveBeenCalledWith('gfolder-1');
+      expect(result).toEqual({ drive_account_id: 'd-1', name: 'My Folder' });
+    });
+  });
+
+  describe('findStarredDriveFolders', () => {
+    it('SELECTs starred non-trashed drive folders with drive email JOIN, synced_at DESC', async () => {
+      mockAll.mockResolvedValueOnce({ results: [{ id: 'df-1', is_starred: 1 }] });
+
+      await repo.findStarredDriveFolders('u-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain('SELECT df.*, d.email as driveEmail FROM drive_folders df');
+      expect(sql).toContain('JOIN drive_accounts d ON df.drive_account_id = d.id');
+      expect(sql).toContain('d.user_id = ?');
+      expect(sql).toContain('df.is_starred = 1');
+      expect(sql).toContain('df.is_trashed = 0');
+      expect(sql).toContain('ORDER BY df.synced_at DESC');
+      expect(mockBind).toHaveBeenCalledWith('u-1');
+    });
+  });
+
+  describe('findTrashedDriveFolders', () => {
+    it('SELECTs trashed drive folders with drive email JOIN, created_at DESC', async () => {
+      mockAll.mockResolvedValueOnce({ results: [{ id: 'df-1', is_trashed: 1 }] });
+
+      await repo.findTrashedDriveFolders('u-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain('SELECT df.*, d.email as driveEmail FROM drive_folders df');
+      expect(sql).toContain('JOIN drive_accounts d ON df.drive_account_id = d.id');
+      expect(sql).toContain('d.user_id = ?');
+      expect(sql).toContain('df.is_trashed = 1');
+      expect(sql).toContain('ORDER BY df.created_at DESC');
+      expect(mockBind).toHaveBeenCalledWith('u-1');
+    });
+  });
 });

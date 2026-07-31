@@ -14,6 +14,33 @@ export class AutomationRepository {
     return this.db.prepare('SELECT * FROM automation_rules WHERE user_id = ?').bind(userId).all();
   }
 
+  /**
+   * Find all active event-triggered rules for a user. Used by the automation
+   * engine's event path (fires on every file upload/move). Binds the `event`
+   * trigger type + `is_active = 1` literals so callers can't drift on the
+   * constant — the trigger-type/active-state invariants belong to this repo.
+   */
+  findActiveEventRulesForUser(userId: string) {
+    return this.db
+      .prepare(
+        'SELECT * FROM automation_rules WHERE trigger_type = ? AND is_active = ? AND user_id = ?',
+      )
+      .bind('event', 1, userId)
+      .all();
+  }
+
+  /**
+   * Find all active cron-triggered rules (across all users). Used by the
+   * automation engine's cron path (groups results by `user_id` before scanning
+   * each user's files). Same trigger-type/active-state invariant as above.
+   */
+  findActiveCronRules() {
+    return this.db
+      .prepare('SELECT * FROM automation_rules WHERE trigger_type = ? AND is_active = ?')
+      .bind('cron', 1)
+      .all();
+  }
+
   /** Insert a new automation rule. */
   insert(params: {
     id: string;

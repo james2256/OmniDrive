@@ -27,6 +27,30 @@ export class WorkspaceRepository {
       .all();
   }
 
+  /**
+   * List all workspaces a user is a member of, with their role in each.
+   *
+   * Distinct from `findWorkspacesByUser`: that returns a column subset ordered
+   * by `name ASC` (used by folder.service.ts's workspace dropdown); this returns
+   * `w.*` + `wm.role` ordered by `created_at DESC` (used by the workspaces list
+   * page, which shows the role badge + most-recent-first). The two shapes are
+   * intentionally separate — consolidating would change one caller's sort order.
+   */
+  findWorkspacesWithRole(userId: string) {
+    return this.db
+      .prepare(
+        `
+      SELECT w.*, wm.role
+      FROM workspaces w
+      JOIN workspace_members wm ON w.id = wm.workspace_id
+      WHERE wm.user_id = ?
+      ORDER BY w.created_at DESC
+    `,
+      )
+      .bind(userId)
+      .all();
+  }
+
   /** Find a workspace by ID + membership (returns null if not a member). */
   findByIdAndMember(workspaceId: string, userId: string) {
     return this.db
@@ -202,6 +226,27 @@ export class WorkspaceRepository {
       .run();
   }
 
+  /**
+   * Return a prepared workspace_members INSERT statement (not run) for batch
+   * composition. This is the `Stmt` variant of `addMember` — used by
+   * `WorkspaceService.addMember` to batch the member INSERT + audit-log INSERT
+   * atomically via `db.batch([...])`, so a crash mid-op never leaves a member
+   * without an audit row (or vice-versa). The caller supplies `memberId` so the
+   * audit row can reference it before the batch commits.
+   */
+  addMemberStmt(
+    memberId: string,
+    workspaceId: string,
+    userId: string,
+    role: string,
+  ): D1PreparedStatement {
+    return this.db
+      .prepare(
+        'INSERT INTO workspace_members (id, workspace_id, user_id, role) VALUES (?, ?, ?, ?)',
+      )
+      .bind(memberId, workspaceId, userId, role);
+  }
+
   /** Count owners in a workspace (for last-owner check). */
   countOwners(workspaceId: string) {
     return this.db
@@ -218,6 +263,18 @@ export class WorkspaceRepository {
       .prepare('DELETE FROM workspace_members WHERE workspace_id = ? AND user_id = ?')
       .bind(workspaceId, targetUserId)
       .run();
+  }
+
+  /**
+   * Return a prepared workspace_members DELETE statement (not run) for batch
+   * composition. This is the `Stmt` variant of `removeMember` — used by
+   * `WorkspaceService.removeMember` to batch the member DELETE + audit-log
+   * INSERT atomically via `db.batch([...])`.
+   */
+  removeMemberStmt(workspaceId: string, targetUserId: string): D1PreparedStatement {
+    return this.db
+      .prepare('DELETE FROM workspace_members WHERE workspace_id = ? AND user_id = ?')
+      .bind(workspaceId, targetUserId);
   }
 
   // ─── Audit logs + policies ───
@@ -271,5 +328,64 @@ export class WorkspaceRepository {
       .prepare('DELETE FROM workspace_policies WHERE id = ? AND workspace_id = ?')
       .bind(policyId, workspaceId)
       .run();
+  }
+
+  // ─── Policy reads (quota + retention enforcement) ───
+
+  /** Read the current `used_bytes` for a workspace (quota check). */
+  findUsedBytes(workspaceId: string) {
+    return this.db
+      .prepare('SELECT used_bytes FROM workspaces WHERE id = ?')
+      .bind(workspaceId)
+      .first<{ used_bytes: number }>();
+  }
+
+  /** Read the `storage_quota` policy config for a workspace (null if none set). */
+  findStorageQuotaPolicy(workspaceId: string) {
+    return this.db
+      .prepare(
+        `SELECT config FROM workspace_policies
+       WHERE workspace_id = ? AND policy_type = 'storage_quota'`,
+      )
+      .bind(workspaceId)
+      .first<{ config: string }>();
+  }
+
+  /**
+   * Read the `data_retention` policy config that protects a given folder.
+   * Matches either a workspace-scoped policy (`target_type = 'workspace'`) or a
+   * folder-scoped policy on this exact folder (`target_type = 'folder'` AND
+   * `target_id = folderId`). The folderId is bound twice (anchor + recursive).
+   */
+  findRetentionPolicyForFolder(folderId: string) {
+    return this.db
+      .prepare(
+        `SELECT p.config
+       FROM workspace_policies p
+       JOIN workspace_folders f ON f.workspace_id = p.workspace_id
+       WHERE f.id = ? AND p.policy_type = 'data_retention'
+         AND (p.target_type = 'workspace' OR (p.target_type = 'folder' AND p.target_id = ?))`,
+      )
+      .bind(folderId, folderId)
+      .first<{ config: string }>();
+  }
+
+  /**
+   * Find all `data_retention` policies whose config `action` is `auto_delete`.
+   * The `action` is nested in the JSON `config` column, so the filter uses
+   * `json_extract`. Used by the retention cron sweep.
+   */
+  findAllAutoDeleteRetentionPolicies() {
+    return this.db
+      .prepare(
+        `SELECT * FROM workspace_policies WHERE policy_type = 'data_retention' AND json_extract(config, '$.action') = 'auto_delete'`,
+      )
+      .all<{
+        id: string;
+        workspace_id: string;
+        target_type: string;
+        target_id: string | null;
+        config: string;
+      }>();
   }
 }

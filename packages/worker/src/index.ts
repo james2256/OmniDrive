@@ -13,7 +13,7 @@ import { xmlError } from './lib/s3-xml';
 import { logError } from './lib/logger';
 import { runScheduledSync } from './services/sync';
 import { runLifecycleExpiration, cleanupOrphanMultipartUploads } from './services/s3-lifecycle';
-import { AuditService } from './services/audit.service';
+import { AuditRepository } from './repositories/audit.repository';
 import { PolicyService } from './services/policy.service';
 import { createDriveService } from './middleware/shared-services';
 
@@ -134,8 +134,7 @@ export default {
     await engine.processCronTrigger(ctx);
 
     // Audit log cleanup
-    const auditService = new AuditService(env.DB);
-    await auditService.cleanupOldLogs(30);
+    await new AuditRepository(env.DB).cleanupOldLogs(30);
 
     // Data retention policies
     const driveService = createDriveService(env);

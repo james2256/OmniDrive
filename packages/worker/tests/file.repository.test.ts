@@ -409,4 +409,74 @@ describe('FileRepository', () => {
       expect(mockBind).toHaveBeenNthCalledWith(2, 'u-1');
     });
   });
+
+  // ─── PR 2: retention sweep (dynamic 2-branch) + cron batch (cursor) ───
+
+  describe('findExpiredForRetention', () => {
+    it('workspace branch: SELECTs expired files in a workspace, 2 binds (workspaceId, cutoffStr)', async () => {
+      mockAll.mockResolvedValueOnce({ results: [] });
+
+      await repo.findExpiredForRetention({
+        kind: 'workspace',
+        workspaceId: 'ws-1',
+        cutoffStr: '2026-01-01 00:00:00',
+      });
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain(
+        'SELECT f.id, f.user_id, f.google_file_id, f.size, f.workspace_id, d.id as driveId',
+      );
+      expect(sql).toContain('FROM files f JOIN drive_accounts d ON f.drive_account_id = d.id');
+      expect(sql).toContain('f.workspace_id = ?');
+      expect(sql).toContain('f.created_at < ?');
+      expect(sql).toContain('f.is_trashed = 0');
+      // Workspace branch must NOT have the folder_id clause.
+      expect(sql).not.toContain('workspace_folder_id');
+      expect(mockBind).toHaveBeenCalledWith('ws-1', '2026-01-01 00:00:00');
+    });
+
+    it('folder branch: SELECTs expired files in a folder, 3 binds (workspaceId, cutoffStr, folderId)', async () => {
+      mockAll.mockResolvedValueOnce({ results: [] });
+
+      await repo.findExpiredForRetention({
+        kind: 'folder',
+        workspaceId: 'ws-1',
+        folderId: 'folder-1',
+        cutoffStr: '2026-01-01 00:00:00',
+      });
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain('f.workspace_id = ?');
+      expect(sql).toContain('f.created_at < ?');
+      expect(sql).toContain('f.is_trashed = 0');
+      // Folder branch ADDS the workspace_folder_id clause.
+      expect(sql).toContain('AND f.workspace_folder_id = ?');
+      expect(mockBind).toHaveBeenCalledWith('ws-1', '2026-01-01 00:00:00', 'folder-1');
+    });
+  });
+
+  describe('findBatchForCron', () => {
+    it('without cursor: SELECTs files ordered by (name, id), 3 binds (userId, isTrashed, limit)', async () => {
+      mockAll.mockResolvedValueOnce({ results: [] });
+
+      await repo.findBatchForCron('u-1', 0, null, 100);
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain('SELECT * FROM files WHERE user_id = ? AND is_trashed = ?');
+      expect(sql).not.toContain('(name, id) >');
+      expect(sql).toContain('ORDER BY name ASC, id ASC LIMIT ?');
+      expect(mockBind).toHaveBeenCalledWith('u-1', 0, 100);
+    });
+
+    it('with cursor: appends AND (name, id) > (?, ?), 5 binds', async () => {
+      mockAll.mockResolvedValueOnce({ results: [] });
+
+      await repo.findBatchForCron('u-1', 0, { name: 'file.pdf', id: 'f-1' }, 100);
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain('AND (name, id) > (?, ?)');
+      expect(sql).toContain('ORDER BY name ASC, id ASC LIMIT ?');
+      expect(mockBind).toHaveBeenCalledWith('u-1', 0, 'file.pdf', 'f-1', 100);
+    });
+  });
 });

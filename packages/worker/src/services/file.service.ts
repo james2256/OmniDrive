@@ -193,19 +193,7 @@ export class FileService {
   /** List recent files + folders for the dashboard. */
   async listRecent(userId: string) {
     const { results: fileRows } = await this.fileRepo.findRecent(userId);
-    const { results: folderRows } = await this.db
-      .prepare(
-        `
-      SELECT f.*, w.name as ws_name
-      FROM workspace_folders f
-      JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ?
-      LEFT JOIN workspaces w ON f.workspace_id = w.id
-      ORDER BY f.updated_at DESC
-      LIMIT 20
-    `,
-      )
-      .bind(userId)
-      .all();
+    const { results: folderRows } = await this.folderRepo.findRecentFolders(userId);
 
     const folders = folderRows.map((f: Record<string, unknown>) => ({
       id: f.id,
@@ -346,19 +334,9 @@ export class FileService {
   async getStarred(userId: string) {
     const { results: fileRows } = await this.fileRepo.findStarred(userId);
 
-    const { results: folderRows } = await this.db
-      .prepare(
-        'SELECT f.*, w.name as ws_name FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id JOIN workspaces w ON f.workspace_id = w.id WHERE wm.user_id = ? AND f.is_starred = 1 ORDER BY f.updated_at DESC',
-      )
-      .bind(userId)
-      .all();
+    const { results: folderRows } = await this.folderRepo.findStarredFolders(userId);
 
-    const { results: driveFolderRows } = await this.db
-      .prepare(
-        'SELECT df.*, d.email as driveEmail FROM drive_folders df JOIN drive_accounts d ON df.drive_account_id = d.id WHERE d.user_id = ? AND df.is_starred = 1 AND df.is_trashed = 0 ORDER BY df.synced_at DESC',
-      )
-      .bind(userId)
-      .all();
+    const { results: driveFolderRows } = await this.driveRepo.findStarredDriveFolders(userId);
 
     return {
       files: fileRows.map((r: Record<string, unknown>) => ({
@@ -378,15 +356,7 @@ export class FileService {
   async getTrash(userId: string) {
     const { results: fileRows } = await this.fileRepo.findTrashed(userId);
 
-    const { results: folderRows } = await this.db
-      .prepare(
-        `SELECT df.*, d.email as driveEmail FROM drive_folders df
-       JOIN drive_accounts d ON df.drive_account_id = d.id
-       WHERE d.user_id = ? AND df.is_trashed = 1
-       ORDER BY df.created_at DESC`,
-      )
-      .bind(userId)
-      .all();
+    const { results: folderRows } = await this.driveRepo.findTrashedDriveFolders(userId);
 
     return {
       files: fileRows.map((r: Record<string, unknown>) => ({

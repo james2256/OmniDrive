@@ -1,12 +1,10 @@
-import type { RuleCondition, AutomationRule, RuleAction } from '../types/automation';
+import type { RuleCondition, RuleAction } from '../types/automation';
 import type { Env } from '../types/env';
 import type { GoogleDriveService } from './google-drive';
 import { logErrorNoCtx } from '../lib/logger';
 import { FileRepository } from '../repositories/file.repository';
 import { AutomationRepository } from '../repositories/automation.repository';
 
-export const TRIGGER_EVENT: AutomationRule['triggerType'] = 'event';
-export const TRIGGER_CRON: AutomationRule['triggerType'] = 'cron';
 export const ACTION_MOVE: RuleAction['type'] = 'move';
 export const ACTION_DELETE: RuleAction['type'] = 'delete';
 
@@ -85,13 +83,8 @@ export class AutomationEngine {
   ) {}
 
   async processEventTrigger(file: DbFile, ctx: ExecutionContext) {
-    const db = this.env.DB;
-    const { results } = await db
-      .prepare(
-        `SELECT * FROM automation_rules WHERE trigger_type = ? AND is_active = ? AND user_id = ?`,
-      )
-      .bind(TRIGGER_EVENT, IS_ACTIVE, file.user_id)
-      .all();
+    const automationRepo = new AutomationRepository(this.env.DB);
+    const { results } = await automationRepo.findActiveEventRulesForUser(file.user_id);
 
     for (const row of results) {
       const rule = parseRule(row as Record<string, unknown>);
@@ -102,11 +95,9 @@ export class AutomationEngine {
   }
 
   async processCronTrigger(ctx: ExecutionContext) {
-    const db = this.env.DB;
-    const { results } = await db
-      .prepare(`SELECT * FROM automation_rules WHERE trigger_type = ? AND is_active = ?`)
-      .bind(TRIGGER_CRON, IS_ACTIVE)
-      .all();
+    const automationRepo = new AutomationRepository(this.env.DB);
+    const fileRepo = new FileRepository(this.env.DB);
+    const { results } = await automationRepo.findActiveCronRules();
 
     // Group rules by user_id
     const rulesByUser = new Map<string, ParsedRule[]>();
@@ -124,19 +115,12 @@ export class AutomationEngine {
       let hasMore = true;
 
       while (hasMore) {
-        let sql = `SELECT * FROM files WHERE user_id = ? AND is_trashed = ?`;
-        const binds: (string | number)[] = [userId, IS_NOT_TRASHED];
-        if (cursor) {
-          sql += ` AND (name, id) > (?, ?)`;
-          binds.push(cursor.name, cursor.id);
-        }
-        sql += ` ORDER BY name ASC, id ASC LIMIT ?`;
-        binds.push(BATCH_SIZE);
-
-        const { results: files } = await db
-          .prepare(sql)
-          .bind(...binds)
-          .all();
+        const { results: files } = await fileRepo.findBatchForCron(
+          userId,
+          IS_NOT_TRASHED,
+          cursor,
+          BATCH_SIZE,
+        );
 
         if (files.length === 0) {
           break;

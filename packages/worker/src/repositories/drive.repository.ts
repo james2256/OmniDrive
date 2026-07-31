@@ -513,6 +513,53 @@ export class DriveRepository {
       .first();
   }
 
+  /**
+   * Find a drive folder's `drive_account_id` + `name` by `google_folder_id`
+   * alone (no `drive_account_id` scope). Used by `SharedService.resolveFolderTarget`
+   * for public shared-link download, where only the link's `targetId` (the Google
+   * folder id) is known — the drive is discovered from the row, not filtered by.
+   *
+   * Distinct from `findDriveFolderByGoogleId`: that requires `driveId` (scoping
+   * to one drive); this returns minimal columns for the shared-link resolver.
+   */
+  findDriveFolderMetaByGoogleId(googleFolderId: string) {
+    return this.db
+      .prepare('SELECT drive_account_id, name FROM drive_folders WHERE google_folder_id = ?')
+      .bind(googleFolderId)
+      .first<{ drive_account_id: string; name: string }>();
+  }
+
+  /**
+   * Find starred drive folders for a user, with the drive email JOIN.
+   * Mirrors `FileRepository.findStarred` (files) for the drive-folders axis.
+   * Ordered by `synced_at DESC` (most-recently-synced first).
+   */
+  findStarredDriveFolders(userId: string) {
+    return this.db
+      .prepare(
+        'SELECT df.*, d.email as driveEmail FROM drive_folders df JOIN drive_accounts d ON df.drive_account_id = d.id WHERE d.user_id = ? AND df.is_starred = 1 AND df.is_trashed = 0 ORDER BY df.synced_at DESC',
+      )
+      .bind(userId)
+      .all();
+  }
+
+  /**
+   * Find trashed drive folders for a user, with the drive email JOIN.
+   * Mirrors `FileRepository.findTrashed` (files) for the drive-folders axis.
+   * Ordered by `created_at DESC`.
+   */
+  findTrashedDriveFolders(userId: string) {
+    return this.db
+      .prepare(
+        `SELECT df.*, d.email as driveEmail FROM drive_folders df
+       JOIN drive_accounts d ON df.drive_account_id = d.id
+       WHERE d.user_id = ? AND df.is_trashed = 1
+       ORDER BY df.created_at DESC`,
+      )
+      .bind(userId)
+      .all();
+  }
+
   /** Insert a new drive account (service account flow). */
   insertDriveAccount(params: {
     id: string;

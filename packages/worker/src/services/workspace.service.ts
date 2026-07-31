@@ -1,6 +1,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import { WorkspaceRepository } from '../repositories/workspace.repository';
-import { AuditService } from './audit.service';
+import { AuditRepository } from '../repositories/audit.repository';
+import { FolderRepository } from '../repositories/folder.repository';
 import { getWorkspaceRole, hasPermission, roleLevel } from '../lib/rbac';
 import { AppError, ConflictError, ForbiddenError, NotFoundError } from '../lib/errors';
 import { generateId } from '../lib/id';
@@ -18,31 +19,24 @@ import type { AuditLog, WorkspacePolicy } from '../types/domain';
  * - getPolicies/createPolicy/deletePolicy: manager required
  * - updateFolderMetadata: editor required
  *
- * AuditService is included for member.invite + member.remove logging.
+ * AuditRepository is used for member.invite + member.remove logging (batched
+ * atomically with the membership change so the audit row and the member row
+ * commit or roll back together).
  */
 export class WorkspaceService {
   private workspaceRepo: WorkspaceRepository;
-  private auditService: AuditService;
+  private auditRepo: AuditRepository;
+  private folderRepo: FolderRepository;
 
   constructor(private db: D1Database) {
     this.workspaceRepo = new WorkspaceRepository(db);
-    this.auditService = new AuditService(db);
+    this.auditRepo = new AuditRepository(db);
+    this.folderRepo = new FolderRepository(db);
   }
 
   /** List all workspaces a user is a member of, with their role. */
   async listWorkspaces(userId: string) {
-    const { results } = await this.db
-      .prepare(
-        `
-      SELECT w.*, wm.role
-      FROM workspaces w
-      JOIN workspace_members wm ON w.id = wm.workspace_id
-      WHERE wm.user_id = ?
-      ORDER BY w.created_at DESC
-    `,
-      )
-      .bind(userId)
-      .all();
+    const { results } = await this.workspaceRepo.findWorkspacesWithRole(userId);
     return results;
   }
 
@@ -92,7 +86,7 @@ export class WorkspaceService {
 
     try {
       const memberId = generateId();
-      const auditStmt = this.auditService.prepareLogEvent({
+      const auditStmt = this.auditRepo.insertLogStmt({
         workspaceId,
         actorId: userId,
         actionType: 'member.invite',
@@ -101,11 +95,7 @@ export class WorkspaceService {
         metadata: { role },
       });
       await this.db.batch([
-        this.db
-          .prepare(
-            'INSERT INTO workspace_members (id, workspace_id, user_id, role) VALUES (?, ?, ?, ?)',
-          )
-          .bind(memberId, workspaceId, targetUser.id, role),
+        this.workspaceRepo.addMemberStmt(memberId, workspaceId, targetUser.id, role),
         auditStmt,
       ]);
     } catch (e: unknown) {
@@ -146,10 +136,8 @@ export class WorkspaceService {
     }
 
     await this.db.batch([
-      this.db
-        .prepare('DELETE FROM workspace_members WHERE workspace_id = ? AND user_id = ?')
-        .bind(workspaceId, targetUserId),
-      this.auditService.prepareLogEvent({
+      this.workspaceRepo.removeMemberStmt(workspaceId, targetUserId),
+      this.auditRepo.insertLogStmt({
         workspaceId,
         actorId: userId,
         actionType: 'member.remove',
@@ -244,9 +232,6 @@ export class WorkspaceService {
       throw new ForbiddenError();
     }
 
-    await this.db
-      .prepare('UPDATE workspace_folders SET metadata = ? WHERE id = ? AND workspace_id = ?')
-      .bind(JSON.stringify(metadata), folderId, workspaceId)
-      .run();
+    await this.folderRepo.updateMetadata(folderId, workspaceId, metadata);
   }
 }

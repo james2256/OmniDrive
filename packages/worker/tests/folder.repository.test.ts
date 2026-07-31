@@ -306,4 +306,60 @@ describe('FolderRepository', () => {
       expect(sqls[3]).toBe('DELETE FROM workspace_folders WHERE id = ?');
     });
   });
+
+  // ─── PR 2: metadata UPDATE + dashboard list/starred reads ───
+
+  describe('updateMetadata', () => {
+    it('UPDATEs metadata JSON scoped by id + workspace_id (3 binds, JSON-stringified)', async () => {
+      await repo.updateMetadata('f-1', 'ws-1', { author: 'alice' });
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toBe(
+        'UPDATE workspace_folders SET metadata = ? WHERE id = ? AND workspace_id = ?',
+      );
+      // Binds: JSON.stringify(metadata), folderId, workspaceId.
+      expect(mockBind).toHaveBeenCalledWith('{"author":"alice"}', 'f-1', 'ws-1');
+      expect(mockRun).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('findRecentFolders', () => {
+    it('SELECTs recent folders with ws_name JOIN, LIMIT 20 by default', async () => {
+      mockAll.mockResolvedValueOnce({ results: [{ id: 'f-1', ws_name: 'WS' }] });
+
+      await repo.findRecentFolders('u-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain('SELECT f.*, w.name as ws_name');
+      expect(sql).toContain(
+        'JOIN workspace_members wm ON f.workspace_id = wm.workspace_id AND wm.user_id = ?',
+      );
+      expect(sql).toContain('LEFT JOIN workspaces w ON f.workspace_id = w.id');
+      expect(sql).toContain('ORDER BY f.updated_at DESC');
+      expect(sql).toContain('LIMIT ?');
+      expect(mockBind).toHaveBeenCalledWith('u-1', 20);
+    });
+
+    it('accepts a custom limit', async () => {
+      await repo.findRecentFolders('u-1', 50);
+      expect(mockBind).toHaveBeenCalledWith('u-1', 50);
+    });
+  });
+
+  describe('findStarredFolders', () => {
+    it('SELECTs starred folders with ws_name JOIN, is_starred=1, via .all()', async () => {
+      mockAll.mockResolvedValueOnce({ results: [{ id: 'f-1', is_starred: 1 }] });
+
+      await repo.findStarredFolders('u-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain('SELECT f.*, w.name as ws_name FROM workspace_folders f');
+      expect(sql).toContain('JOIN workspace_members wm ON f.workspace_id = wm.workspace_id');
+      expect(sql).toContain('JOIN workspaces w ON f.workspace_id = w.id');
+      expect(sql).toContain('wm.user_id = ?');
+      expect(sql).toContain('f.is_starred = 1');
+      expect(sql).toContain('ORDER BY f.updated_at DESC');
+      expect(mockBind).toHaveBeenCalledWith('u-1');
+    });
+  });
 });

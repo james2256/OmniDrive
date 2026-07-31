@@ -7,25 +7,22 @@ import { FileRepository } from '../repositories/file.repository';
 import { WorkspaceRepository } from '../repositories/workspace.repository';
 
 export class PolicyService {
+  private workspaceRepo: WorkspaceRepository;
+  private fileRepo: FileRepository;
+
   constructor(
     private db: D1Database,
     private driveService: GoogleDriveService,
-  ) {}
+  ) {
+    this.workspaceRepo = new WorkspaceRepository(db);
+    this.fileRepo = new FileRepository(db);
+  }
 
   async checkQuota(workspaceId: string, incomingBytes: number): Promise<boolean> {
-    const workspace = await this.db
-      .prepare('SELECT used_bytes FROM workspaces WHERE id = ?')
-      .bind(workspaceId)
-      .first<{ used_bytes: number }>();
+    const workspace = await this.workspaceRepo.findUsedBytes(workspaceId);
     if (!workspace) return false;
 
-    const policy = await this.db
-      .prepare(
-        `SELECT config FROM workspace_policies 
-       WHERE workspace_id = ? AND policy_type = 'storage_quota'`,
-      )
-      .bind(workspaceId)
-      .first<{ config: string }>();
+    const policy = await this.workspaceRepo.findStorageQuotaPolicy(workspaceId);
 
     if (!policy) return true; // No quota set
 
@@ -34,16 +31,7 @@ export class PolicyService {
   }
 
   async checkRetentionProtection(folderId: string): Promise<boolean> {
-    const policy = await this.db
-      .prepare(
-        `SELECT p.config 
-       FROM workspace_policies p
-       JOIN workspace_folders f ON f.workspace_id = p.workspace_id
-       WHERE f.id = ? AND p.policy_type = 'data_retention'
-         AND (p.target_type = 'workspace' OR (p.target_type = 'folder' AND p.target_id = ?))`,
-      )
-      .bind(folderId, folderId)
-      .first<{ config: string }>();
+    const policy = await this.workspaceRepo.findRetentionPolicyForFolder(folderId);
 
     if (!policy) return false;
 
@@ -55,27 +43,14 @@ export class PolicyService {
   }
 
   async updateWorkspaceStorage(workspaceId: string, sizeDelta: number) {
-    await this.db
-      .prepare('UPDATE workspaces SET used_bytes = COALESCE(used_bytes, 0) + ? WHERE id = ?')
-      .bind(sizeDelta, workspaceId)
-      .run();
+    await this.workspaceRepo.updateUsedBytesStmt(workspaceId, sizeDelta).run();
   }
 
   async processAutoDeleteRetentionPolicies() {
     const MAX_DELETES_PER_CYCLE = 20; // Free-tier: 50 subrequests, leave margin for DB calls
 
     // 1. Get all auto_delete policies
-    const { results: policies } = await this.db
-      .prepare(
-        `SELECT * FROM workspace_policies WHERE policy_type = 'data_retention' AND json_extract(config, '$.action') = 'auto_delete'`,
-      )
-      .all<{
-        id: string;
-        workspace_id: string;
-        target_type: string;
-        target_id: string | null;
-        config: string;
-      }>();
+    const { results: policies } = await this.workspaceRepo.findAllAutoDeleteRetentionPolicies();
 
     for (const policy of policies) {
       const config = safeJsonParse(policy.config, null) as { action: string; days: number } | null;
@@ -88,32 +63,23 @@ export class PolicyService {
       cutoffDate.setDate(cutoffDate.getDate() - config.days);
       const cutoffStr = toSQLiteDatetime(cutoffDate);
 
-      let query: string;
-      let binds: (string | number | null)[];
+      // Build the retention-sweep target. A folder policy with a null target_id
+      // is corrupt (the column is the FK to workspace_folders.id) — skip it,
+      // matching the "skip corrupt policies" guard above.
+      const target =
+        policy.target_type === 'workspace'
+          ? { kind: 'workspace' as const, workspaceId: policy.workspace_id, cutoffStr }
+          : policy.target_id
+            ? {
+                kind: 'folder' as const,
+                workspaceId: policy.workspace_id,
+                folderId: policy.target_id,
+                cutoffStr,
+              }
+            : null;
+      if (!target) continue;
 
-      if (policy.target_type === 'workspace') {
-        query = `SELECT f.id, f.user_id, f.google_file_id, f.size, f.workspace_id, d.id as driveId 
-                 FROM files f JOIN drive_accounts d ON f.drive_account_id = d.id 
-                 WHERE f.workspace_id = ? AND f.created_at < ? AND f.is_trashed = 0`;
-        binds = [policy.workspace_id, cutoffStr];
-      } else {
-        query = `SELECT f.id, f.user_id, f.google_file_id, f.size, f.workspace_id, d.id as driveId 
-                 FROM files f JOIN drive_accounts d ON f.drive_account_id = d.id 
-                 WHERE f.workspace_id = ? AND f.workspace_folder_id = ? AND f.created_at < ? AND f.is_trashed = 0`;
-        binds = [policy.workspace_id, policy.target_id, cutoffStr];
-      }
-
-      const { results: expiredFiles } = await this.db
-        .prepare(query)
-        .bind(...binds)
-        .all<{
-          id: string;
-          user_id: string;
-          google_file_id: string;
-          size: number;
-          workspace_id: string;
-          driveId: string;
-        }>();
+      const { results: expiredFiles } = await this.fileRepo.findExpiredForRetention(target);
 
       let deleted = 0;
       for (const file of expiredFiles) {
@@ -132,8 +98,8 @@ export class PolicyService {
         }
 
         await this.db.batch([
-          new FileRepository(this.db).deleteByIdStmt(file.id),
-          new WorkspaceRepository(this.db).updateUsedBytesStmt(file.workspace_id, -file.size),
+          this.fileRepo.deleteByIdStmt(file.id),
+          this.workspaceRepo.updateUsedBytesStmt(file.workspace_id, -file.size),
         ]);
         deleted++;
       }

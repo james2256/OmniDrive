@@ -345,4 +345,119 @@ describe('WorkspaceRepository', () => {
       expect(mockBind).toHaveBeenCalledWith('p-1', 'ws-1');
     });
   });
+
+  // ─── PR 2: workspace-list, member-batch-Stmts, policy reads ───
+
+  describe('findWorkspacesWithRole', () => {
+    it('SELECTs w.* + wm.role ordered by created_at DESC (distinct from findWorkspacesByUser)', async () => {
+      mockAll.mockResolvedValueOnce({ results: [{ id: 'ws-1', role: 'owner' }] });
+
+      await repo.findWorkspacesWithRole('u-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain('SELECT w.*, wm.role');
+      expect(sql).toContain('JOIN workspace_members wm ON w.id = wm.workspace_id');
+      expect(sql).toContain('WHERE wm.user_id = ?');
+      expect(sql).toContain('ORDER BY w.created_at DESC');
+      expect(mockBind).toHaveBeenCalledWith('u-1');
+    });
+  });
+
+  describe('addMemberStmt', () => {
+    it('returns a prepared INSERT (not run) for batch composition, 4 binds', () => {
+      const stmt = repo.addMemberStmt('m-1', 'ws-1', 'u-1', 'editor');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toBe(
+        'INSERT INTO workspace_members (id, workspace_id, user_id, role) VALUES (?, ?, ?, ?)',
+      );
+      expect(mockBind).toHaveBeenCalledWith('m-1', 'ws-1', 'u-1', 'editor');
+      // Stmt-returning methods MUST NOT call .run() — batch owns execution.
+      expect(mockRun).not.toHaveBeenCalled();
+      expect(stmt).toEqual({ all: mockAll, first: mockFirst, run: mockRun });
+    });
+  });
+
+  describe('removeMemberStmt', () => {
+    it('returns a prepared DELETE (not run) for batch composition, 2 binds', () => {
+      const stmt = repo.removeMemberStmt('ws-1', 'u-2');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toBe('DELETE FROM workspace_members WHERE workspace_id = ? AND user_id = ?');
+      expect(mockBind).toHaveBeenCalledWith('ws-1', 'u-2');
+      expect(mockRun).not.toHaveBeenCalled();
+      expect(stmt).toEqual({ all: mockAll, first: mockFirst, run: mockRun });
+    });
+  });
+
+  describe('findUsedBytes', () => {
+    it('SELECTs used_bytes by workspace id via .first(), single bind', async () => {
+      mockFirst.mockResolvedValueOnce({ used_bytes: 5000 });
+
+      const result = await repo.findUsedBytes('ws-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toBe('SELECT used_bytes FROM workspaces WHERE id = ?');
+      expect(mockBind).toHaveBeenCalledWith('ws-1');
+      expect(result).toEqual({ used_bytes: 5000 });
+    });
+  });
+
+  describe('findStorageQuotaPolicy', () => {
+    it('SELECTs config for storage_quota policy via .first(), single bind', async () => {
+      mockFirst.mockResolvedValueOnce({ config: '{"max_bytes":1000}' });
+
+      const result = await repo.findStorageQuotaPolicy('ws-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain('SELECT config FROM workspace_policies');
+      expect(sql).toContain("policy_type = 'storage_quota'");
+      expect(sql).toContain('WHERE workspace_id = ?');
+      expect(mockBind).toHaveBeenCalledWith('ws-1');
+      expect(result).toEqual({ config: '{"max_bytes":1000}' });
+    });
+  });
+
+  describe('findRetentionPolicyForFolder', () => {
+    it('SELECTs retention policy via folder JOIN, binds folderId twice (anchor + target_id)', async () => {
+      mockFirst.mockResolvedValueOnce({ config: '{"action":"prevent_deletion"}' });
+
+      const result = await repo.findRetentionPolicyForFolder('folder-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain('FROM workspace_policies p');
+      expect(sql).toContain('JOIN workspace_folders f ON f.workspace_id = p.workspace_id');
+      expect(sql).toContain("policy_type = 'data_retention'");
+      expect(sql).toContain(
+        "(p.target_type = 'workspace' OR (p.target_type = 'folder' AND p.target_id = ?))",
+      );
+      expect(mockBind).toHaveBeenCalledWith('folder-1', 'folder-1');
+      expect(result).toEqual({ config: '{"action":"prevent_deletion"}' });
+    });
+  });
+
+  describe('findAllAutoDeleteRetentionPolicies', () => {
+    it('SELECTs all auto_delete policies via json_extract on config, no binds, .all()', async () => {
+      mockAll.mockResolvedValueOnce({
+        results: [
+          {
+            id: 'p-1',
+            workspace_id: 'ws-1',
+            target_type: 'workspace',
+            target_id: null,
+            config: '{}',
+          },
+        ],
+      });
+
+      const { results } = await repo.findAllAutoDeleteRetentionPolicies();
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain('SELECT * FROM workspace_policies');
+      expect(sql).toContain("policy_type = 'data_retention'");
+      expect(sql).toContain("json_extract(config, '$.action') = 'auto_delete'");
+      expect(mockBind).not.toHaveBeenCalled();
+      expect(results).toHaveLength(1);
+    });
+  });
 });
