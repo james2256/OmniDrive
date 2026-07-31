@@ -8,6 +8,7 @@ import { DriveRepository } from '../../src/repositories/drive.repository';
 import { FolderRepository } from '../../src/repositories/folder.repository';
 import { WorkspaceRepository } from '../../src/repositories/workspace.repository';
 import { SharedRepository } from '../../src/repositories/shared.repository';
+import { SyncStateRepository } from '../../src/repositories/sync-state.repository';
 import { hashPassword } from '../../src/lib/password';
 
 declare module 'cloudflare:workers' {
@@ -399,6 +400,172 @@ describe('Repositories (integration)', () => {
       // NOT f2 (My Drive), f3 (inside My Laptop), f4 (owned_by_me=0)
       expect(files.length).toBe(1);
       expect((files[0] as any).name).toBe('loose-shared.pdf');
+    });
+  });
+
+  // ─── SyncStateRepository: cross-isolate lock + cursor persistence ───
+
+  describe('SyncStateRepository', () => {
+    it('acquireLock inserts a syncing row on first acquire and returns the drive id', async () => {
+      await insertUser('u1', 'alice');
+      await insertDrive('d1', 'u1', 'alice@gmail.com', 1);
+
+      const repo = new SyncStateRepository(env.DB);
+      const acquired = await repo.acquireLock('d1');
+
+      expect(acquired).toEqual({ drive_account_id: 'd1' });
+      const row = await env.DB.prepare('SELECT status FROM sync_state WHERE drive_account_id = ?')
+        .bind('d1')
+        .first<{ status: string }>();
+      expect(row?.status).toBe('syncing');
+    });
+
+    it('acquireLock returns null when the drive is already syncing (lock denied)', async () => {
+      await insertUser('u1', 'alice');
+      await insertDrive('d1', 'u1', 'alice@gmail.com', 1);
+      // Seed an existing 'syncing' row — simulates another isolate mid-sync.
+      await env.DB.prepare(
+        "INSERT INTO sync_state (drive_account_id, status) VALUES (?, 'syncing')",
+      )
+        .bind('d1')
+        .run();
+
+      const repo = new SyncStateRepository(env.DB);
+      const acquired = await repo.acquireLock('d1');
+
+      expect(acquired).toBeNull();
+    });
+
+    it('acquireLock re-acquires when status is idle (clears a prior error_message)', async () => {
+      await insertUser('u1', 'alice');
+      await insertDrive('d1', 'u1', 'alice@gmail.com', 1);
+      await env.DB.prepare(
+        "INSERT INTO sync_state (drive_account_id, status, error_message) VALUES (?, 'idle', 'old error')",
+      )
+        .bind('d1')
+        .run();
+
+      const repo = new SyncStateRepository(env.DB);
+      const acquired = await repo.acquireLock('d1');
+
+      expect(acquired).toEqual({ drive_account_id: 'd1' });
+      const row = await env.DB.prepare(
+        'SELECT status, error_message FROM sync_state WHERE drive_account_id = ?',
+      )
+        .bind('d1')
+        .first<{ status: string; error_message: string | null }>();
+      expect(row?.status).toBe('syncing');
+      expect(row?.error_message).toBeNull(); // cleared on re-acquire
+    });
+
+    it('findSyncState returns the persisted change_token + next_page_token', async () => {
+      await insertUser('u1', 'alice');
+      await insertDrive('d1', 'u1', 'alice@gmail.com', 1);
+      await env.DB.prepare(
+        'INSERT INTO sync_state (drive_account_id, status, change_token, next_page_token) VALUES (?, ?, ?, ?)',
+      )
+        .bind('d1', 'idle', 'tok-1', 'page-2')
+        .run();
+
+      const repo = new SyncStateRepository(env.DB);
+      const state = await repo.findSyncState('d1');
+
+      expect(state?.change_token).toBe('tok-1');
+      expect(state?.next_page_token).toBe('page-2');
+    });
+
+    it('setIdle marks a paused sync idle without touching change_token', async () => {
+      await insertUser('u1', 'alice');
+      await insertDrive('d1', 'u1', 'alice@gmail.com', 1);
+      await env.DB.prepare(
+        "INSERT INTO sync_state (drive_account_id, status, change_token, next_page_token) VALUES (?, 'syncing', ?, ?)",
+      )
+        .bind('d1', 'tok-keep', 'resume-page')
+        .run();
+
+      const repo = new SyncStateRepository(env.DB);
+      await repo.setIdle('d1');
+
+      const row = await env.DB.prepare(
+        'SELECT status, change_token, next_page_token FROM sync_state WHERE drive_account_id = ?',
+      )
+        .bind('d1')
+        .first<{ status: string; change_token: string | null; next_page_token: string | null }>();
+      expect(row?.status).toBe('idle');
+      // setIdle (paused path) must NOT clear the change_token or next_page_token —
+      // the next cron cycle resumes from them.
+      expect(row?.change_token).toBe('tok-keep');
+      expect(row?.next_page_token).toBe('resume-page');
+    });
+
+    it('upsertIdleCompleted sets idle + change_token and clears next_page_token', async () => {
+      await insertUser('u1', 'alice');
+      await insertDrive('d1', 'u1', 'alice@gmail.com', 1);
+      // Row exists (created by the lock) with a paused next_page_token.
+      await env.DB.prepare(
+        "INSERT INTO sync_state (drive_account_id, status, change_token, next_page_token) VALUES (?, 'syncing', NULL, 'resume-page')",
+      )
+        .bind('d1')
+        .run();
+
+      const repo = new SyncStateRepository(env.DB);
+      await repo.upsertIdleCompleted('d1', 'fresh-token');
+
+      const row = await env.DB.prepare(
+        'SELECT status, change_token, next_page_token, last_synced_at FROM sync_state WHERE drive_account_id = ?',
+      )
+        .bind('d1')
+        .first<{
+          status: string;
+          change_token: string | null;
+          next_page_token: string | null;
+          last_synced_at: string | null;
+        }>();
+      expect(row?.status).toBe('idle');
+      expect(row?.change_token).toBe('fresh-token');
+      expect(row?.next_page_token).toBeNull(); // cleared on completion
+      expect(row?.last_synced_at).not.toBeNull();
+    });
+
+    it('upsertError sets status=error + error_message', async () => {
+      await insertUser('u1', 'alice');
+      await insertDrive('d1', 'u1', 'alice@gmail.com', 1);
+      await env.DB.prepare(
+        "INSERT INTO sync_state (drive_account_id, status) VALUES (?, 'syncing')",
+      )
+        .bind('d1')
+        .run();
+
+      const repo = new SyncStateRepository(env.DB);
+      await repo.upsertError('d1', 'rate limit exceeded');
+
+      const row = await env.DB.prepare(
+        'SELECT status, error_message FROM sync_state WHERE drive_account_id = ?',
+      )
+        .bind('d1')
+        .first<{ status: string; error_message: string | null }>();
+      expect(row?.status).toBe('error');
+      expect(row?.error_message).toBe('rate limit exceeded');
+    });
+
+    it('updateNextPageToken saves the resume checkpoint', async () => {
+      await insertUser('u1', 'alice');
+      await insertDrive('d1', 'u1', 'alice@gmail.com', 1);
+      await env.DB.prepare(
+        "INSERT INTO sync_state (drive_account_id, status) VALUES (?, 'syncing')",
+      )
+        .bind('d1')
+        .run();
+
+      const repo = new SyncStateRepository(env.DB);
+      await repo.updateNextPageToken('d1', 'page-45');
+
+      const row = await env.DB.prepare(
+        'SELECT next_page_token FROM sync_state WHERE drive_account_id = ?',
+      )
+        .bind('d1')
+        .first<{ next_page_token: string | null }>();
+      expect(row?.next_page_token).toBe('page-45');
     });
   });
 

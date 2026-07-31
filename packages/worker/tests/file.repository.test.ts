@@ -312,6 +312,36 @@ describe('FileRepository', () => {
     });
   });
 
+  // ─── sync-engine batch-composition statements (Stmt variants) ───
+
+  describe('deleteByDriveAndGoogleIdStmt', () => {
+    it('returns a prepared DELETE (not run) scoped by drive_account_id + google_file_id', () => {
+      const stmt = repo.deleteByDriveAndGoogleIdStmt('d-1', 'gfile-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toBe('DELETE FROM files WHERE drive_account_id = ? AND google_file_id = ?');
+      expect(mockBind).toHaveBeenCalledWith('d-1', 'gfile-1');
+      // Stmt-returning methods MUST NOT call .run() — the statement is handed
+      // to batchInChunks for batch composition by the sync engine.
+      expect(mockRun).not.toHaveBeenCalled();
+      expect(stmt).toEqual({ all: mockAll, first: mockFirst, run: mockRun });
+    });
+  });
+
+  describe('markTrashedByDriveAndGoogleIdStmt', () => {
+    it('returns a prepared is_trashed=1 UPDATE (not run) scoped by drive + google_file_id', () => {
+      const stmt = repo.markTrashedByDriveAndGoogleIdStmt('d-1', 'gfile-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toBe(
+        'UPDATE files SET is_trashed = 1 WHERE drive_account_id = ? AND google_file_id = ?',
+      );
+      expect(mockBind).toHaveBeenCalledWith('d-1', 'gfile-1');
+      expect(mockRun).not.toHaveBeenCalled();
+      expect(stmt).toEqual({ all: mockAll, first: mockFirst, run: mockRun });
+    });
+  });
+
   describe('updateMetadata', () => {
     it('UPDATEs metadata, two binds (metadata, fileId), no user scope', async () => {
       await repo.updateMetadata('f-1', '{"author":"alice"}');

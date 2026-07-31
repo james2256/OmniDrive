@@ -348,6 +348,39 @@ export class FileRepository {
     return this.db.prepare('UPDATE files SET is_trashed = ? WHERE id = ?').bind(isTrashed, fileId);
   }
 
+  /**
+   * Return a prepared DELETE statement scoped by drive_account_id + google_file_id
+   * (not run), for batch composition. Used by the sync engine to batch
+   * incremental-sync deletions — both "removed from Google" and "no longer
+   * owned" cleanup — with drive-folder deletions via `batchInChunks`. Distinct
+   * from `deleteByIdStmt` (scoped by file `id`) and `delete` (scoped by
+   * id + user_id): the sync engine only knows the Google file id, not the D1
+   * row id. No userId scoping — system op.
+   */
+  deleteByDriveAndGoogleIdStmt(driveAccountId: string, googleFileId: string): D1PreparedStatement {
+    return this.db
+      .prepare('DELETE FROM files WHERE drive_account_id = ? AND google_file_id = ?')
+      .bind(driveAccountId, googleFileId);
+  }
+
+  /**
+   * Return a prepared "mark trashed" statement scoped by drive_account_id +
+   * google_file_id (not run), for batch composition. Used by the sync engine
+   * to batch incremental-sync trash updates (owned + trashed on Google) with
+   * drive-folder trash updates via `batchInChunks`. Distinct from
+   * `markTrashedStmt` (scoped by file `id`, takes a trashed flag): the sync
+   * engine only knows the Google file id and always sets is_trashed = 1. No
+   * userId scoping — system op.
+   */
+  markTrashedByDriveAndGoogleIdStmt(
+    driveAccountId: string,
+    googleFileId: string,
+  ): D1PreparedStatement {
+    return this.db
+      .prepare('UPDATE files SET is_trashed = 1 WHERE drive_account_id = ? AND google_file_id = ?')
+      .bind(driveAccountId, googleFileId);
+  }
+
   /** Atomically delete a file and invalidate its user's category cache. */
   async deleteAndInvalidateCache(fileId: string, userId: string) {
     await this.db.batch([

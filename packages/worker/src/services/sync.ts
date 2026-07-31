@@ -11,8 +11,10 @@ import {
 import { createDriveService } from '../middleware/shared-services';
 import { resolveSyncRootFolderId } from '../lib/drive-folder';
 import type { Env } from '../types/env';
+import { DriveRepository } from '../repositories/drive.repository';
 import { FileRepository } from '../repositories/file.repository';
 import { FolderRepository } from '../repositories/folder.repository';
+import { SyncStateRepository } from '../repositories/sync-state.repository';
 import { batchInChunks } from '../lib/d1-batch';
 import { logErrorNoCtx } from '../lib/logger';
 
@@ -93,9 +95,8 @@ export async function syncDriveFolder(
   _workspaceFolderId: string,
   userId: string,
 ): Promise<void> {
-  const row = await env.DB.prepare('SELECT * FROM drive_accounts WHERE id = ? AND user_id = ?')
-    .bind(driveId, userId)
-    .first();
+  const driveRepo = new DriveRepository(env.DB);
+  const row = await driveRepo.findFullByIdAndUser(driveId, userId);
   if (!row) throw new NotFoundError('Drive not found');
 
   const drive = mapDriveRow(row as Record<string, unknown>);
@@ -108,24 +109,14 @@ export async function syncDriveAccount(
   db: D1Database,
   driveService: GoogleDriveService,
 ): Promise<void> {
+  const syncStateRepo = new SyncStateRepository(db);
   // Cross-isolate lock: INSERT if no row, UPDATE only if not already syncing.
   // If RETURNING returns null, another isolate (or direct caller) is syncing.
-  const lockAcquired = await db
-    .prepare(
-      `INSERT INTO sync_state (drive_account_id, status) VALUES (?, 'syncing')
-       ON CONFLICT(drive_account_id) DO UPDATE SET status = 'syncing', error_message = NULL
-       WHERE sync_state.status != 'syncing'
-       RETURNING drive_account_id`,
-    )
-    .bind(drive.id)
-    .first();
+  const lockAcquired = await syncStateRepo.acquireLock(drive.id);
   if (!lockAcquired) return; // already syncing — another isolate or direct caller
 
   try {
-    const syncState = await db
-      .prepare('SELECT * FROM sync_state WHERE drive_account_id = ?')
-      .bind(drive.id)
-      .first<{ change_token: string | null; next_page_token: string | null }>();
+    const syncState = await syncStateRepo.findSyncState(drive.id);
 
     let changeToken = syncState?.change_token;
     const nextPageToken = syncState?.next_page_token;
@@ -141,10 +132,7 @@ export async function syncDriveAccount(
         // Paused (subrequest budget hit) or shutting down — next_page_token was already
         // saved per-page by performInitialSync, so the next cron cycle resumes from there.
         // Mark 'idle' (not 'error') so the UI doesn't show a false failure.
-        await db
-          .prepare("UPDATE sync_state SET status = 'idle' WHERE drive_account_id = ?")
-          .bind(drive.id)
-          .run();
+        await syncStateRepo.setIdle(drive.id);
         return;
       }
       changeToken = await driveService.getStartPageToken(drive.id);
@@ -152,12 +140,7 @@ export async function syncDriveAccount(
       changeToken = await performIncrementalSync(drive, db, changeToken, driveService);
     }
 
-    await db
-      .prepare(
-        "INSERT INTO sync_state (drive_account_id, status, last_synced_at, change_token, next_page_token) VALUES (?, 'idle', CURRENT_TIMESTAMP, ?, NULL) ON CONFLICT(drive_account_id) DO UPDATE SET status = 'idle', last_synced_at = CURRENT_TIMESTAMP, change_token = excluded.change_token, next_page_token = NULL",
-      )
-      .bind(drive.id, changeToken)
-      .run();
+    await syncStateRepo.upsertIdleCompleted(drive.id, changeToken);
 
     try {
       await driveService.getQuota(drive.id);
@@ -172,12 +155,7 @@ export async function syncDriveAccount(
       message,
     });
 
-    await db
-      .prepare(
-        "INSERT INTO sync_state (drive_account_id, status, error_message) VALUES (?, 'error', ?) ON CONFLICT(drive_account_id) DO UPDATE SET status = 'error', error_message = excluded.error_message",
-      )
-      .bind(drive.id, message)
-      .run();
+    await syncStateRepo.upsertError(drive.id, message);
   }
 }
 
@@ -219,10 +197,7 @@ async function performInitialSync(
     // Save checkpoint every page — bulletproof crash resilience. D1 has 1,000 subrequest
     // limit, so the extra save per page (44 max) is well within budget.
     if (chunk.nextPageToken) {
-      await db
-        .prepare('UPDATE sync_state SET next_page_token = ? WHERE drive_account_id = ?')
-        .bind(chunk.nextPageToken, drive.id)
-        .run();
+      await new SyncStateRepository(db).updateNextPageToken(drive.id, chunk.nextPageToken);
     }
 
     // 1 external call per page: Google API fetch for the next page.
@@ -265,6 +240,7 @@ async function performIncrementalSync(
     externalCount++;
 
     const stmts: D1PreparedStatement[] = [];
+    const driveRepo = new DriveRepository(db);
     const fileRepo = new FileRepository(db);
     const folderRepo = new FolderRepository(db);
     for (const change of response.changes) {
@@ -274,19 +250,9 @@ async function performIncrementalSync(
       if (change.removed) {
         // Permanently deleted from Google Drive — remove from D1
         if (isFolder) {
-          stmts.push(
-            db
-              .prepare(
-                'DELETE FROM drive_folders WHERE drive_account_id = ? AND google_folder_id = ?',
-              )
-              .bind(drive.id, change.fileId),
-          );
+          stmts.push(driveRepo.deleteDriveFolderStmt(drive.id, change.fileId));
         } else {
-          stmts.push(
-            db
-              .prepare('DELETE FROM files WHERE drive_account_id = ? AND google_file_id = ?')
-              .bind(drive.id, change.fileId),
-          );
+          stmts.push(fileRepo.deleteByDriveAndGoogleIdStmt(drive.id, change.fileId));
         }
         continue;
       }
@@ -300,19 +266,9 @@ async function performIncrementalSync(
       // row so previously-written dead data is cleaned up on the next encounter.
       if (!isOwnedByMe(file.owners)) {
         if (isFolder) {
-          stmts.push(
-            db
-              .prepare(
-                'DELETE FROM drive_folders WHERE drive_account_id = ? AND google_folder_id = ?',
-              )
-              .bind(drive.id, change.fileId),
-          );
+          stmts.push(driveRepo.deleteDriveFolderStmt(drive.id, change.fileId));
         } else {
-          stmts.push(
-            db
-              .prepare('DELETE FROM files WHERE drive_account_id = ? AND google_file_id = ?')
-              .bind(drive.id, change.fileId),
-          );
+          stmts.push(fileRepo.deleteByDriveAndGoogleIdStmt(drive.id, change.fileId));
         }
         continue;
       }
@@ -320,21 +276,9 @@ async function performIncrementalSync(
       if (file.trashed) {
         // Owned + trashed → mark as trashed (recoverable via /trash → restore)
         if (isFolder) {
-          stmts.push(
-            db
-              .prepare(
-                'UPDATE drive_folders SET is_trashed = 1 WHERE drive_account_id = ? AND google_folder_id = ?',
-              )
-              .bind(drive.id, change.fileId),
-          );
+          stmts.push(driveRepo.markDriveFolderTrashedStmt(drive.id, change.fileId));
         } else {
-          stmts.push(
-            db
-              .prepare(
-                'UPDATE files SET is_trashed = 1 WHERE drive_account_id = ? AND google_file_id = ?',
-              )
-              .bind(drive.id, change.fileId),
-          );
+          stmts.push(fileRepo.markTrashedByDriveAndGoogleIdStmt(drive.id, change.fileId));
         }
         continue;
       }
@@ -381,10 +325,9 @@ export async function runScheduledSync(env: {
 
   const driveService = createDriveService(env);
 
-  const rows = await env.DB.prepare(
-    "SELECT * FROM drive_accounts WHERE type IN ('oauth', 'service_account')",
-  ).all();
-  const driveAccounts = (rows.results ?? []).map(mapDriveRow);
+  const driveRepo = new DriveRepository(env.DB);
+  const { results: driveRows } = await driveRepo.findAllByType(['oauth', 'service_account']);
+  const driveAccounts = (driveRows ?? []).map(mapDriveRow);
 
   for (const drive of driveAccounts) {
     if (getIsShuttingDown()) break;

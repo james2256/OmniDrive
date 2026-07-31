@@ -1,4 +1,4 @@
-import type { D1Database, D1Result } from '@cloudflare/workers-types';
+import type { D1Database, D1PreparedStatement, D1Result } from '@cloudflare/workers-types';
 
 /**
  * Data access layer for `drive_accounts` and `drive_folders` tables.
@@ -76,6 +76,22 @@ export class DriveRepository {
   /** Find all drives for a user (no sync_state JOIN — plain SELECT *). */
   findAllByUser(userId: string) {
     return this.db.prepare('SELECT * FROM drive_accounts WHERE user_id = ?').bind(userId).all();
+  }
+
+  /**
+   * Find all drives whose `type` is in the given list.
+   *
+   * Used by the scheduled sync runner to select the syncable drive types
+   * (`'oauth'`, `'service_account'`). Builds an `IN (?, ?, ...)` placeholder
+   * list like `findDrivesWithTokens` — callers must pass a non-empty array
+   * (an empty array yields `IN ()`, which is a SQLite syntax error).
+   */
+  findAllByType(types: readonly string[]) {
+    const placeholders = types.map(() => '?').join(',');
+    return this.db
+      .prepare(`SELECT * FROM drive_accounts WHERE type IN (${placeholders})`)
+      .bind(...types)
+      .all();
   }
 
   /**
@@ -365,6 +381,20 @@ export class DriveRepository {
       .run();
   }
 
+  /**
+   * Return a prepared "mark drive folder trashed" statement (not run) for
+   * batch composition. This is the `Stmt` variant of `markDriveFolderTrashed`
+   * — used by the sync engine to batch incremental-sync trash updates with
+   * file trash updates via `batchInChunks`. No userId scoping — system op.
+   */
+  markDriveFolderTrashedStmt(driveId: string, googleFolderId: string): D1PreparedStatement {
+    return this.db
+      .prepare(
+        'UPDATE drive_folders SET is_trashed = 1 WHERE drive_account_id = ? AND google_folder_id = ?',
+      )
+      .bind(driveId, googleFolderId);
+  }
+
   markDriveFolderUntrashed(driveId: string, googleFolderId: string) {
     return this.db
       .prepare(
@@ -406,6 +436,19 @@ export class DriveRepository {
       .prepare('DELETE FROM drive_folders WHERE drive_account_id = ? AND google_folder_id = ?')
       .bind(driveId, googleFolderId)
       .run();
+  }
+
+  /**
+   * Return a prepared "delete drive folder" statement (not run) for batch
+   * composition. This is the `Stmt` variant of `deleteDriveFolder` — used by
+   * the sync engine to batch incremental-sync deletions (removed-from-Google
+   * and not-owned cleanup) with file deletions via `batchInChunks`. No userId
+   * scoping — system op.
+   */
+  deleteDriveFolderStmt(driveId: string, googleFolderId: string): D1PreparedStatement {
+    return this.db
+      .prepare('DELETE FROM drive_folders WHERE drive_account_id = ? AND google_folder_id = ?')
+      .bind(driveId, googleFolderId);
   }
 
   /** Find a drive by Google account ID + user (dedup check for OAuth connect). */

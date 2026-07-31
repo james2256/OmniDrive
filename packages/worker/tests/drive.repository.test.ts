@@ -179,6 +179,51 @@ describe('DriveRepository', () => {
     });
   });
 
+  describe('findAllByType', () => {
+    it('SELECTs * with IN(?,?) for the syncable drive types, via .all()', async () => {
+      mockAll.mockResolvedValueOnce({ results: [{ id: 'd-1', type: 'oauth' }] });
+
+      await repo.findAllByType(['oauth', 'service_account']);
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain('SELECT * FROM drive_accounts WHERE type IN');
+      expect(sql).toContain('IN (?,?)');
+      expect(mockBind).toHaveBeenCalledWith('oauth', 'service_account');
+      expect(mockAll).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('deleteDriveFolderStmt', () => {
+    it('returns a prepared DELETE (not run) scoped by drive + google_folder_id', () => {
+      const stmt = repo.deleteDriveFolderStmt('d-1', 'gfolder-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toBe(
+        'DELETE FROM drive_folders WHERE drive_account_id = ? AND google_folder_id = ?',
+      );
+      expect(mockBind).toHaveBeenCalledWith('d-1', 'gfolder-1');
+      // Stmt-returning methods MUST NOT call .run() — the statement is handed
+      // to batchInChunks for batch composition.
+      expect(mockRun).not.toHaveBeenCalled();
+      // Returns the bound prepared statement (the mock's bind return value).
+      expect(stmt).toEqual({ all: mockAll, first: mockFirst, run: mockRun });
+    });
+  });
+
+  describe('markDriveFolderTrashedStmt', () => {
+    it('returns a prepared is_trashed=1 UPDATE (not run) scoped by drive + google_folder_id', () => {
+      const stmt = repo.markDriveFolderTrashedStmt('d-1', 'gfolder-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toBe(
+        'UPDATE drive_folders SET is_trashed = 1 WHERE drive_account_id = ? AND google_folder_id = ?',
+      );
+      expect(mockBind).toHaveBeenCalledWith('d-1', 'gfolder-1');
+      expect(mockRun).not.toHaveBeenCalled();
+      expect(stmt).toEqual({ all: mockAll, first: mockFirst, run: mockRun });
+    });
+  });
+
   // ─── mutations ───
 
   describe('updateQuota', () => {
