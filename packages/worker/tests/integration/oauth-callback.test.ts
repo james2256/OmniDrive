@@ -116,11 +116,12 @@ describe('OAuth callback (integration)', () => {
     expect(res.status).toBe(400);
   });
 
-  it('GET /callback with missing state cookie returns 400 (state fixation guard)', async () => {
-    // No oauth_state cookie sent — attacker initiated OAuth on their browser,
-    // victim clicks the phishing link. Fail-closed must reject.
+  it('GET /callback with missing state cookie but unknown state in D1 returns 400', async () => {
+    // Cross-domain deployment: cookie is absent (Chrome blocks third-party
+    // cookies). The D1 check is the real protection — an unknown state
+    // (not in oauth_states table) must still be rejected.
     const res = await app.request(
-      '/api/auth/callback?code=fakecode&state=anything',
+      '/api/auth/callback?code=fakecode&state=unknown-state-no-cookie',
       {
         headers: { Origin: ORIGIN },
       },
@@ -129,7 +130,64 @@ describe('OAuth callback (integration)', () => {
 
     expect(res.status).toBe(400);
     const body = (await res.json()) as { error: string };
-    expect(body.error).toContain('Invalid state');
+    expect(body.error).toContain('expired'); // D1 check, not cookie check
+  });
+
+  it('GET /callback with missing state cookie but valid D1 state succeeds (cross-domain)', async () => {
+    // Cross-domain happy path: no oauth_state cookie (Chrome blocked it as
+    // third-party), but the D1 state row exists and is valid. The cookie
+    // check is skipped; the D1 DELETE...RETURNING is the real CSRF protection.
+    const { userId, cookie } = await insertUserAndSession('carol');
+    const state = 'valid-state-carol-no-cookie';
+    await env.DB.prepare(
+      'INSERT INTO oauth_states (state, code_verifier, user_id, created_at) VALUES (?, ?, ?, ?)',
+    )
+      .bind(state, 'test-verifier', userId, Date.now())
+      .run();
+
+    // Mock Google token + userinfo endpoints
+    vi.spyOn(globalThis, 'fetch').mockImplementation(
+      async (input: RequestInfo | URL, _init?: RequestInit) => {
+        const url =
+          typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+        if (url === 'https://oauth2.googleapis.com/token') {
+          return new Response(
+            JSON.stringify({
+              access_token: 'fake-access-token',
+              refresh_token: 'fake-refresh-token',
+              expires_in: 3600,
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          );
+        }
+        if (url === 'https://www.googleapis.com/oauth2/v2/userinfo') {
+          return new Response(
+            JSON.stringify({
+              id: 'google-account-carol',
+              email: 'carol@gmail.com',
+              name: 'Carol Lee',
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          );
+        }
+        return new Response('{}', { status: 200 });
+      },
+    );
+
+    // Session cookie only — NO oauth_state cookie (simulates cross-domain)
+    const res = await app.request(
+      `/api/auth/callback?code=fakecode&state=${state}`,
+      {
+        headers: { Cookie: cookie, Origin: ORIGIN },
+      },
+      env,
+      executionCtx,
+    );
+
+    expect(res.status).toBe(302);
+    expect(res.headers.get('Location')).toBe(env.FRONTEND_URL);
+
+    vi.mocked(globalThis.fetch).mockRestore();
   });
 
   it('GET /callback with expired state (not in DB) returns 400', async () => {

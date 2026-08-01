@@ -180,7 +180,12 @@ authRouter.get('/callback', async (c) => {
   if (!state) throw new AppError(400, 'Missing state parameter');
   const savedState = getCookie(c, 'oauth_state');
   deleteCookie(c, 'oauth_state', { path: '/' });
-  if (!savedState || !timingSafeEqual(state, savedState)) {
+  // Cookie check is defense-in-depth — skipped when third-party cookies are
+  // blocked (cross-domain deployments where frontend and API are on different
+  // registrable domains, e.g. pages.dev + workers.dev). The D1
+  // DELETE...RETURNING below is the real CSRF protection: atomic, single-use,
+  // user-bound, 10-min TTL.
+  if (savedState && !timingSafeEqual(state, savedState)) {
     throw new AppError(400, 'Invalid state parameter');
   }
 
