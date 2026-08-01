@@ -846,25 +846,36 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
     let currentReader: ReadableStreamDefaultReader<Uint8Array> | null = null;
     const finalStream = new ReadableStream({
       async pull(controller) {
-        if (!currentReader) {
-          if (currentPartIndex >= parts.length) {
-            controller.close();
-            return;
+        // Loop until we enqueue a chunk or exhaust all parts.
+        // Replaces the fragile `this.pull(controller)` recursion — `this` is
+        // not reliably bound inside ReadableStream pull callbacks (strict mode
+        // makes it undefined), so the old code threw TypeError on multi-part
+        // uploads as soon as the first part finished streaming.
+        while (true) {
+          if (!currentReader) {
+            if (currentPartIndex >= parts.length) {
+              controller.close();
+              return;
+            }
+            const part = parts[currentPartIndex];
+            const { stream: partStream } = await driveService.downloadFile(
+              upload.drive_account_id,
+              part.google_file_id,
+            );
+            currentReader = partStream.getReader();
           }
-          const part = parts[currentPartIndex];
-          const { stream: partStream } = await driveService.downloadFile(
-            upload.drive_account_id,
-            part.google_file_id,
-          );
-          currentReader = partStream.getReader();
+          const { done, value } = await currentReader.read();
+          if (done) {
+            // Release the finished part's reader and advance to the next part.
+            currentReader = null;
+            currentPartIndex++;
+            continue;
+          }
+          if (value) {
+            controller.enqueue(value);
+            return; // Yield control back to the stream consumer.
+          }
         }
-        const { done, value } = await currentReader.read();
-        if (done) {
-          currentReader = null;
-          currentPartIndex++;
-          return (this.pull || (() => Promise.resolve()))(controller);
-        }
-        if (value) controller.enqueue(value);
       },
       cancel() {
         if (currentReader) currentReader.cancel();

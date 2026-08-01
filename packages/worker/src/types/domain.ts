@@ -57,6 +57,7 @@ export interface FileEntry {
   webContentLink: string | null;
   isTrashed: boolean;
   isStarred: boolean;
+  metadata: string;
   googleCreatedAt: string | null;
   googleModifiedAt: string | null;
   syncedAt: string;

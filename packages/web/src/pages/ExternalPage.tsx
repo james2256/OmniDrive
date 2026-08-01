@@ -86,7 +86,7 @@ export function ExternalPage() {
 
   // Derive subfolders/files/breadcrumb from whichever query is active.
   const subfolders: DriveFolder[] = isTopLevel
-    ? (externalInfinite.data?.pages[0]?.folders ?? [])
+    ? (externalInfinite.data?.pages.flatMap((p) => p.folders) ?? [])
     : (folderQuery.data?.subfolders ?? []);
   const files: FileEntry[] = isTopLevel
     ? (externalInfinite.data?.pages.flatMap((p) => p.files) ?? [])
