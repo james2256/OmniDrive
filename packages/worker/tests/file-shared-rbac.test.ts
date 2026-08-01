@@ -54,7 +54,7 @@ describe('FileService RBAC (unit)', () => {
     vi.spyOn(fileService['fileRepo'], 'findById').mockResolvedValue(file);
     vi.spyOn(fileService['fileRepo'], 'markTrashed').mockResolvedValue(undefined);
     vi.spyOn(fileService['fileRepo'], 'applyStorageDeltas').mockResolvedValue(undefined);
-    vi.spyOn(fileService['driveService'], 'trashFile').mockResolvedValue(undefined);
+    vi.spyOn(fileService['driveProvider'], 'trashFile').mockResolvedValue(undefined);
 
     await fileService.trashFile('user-1', 'file-1');
 
@@ -66,7 +66,7 @@ describe('FileService RBAC (unit)', () => {
     vi.spyOn(fileService['fileRepo'], 'findById').mockResolvedValue(file);
     vi.spyOn(fileService['fileRepo'], 'markTrashed').mockResolvedValue(undefined);
     vi.spyOn(fileService['fileRepo'], 'applyStorageDeltas').mockResolvedValue(undefined);
-    vi.spyOn(fileService['driveService'], 'trashFile').mockResolvedValue(undefined);
+    vi.spyOn(fileService['driveProvider'], 'trashFile').mockResolvedValue(undefined);
     vi.mocked(getWorkspaceRole).mockResolvedValue('editor');
     vi.mocked(hasPermission).mockReturnValue(true);
 

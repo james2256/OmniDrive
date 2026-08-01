@@ -2,6 +2,7 @@ import type { D1Database } from '@cloudflare/workers-types';
 import type { OAuthTokens } from '../types/env';
 import type { QuotaCache } from '../types/domain';
 import type { GDriveFile, GDriveFolder, GDriveOwner } from '../types/google';
+import type { DriveProvider } from '../types/drive-provider';
 import { parseStorageQuota, QUOTA_CACHE_VERSION } from '../lib/storage-quota';
 import { NotFoundError, AuthError, UpstreamError } from '../lib/errors';
 import { withBackoff } from '../lib/backoff';
@@ -24,7 +25,7 @@ interface RefreshedTokens {
   expiresAt: number;
 }
 
-export class GoogleDriveService {
+export class GoogleDriveService implements DriveProvider {
   private encryptionKey?: string;
   // In-memory token cache — avoids a D1 read (loadTokens) on every page of a sync.
   // Scoped to this instance: one GoogleDriveService per sync invocation, so the cache

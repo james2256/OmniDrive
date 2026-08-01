@@ -1,6 +1,6 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import { DriveRepository } from '../repositories/drive.repository';
-import type { GoogleDriveService } from './google-drive';
+import type { DriveProvider } from '../types/drive-provider';
 import { createDriveService } from '../middleware/shared-services';
 import { NotFoundError, ForbiddenError } from '../lib/errors';
 import { generateId } from '../lib/id';
@@ -15,11 +15,11 @@ import { mapDriveRow, mapFileRow, mapDriveFolderRow } from '../types/db';
  */
 export class DriveService {
   private driveRepo: DriveRepository;
-  private googleDriveService: GoogleDriveService;
+  private driveProvider: DriveProvider;
 
   constructor(db: D1Database, clientId: string, clientSecret: string, encryptionKey: string) {
     this.driveRepo = new DriveRepository(db);
-    this.googleDriveService = createDriveService({
+    this.driveProvider = createDriveService({
       DB: db,
       GOOGLE_CLIENT_ID: clientId,
       GOOGLE_CLIENT_SECRET: clientSecret,
@@ -43,7 +43,7 @@ export class DriveService {
   ): Promise<string> {
     await this.getDriveOrThrow(driveId, userId);
 
-    const googleFolderId = await this.googleDriveService.createFolder(
+    const googleFolderId = await this.driveProvider.createFolder(
       driveId,
       name,
       parentId || undefined,
@@ -75,21 +75,21 @@ export class DriveService {
     name: string,
   ): Promise<void> {
     await this.getDriveOrThrow(driveId, userId);
-    await this.googleDriveService.renameFile(driveId, googleFolderId, name);
+    await this.driveProvider.renameFile(driveId, googleFolderId, name);
     await this.driveRepo.renameDriveFolder(driveId, googleFolderId, name);
   }
 
   /** Trash a Google Drive folder via the API, then update the cache. */
   async trashDriveFolder(userId: string, driveId: string, googleFolderId: string): Promise<void> {
     await this.getDriveOrThrow(driveId, userId);
-    await this.googleDriveService.trashFolder(driveId, googleFolderId);
+    await this.driveProvider.trashFolder(driveId, googleFolderId);
     await this.driveRepo.markDriveFolderTrashed(driveId, googleFolderId);
   }
 
   /** Restore a trashed Google Drive folder. */
   async restoreDriveFolder(userId: string, driveId: string, googleFolderId: string): Promise<void> {
     await this.getDriveOrThrow(driveId, userId);
-    await this.googleDriveService.untrashFolder(driveId, googleFolderId);
+    await this.driveProvider.untrashFolder(driveId, googleFolderId);
     await this.driveRepo.markDriveFolderUntrashed(driveId, googleFolderId);
   }
 
@@ -100,7 +100,7 @@ export class DriveService {
     googleFolderId: string,
   ): Promise<void> {
     await this.getDriveOrThrow(driveId, userId);
-    await this.googleDriveService.deleteFile(driveId, googleFolderId);
+    await this.driveProvider.deleteFile(driveId, googleFolderId);
     await this.driveRepo.deleteDriveFolder(driveId, googleFolderId);
   }
 
@@ -229,7 +229,7 @@ export class DriveService {
           ? rootFolderId
           : oldParentId;
 
-    await this.googleDriveService.moveToFolder(
+    await this.driveProvider.moveToFolder(
       driveId,
       googleFileId,
       effectiveTargetId,
@@ -253,7 +253,7 @@ export class DriveService {
     const driveType = (row as Record<string, unknown>).type as string;
 
     if (driveType === 'oauth') {
-      await this.googleDriveService.revokeTokens(driveId);
+      await this.driveProvider.revokeTokens(driveId);
     }
 
     await this.driveRepo.deleteDrive(driveId, userId);
@@ -266,8 +266,8 @@ export class DriveService {
     }
   }
 
-  /** Get the GoogleDriveService instance (for routes that need Google API directly). */
-  getGoogleDriveService(): GoogleDriveService {
-    return this.googleDriveService;
+  /** Get the DriveProvider instance (for routes that need Google API directly). // ponytail: remove this accessor — lift the delegation onto DriveService so routes don't bypass the service layer. */
+  getDriveProvider(): DriveProvider {
+    return this.driveProvider;
   }
 }

@@ -1,5 +1,5 @@
 import type { GDriveFile, GDriveFolder } from '../types/google';
-import type { GoogleDriveService } from './google-drive';
+import type { DriveProvider } from '../types/drive-provider';
 
 /**
  * Default caps for the download-tree walk.
@@ -23,7 +23,7 @@ export interface DownloadTreeFile {
 }
 
 export interface BuildDownloadTreeOptions {
-  driveService: GoogleDriveService;
+  driveService: DriveProvider;
   driveId: string;
   /** Google folder ID to start the recursive walk from. */
   rootFolderId: string;

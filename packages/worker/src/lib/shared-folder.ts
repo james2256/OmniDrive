@@ -1,4 +1,4 @@
-import type { GoogleDriveService } from '../services/google-drive';
+import type { DriveProvider } from '../types/drive-provider';
 
 /**
  * IDOR check for shared-folder downloads: verify a file is inside the shared
@@ -10,7 +10,7 @@ import type { GoogleDriveService } from '../services/google-drive';
  * false). Cycle-safe via a `visited` set.
  */
 export async function isFileInSharedFolder(
-  driveService: GoogleDriveService,
+  driveService: DriveProvider,
   driveId: string,
   fileId: string,
   rootFolderId: string,

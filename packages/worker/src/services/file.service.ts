@@ -2,7 +2,7 @@ import type { D1Database } from '@cloudflare/workers-types';
 import { FileRepository } from '../repositories/file.repository';
 import { FolderRepository } from '../repositories/folder.repository';
 import { DriveRepository } from '../repositories/drive.repository';
-import type { GoogleDriveService } from './google-drive';
+import type { DriveProvider } from '../types/drive-provider';
 import { createDriveService } from '../middleware/shared-services';
 import { PolicyService } from './policy.service';
 import { getWorkspaceRole, hasPermission } from '../lib/rbac';
@@ -23,7 +23,7 @@ export class FileService {
   private fileRepo: FileRepository;
   private folderRepo: FolderRepository;
   private driveRepo: DriveRepository;
-  private driveService: GoogleDriveService;
+  private driveProvider: DriveProvider;
   private policyService: PolicyService;
 
   constructor(
@@ -35,13 +35,13 @@ export class FileService {
     this.fileRepo = new FileRepository(db);
     this.folderRepo = new FolderRepository(db);
     this.driveRepo = new DriveRepository(db);
-    this.driveService = createDriveService({
+    this.driveProvider = createDriveService({
       DB: db,
       GOOGLE_CLIENT_ID: clientId,
       GOOGLE_CLIENT_SECRET: clientSecret,
       TOKEN_ENCRYPTION_KEY: encryptionKey,
     });
-    this.policyService = new PolicyService(db, this.driveService);
+    this.policyService = new PolicyService(db, this.driveProvider);
   }
 
   /**
@@ -51,7 +51,7 @@ export class FileService {
   async trashFile(userId: string, fileId: string): Promise<void> {
     const file = await this.getFileOrThrow(fileId, userId, 'editor');
 
-    await this.driveService.trashFile(file.drive_account_id, file.google_file_id);
+    await this.driveProvider.trashFile(file.drive_account_id, file.google_file_id);
     await this.fileRepo.markTrashed(fileId, file.user_id);
     await this.fileRepo.applyStorageDeltas([
       { userId: file.user_id, mimeType: file.mime_type ?? '', delta: -file.size },
@@ -63,7 +63,7 @@ export class FileService {
     const file = await this.getFileOrThrow(fileId, userId, 'editor');
     if (file.is_trashed !== 1) throw new NotFoundError('File not found in trash');
 
-    await this.driveService.untrashFile(file.drive_account_id, file.google_file_id);
+    await this.driveProvider.untrashFile(file.drive_account_id, file.google_file_id);
     await this.fileRepo.markUntrashed(fileId, file.user_id);
     await this.fileRepo.applyStorageDeltas([
       { userId: file.user_id, mimeType: file.mime_type ?? '', delta: file.size },
@@ -85,7 +85,7 @@ export class FileService {
     }
 
     try {
-      await this.driveService.deleteFile(file.drive_account_id, file.google_file_id);
+      await this.driveProvider.deleteFile(file.drive_account_id, file.google_file_id);
     } catch (error) {
       logErrorNoCtx('Failed to permanently delete file from Google Drive', error, { fileId });
       throw new AppError(500, 'Failed to delete file from Google Drive');
@@ -101,7 +101,7 @@ export class FileService {
   /** Rename a file. RBAC: editor. Calls Google Drive API first, then updates D1. */
   async renameFile(userId: string, fileId: string, name: string): Promise<void> {
     const file = await this.getFileOrThrow(fileId, userId, 'editor');
-    await this.driveService.renameFile(file.drive_account_id, file.google_file_id, name);
+    await this.driveProvider.renameFile(file.drive_account_id, file.google_file_id, name);
     await this.fileRepo.rename(fileId, file.user_id, name);
   }
 
@@ -172,9 +172,9 @@ export class FileService {
     return this.getFileOrThrow(fileId, userId, 'viewer');
   }
 
-  /** Get the GoogleDriveService instance (for preview/download streaming). */
-  getGoogleDriveService(): GoogleDriveService {
-    return this.driveService;
+  /** Get the DriveProvider instance (for preview/download streaming). // ponytail: remove this accessor — lift downloadFile delegation onto FileService so routes don't bypass the service layer. */
+  getDriveProvider(): DriveProvider {
+    return this.driveProvider;
   }
 
   // ─── Listing / search / overview (no RBAC — scoped by user_id + EXISTS) ───

@@ -1,6 +1,6 @@
 import type { RuleCondition, RuleAction } from '../types/automation';
 import type { Env } from '../types/env';
-import type { GoogleDriveService } from './google-drive';
+import type { DriveProvider } from '../types/drive-provider';
 import { logErrorNoCtx } from '../lib/logger';
 import { FileRepository } from '../repositories/file.repository';
 import { AutomationRepository } from '../repositories/automation.repository';
@@ -79,7 +79,7 @@ function parseRule(row: Record<string, unknown>): ParsedRule | null {
 export class AutomationEngine {
   constructor(
     private env: Env,
-    private driveService: GoogleDriveService,
+    private driveProvider: DriveProvider,
   ) {}
 
   async processEventTrigger(file: DbFile, ctx: ExecutionContext) {
@@ -162,7 +162,7 @@ export class AutomationEngine {
           // If the API call fails, skip the D1 update — the file would reappear
           // on next sync anyway (Google says not trashed → UPSERT resets is_trashed=0).
           try {
-            await this.driveService.trashFile(
+            await this.driveProvider.trashFile(
               file.drive_account_id as string,
               file.google_file_id as string,
             );

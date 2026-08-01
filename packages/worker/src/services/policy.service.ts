@@ -1,5 +1,5 @@
 import type { D1Database } from '@cloudflare/workers-types';
-import type { GoogleDriveService } from './google-drive';
+import type { DriveProvider } from '../types/drive-provider';
 import { logErrorNoCtx } from '../lib/logger';
 import { toSQLiteDatetime } from '../lib/datetime';
 import { safeJsonParse } from '../lib/safe-json-parse';
@@ -12,7 +12,7 @@ export class PolicyService {
 
   constructor(
     private db: D1Database,
-    private driveService: GoogleDriveService,
+    private driveProvider: DriveProvider,
   ) {
     this.workspaceRepo = new WorkspaceRepository(db);
     this.fileRepo = new FileRepository(db);
@@ -89,7 +89,7 @@ export class PolicyService {
         // If the Google API call fails, skip the DB delete — the file still
         // exists in Drive and would reappear on next sync.
         try {
-          await this.driveService.deleteFile(file.driveId, file.google_file_id);
+          await this.driveProvider.deleteFile(file.driveId, file.google_file_id);
         } catch (error) {
           logErrorNoCtx('Retention auto-delete: Google Drive API call failed', error, {
             fileId: file.id,

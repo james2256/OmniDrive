@@ -545,7 +545,7 @@ filesRouter.get('/:id/preview', async (c) => {
     throw new AppError(415, 'Preview not available for this file type');
   }
 
-  const driveService = fileService.getGoogleDriveService();
+  const driveService = fileService.getDriveProvider();
 
   let stream: ReadableStream<Uint8Array>;
   let finalMimeType = mimeType === 'application/vnd.google-apps.photo' ? 'image/jpeg' : mimeType;
@@ -587,7 +587,7 @@ filesRouter.get('/:id/download', async (c) => {
 
   const file = await fileService.getFileForRead(userId, fileId);
 
-  const driveService = fileService.getGoogleDriveService();
+  const driveService = fileService.getDriveProvider();
 
   let stream: ReadableStream<Uint8Array>;
   let finalMimeType = (file.mime_type as string) || 'application/octet-stream';

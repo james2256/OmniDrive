@@ -1,6 +1,7 @@
 import { createMiddleware } from 'hono/factory';
 import { SharedService } from '../services/shared.service';
 import { GoogleDriveService } from '../services/google-drive';
+import type { DriveProvider } from '../types/drive-provider';
 import type { AppContext, Env } from '../types/env';
 
 /**
@@ -27,7 +28,7 @@ export type DriveServiceEnv = Pick<
  * should prefer `createDriveService(c.env)`; services that take a narrowed
  * env param can pass it straight through.
  */
-export function createDriveService(env: DriveServiceEnv): GoogleDriveService {
+export function createDriveService(env: DriveServiceEnv): DriveProvider {
   return new GoogleDriveService(
     env.DB,
     env.GOOGLE_CLIENT_ID,

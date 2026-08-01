@@ -3,7 +3,7 @@ import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types'
 import type { DriveAccount } from '../types/domain';
 import { mapDriveRow } from '../types/db';
 import type { GDriveFile, GDriveFolder, GDriveOwner } from '../types/google';
-import type { GoogleDriveService } from './google-drive';
+import type { DriveProvider } from '../types/drive-provider';
 import { createDriveService } from '../middleware/shared-services';
 import { resolveSyncRootFolderId } from '../lib/drive-folder';
 import type { Env } from '../types/env';
@@ -128,7 +128,7 @@ export async function syncDriveFolder(
 export async function syncDriveAccount(
   drive: DriveAccount,
   db: D1Database,
-  driveService: GoogleDriveService,
+  driveService: DriveProvider,
 ): Promise<void> {
   const syncStateRepo = new SyncStateRepository(db);
   // Cross-isolate lock: INSERT if no row, UPDATE only if not already syncing.
@@ -183,7 +183,7 @@ export async function syncDriveAccount(
 async function performInitialSync(
   drive: DriveAccount,
   db: D1Database,
-  driveService: GoogleDriveService,
+  driveService: DriveProvider,
   startPageToken?: string,
 ): Promise<boolean> {
   const rootFolderId = await resolveSyncRootFolderId(drive, () =>
@@ -260,7 +260,7 @@ async function performIncrementalSync(
   drive: DriveAccount,
   db: D1Database,
   pageToken: string,
-  driveService: GoogleDriveService,
+  driveService: DriveProvider,
 ): Promise<string> {
   const rootFolderId = await resolveSyncRootFolderId(drive, () =>
     driveService.getRootFolderId(drive.id),

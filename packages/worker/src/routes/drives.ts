@@ -159,8 +159,8 @@ drivesRouter.get('/', async (c) => {
       }
 
       try {
-        const googleDriveService = driveService.getGoogleDriveService();
-        const quota = await googleDriveService.getQuota(drive.id);
+        const driveProvider = driveService.getDriveProvider();
+        const quota = await driveProvider.getQuota(drive.id);
 
         // Only persist the total quota Google actually reports. Google omits
         // storageQuota.limit for Google Workspace pooled storage and service
