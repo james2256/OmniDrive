@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { buildDownloadTree } from '../../src/services/download-tree';
-import type { GDriveFile, GDriveFolder } from '../../src/services/google-drive';
+import type { GDriveFile, GDriveFolder } from '../../src/types/google';
 
 // buildDownloadTree is pure recursion over `driveService.listFolderContents`
 // — no D1, no env. A plain mock driveService (no vi.mock of modules) is enough

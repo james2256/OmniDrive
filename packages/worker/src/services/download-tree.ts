@@ -1,4 +1,5 @@
-import type { GDriveFile, GDriveFolder, GoogleDriveService } from './google-drive';
+import type { GDriveFile, GDriveFolder } from '../types/google';
+import type { GoogleDriveService } from './google-drive';
 
 /**
  * Default caps for the download-tree walk.

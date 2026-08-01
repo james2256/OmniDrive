@@ -2,12 +2,8 @@ import { NotFoundError } from '../lib/errors';
 import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types';
 import type { DriveAccount } from '../types/domain';
 import { mapDriveRow } from '../types/db';
-import {
-  type GoogleDriveService,
-  type GDriveFile,
-  type GDriveFolder,
-  type GDriveOwner,
-} from './google-drive';
+import type { GDriveFile, GDriveFolder, GDriveOwner } from '../types/google';
+import type { GoogleDriveService } from './google-drive';
 import { createDriveService } from '../middleware/shared-services';
 import { resolveSyncRootFolderId } from '../lib/drive-folder';
 import type { Env } from '../types/env';

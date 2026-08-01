@@ -3,7 +3,7 @@ import { generateId } from '../lib/id';
 import { batchInChunks } from '../lib/d1-batch';
 import type { FileRow } from '../types/db';
 import type { DriveAccount } from '../types/domain';
-import type { GDriveFile } from '../services/google-drive';
+import type { GDriveFile } from '../types/google';
 
 /**
  * Data access layer for the `files` table.

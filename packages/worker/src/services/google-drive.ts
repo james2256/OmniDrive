@@ -1,6 +1,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import type { OAuthTokens } from '../types/env';
 import type { QuotaCache } from '../types/domain';
+import type { GDriveFile, GDriveFolder, GDriveOwner } from '../types/google';
 import { parseStorageQuota, QUOTA_CACHE_VERSION } from '../lib/storage-quota';
 import { NotFoundError, AuthError, UpstreamError } from '../lib/errors';
 import { withBackoff } from '../lib/backoff';
@@ -16,34 +17,6 @@ const QUOTA_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 const DRIVE_API = 'https://www.googleapis.com/drive/v3';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
-
-export interface GDriveOwner {
-  me: boolean;
-  displayName?: string;
-}
-
-export interface GDriveFile {
-  id: string;
-  name: string;
-  mimeType: string;
-  size?: string;
-  parents?: string[];
-  trashed?: boolean;
-  owners?: GDriveOwner[];
-  thumbnailLink?: string;
-  webViewLink?: string;
-  webContentLink?: string;
-  createdTime: string;
-  modifiedTime: string;
-  md5Checksum?: string;
-}
-
-export interface GDriveFolder {
-  id: string;
-  name: string;
-  parents?: string[];
-  owners?: GDriveOwner[];
-}
 
 /** Result of a token refresh: the new access token plus its real expiry. */
 interface RefreshedTokens {
