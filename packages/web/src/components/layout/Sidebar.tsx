@@ -15,7 +15,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { SidebarStorage } from './SidebarStorage';
-import pkg from '../../../../../package.json';
+import pkg from '../../../package.json';
 
 export const Sidebar: React.FC = () => {
   const isSidebarOpen = useUIStore((state) => state.isSidebarOpen);

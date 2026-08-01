@@ -596,18 +596,23 @@ export class DriveRepository {
   }
 
   /**
-   * Find a drive folder's `drive_account_id` + `name` by `google_folder_id`
-   * alone (no `drive_account_id` scope). Used by `SharedService.resolveFolderTarget`
-   * for public shared-link download, where only the link's `targetId` (the Google
-   * folder id) is known — the drive is discovered from the row, not filtered by.
+   * Find a drive folder's `drive_account_id` + `name` by `google_folder_id`,
+   * scoped to drives owned by `userId`. Used by `SharedService.resolveFolderTarget`
+   * for public shared-link download — the `userId` scope prevents a link from
+   * resolving to another user's drive folder (cross-drive leak).
    *
    * Distinct from `findDriveFolderByGoogleId`: that requires `driveId` (scoping
-   * to one drive); this returns minimal columns for the shared-link resolver.
+   * to one drive); this scopes by user and returns minimal columns.
    */
-  findDriveFolderMetaByGoogleId(googleFolderId: string) {
+  findDriveFolderMetaByGoogleId(googleFolderId: string, userId: string) {
     return this.db
-      .prepare('SELECT drive_account_id, name FROM drive_folders WHERE google_folder_id = ?')
-      .bind(googleFolderId)
+      .prepare(
+        `SELECT df.drive_account_id, df.name
+         FROM drive_folders df
+         JOIN drive_accounts da ON df.drive_account_id = da.id
+         WHERE df.google_folder_id = ? AND da.user_id = ?`,
+      )
+      .bind(googleFolderId, userId)
       .first<{ drive_account_id: string; name: string }>();
   }
 

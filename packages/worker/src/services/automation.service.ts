@@ -3,6 +3,7 @@ import type { Env } from '../types/env';
 import type { DriveProvider } from '../types/drive-provider';
 import { logErrorNoCtx } from '../lib/logger';
 import { FileRepository } from '../repositories/file.repository';
+import { FolderRepository } from '../repositories/folder.repository';
 import { AutomationRepository } from '../repositories/automation.repository';
 
 export const ACTION_MOVE: RuleAction['type'] = 'move';
@@ -146,6 +147,7 @@ export class AutomationEngine {
 
   private async executeActions(ruleId: string, file: DbFile, actions: RuleAction[]) {
     const fileRepo = new FileRepository(this.env.DB);
+    const folderRepo = new FolderRepository(this.env.DB);
     const automationRepo = new AutomationRepository(this.env.DB);
     try {
       const stmts: D1PreparedStatement[] = [];
@@ -156,6 +158,21 @@ export class AutomationEngine {
           (action as RuleAction & { target_folder_id?: string }).target_folder_id;
 
         if (action.type === ACTION_MOVE && targetFolderId) {
+          // Validate the target folder belongs to a workspace the user can access.
+          // Without this, a crafted rule could point workspace_folder_id at any
+          // UUID — leaking another user's workspace folder name via breadcrumbs.
+          const membership = await folderRepo.findMembership(
+            targetFolderId as string,
+            file.user_id,
+          );
+          if (!membership) {
+            logErrorNoCtx('Automation MOVE: target folder not accessible by user', undefined, {
+              fileId: file.id,
+              targetFolderId,
+              userId: file.user_id,
+            });
+            continue;
+          }
           stmts.push(fileRepo.updateWorkspaceFolderStmt(file.id, targetFolderId as string));
         } else if (action.type === ACTION_DELETE) {
           // Call Google Drive API to trash the file so sync doesn't revert it.

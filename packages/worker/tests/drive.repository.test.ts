@@ -372,16 +372,18 @@ describe('DriveRepository', () => {
   // ─── PR 2: shared-link resolver + starred/trashed drive-folder reads ───
 
   describe('findDriveFolderMetaByGoogleId', () => {
-    it('SELECTs drive_account_id + name by google_folder_id alone (no driveId scope)', async () => {
+    it('SELECTs drive_account_id + name by google_folder_id, scoped by userId via JOIN', async () => {
       mockFirst.mockResolvedValueOnce({ drive_account_id: 'd-1', name: 'My Folder' });
 
-      const result = await repo.findDriveFolderMetaByGoogleId('gfolder-1');
+      const result = await repo.findDriveFolderMetaByGoogleId('gfolder-1', 'u-1');
 
       const sql = mockPrepare.mock.calls[0][0] as string;
-      expect(sql).toBe(
-        'SELECT drive_account_id, name FROM drive_folders WHERE google_folder_id = ?',
-      );
-      expect(mockBind).toHaveBeenCalledWith('gfolder-1');
+      expect(sql).toContain('SELECT df.drive_account_id, df.name');
+      expect(sql).toContain('FROM drive_folders df');
+      expect(sql).toContain('JOIN drive_accounts da ON df.drive_account_id = da.id');
+      expect(sql).toContain('df.google_folder_id = ?');
+      expect(sql).toContain('da.user_id = ?');
+      expect(mockBind).toHaveBeenCalledWith('gfolder-1', 'u-1');
       expect(result).toEqual({ drive_account_id: 'd-1', name: 'My Folder' });
     });
   });

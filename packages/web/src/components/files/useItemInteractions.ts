@@ -1,6 +1,8 @@
 import React from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { foldersApi } from '../../lib/api/folders';
 import { drivesApi } from '../../lib/api/drives';
+import { qk } from '../../lib/queryKeys';
 import { useSelectionStore, type SelectedItem, isSameItem } from '../../stores/useSelectionStore';
 import type { FileEntry } from '../../types';
 import type { FolderItem, ItemActions } from './types';
@@ -84,18 +86,32 @@ export function useItemInteractions(opts: {
     [isTrashView, actions],
   );
 
-  const handleFolderHover = React.useCallback((folder: FolderItem) => {
-    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
-    hoverTimeoutRef.current = setTimeout(() => {
-      if (!('googleFolderId' in folder)) {
-        foldersApi.getFolderContents(folder.id).catch(() => {});
-      } else if (folder.driveAccountId) {
-        drivesApi
-          .getDriveFolderContents(folder.driveAccountId, folder.googleFolderId)
-          .catch(() => {});
-      }
-    }, 300);
-  }, []);
+  const queryClient = useQueryClient();
+  const handleFolderHover = React.useCallback(
+    (folder: FolderItem) => {
+      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = setTimeout(() => {
+        if ('googleFolderId' in folder) {
+          // Drive folder — prefetch into the driveFolderContents cache.
+          const driveAccountId = folder.driveAccountId;
+          const googleFolderId = folder.googleFolderId;
+          if (driveAccountId && googleFolderId) {
+            void queryClient.prefetchQuery({
+              queryKey: qk.driveFolderContents(driveAccountId, googleFolderId),
+              queryFn: () => drivesApi.getDriveFolderContents(driveAccountId, googleFolderId),
+            });
+          }
+        } else if (folder.id) {
+          // Workspace folder — prefetch into the workspaceContents cache.
+          void queryClient.prefetchQuery({
+            queryKey: qk.workspaceContents(folder.id),
+            queryFn: () => foldersApi.getFolderContents(folder.id),
+          });
+        }
+      }, 300);
+    },
+    [queryClient],
+  );
 
   // Hover-prefetch for files removed — the api.getFile endpoint never existed
   // (404s silently). Kept as a no-op to preserve the ItemInteractions interface

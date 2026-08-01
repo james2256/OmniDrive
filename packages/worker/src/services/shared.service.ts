@@ -165,7 +165,10 @@ export class SharedService {
   async resolveFolderTarget(
     link: SharedLink,
   ): Promise<{ driveId: string; googleFolderId: string; rootName: string } | null> {
-    const driveFolder = await this.driveRepo.findDriveFolderMetaByGoogleId(link.targetId);
+    const driveFolder = await this.driveRepo.findDriveFolderMetaByGoogleId(
+      link.targetId,
+      link.userId,
+    );
     if (!driveFolder) return null;
     return {
       driveId: driveFolder.drive_account_id,
