@@ -15,6 +15,7 @@
 
 import { DEFAULT_FOLDER_ICON, DEFAULT_FOLDER_COLOR } from '../constants';
 import type { AutomationRule, AutomationLog, RuleCondition, RuleAction } from './automation';
+import type { SyncStatus } from './sync-status';
 import type { WorkspaceRole } from '../lib/schemas';
 import { safeJsonParse } from '../lib/safe-json-parse';
 import type {
@@ -46,7 +47,7 @@ export function mapDriveRow(row: Record<string, unknown>): DriveAccount {
     usedQuota: (row.used_quota as number) ?? 0,
     quotaOverride: row.quota_override != null ? (row.quota_override as number) : null,
     quotaUpdatedAt: (row.quota_updated_at as string) ?? null,
-    syncStatus: (row.sync_status as 'idle' | 'syncing' | 'error') ?? 'idle',
+    syncStatus: (row.sync_status as SyncStatus) ?? 'idle',
     syncErrorMessage: (row.sync_error_message as string | null) ?? null,
     syncPaused: row.sync_paused === 1,
     lastSyncedAt: (row.last_synced_at as string) ?? null,
@@ -89,7 +90,7 @@ export function mapFileRow(row: Record<string, unknown>): FileEntry {
     googleModifiedAt: (row.google_modified_at as string) ?? null,
     syncedAt: row.synced_at as string,
     lastSyncedAt: (row.last_synced_at as string) ?? null,
-    syncStatus: (row.sync_status as 'idle' | 'syncing' | 'error') ?? 'idle',
+    syncStatus: (row.sync_status as SyncStatus) ?? 'idle',
     createdAt: row.created_at as string,
   };
 }
@@ -217,7 +218,7 @@ export function mapWorkspaceFolderRow(row: Record<string, unknown>): WorkspaceFo
     metadata: (row.metadata as string) ?? '{}',
     isStarred: row.is_starred === 1,
     lastSyncedAt: (row.last_synced_at as string) ?? null,
-    syncStatus: (row.sync_status as 'idle' | 'syncing' | 'error') ?? 'idle',
+    syncStatus: (row.sync_status as SyncStatus) ?? 'idle',
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   };
@@ -262,7 +263,7 @@ export interface WorkspaceFolderRow {
   updated_at: string;
   s3_key?: string;
   last_synced_at: string | null;
-  sync_status: 'idle' | 'syncing' | 'error';
+  sync_status: SyncStatus;
 }
 
 export interface FileRow {
@@ -286,7 +287,7 @@ export interface FileRow {
   google_modified_at: string | null;
   synced_at: string;
   last_synced_at: string | null;
-  sync_status: 'idle' | 'syncing' | 'error';
+  sync_status: SyncStatus;
   updated_at: string;
   s3_key?: string;
 }

@@ -1,5 +1,7 @@
 // Auth API contract — what /api/auth/me, /login, /register return.
 // Matches worker's SessionData (packages/worker/src/types/env.ts).
+import type { SyncStatus } from './sync-status';
+
 export interface SessionData {
   userId: string;
   username: string;
@@ -36,7 +38,7 @@ export interface DriveAccount {
   freeSpace: number;
   usagePercent: number;
   hasLimit?: boolean;
-  syncStatus?: 'idle' | 'syncing' | 'error';
+  syncStatus?: SyncStatus;
   syncErrorMessage?: string | null;
   syncPaused?: boolean;
   health?: 'connected' | 'auth_expired' | 'error';
@@ -81,7 +83,7 @@ export interface WorkspaceFolder {
   metadata?: string | Record<string, string>;
   isStarred: boolean;
   lastSyncedAt: string | null;
-  syncStatus: 'idle' | 'syncing' | 'error';
+  syncStatus: SyncStatus;
   createdAt: string;
   updatedAt: string;
 }
@@ -106,7 +108,7 @@ export interface FileEntry {
   googleModifiedAt: string | null;
   syncedAt: string;
   lastSyncedAt: string | null;
-  syncStatus: 'idle' | 'syncing' | 'error';
+  syncStatus: SyncStatus;
   createdAt: string;
   driveEmail?: string; // optional — not present in folder-browse responses
   isStarred?: boolean;

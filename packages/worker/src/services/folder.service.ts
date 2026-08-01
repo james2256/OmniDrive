@@ -8,6 +8,7 @@ import { NotFoundError, ForbiddenError } from '../lib/errors';
 import { generateId } from '../lib/id';
 import { mapFileRow } from '../types/db';
 import type { FileEntry } from '../types/domain';
+import type { SyncStatus } from '../types/sync-status';
 
 /**
  * Business logic layer for workspace folder operations.
@@ -119,7 +120,7 @@ export class FolderService {
       createdAt: (ws as Record<string, unknown>).created_at as string,
       updatedAt: (ws as Record<string, unknown>).updated_at as string,
       lastSyncedAt: null as string | null,
-      syncStatus: 'idle' as 'idle' | 'syncing' | 'error',
+      syncStatus: 'idle' as SyncStatus,
     };
 
     const { results: subRows } = await this.folderRepo.findRootFoldersByWorkspace(workspaceId);
@@ -135,7 +136,7 @@ export class FolderService {
       createdAt: f.created_at as string,
       updatedAt: f.updated_at as string,
       lastSyncedAt: (f.last_synced_at as string) || null,
-      syncStatus: (f.sync_status as 'idle' | 'syncing' | 'error') || 'idle',
+      syncStatus: (f.sync_status as SyncStatus) || 'idle',
     }));
 
     const { results: fileRows } = await this.fileRepo.findFilesInWorkspaceRoot(
@@ -213,7 +214,7 @@ export class FolderService {
       createdAt: sf.created_at as string,
       updatedAt: sf.updated_at as string,
       lastSyncedAt: (sf.last_synced_at as string) || null,
-      syncStatus: (sf.sync_status as 'idle' | 'syncing' | 'error') || 'idle',
+      syncStatus: (sf.sync_status as SyncStatus) || 'idle',
     }));
 
     const { results: fileRows } = await this.fileRepo.findFilesInFolder(folderId, cursor, limit);

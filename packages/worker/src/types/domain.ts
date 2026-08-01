@@ -6,6 +6,8 @@
 //
 // Mapper functions in db.ts convert raw D1 rows into these domain types.
 
+import type { SyncStatus } from './sync-status';
+
 export interface DriveAccount {
   id: string;
   userId: string;
@@ -19,7 +21,7 @@ export interface DriveAccount {
   usedQuota: number;
   quotaOverride: number | null;
   quotaUpdatedAt: string | null;
-  syncStatus: 'idle' | 'syncing' | 'error';
+  syncStatus: SyncStatus;
   syncErrorMessage: string | null;
   syncPaused: boolean;
   lastSyncedAt: string | null;
@@ -59,7 +61,7 @@ export interface FileEntry {
   googleModifiedAt: string | null;
   syncedAt: string;
   lastSyncedAt: string | null;
-  syncStatus: 'idle' | 'syncing' | 'error';
+  syncStatus: SyncStatus;
   createdAt: string;
 }
 
@@ -67,7 +69,7 @@ export interface SyncState {
   driveAccountId: string;
   changeToken: string | null;
   lastSyncedAt: string | null;
-  status: 'idle' | 'syncing' | 'error';
+  status: SyncStatus;
   errorMessage: string | null;
 }
 
@@ -168,7 +170,7 @@ export interface WorkspaceFolder {
   metadata?: string | Record<string, string>;
   isStarred: boolean;
   lastSyncedAt: string | null;
-  syncStatus: 'idle' | 'syncing' | 'error';
+  syncStatus: SyncStatus;
   createdAt: string;
   updatedAt: string;
 }
