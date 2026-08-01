@@ -17,6 +17,7 @@ import { FolderRepository } from '../repositories/folder.repository';
 import { SyncStateRepository } from '../repositories/sync-state.repository';
 import { batchInChunks } from '../lib/d1-batch';
 import { logErrorNoCtx } from '../lib/logger';
+import { computeStorageDelta, type FileStateForStats } from '../lib/storage-stats';
 
 let isShuttingDown = false;
 
@@ -74,18 +75,39 @@ export async function batchUpsertFolderContents(
   // are never shown in the app and would leak into search/recent/starred/trashed
   // queries (which filter by user_id, not owned_by_me). The live Google API is
   // used for folder drill-in, so non-owned children are still visible transiently.
+  const ownedFiles = files.filter((f) => isOwnedByMe(f.owners));
+
+  // Read existing file states before upsert so deltas are computed correctly.
+  // Must run BEFORE batchInChunks — the UPSERT overwrites the old row.
+  const oldStates = await fileRepo.findExistingForDelta(
+    drive.id,
+    ownedFiles.map((f) => f.id),
+  );
+
   const stmts: D1PreparedStatement[] = [
     ...folders
       .filter((f) => isOwnedByMe(f.owners))
       .map((f) => folderRepo.buildDriveFolderUpsertStmt(drive, f, googleParentId, true)),
-    ...files
-      .filter((f) => isOwnedByMe(f.owners))
-      .map((f) => fileRepo.buildUpsertStmt(drive, f, googleParentId, true)),
+    ...ownedFiles.map((f) => fileRepo.buildUpsertStmt(drive, f, googleParentId, true)),
   ];
   await batchInChunks(db, stmts);
-  // Invalidate the category overview cache — the upserted files change the
-  // mime_type aggregation, so the dashboard must recompute on next visit.
-  await fileRepo.invalidateCategoryCache(drive.userId);
+
+  // Apply storage stats deltas (replaces the old invalidateCategoryCache).
+  // computeStorageDelta handles insert (null→active), update (active→active),
+  // and UPSERT-untrashes (trashed→active) correctly.
+  const deltas: { userId: string; mimeType: string; delta: number }[] = [];
+  for (const file of ownedFiles) {
+    const old = oldStates.get(file.id) ?? null;
+    const next: FileStateForStats = {
+      size: parseInt(file.size ?? '0', 10),
+      mimeType: file.mimeType ?? '',
+      isTrashed: false,
+    };
+    for (const d of computeStorageDelta(old, next)) {
+      deltas.push({ userId: drive.userId, mimeType: d.mimeType, delta: d.delta });
+    }
+  }
+  await fileRepo.applyStorageDeltas(deltas);
 }
 
 /**
@@ -160,11 +182,6 @@ export async function syncDriveAccount(
 
     await syncStateRepo.upsertError(drive.id, message);
   }
-
-  // Invalidate the category overview cache after any sync (initial or incremental).
-  // Sync upserts change file rows (new files, trashed flags, metadata updates),
-  // so the dashboard's mime_type aggregation must be recomputed on next visit.
-  await new FileRepository(db).invalidateCategoryCache(drive.userId);
 }
 
 async function performInitialSync(
@@ -189,18 +206,40 @@ async function performInitialSync(
     const fileRepo = new FileRepository(db);
     const folderRepo = new FolderRepository(db);
     const stmts: D1PreparedStatement[] = [];
+    const ownedFiles = chunk.files.filter((f) => isOwnedByMe(f.owners));
+
+    // Read existing file states BEFORE upsert — the UPSERT overwrites old row.
+    const oldStates = await fileRepo.findExistingForDelta(
+      drive.id,
+      ownedFiles.map((f) => f.id),
+    );
+
     // Only store items the user owns — see batchUpsertFolderContents for rationale.
     for (const folder of chunk.folders) {
       if (!isOwnedByMe(folder.owners)) continue;
       const parentId = resolveParentId(folder.parents, rootFolderId, true);
       stmts.push(folderRepo.buildDriveFolderUpsertStmt(drive, folder, parentId, true));
     }
-    for (const file of chunk.files) {
-      if (!isOwnedByMe(file.owners)) continue;
+    for (const file of ownedFiles) {
       const parentId = resolveParentId(file.parents, rootFolderId, false);
       stmts.push(fileRepo.buildUpsertStmt(drive, file, parentId, true));
     }
     await batchInChunks(db, stmts);
+
+    // Apply storage stats deltas for this page.
+    const deltas: { userId: string; mimeType: string; delta: number }[] = [];
+    for (const file of ownedFiles) {
+      const old = oldStates.get(file.id) ?? null;
+      const next: FileStateForStats = {
+        size: parseInt(file.size ?? '0', 10),
+        mimeType: file.mimeType ?? '',
+        isTrashed: false,
+      };
+      for (const d of computeStorageDelta(old, next)) {
+        deltas.push({ userId: drive.userId, mimeType: d.mimeType, delta: d.delta });
+      }
+    }
+    await fileRepo.applyStorageDeltas(deltas);
 
     // Save checkpoint every page — bulletproof crash resilience. D1 has 1,000 subrequest
     // limit, so the extra save per page (44 max) is well within budget.
@@ -251,9 +290,20 @@ async function performIncrementalSync(
     const driveRepo = new DriveRepository(db);
     const fileRepo = new FileRepository(db);
     const folderRepo = new FolderRepository(db);
+    const deltas: { userId: string; mimeType: string; delta: number }[] = [];
+
+    // Read existing file states BEFORE processing changes — needed for delta
+    // computation. Fetch all change fileIds (removed, trashed, upserted) since
+    // any may have an existing D1 row whose state determines the delta.
+    const fileIdsToLookup = response.changes.filter((c) => c.fileId).map((c) => c.fileId);
+    const oldStates = await fileRepo.findExistingForDelta(drive.id, fileIdsToLookup);
+
     for (const change of response.changes) {
       if (getIsShuttingDown()) return currentToken;
       const isFolder = change.file?.mimeType === MIME_TYPE_FOLDER;
+
+      // For delta computation: look up old state (may be null if file is new)
+      const oldState = oldStates.get(change.fileId) ?? null;
 
       if (change.removed) {
         // Permanently deleted from Google Drive — remove from D1
@@ -261,6 +311,10 @@ async function performIncrementalSync(
           stmts.push(driveRepo.deleteDriveFolderStmt(drive.id, change.fileId));
         } else {
           stmts.push(fileRepo.deleteByDriveAndGoogleIdStmt(drive.id, change.fileId));
+          // Delta: old state (active or trashed) → deleted
+          for (const d of computeStorageDelta(oldState, null)) {
+            deltas.push({ userId: drive.userId, mimeType: d.mimeType, delta: d.delta });
+          }
         }
         continue;
       }
@@ -277,6 +331,10 @@ async function performIncrementalSync(
           stmts.push(driveRepo.deleteDriveFolderStmt(drive.id, change.fileId));
         } else {
           stmts.push(fileRepo.deleteByDriveAndGoogleIdStmt(drive.id, change.fileId));
+          // Delta: old state → deleted (file transferred out / ownership lost)
+          for (const d of computeStorageDelta(oldState, null)) {
+            deltas.push({ userId: drive.userId, mimeType: d.mimeType, delta: d.delta });
+          }
         }
         continue;
       }
@@ -287,6 +345,15 @@ async function performIncrementalSync(
           stmts.push(driveRepo.markDriveFolderTrashedStmt(drive.id, change.fileId));
         } else {
           stmts.push(fileRepo.markTrashedByDriveAndGoogleIdStmt(drive.id, change.fileId));
+          // Delta: old state → trashed
+          const newState: FileStateForStats = {
+            size: parseInt(file.size ?? '0', 10),
+            mimeType: file.mimeType ?? '',
+            isTrashed: true,
+          };
+          for (const d of computeStorageDelta(oldState, newState)) {
+            deltas.push({ userId: drive.userId, mimeType: d.mimeType, delta: d.delta });
+          }
         }
         continue;
       }
@@ -305,9 +372,19 @@ async function performIncrementalSync(
       } else {
         const parentId = resolveParentId(file.parents, rootFolderId, false);
         stmts.push(fileRepo.buildUpsertStmt(drive, file as unknown as GDriveFile, parentId, true));
+        // Delta: old state → active (handles insert, update, and UPSERT-untrashes)
+        const newState: FileStateForStats = {
+          size: parseInt(file.size ?? '0', 10),
+          mimeType: file.mimeType ?? '',
+          isTrashed: false,
+        };
+        for (const d of computeStorageDelta(oldState, newState)) {
+          deltas.push({ userId: drive.userId, mimeType: d.mimeType, delta: d.delta });
+        }
       }
     }
     await batchInChunks(db, stmts);
+    await fileRepo.applyStorageDeltas(deltas);
 
     if (response.newStartPageToken) {
       return response.newStartPageToken;

@@ -23,4 +23,12 @@ describe('Database Schema', () => {
     expect(schema).toContain('CREATE TABLE IF NOT EXISTS s3_multipart_uploads');
     expect(schema).toContain('CREATE TABLE IF NOT EXISTS s3_multipart_parts');
   });
+
+  it('should have file_storage_stats delta table (replaces category_cache)', async () => {
+    const fs = await import('fs/promises');
+    const schema = await fs.readFile('./src/db/schema.sql', 'utf-8');
+
+    expect(schema).toContain('CREATE TABLE IF NOT EXISTS file_storage_stats');
+    expect(schema).not.toContain('CREATE TABLE IF NOT EXISTS category_cache');
+  });
 });

@@ -303,7 +303,7 @@ The full navigation map (when to read + section anchors) is in the **"Project Do
 | File | Content | Last updated |
 |------|---------|--------------|
 | `docs/ARCHITECTURE.md` | Diagrams, data flow, system components, quota/capacity | This session (capacity editor ref moved to Settings) |
-| `docs/SCHEMA.md` | D1 tables, relations, indexes, migrations `0001`–`0009` | Previous session (`quota_override` + migration `0007` + `category_cache` + perf indexes) |
+| `docs/SCHEMA.md` | D1 tables, relations, indexes, migrations `0001`–`0012` | Previous session (`quota_override` + migration `0007` + `category_cache` (later replaced by `file_storage_stats` in 0012) + perf indexes) |
 | `docs/DESIGN.md` | Cobalt color tokens, bento layout, component patterns | This session (bento dashboard + Option B palette) |
 | `docs/CHANGELOG.md` | Version history (`[Unreleased]` + `0.9.7` downward) | This session (bento redesign + cobalt palette + drive tokens) |
 | `README.md` | User guide & setup | Unchanged (already rebranded to OmniDrive) |

@@ -1281,7 +1281,7 @@ describe('Repositories (integration)', () => {
     });
   });
 
-  // ─── PR 3: S3CredentialsRepository.findByAccessKeyId + WorkspaceRepository.findMemberRole + FileRepository.invalidateCategoryCache ───
+  // ─── PR 3: S3CredentialsRepository.findByAccessKeyId + WorkspaceRepository.findMemberRole + FileRepository.getStorageStats ───
 
   describe('S3CredentialsRepository.findByAccessKeyId', () => {
     it('returns the credential row by access_key_id (no user scope)', async () => {
@@ -1334,33 +1334,35 @@ describe('Repositories (integration)', () => {
     });
   });
 
-  describe('FileRepository.invalidateCategoryCache', () => {
-    it("removes only the specified user's category cache entry", async () => {
+  describe('FileRepository.getStorageStats', () => {
+    it('returns per-mime-type totals for a user', async () => {
       await insertUser('u1', 'alice', 1);
-      await insertUser('u2', 'bob', 0);
-      const now = Date.now();
       await env.DB.prepare(
-        'INSERT INTO category_cache (user_id, payload, updated_at) VALUES (?, ?, ?)',
+        'INSERT INTO file_storage_stats (user_id, mime_type, total_size) VALUES (?, ?, ?)',
       )
-        .bind('u1', '{"old":1}', now - 2 * 3600_000)
+        .bind('u1', 'image/jpeg', 5000)
         .run();
       await env.DB.prepare(
-        'INSERT INTO category_cache (user_id, payload, updated_at) VALUES (?, ?, ?)',
+        'INSERT INTO file_storage_stats (user_id, mime_type, total_size) VALUES (?, ?, ?)',
       )
-        .bind('u2', '{"new":1}', now)
+        .bind('u1', 'video/mp4', 12000)
         .run();
 
       const repo = new FileRepository(env.DB);
-      await repo.invalidateCategoryCache('u1');
+      const { results } = await repo.getStorageStats('u1');
 
-      const stale = await env.DB.prepare('SELECT user_id FROM category_cache WHERE user_id = ?')
-        .bind('u1')
-        .first();
-      expect(stale).toBeNull();
-      const fresh = await env.DB.prepare('SELECT user_id FROM category_cache WHERE user_id = ?')
-        .bind('u2')
-        .first();
-      expect(fresh).not.toBeNull();
+      expect(results).toHaveLength(2);
+      const images = results.find((r: any) => r.mime_type === 'image/jpeg');
+      expect(images?.total_size).toBe(5000);
+      const videos = results.find((r: any) => r.mime_type === 'video/mp4');
+      expect(videos?.total_size).toBe(12000);
+    });
+
+    it('returns empty for a user with no stats', async () => {
+      await insertUser('u2', 'bob', 0);
+      const repo = new FileRepository(env.DB);
+      const { results } = await repo.getStorageStats('u2');
+      expect(results).toHaveLength(0);
     });
   });
 });

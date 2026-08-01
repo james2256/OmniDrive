@@ -1,7 +1,6 @@
 import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types';
 import { generateId } from '../lib/id';
 import { batchInChunks } from '../lib/d1-batch';
-import { safeJsonParse } from '../lib/safe-json-parse';
 import type { FileRow } from '../types/db';
 import type { DriveAccount } from '../types/domain';
 import type { GDriveFile } from '../services/google-drive';
@@ -62,68 +61,114 @@ export class FileRepository {
       .all();
   }
 
-  /** Find files grouped by mime_type for category overview. */
-  findCategoryOverview(userId: string) {
+  // ─── Storage stats (delta-maintained, replaces category_cache) ───
+
+  /**
+   * Read per-mime-type running sums for a user (~20 rows). Feeds
+   * FileService.getCategoryOverview for the dashboard donut chart.
+   * Replaces the old getCategoryOverviewCached which scanned 100K+ rows
+   * on every cache miss.
+   */
+  getStorageStats(userId: string) {
     return this.db
-      .prepare(
-        `
-      SELECT mime_type, SUM(size) as total_size
-      FROM files
-      WHERE user_id = ? AND is_trashed = 0
-      GROUP BY mime_type
-    `,
-      )
+      .prepare('SELECT mime_type, total_size FROM file_storage_stats WHERE user_id = ?')
       .bind(userId)
       .all<{ mime_type: string; total_size: number }>();
   }
 
   /**
-   * Cached version of findCategoryOverview. The GROUP BY reads every
-   * non-trashed file row for the user on every dashboard load; caching the
-   * raw mime_type aggregation (5-min TTL) eliminates the repeated scan.
-   * The bucket-mapping (images/videos/documents/…) stays in FileService —
-   * only the SQL aggregation is cached here, matching quota_cache's pattern.
-   * Sync upserts bypass FileService, so the TTL covers that path.
+   * Return a prepared stats delta UPSERT statement (not run) for batch
+   * composition. Uses MAX(0, total_size + ?) to prevent negative totals
+   * from drift (a missed delta would otherwise produce a negative value
+   * that breaks the frontend donut chart — DashboardPage.tsx filters
+   * `c.value > 0`, which would silently drop the negative bucket and
+   * inflate the total). The recomputeStorageStats admin endpoint is the
+   * real drift fix; MAX(0) prevents UI breakage in the meantime.
    */
-
-  /**
-   * No TTL — the cache lives until explicitly invalidated by a file mutation
-   * (upload, trash, restore, delete, or sync). The sync invalidation gap was
-   * closed by adding `invalidateCategoryCache` calls to sync.ts, and the
-   * hourly cron cleanup was removed from index.ts. This eliminates the
-   * periodic full-table scan that the 5-minute TTL forced on every dashboard
-   * visit.
-   */
-  async getCategoryOverviewCached(
-    userId: string,
-  ): Promise<{ results: { mime_type: string; total_size: number }[] }> {
-    const cacheRow = await this.db
-      .prepare('SELECT payload FROM category_cache WHERE user_id = ?')
-      .bind(userId)
-      .first<{ payload: string }>();
-    if (cacheRow) {
-      return {
-        results: safeJsonParse(cacheRow.payload, [] as { mime_type: string; total_size: number }[]),
-      };
-    }
-
-    // Cache miss — compute and store
-    const { results } = await this.findCategoryOverview(userId);
-
-    await this.db
+  applyStorageDeltaStmt(userId: string, mimeType: string, delta: number): D1PreparedStatement {
+    // INSERT stores the raw delta. On first insert, a negative delta would
+    // create a negative row — but applyStorageDeltas only calls this when
+    // delta !== 0, and the first delta for a (user, mime) pair is always
+    // positive (you can't subtract from something that doesn't exist).
+    // The CASE WHEN in ON CONFLICT clamps at zero for subsequent updates.
+    return this.db
       .prepare(
-        'INSERT INTO category_cache (user_id, payload, updated_at) VALUES (?, ?, ?) ' +
-          'ON CONFLICT(user_id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at',
+        `INSERT INTO file_storage_stats (user_id, mime_type, total_size) VALUES (?, ?, ?)
+         ON CONFLICT(user_id, mime_type) DO UPDATE SET total_size = CASE WHEN total_size + excluded.total_size < 0 THEN 0 ELSE total_size + excluded.total_size END`,
       )
-      .bind(userId, JSON.stringify(results), Date.now())
-      .run();
-
-    return { results };
+      .bind(userId, mimeType, delta);
   }
 
-  /** Invalidate the category overview cache after a trash/restore/delete/upload/sync. */
-  invalidateCategoryCache(userId: string) {
-    return this.db.prepare('DELETE FROM category_cache WHERE user_id = ?').bind(userId).run();
+  /**
+   * Batch-apply multiple deltas (used by sync + service mutations).
+   * Filters out zero deltas (e.g. rename-only changes produce no stats delta).
+   */
+  async applyStorageDeltas(
+    deltas: { userId: string; mimeType: string; delta: number }[],
+  ): Promise<void> {
+    const stmts = deltas
+      .filter((d) => d.delta !== 0)
+      .map((d) => this.applyStorageDeltaStmt(d.userId, d.mimeType, d.delta));
+    if (stmts.length > 0) {
+      await batchInChunks(this.db, stmts);
+    }
+  }
+
+  /**
+   * Fetch existing file rows for a set of Google file IDs — used by the sync
+   * loop to compute deltas before upserting. Returns Map<googleFileId, state>.
+   * One query per page (not per file) — stays within D1's subrequest budget.
+   * Chunks IN(?) lists at 500 to stay under D1's variable limit.
+   */
+  async findExistingForDelta(
+    driveAccountId: string,
+    googleFileIds: string[],
+  ): Promise<Map<string, { size: number; mimeType: string; isTrashed: boolean }>> {
+    const out = new Map<string, { size: number; mimeType: string; isTrashed: boolean }>();
+    if (googleFileIds.length === 0) return out;
+
+    const CHUNK = 500;
+    for (let i = 0; i < googleFileIds.length; i += CHUNK) {
+      const chunk = googleFileIds.slice(i, i + CHUNK);
+      const placeholders = chunk.map(() => '?').join(',');
+      const { results } = await this.db
+        .prepare(
+          `SELECT google_file_id, size, mime_type, is_trashed
+           FROM files WHERE drive_account_id = ? AND google_file_id IN (${placeholders})`,
+        )
+        .bind(driveAccountId, ...chunk)
+        .all<{
+          google_file_id: string;
+          size: number;
+          mime_type: string | null;
+          is_trashed: number;
+        }>();
+      for (const r of results) {
+        out.set(r.google_file_id, {
+          size: r.size ?? 0,
+          mimeType: r.mime_type ?? '',
+          isTrashed: r.is_trashed === 1,
+        });
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Full recompute for admin reconcile / initial-sync fallback.
+   * DELETE + re-INSERT in a single batch (atomic).
+   */
+  async recomputeStorageStats(userId: string): Promise<void> {
+    await this.db.batch([
+      this.db.prepare('DELETE FROM file_storage_stats WHERE user_id = ?').bind(userId),
+      this.db
+        .prepare(
+          `INSERT INTO file_storage_stats (user_id, mime_type, total_size)
+           SELECT ?, COALESCE(mime_type, ''), SUM(size) FROM files
+           WHERE user_id = ? AND is_trashed = 0 GROUP BY COALESCE(mime_type, '')`,
+        )
+        .bind(userId, userId),
+    ]);
   }
 
   /**
@@ -387,14 +432,6 @@ export class FileRepository {
     return this.db
       .prepare('UPDATE files SET is_trashed = 1 WHERE drive_account_id = ? AND google_file_id = ?')
       .bind(driveAccountId, googleFileId);
-  }
-
-  /** Atomically delete a file and invalidate its user's category cache. */
-  async deleteAndInvalidateCache(fileId: string, userId: string) {
-    await this.db.batch([
-      this.db.prepare('DELETE FROM files WHERE id = ? AND user_id = ?').bind(fileId, userId),
-      this.db.prepare('DELETE FROM category_cache WHERE user_id = ?').bind(userId),
-    ]);
   }
 
   updateMetadata(fileId: string, metadata: string) {

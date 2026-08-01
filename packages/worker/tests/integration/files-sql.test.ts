@@ -197,11 +197,12 @@ describe('Complex SQL integration (integration)', () => {
     expect(body.files.map((f) => f.name)).not.toContain('ws-file-b.txt');
   });
 
-  // 4.3 — GET /category-overview aggregates by mime type (GROUP BY)
+  // 4.3 — GET /category-overview reads from file_storage_stats (delta table)
   it('GET /category-overview aggregates sizes by mime type', async () => {
     const user = await createUserAndSession('user-c');
     await createDrive(user.userId, 'drive-c1');
 
+    // Insert files directly (bypassing service layer, so stats aren't auto-populated)
     await createFile({
       id: 'file-c1',
       userId: user.userId,
@@ -227,6 +228,18 @@ describe('Complex SQL integration (integration)', () => {
       size: 9999,
       isTrashed: 1,
     });
+
+    // Populate file_storage_stats (mirrors what the service would do on upload)
+    await env.DB.prepare(
+      'INSERT INTO file_storage_stats (user_id, mime_type, total_size) VALUES (?, ?, ?)',
+    )
+      .bind(user.userId, 'image/jpeg', 5000)
+      .run();
+    await env.DB.prepare(
+      'INSERT INTO file_storage_stats (user_id, mime_type, total_size) VALUES (?, ?, ?)',
+    )
+      .bind(user.userId, 'application/pdf', 3000)
+      .run();
 
     const res = await app.request(
       '/api/files/category-overview',

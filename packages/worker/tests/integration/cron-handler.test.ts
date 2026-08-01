@@ -207,9 +207,8 @@ describe('Scheduled cron handler (integration)', () => {
     expect(fresh?.payload).toBe('{"f":1}');
   });
 
-  // Note: category_cache cron cleanup was removed — the cache now lives until
-  // explicitly invalidated by a file mutation (upload/trash/delete/sync), not
-  // purged hourly by the cron. See FileRepository.invalidateCategoryCache.
+  // Note: category_cache was replaced by file_storage_stats (delta-maintained,
+  // no cron cleanup needed). The cron no longer touches storage stats.
 
   it('cleans up audit logs older than 30 days and keeps recent ones', async () => {
     await env.DB.prepare('INSERT INTO users (id, username, password_hash) VALUES (?, ?, ?)')

@@ -47,7 +47,7 @@ export function resetD1(execSync, flag) {
     's3_multipart_uploads',
     'oauth_states',
     'quota_cache',
-    'category_cache',
+    'file_storage_stats',
     'sessions',
     'workspaces',
     'drive_accounts',

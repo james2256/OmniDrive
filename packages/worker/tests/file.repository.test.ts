@@ -383,30 +383,46 @@ describe('FileRepository', () => {
     });
   });
 
-  describe('invalidateCategoryCache', () => {
-    it('DELETEs category_cache rows for a user', async () => {
-      await repo.invalidateCategoryCache('u-1');
+  describe('getStorageStats', () => {
+    it('SELECTs mime_type + total_size by user_id via .all()', async () => {
+      mockAll.mockResolvedValueOnce({ results: [{ mime_type: 'image/jpeg', total_size: 1024 }] });
+
+      await repo.getStorageStats('u-1');
 
       const sql = mockPrepare.mock.calls[0][0] as string;
-      expect(sql).toContain('DELETE FROM category_cache WHERE user_id = ?');
+      expect(sql).toBe('SELECT mime_type, total_size FROM file_storage_stats WHERE user_id = ?');
       expect(mockBind).toHaveBeenCalledWith('u-1');
     });
   });
 
-  describe('deleteAndInvalidateCache', () => {
-    it('runs a 2-statement batch: DELETE file + DELETE category_cache', async () => {
-      await repo.deleteAndInvalidateCache('f-1', 'u-1');
+  describe('applyStorageDeltaStmt', () => {
+    it('returns a prepared UPSERT with MAX(0, total_size + ?) clamp', () => {
+      repo.applyStorageDeltaStmt('u-1', 'image/jpeg', 500);
 
-      expect(mockBatch).toHaveBeenCalledTimes(1);
-      const stmts = mockBatch.mock.calls[0][0] as unknown[];
-      expect(stmts).toHaveLength(2);
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain('INSERT INTO file_storage_stats');
+      expect(sql).toContain('ON CONFLICT(user_id, mime_type) DO UPDATE');
+      expect(sql).toContain('CASE WHEN total_size + excluded.total_size < 0 THEN 0');
+      expect(mockBind).toHaveBeenCalledWith('u-1', 'image/jpeg', 500);
+      expect(mockRun).not.toHaveBeenCalled();
+    });
+  });
 
-      const sqls = mockPrepare.mock.calls.map((c) => c[0] as string);
-      expect(sqls).toContain('DELETE FROM files WHERE id = ? AND user_id = ?');
-      expect(sqls).toContain('DELETE FROM category_cache WHERE user_id = ?');
+  describe('applyStorageDeltas', () => {
+    it('filters zero deltas and applies non-zero ones via batchInChunks', async () => {
+      await repo.applyStorageDeltas([
+        { userId: 'u-1', mimeType: 'image/jpeg', delta: 500 },
+        { userId: 'u-1', mimeType: 'video/mp4', delta: 0 }, // should be filtered
+        { userId: 'u-1', mimeType: 'application/pdf', delta: -200 },
+      ]);
 
-      expect(mockBind).toHaveBeenNthCalledWith(1, 'f-1', 'u-1');
-      expect(mockBind).toHaveBeenNthCalledWith(2, 'u-1');
+      // Only 2 non-zero deltas → 2 prepare calls
+      expect(mockPrepare).toHaveBeenCalledTimes(2);
+    });
+
+    it('does nothing when all deltas are zero', async () => {
+      await repo.applyStorageDeltas([{ userId: 'u-1', mimeType: 'image/jpeg', delta: 0 }]);
+      expect(mockPrepare).not.toHaveBeenCalled();
     });
   });
 
@@ -480,15 +496,23 @@ describe('FileRepository', () => {
     });
   });
 
-  // ─── category cache invalidation (no TTL — invalidated on mutation) ───
+  // ─── recomputeStorageStats (admin reconcile) ───
 
-  describe('invalidateCategoryCache', () => {
-    it('DELETEs category_cache by user_id, single bind', async () => {
-      await repo.invalidateCategoryCache('u-1');
+  describe('recomputeStorageStats', () => {
+    it('runs a 2-statement batch: DELETE + INSERT from files GROUP BY', async () => {
+      await repo.recomputeStorageStats('u-1');
 
-      const sql = mockPrepare.mock.calls[0][0] as string;
-      expect(sql).toBe('DELETE FROM category_cache WHERE user_id = ?');
-      expect(mockBind).toHaveBeenCalledWith('u-1');
+      expect(mockBatch).toHaveBeenCalledTimes(1);
+      const stmts = mockBatch.mock.calls[0][0] as unknown[];
+      expect(stmts).toHaveLength(2);
+
+      const sqls = mockPrepare.mock.calls.map((c) => c[0] as string);
+      expect(sqls).toContain('DELETE FROM file_storage_stats WHERE user_id = ?');
+      expect(
+        sqls.some(
+          (s) => s.includes('INSERT INTO file_storage_stats') && s.includes('GROUP BY COALESCE'),
+        ),
+      ).toBe(true);
     });
   });
 });

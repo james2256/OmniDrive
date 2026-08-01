@@ -1527,7 +1527,7 @@ The Worker's `scheduled` handler (`index.ts:117-143`) runs on the cron
 - `AuditService.cleanupOldLogs(30)` — deletes audit logs older than 30 days
 - `PolicyService.processAutoDeleteRetentionPolicies(...)` — runs data-retention policies
 - D1 cleanup: expired `sessions`, `oauth_states` (>10 min), `quota_cache` (>1 h),
-  `category_cache` (>1 h)
+  `file_storage_stats` (no cleanup — delta-maintained)
 
 In the Docker (node-server) build, the same handler is invoked by `node-cron`
 on the same schedule (`node-server.ts:84-90`).

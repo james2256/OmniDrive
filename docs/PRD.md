@@ -680,7 +680,7 @@ Full schema in `docs/SCHEMA.md`. 24 tables grouped by domain:
 | `drive_folders` | Read-only cache of Google folder tree | `drive_account_id`, `google_folder_id`, `google_parent_id`, `name` |
 | `sync_state` | Per-drive sync state | `drive_account_id` (PK), `change_token`, `next_page_token` (resume checkpoint), `status` |
 | `quota_cache` | Google `storageQuota` cache (5-min TTL) | `drive_account_id` (PK), `payload` (JSON), `updated_at` |
-| `category_cache` | MIME-category bytes cache for dashboard donut (added in `0007_d1_perf_indexes_and_category_cache.sql`) | `drive_account_id` (PK), `payload` (JSON), `updated_at` |
+| `file_storage_stats` | Per-(user_id, mime_type) running sum for dashboard donut (delta-maintained, added in `0012_storage_stats_delta_table.sql`, replaces `category_cache`) | `user_id`, `mime_type` (PK), `total_size` |
 
 ### 9.3 Workspaces & RBAC
 

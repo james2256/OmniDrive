@@ -374,7 +374,7 @@ The migrations live in `packages/worker/migrations/`:
 | `0004_add_drive_folders_is_starred.sql`       | `drive_folders.is_starred`                          |
 | `0005_add_files_cursor_index.sql`             | `files` cursor index for pagination                  |
 | `0006_audit_logs_set_null.sql`                | `audit_logs` nullable columns                       |
-| `0007_d1_perf_indexes_and_category_cache.sql` | D1 performance indexes + `category_cache` table     |
+| `0007_d1_perf_indexes_and_category_cache.sql` | D1 performance indexes + Table `category_cache` (later replaced by `file_storage_stats` in 0012)     |
 | `0008_findrecent_perf_indexes.sql`            | Performance indexes for the recent-files query      |
 | `0009_add_users_is_blocked.sql`               | `users.is_blocked` flag                             |
 
@@ -453,7 +453,7 @@ The Worker's `scheduled` handler is wired to fire every 30 minutes via
 - `AutomationEngine.processCronTrigger(ctx)` — cron-triggered automation rules
 - `AuditService.cleanupOldLogs(30)` — 30-day audit retention
 - `PolicyService.processAutoDeleteRetentionPolicies(...)` — data-retention policies
-- D1 cleanup: `sessions` (expired), `oauth_states` (>10 min), `quota_cache` (>1 h), `category_cache` (>1 h)
+- D1 cleanup: `sessions` (expired), `oauth_states` (>10 min), `quota_cache` (>1 h)
 
 You can also invoke it manually for debugging:
 

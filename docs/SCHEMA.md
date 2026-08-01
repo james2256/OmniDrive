@@ -18,7 +18,7 @@ erDiagram
     users ||--o{ oauth_states : initiates
     users ||--o{ invitation_codes : creates
     users ||--o{ s3_multipart_uploads : initiates
-    users ||--o{ category_cache : has
+    users ||--o{ file_storage_stats : has
 
     workspaces ||--o{ workspace_members : has
     workspaces ||--o{ workspace_folders : contains
@@ -417,23 +417,19 @@ Cache of Google Drive API `storageQuota` results (migrated from KV in baseline `
 
 ---
 
-### `category_cache`
+### `file_storage_stats`
 
-Per-user MIME-category aggregation cache backing the Dashboard category breakdown
-(added by migration `0007_d1_perf_indexes_and_category_cache`). Mirrors
-`quota_cache`: PK + `payload` TEXT + `updated_at` INTEGER, 5-min TTL via
-`updated_at` check, upserted on cache miss, invalidated on
-trash/restore/delete/upload. Sync upserts bypass the service layer; the TTL
-covers that path (acceptable 5-min dashboard staleness).
+Per-(user_id, mime_type) running sum for the Dashboard "By type" donut chart.
+Replaces the old `category_cache` (which invalidated on every mutation, forcing
+a 100K-row `GROUP BY` rescan). Maintained incrementally by app-level deltas in
+`FileService` (upload/trash/restore/delete) and the sync loop — no TTL, no cron
+cleanup. A pure `computeStorageDelta()` function handles all 9 state transitions.
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `user_id` | TEXT PK FK → users | User whose category overview is cached |
-| `payload` | TEXT | JSON category aggregation (count, size per MIME category) |
-| `updated_at` | INTEGER | Unix ms — entry considered stale if > 5min / >1h (cron) |
-
-Cleanup: cron `*/30` deletes rows `WHERE updated_at < now - 1h` (see
-`index.ts` scheduled handler).
+| `user_id` | TEXT PK FK → users | User whose storage stats are tracked |
+| `mime_type` | TEXT PK | MIME type (COALESCE NULL → '') |
+| `total_size` | INTEGER | Running sum of file sizes (CASE WHEN clamp prevents negative drift) |
 
 ---
 
@@ -500,7 +496,7 @@ Migration folder: `packages/worker/migrations/`. Single source of truth.
 | `0004_add_drive_folders_is_starred.sql` | `ALTER TABLE drive_folders ADD COLUMN is_starred`. |
 | `0005_add_files_cursor_index.sql` | `idx_files_user_trashed_name_id` for cursor pagination (automation cron R4). |
 | `0006_audit_logs_set_null.sql` | Recreate `audit_logs` with `ON DELETE SET NULL` on `workspace_id` (compliance — audit logs outlive workspaces). |
-| `0007_d1_perf_indexes_and_category_cache.sql` | 5 perf indexes (findRecent/findExternalFiles/findStarred/findFilesInWorkspaceRoot/shared-links LEFT JOIN) + new `category_cache` table. |
+| `0007_d1_perf_indexes_and_category_cache.sql` | 5 perf indexes (findRecent/findExternalFiles/findStarred/findFilesInWorkspaceRoot/shared-links LEFT JOIN) + new `category_cache` table (later replaced by `file_storage_stats` in `0012`. |
 | `0008_findrecent_perf_indexes.sql` | Expression index on `(user_id, is_trashed, COALESCE(google_modified_at, synced_at, updated_at) DESC)` (findRecent sort) + `idx_drive_folders_starred_trashed`. |
 | `0009_add_users_is_blocked.sql` | `ALTER TABLE users ADD COLUMN is_blocked` (admin block feature — login rejects blocked users, block deletes existing sessions). |
 
@@ -531,4 +527,4 @@ Since the baseline migration `0001_initial_schema.sql`, almost all data lives in
 | `shared_verify_lock:{linkId}` | Lockout after 20 wrong password attempts (TTL 15 minutes) |
 | `shared_verify_fail:{linkId}` | Failed attempt counter (TTL 15 minutes) |
 
-OAuth tokens, PKCE state, quota cache, and category cache are now in D1 (tables `drive_tokens`, `oauth_states`, `quota_cache`, `category_cache`).
+OAuth tokens, PKCE state, quota cache, and storage stats are now in D1 (tables `drive_tokens`, `oauth_states`, `quota_cache`, `file_storage_stats`).

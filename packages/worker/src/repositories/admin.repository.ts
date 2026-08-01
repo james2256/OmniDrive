@@ -190,7 +190,7 @@ export class AdminRepository {
       this.db.prepare('DELETE FROM audit_logs WHERE actor_id = ?').bind(userId),
       this.db.prepare('DELETE FROM invitation_codes WHERE created_by = ?').bind(userId),
       this.db.prepare('DELETE FROM s3_credentials WHERE user_id = ?').bind(userId),
-      this.db.prepare('DELETE FROM category_cache WHERE user_id = ?').bind(userId),
+      this.db.prepare('DELETE FROM file_storage_stats WHERE user_id = ?').bind(userId),
       this.db.prepare('DELETE FROM oauth_states WHERE user_id = ?').bind(userId),
       // ─── Level 3: root ───
       this.db.prepare('DELETE FROM users WHERE id = ?').bind(userId),

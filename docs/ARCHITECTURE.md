@@ -248,7 +248,7 @@ Those accounts fall back to 1 TiB. (Previously users could set `quota_override` 
 
 Usage (`used`) uses `storageQuota.usageInDrive` (Drive-only), not `usage` (account-wide: Drive+Gmail+Photos).
 
-The quota cache lives in D1 (`quota_cache` table, keyed by `drive_account_id`, 5-minute TTL enforced via `updated_at` check in `getQuota()`). The cached payload is tagged with `QUOTA_CACHE_VERSION` so stale entries (e.g. pre-`usageInDrive` rows that stored account-wide usage) are auto-ignored when the schema changes. The `category_cache` table follows the same pattern for the dashboard category-overview tile.
+The quota cache lives in D1 (`quota_cache` table, keyed by `drive_account_id`, 5-minute TTL enforced via `updated_at` check in `getQuota()`). The cached payload is tagged with `QUOTA_CACHE_VERSION` so stale entries (e.g. pre-`usageInDrive` rows that stored account-wide usage) are auto-ignored when the schema changes. The `file_storage_stats` table replaces the old `category_cache` — it is a per-(user_id, mime_type) running sum maintained by app-level deltas (upload/trash/restore/delete/sync), eliminating the 100K-row GROUP BY rescan that the cache miss path required.
 
 ## S3 Compatibility Layer
 
@@ -370,7 +370,6 @@ Trigger: `*/30 * * * *` (every 30 minutes) — `wrangler.toml` on Workers, `node
 | Session cleanup | inline `DELETE FROM sessions WHERE expires_at < ?` | Drop expired sessions |
 | OAuth state cleanup | inline `DELETE FROM oauth_states WHERE created_at < ?-10min` | Drop expired OAuth states (10-min TTL) |
 | Quota cache cleanup | inline `DELETE FROM quota_cache WHERE updated_at < ?-1h` | Drop stale quota cache rows (>1h old) |
-| Category cache cleanup | inline `DELETE FROM category_cache WHERE updated_at < ?-1h` | Drop stale category cache rows (>1h old) |
 
 ## Security Model
 

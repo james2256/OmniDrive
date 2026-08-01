@@ -5,7 +5,7 @@
 --     Compare lexicographically (same format → correct ordering).
 --   INTEGER columns → epoch milliseconds (Date.now())
 --     Used for: sessions.expires_at, oauth_states.created_at, drive_tokens.updated_at,
---     quota_cache.updated_at, category_cache.updated_at (machine-only, never displayed,
+--     quota_cache.updated_at (machine-only, never displayed,
 --     compared via arithmetic).
 --   NEVER mix formats within a column — lexicographic comparison of ISO vs SQLite
 --   format breaks because space (0x20) < T (0x54). See policy.service.ts (C3 fix).
@@ -352,17 +352,18 @@ CREATE TABLE IF NOT EXISTS quota_cache (
     updated_at       INTEGER NOT NULL
 );
 
--- Category overview cache (5-min TTL via updated_at). Mirrors quota_cache.
--- Caches the per-user mime_type aggregation behind the Dashboard category
--- breakdown so the GROUP BY no longer reads every non-trashed file row on
--- every dashboard load. Invalidated on trash/restore/delete/upload; sync
--- upserts bypass the service layer and rely on the TTL (5-min staleness
--- is acceptable for a dashboard widget).
-CREATE TABLE IF NOT EXISTS category_cache (
-    user_id    TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-    payload    TEXT NOT NULL,
-    updated_at INTEGER NOT NULL
+-- Storage stats delta table. Per-(user_id, mime_type) running sum maintained
+-- by app-level deltas (upload/trash/restore/delete/sync). Replaces the old
+-- category_cache (which invalidated on every mutation, forcing a 100K-row
+-- GROUP BY rescan on the next dashboard visit). Now the dashboard reads ~20
+-- rows (one per mime type) — always instant, always current.
+CREATE TABLE IF NOT EXISTS file_storage_stats (
+    user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    mime_type  TEXT NOT NULL,
+    total_size INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, mime_type)
 );
+CREATE INDEX IF NOT EXISTS idx_file_storage_stats_user ON file_storage_stats(user_id);
 
 -- Missing FK indexes — used in deleteUser cascade (admin.repository.ts) and
 -- multipart cleanup cron (s3-lifecycle.ts). Without these, cascade deletes

@@ -53,7 +53,7 @@ describe('FileService RBAC (unit)', () => {
     const file = makeFileRow({ user_id: 'user-1', workspace_id: null });
     vi.spyOn(fileService['fileRepo'], 'findById').mockResolvedValue(file);
     vi.spyOn(fileService['fileRepo'], 'markTrashed').mockResolvedValue(undefined);
-    vi.spyOn(fileService['fileRepo'], 'invalidateCategoryCache').mockResolvedValue(undefined);
+    vi.spyOn(fileService['fileRepo'], 'applyStorageDeltas').mockResolvedValue(undefined);
     vi.spyOn(fileService['driveService'], 'trashFile').mockResolvedValue(undefined);
 
     await fileService.trashFile('user-1', 'file-1');
@@ -65,7 +65,7 @@ describe('FileService RBAC (unit)', () => {
     const file = makeFileRow({ user_id: 'owner-1', workspace_id: 'ws-1' });
     vi.spyOn(fileService['fileRepo'], 'findById').mockResolvedValue(file);
     vi.spyOn(fileService['fileRepo'], 'markTrashed').mockResolvedValue(undefined);
-    vi.spyOn(fileService['fileRepo'], 'invalidateCategoryCache').mockResolvedValue(undefined);
+    vi.spyOn(fileService['fileRepo'], 'applyStorageDeltas').mockResolvedValue(undefined);
     vi.spyOn(fileService['driveService'], 'trashFile').mockResolvedValue(undefined);
     vi.mocked(getWorkspaceRole).mockResolvedValue('editor');
     vi.mocked(hasPermission).mockReturnValue(true);

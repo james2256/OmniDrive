@@ -286,7 +286,7 @@ Source: https://developers.cloudflare.com/workers/configuration/cron-triggers/ *
 7. Session cleanup — `DELETE FROM sessions WHERE expires_at < ?`
 8. OAuth state cleanup — `DELETE FROM oauth_states WHERE created_at < ?` (10-min TTL)
 9. Quota cache cleanup — `DELETE FROM quota_cache WHERE updated_at < ?` (>1h old)
-10. Category cache cleanup — `DELETE FROM category_cache WHERE updated_at < ?` (>1h old)
+10. Done — `file_storage_stats` is delta-maintained, no cron cleanup needed)
 
 Heavy tasks run **sequentially** (via `await`, not `waitUntil`) to avoid D1 subrequest budget contention on Free tier (50/invocation). Cron has no HTTP response to return quickly, so blocking is fine — the Worker stays alive until all 10 tasks finish within the 15-minute wall-time budget. ✅ Correct design for the Free-tier D1 constraint.
 
