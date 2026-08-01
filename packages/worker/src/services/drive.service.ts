@@ -134,7 +134,7 @@ export class DriveService {
   }
 
   /** Find drives that have tokens, from a list of drive IDs. */
-  findDrivesWithTokens(driveIds: string[]) {
+  async findDrivesWithTokens(driveIds: string[]) {
     return this.driveRepo.findDrivesWithTokens(driveIds);
   }
 

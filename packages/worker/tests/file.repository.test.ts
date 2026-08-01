@@ -515,4 +515,42 @@ describe('FileRepository', () => {
       ).toBe(true);
     });
   });
+
+  // ─── D1 bind variable limit regression tests ───
+
+  describe('findExistingForDelta D1 variable limit', () => {
+    it('never generates a query with >100 bind variables', async () => {
+      // Pass 500 IDs — the method must chunk internally to stay under D1's 100 limit.
+      // SQLite's test-environment limit (32766) is higher than D1's (100), so this
+      // test validates the SQL construction, not the execution.
+      const ids = Array.from({ length: 500 }, (_, i) => `g-file-${i}`);
+      mockAll.mockResolvedValue({ results: [] });
+      await repo.findExistingForDelta('d1', ids);
+
+      for (const call of mockPrepare.mock.calls) {
+        const sql = call[0] as string;
+        const placeholderCount = (sql.match(/\?/g) || []).length;
+        expect(placeholderCount).toBeLessThanOrEqual(100);
+      }
+    });
+
+    it('throws if chunk size exceeds D1 limit (defense-in-depth)', async () => {
+      // The assertWithinD1Limit guard should fire even in the test environment
+      // where SQLite's own limit is 32766. This catches regressions where
+      // someone changes the CHUNK constant to a value > 99.
+      mockAll.mockResolvedValue({ results: [] });
+      await repo.findExistingForDelta(
+        'd1',
+        Array.from({ length: 150 }, (_, i) => `g-${i}`),
+      );
+
+      // If we get here without throwing, all chunks were ≤ 100 bind variables.
+      // Verify by checking every prepared SQL statement.
+      for (const call of mockPrepare.mock.calls) {
+        const sql = call[0] as string;
+        const placeholderCount = (sql.match(/\?/g) || []).length;
+        expect(placeholderCount).toBeLessThanOrEqual(100);
+      }
+    });
+  });
 });

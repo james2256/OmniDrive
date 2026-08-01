@@ -290,4 +290,33 @@ describe('Storage Stats (integration)', () => {
 
     expect(states.has('g-nonexistent')).toBe(false);
   });
+
+  it('findExistingForDelta handles >100 file IDs without D1 variable overflow', async () => {
+    // Regression test: CHUNK was 500, causing 501 bind variables > D1's 100 limit.
+    // The error was "D1_ERROR: too many SQL variables at offset 321".
+    await insertUser('u1', 'alice');
+    await insertDrive('d1', 'u1', 'alice@gmail.com');
+
+    // Insert 150 files — exceeds the old CHUNK=500? No, but exceeds D1's 100-variable limit.
+    // With CHUNK=99 (the fix), this produces 2 chunks (99 + 51), each under 100.
+    for (let i = 0; i < 150; i++) {
+      await insertFile({
+        id: `f${i}`,
+        userId: 'u1',
+        driveId: 'd1',
+        googleFileId: `g-file-${i}`,
+        name: `file-${i}.txt`,
+        mimeType: 'text/plain',
+        size: 100,
+      });
+    }
+
+    const repo = new FileRepository(env.DB);
+    const ids = Array.from({ length: 150 }, (_, i) => `g-file-${i}`);
+    const states = await repo.findExistingForDelta('d1', ids);
+
+    expect(states.size).toBe(150);
+    expect(states.get('g-file-0')?.size).toBe(100);
+    expect(states.get('g-file-149')?.size).toBe(100);
+  });
 });

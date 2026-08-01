@@ -1,4 +1,5 @@
 import type { D1Database, D1PreparedStatement, D1Result } from '@cloudflare/workers-types';
+import { D1_MAX_BIND_VARIABLES, assertWithinD1Limit } from '../lib/d1-constants';
 
 /**
  * Data access layer for `drive_accounts` and `drive_folders` tables.
@@ -100,6 +101,7 @@ export class DriveRepository {
    */
   findAllByType(types: readonly string[]) {
     const placeholders = types.map(() => '?').join(',');
+    assertWithinD1Limit(types.length, 'findAllByType');
     return this.db
       .prepare(`SELECT * FROM drive_accounts WHERE type IN (${placeholders})`)
       .bind(...types)
@@ -109,15 +111,28 @@ export class DriveRepository {
   /**
    * Find all drives that have tokens, from a list of drive IDs.
    * Used by upload/init to verify at least one drive has valid tokens.
+   * Chunks at D1's max bind variables to prevent overflow on users with
+   * >100 drives.
    */
-  findDrivesWithTokens(driveIds: string[]) {
-    const placeholders = driveIds.map(() => '?').join(',');
-    return this.db
-      .prepare(
-        `SELECT DISTINCT drive_account_id FROM drive_tokens WHERE drive_account_id IN (${placeholders})`,
-      )
-      .bind(...driveIds)
-      .all();
+  async findDrivesWithTokens(driveIds: string[]) {
+    if (driveIds.length === 0) return { results: [] };
+    const found = new Set<string>();
+    const CHUNK = D1_MAX_BIND_VARIABLES;
+    for (let i = 0; i < driveIds.length; i += CHUNK) {
+      const chunk = driveIds.slice(i, i + CHUNK);
+      const placeholders = chunk.map(() => '?').join(',');
+      assertWithinD1Limit(chunk.length, 'findDrivesWithTokens');
+      const { results } = await this.db
+        .prepare(
+          `SELECT DISTINCT drive_account_id FROM drive_tokens WHERE drive_account_id IN (${placeholders})`,
+        )
+        .bind(...chunk)
+        .all<{ drive_account_id: string }>();
+      for (const r of results) found.add(r.drive_account_id);
+    }
+    return {
+      results: Array.from(found).map((id) => ({ drive_account_id: id })),
+    };
   }
 
   /** Delete quota cache entries for a drive. */

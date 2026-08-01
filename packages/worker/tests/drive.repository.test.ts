@@ -170,12 +170,10 @@ describe('DriveRepository', () => {
       expect(mockBind).toHaveBeenCalledWith('d-1', 'd-2', 'd-3');
     });
 
-    it('binds an empty array as IN () when no drives passed', async () => {
-      mockAll.mockResolvedValueOnce({ results: [] });
-      await repo.findDrivesWithTokens([]);
-      const sql = mockPrepare.mock.calls[0][0] as string;
-      expect(sql).toContain('IN ()');
-      expect(mockBind).toHaveBeenCalledWith();
+    it('returns empty results without querying when no drives passed', async () => {
+      const result = await repo.findDrivesWithTokens([]);
+      expect(result.results).toEqual([]);
+      expect(mockPrepare).not.toHaveBeenCalled();
     });
   });
 

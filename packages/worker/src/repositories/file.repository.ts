@@ -1,6 +1,7 @@
 import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types';
 import { generateId } from '../lib/id';
 import { batchInChunks } from '../lib/d1-batch';
+import { D1_MAX_BIND_VARIABLES, assertWithinD1Limit } from '../lib/d1-constants';
 import type { FileRow } from '../types/db';
 import type { DriveAccount } from '../types/domain';
 import type { GDriveFile } from '../types/google';
@@ -127,10 +128,12 @@ export class FileRepository {
     const out = new Map<string, { size: number; mimeType: string; isTrashed: boolean }>();
     if (googleFileIds.length === 0) return out;
 
-    const CHUNK = 500;
+    // 99 file IDs + 1 driveAccountId = 100 = D1's max bind variables per query
+    const CHUNK = D1_MAX_BIND_VARIABLES - 1;
     for (let i = 0; i < googleFileIds.length; i += CHUNK) {
       const chunk = googleFileIds.slice(i, i + CHUNK);
       const placeholders = chunk.map(() => '?').join(',');
+      assertWithinD1Limit(1 + chunk.length, 'findExistingForDelta');
       const { results } = await this.db
         .prepare(
           `SELECT google_file_id, size, mime_type, is_trashed
@@ -466,10 +469,12 @@ export class FileRepository {
     workspaceId: string,
     workspaceFolderId: string | null,
   ): Promise<void> {
-    const CHUNK_SIZE = 50;
+    // 97 file IDs + 3 WHERE binds (workspaceId, workspaceFolderId, userId) = 100
+    const CHUNK_SIZE = D1_MAX_BIND_VARIABLES - 3;
     for (let i = 0; i < fileIds.length; i += CHUNK_SIZE) {
       const chunk = fileIds.slice(i, i + CHUNK_SIZE);
       const placeholders = chunk.map(() => '?').join(',');
+      assertWithinD1Limit(3 + chunk.length, 'batchAssignToFolder');
       await this.db
         .prepare(
           `UPDATE files SET workspace_id = ?, workspace_folder_id = ?, updated_at = datetime('now') WHERE user_id = ? AND id IN (${placeholders})`,
