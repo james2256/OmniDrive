@@ -159,7 +159,7 @@ authRouter.get('/google', authGuard, async (c) => {
     );
   }
 
-  const redirectUri = `${env.WORKER_URL}/api/auth/callback`;
+  const redirectUri = `${env.FRONTEND_URL}/api/auth/callback`;
   const scope = 'openid email profile https://www.googleapis.com/auth/drive';
 
   const url = await buildDriveOAuthUrl(c, env, userId, redirectUri, scope, { prompt: 'consent' });
@@ -180,12 +180,11 @@ authRouter.get('/callback', async (c) => {
   if (!state) throw new AppError(400, 'Missing state parameter');
   const savedState = getCookie(c, 'oauth_state');
   deleteCookie(c, 'oauth_state', { path: '/' });
-  // Cookie check is defense-in-depth — skipped when third-party cookies are
-  // blocked (cross-domain deployments where frontend and API are on different
-  // registrable domains, e.g. pages.dev + workers.dev). The D1
-  // DELETE...RETURNING below is the real CSRF protection: atomic, single-use,
-  // user-bound, 10-min TTL.
-  if (savedState && !timingSafeEqual(state, savedState)) {
+  // Cookie check is defense-in-depth. The callback now routes through the
+  // Pages proxy (FRONTEND_URL), so the oauth_state cookie is same-origin and
+  // is always sent. The D1 DELETE...RETURNING below is the real CSRF
+  // protection: atomic, single-use, user-bound, 10-min TTL.
+  if (!savedState || !timingSafeEqual(state, savedState)) {
     throw new AppError(400, 'Invalid state parameter');
   }
 
@@ -226,7 +225,7 @@ authRouter.get('/callback', async (c) => {
   const authService = new AuthService(c.env);
   const tokens = await authService.exchangeCodeForTokens(
     code,
-    `${c.env.WORKER_URL}/api/auth/callback`,
+    `${c.env.FRONTEND_URL}/api/auth/callback`,
     codeVerifier,
   );
   const googleUser = await authService.fetchUserInfo(tokens.accessToken);

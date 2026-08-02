@@ -38,12 +38,12 @@ export async function buildDriveOAuthUrl(
   // Store state + PKCE verifier + userId in D1 (10-min TTL via created_at).
   await new AuthRepository(env.DB).insertOAuthState(state, codeVerifier, userId, Date.now());
 
-  const isSecure = env.WORKER_URL.startsWith('https://');
+  const isSecure = env.FRONTEND_URL.startsWith('https://');
   setCookie(c, 'oauth_state', state, {
     path: '/',
     httpOnly: true,
     secure: isSecure,
-    sameSite: isSecure ? 'None' : 'Lax',
+    sameSite: 'Lax',
     maxAge: 60 * 5,
   });
 

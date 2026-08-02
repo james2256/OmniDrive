@@ -89,7 +89,7 @@ describe('OAuth callback (integration)', () => {
     expect(url.searchParams.get('client_id')).toBe(
       'test-google-client-id.apps.googleusercontent.com',
     );
-    expect(url.searchParams.get('redirect_uri')).toBe('http://localhost:8888/api/auth/callback');
+    expect(url.searchParams.get('redirect_uri')).toBe('http://localhost:5173/api/auth/callback');
     expect(url.searchParams.get('response_type')).toBe('code');
     expect(url.searchParams.get('code_challenge')).toBeTruthy();
     expect(url.searchParams.get('code_challenge_method')).toBe('S256');
@@ -116,12 +116,12 @@ describe('OAuth callback (integration)', () => {
     expect(res.status).toBe(400);
   });
 
-  it('GET /callback with missing state cookie but unknown state in D1 returns 400', async () => {
-    // Cross-domain deployment: cookie is absent (Chrome blocks third-party
-    // cookies). The D1 check is the real protection — an unknown state
-    // (not in oauth_states table) must still be rejected.
+  it('GET /callback with missing state cookie returns 400', async () => {
+    // With the callback routed through the Pages proxy (FRONTEND_URL), the
+    // oauth_state cookie is always sent (same-origin). A missing cookie means
+    // tampering or an attack — reject at the cookie check, not the D1 check.
     const res = await app.request(
-      '/api/auth/callback?code=fakecode&state=unknown-state-no-cookie',
+      '/api/auth/callback?code=fakecode&state=unknown-state',
       {
         headers: { Origin: ORIGIN },
       },
@@ -130,15 +130,14 @@ describe('OAuth callback (integration)', () => {
 
     expect(res.status).toBe(400);
     const body = (await res.json()) as { error: string };
-    expect(body.error).toContain('expired'); // D1 check, not cookie check
+    expect(body.error).toContain('Invalid state'); // cookie check, not D1
   });
 
-  it('GET /callback with missing state cookie but valid D1 state succeeds (cross-domain)', async () => {
-    // Cross-domain happy path: no oauth_state cookie (Chrome blocked it as
-    // third-party), but the D1 state row exists and is valid. The cookie
-    // check is skipped; the D1 DELETE...RETURNING is the real CSRF protection.
+  it('GET /callback with valid state cookie and D1 state succeeds', async () => {
+    // With the callback routed through the Pages proxy (FRONTEND_URL), both
+    // cookies are sent (same-origin). This is the normal happy path.
     const { userId, cookie } = await insertUserAndSession('carol');
-    const state = 'valid-state-carol-no-cookie';
+    const state = 'valid-state-carol';
     await env.DB.prepare(
       'INSERT INTO oauth_states (state, code_verifier, user_id, created_at) VALUES (?, ?, ?, ?)',
     )
@@ -174,11 +173,11 @@ describe('OAuth callback (integration)', () => {
       },
     );
 
-    // Session cookie only — NO oauth_state cookie (simulates cross-domain)
+    // Both cookies sent (same-origin via Pages proxy)
     const res = await app.request(
       `/api/auth/callback?code=fakecode&state=${state}`,
       {
-        headers: { Cookie: cookie, Origin: ORIGIN },
+        headers: { Cookie: `${cookie}; oauth_state=${state}`, Origin: ORIGIN },
       },
       env,
       executionCtx,

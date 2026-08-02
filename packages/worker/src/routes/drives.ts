@@ -69,7 +69,7 @@ drivesRouter.get('/connect', async (c) => {
     );
   }
 
-  const redirectUri = `${env.WORKER_URL}/api/auth/callback`;
+  const redirectUri = `${env.FRONTEND_URL}/api/auth/callback`;
   const scope = 'openid email profile https://www.googleapis.com/auth/drive';
 
   const url = await buildDriveOAuthUrl(c, env, userId, redirectUri, scope, {
