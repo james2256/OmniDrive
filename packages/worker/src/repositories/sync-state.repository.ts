@@ -25,14 +25,20 @@ export class SyncStateRepository {
    * Uses `.first()` (not `.run()`) so the RETURNING result is readable.
    */
   acquireLock(driveId: string) {
+    // Re-acquire if the lock is stale (status='syncing' AND locked_at > 30min ago).
+    // This prevents permanently stuck syncs when a Worker is killed mid-sync
+    // (CPU limit, deploy, crash). 30min is generous — sync runs every 5min via cron.
+    const STALE_LOCK_MS = 30 * 60 * 1000;
     return this.db
       .prepare(
-        `INSERT INTO sync_state (drive_account_id, status) VALUES (?, 'syncing')
-         ON CONFLICT(drive_account_id) DO UPDATE SET status = 'syncing', error_message = NULL
+        `INSERT INTO sync_state (drive_account_id, status, locked_at) VALUES (?, 'syncing', datetime('now'))
+         ON CONFLICT(drive_account_id) DO UPDATE SET status = 'syncing', error_message = NULL, locked_at = datetime('now')
          WHERE sync_state.status != 'syncing'
+            OR (sync_state.status = 'syncing' AND sync_state.locked_at IS NOT NULL
+                AND (julianday('now') - julianday(sync_state.locked_at)) * 86400000 > ?)
          RETURNING drive_account_id`,
       )
-      .bind(driveId)
+      .bind(driveId, STALE_LOCK_MS)
       .first<{ drive_account_id: string }>();
   }
 

@@ -147,7 +147,8 @@ CREATE TABLE IF NOT EXISTS sync_state (
     next_page_token  TEXT,
     last_synced_at   TEXT,
     status           TEXT DEFAULT 'idle',
-    error_message    TEXT
+    error_message    TEXT,
+    locked_at        TEXT
 );
 
 -- Performance indexes

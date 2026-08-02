@@ -199,6 +199,24 @@ authRouter.get('/callback', async (c) => {
     .first()) as { code_verifier: string; user_id: string } | undefined;
   if (!stateRow) throw new AppError(400, 'OAuth state expired');
 
+  // Verify the current session matches the state's user_id — prevents drive
+  // fixation where an attacker's state is used with a victim's OAuth code.
+  // The callback route doesn't use authGuard (it's a redirect target), so we
+  // manually read the session cookie and compare to the state's user_id.
+  const sessionCookie = getCookie(c, 'omnidrive_sid');
+  if (!sessionCookie) {
+    throw new AppError(400, 'OAuth session expired — please log in and try again.');
+  }
+  const authRepo = new AuthRepository(db);
+  const sessionRow = await authRepo.findSession(sessionCookie);
+  if (!sessionRow || sessionRow.expires_at < Date.now()) {
+    throw new AppError(400, 'OAuth session expired — please log in and try again.');
+  }
+  const session = JSON.parse(sessionRow.data) as SessionData;
+  if (session.userId !== stateRow.user_id) {
+    throw new AppError(400, 'OAuth session mismatch — please reconnect your Google account.');
+  }
+
   const targetUserId = stateRow.user_id;
   const codeVerifier = stateRow.code_verifier;
   if (!targetUserId) {

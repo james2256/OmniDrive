@@ -130,7 +130,7 @@ describe('SharedService RBAC (unit)', () => {
       drive_account_id: 'drive-1',
     });
     vi.spyOn(sharedService['fileRepo'], 'findById').mockResolvedValue(file);
-    vi.spyOn(sharedService['driveRepo'], 'findByIdAndUser').mockResolvedValue({
+    vi.spyOn(sharedService['driveRepo'], 'findById').mockResolvedValue({
       id: 'drive-1',
     } as never);
     vi.mocked(getWorkspaceRole).mockResolvedValue('editor');

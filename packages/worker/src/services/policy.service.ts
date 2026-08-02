@@ -46,6 +46,26 @@ export class PolicyService {
     await this.workspaceRepo.updateUsedBytesStmt(workspaceId, sizeDelta).run();
   }
 
+  /**
+   * Atomically reserve quota for an upload. Checks the policy AND increments
+   * used_bytes in a single atomic conditional UPDATE. Returns true if the
+   * reservation succeeded, false if quota would be exceeded.
+   *
+   * This replaces the TOCTOU-vulnerable checkQuota + updateWorkspaceStorage
+   * pair for upload paths. The caller must handle the false case (delete the
+   * uploaded file, return 403).
+   */
+  async tryReserveQuota(workspaceId: string, incomingBytes: number): Promise<boolean> {
+    const policy = await this.workspaceRepo.findStorageQuotaPolicy(workspaceId);
+    if (!policy) {
+      // No quota policy set — allow unconditionally (but still increment)
+      await this.workspaceRepo.updateUsedBytesStmt(workspaceId, incomingBytes).run();
+      return true;
+    }
+    const config = safeJsonParse(policy.config, { max_bytes: Infinity }) as { max_bytes: number };
+    return this.workspaceRepo.updateUsedBytesAtomic(workspaceId, incomingBytes, config.max_bytes);
+  }
+
   async processAutoDeleteRetentionPolicies() {
     const MAX_DELETES_PER_CYCLE = 20; // Free-tier: 50 subrequests, leave margin for DB calls
 

@@ -435,7 +435,17 @@ filesRouter.post(
 
     if (workspaceId && fileSize > 0) {
       const policyService = new PolicyService(db, driveService);
-      await policyService.updateWorkspaceStorage(workspaceId, fileSize);
+      const ok = await policyService.tryReserveQuota(workspaceId, fileSize);
+      if (!ok) {
+        // Race lost — quota exceeded between check and increment. Delete the
+        // uploaded file to avoid orphaning it, then return 403.
+        try {
+          await driveService.deleteFile(driveAccountId, googleFileId);
+        } catch {
+          // Best-effort — orphan is storage waste, not data corruption
+        }
+        throw new AppError(403, 'Storage quota exceeded');
+      }
     }
 
     // Invalidate quota cache

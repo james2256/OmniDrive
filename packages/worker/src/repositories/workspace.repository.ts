@@ -102,6 +102,28 @@ export class WorkspaceRepository {
       .bind(sizeDelta, workspaceId);
   }
 
+  /**
+   * Atomically increment used_bytes only if the result stays within maxBytes.
+   * Returns true if the increment succeeded (changes() === 1), false if the
+   * quota would be exceeded. The caller must handle the false case (delete the
+   * uploaded file, return 403). This catches the TOCTOU race at increment time
+   * without leaking quota on upload failure.
+   */
+  async updateUsedBytesAtomic(
+    workspaceId: string,
+    sizeDelta: number,
+    maxBytes: number,
+  ): Promise<boolean> {
+    const result = await this.db
+      .prepare(
+        `UPDATE workspaces SET used_bytes = COALESCE(used_bytes, 0) + ?
+         WHERE id = ? AND COALESCE(used_bytes, 0) + ? <= ?`,
+      )
+      .bind(sizeDelta, workspaceId, sizeDelta, maxBytes)
+      .run();
+    return (result.meta?.changes ?? 0) > 0;
+  }
+
   /** List all workspaces for a user (S3 ListBuckets). Scopes to s3WorkspaceId if set. */
   findBucketsByUser(userId: string, s3WorkspaceId: string | null = null) {
     return this.db

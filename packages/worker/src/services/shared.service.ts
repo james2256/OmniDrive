@@ -220,7 +220,11 @@ export class SharedService {
       if (!role || !hasPermission(role, 'editor')) return null;
     }
 
-    const drive = await this.driveRepo.findByIdAndUser(file.drive_account_id, link.userId);
+    // The drive may belong to a different user (workspace owner). RBAC was already
+    // verified above (owner OR workspace editor). findById (no user scoping) is
+    // correct here — the link creator has editor access to the workspace that
+    // contains the drive's files.
+    const drive = await this.driveRepo.findById(file.drive_account_id);
     if (!drive) return null;
 
     return { file, driveAccountId: file.drive_account_id };

@@ -20,7 +20,7 @@ export const csrfGuard = createMiddleware<{
   }
 
   const path = new URL(c.req.url).pathname;
-  if (CSRF_EXEMPT_PATHS.some((p) => path.startsWith(p))) {
+  if (CSRF_EXEMPT_PATHS.includes(path)) {
     return next();
   }
   if (isPublicSharedEndpoint(c.req.method, path)) {

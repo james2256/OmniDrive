@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AuthService } from '../src/services/auth.service';
-import { AppError } from '../src/lib/errors';
 import type { Env } from '../src/types/env';
 
 const mockEnv = {

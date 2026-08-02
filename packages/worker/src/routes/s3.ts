@@ -163,7 +163,11 @@ s3Router.on(['GET', 'HEAD'], '/:bucket', async (c) => {
   let cursor: { key: string; id: string } | null = null;
   if (continuationToken) {
     try {
-      cursor = JSON.parse(atob(continuationToken));
+      cursor = JSON.parse(
+        new TextDecoder().decode(
+          Uint8Array.from(atob(continuationToken), (ch) => ch.charCodeAt(0)),
+        ),
+      ) as { key: string; id: string };
     } catch {
       cursor = null;
     }
@@ -188,7 +192,11 @@ s3Router.on(['GET', 'HEAD'], '/:bucket', async (c) => {
   let nextToken = '';
   if (truncated && pageFiles.length > 0) {
     const last = pageFiles[pageFiles.length - 1];
-    nextToken = btoa(JSON.stringify({ key: last.s3_key, id: last.id }));
+    nextToken = btoa(
+      String.fromCharCode(
+        ...new TextEncoder().encode(JSON.stringify({ key: last.s3_key, id: last.id })),
+      ),
+    );
   }
 
   let contentsXml = '';
@@ -625,15 +633,6 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
   // Get the calculated MD5 hash after the stream has been fully consumed
   const md5Hex = getHash();
 
-  // If the file exists, delete it from Google Drive and remove its D1 row to prevent duplicates
-  if (existingFile) {
-    try {
-      await driveService.deleteFile(existingFile.drive_account_id, existingFile.google_file_id);
-    } catch (err) {
-      logError(c, 'Failed to delete old file from Google Drive', err);
-    }
-  }
-
   const fileId = generateId();
   const insertStmt = fileRepo.insertS3ObjectStmt({
     id: fileId,
@@ -648,18 +647,39 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
     metadata: JSON.stringify({ md5: md5Hex }),
   });
 
-  // Batch the D1 DELETE + INSERT atomically so a transient D1 failure can't
-  // leave the old row deleted with no new row (orphaned Google upload).
+  // Batch the D1 DELETE + INSERT atomically FIRST. If D1 fails, the old Google
+  // file is still alive (no data loss). The old Google file is deleted
+  // best-effort AFTER the batch succeeds — an orphan is storage waste, not
+  // data corruption.
   if (existingFile) {
     await db.batch([fileRepo.deleteByIdStmt(existingFile.id), insertStmt]);
   } else {
     await insertStmt.run();
   }
 
-  // Update workspace storage usage (mirrors HTTP /api/files/upload/finalize)
+  // Delete old Google file after D1 succeeds — best-effort (orphan, not data loss).
+  if (existingFile) {
+    try {
+      await driveService.deleteFile(existingFile.drive_account_id, existingFile.google_file_id);
+    } catch (err) {
+      logError(c, 'Failed to delete old file from Google Drive (orphaned — not data loss)', err);
+    }
+  }
+
+  // Update workspace storage usage (atomic quota check — catches TOCTOU race)
   if (contentLength > 0) {
     const policyService = new PolicyService(db, driveService);
-    await policyService.updateWorkspaceStorage(workspace.id, contentLength);
+    const ok = await policyService.tryReserveQuota(workspace.id, contentLength);
+    if (!ok) {
+      // Race lost — quota exceeded between check and increment. Delete the
+      // uploaded file to avoid orphaning it, then return 403.
+      try {
+        await driveService.deleteFile(targetDrive.id, gFile.id ?? '');
+      } catch {
+        // Best-effort — orphan is storage waste, not data corruption
+      }
+      return xmlError(c, 'QuotaExceeded', 'Storage quota exceeded', 403);
+    }
   }
 
   c.header('ETag', `"${md5Hex}"`);
@@ -722,11 +742,17 @@ async function handleUploadPart(
 
   const md5Hex = getHash();
 
+  // Reject if Google did not return a file ID — prevents corrupt D1 rows
+  // (matches the validation in PUT handler and CompleteMultipart handler).
+  if (!gFile.id) {
+    return c.text('Google Drive did not return a file ID', 502);
+  }
+
   // Store part state in DB (replace if already exists)
   await multipartRepo.upsertPart({
     uploadId,
     partNumber,
-    googleFileId: gFile.id ?? '',
+    googleFileId: gFile.id,
     etag: `"${md5Hex}"`,
     size: contentLength,
   });
@@ -912,15 +938,6 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
       folderId || null,
     )) as FileRow | null;
 
-    // If the file exists, delete it from Google Drive and remove its D1 row to prevent duplicates
-    if (existingFile) {
-      try {
-        await driveService.deleteFile(existingFile.drive_account_id, existingFile.google_file_id);
-      } catch (err) {
-        logError(c, 'Failed to delete old file from Google Drive', err);
-      }
-    }
-
     // Calculate S3-compliant ETag
     const concatenatedMd5s = Buffer.concat(
       parts.map((p) => Buffer.from(p.etag.replace(/"/g, ''), 'hex')),
@@ -943,18 +960,38 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
       metadata: JSON.stringify({ md5: s3Etag }),
     });
 
-    // Batch the D1 DELETE + INSERT atomically so a transient D1 failure can't
-    // leave the old row deleted with no new row (orphaned Google upload).
+    // Batch the D1 DELETE + INSERT atomically FIRST. If D1 fails, the old
+    // Google file is still alive (no data loss). The old Google file is
+    // deleted best-effort AFTER the batch succeeds.
     if (existingFile) {
       await db.batch([fileRepo.deleteByIdStmt(existingFile.id), insertStmt]);
     } else {
       await insertStmt.run();
     }
 
-    // Update workspace storage usage (mirrors HTTP /api/files/upload/finalize)
+    // Delete old Google file after D1 succeeds — best-effort (orphan, not data loss).
+    if (existingFile) {
+      try {
+        await driveService.deleteFile(existingFile.drive_account_id, existingFile.google_file_id);
+      } catch (err) {
+        logError(c, 'Failed to delete old file from Google Drive (orphaned — not data loss)', err);
+      }
+    }
+
+    // Update workspace storage usage (atomic quota check — catches TOCTOU race)
     if (totalSize > 0) {
       const policyService = new PolicyService(db, driveService);
-      await policyService.updateWorkspaceStorage(workspace.id, totalSize);
+      const ok = await policyService.tryReserveQuota(workspace.id, totalSize);
+      if (!ok) {
+        // Race lost — quota exceeded between check and increment. Delete the
+        // uploaded file to avoid orphaning it, then return 403.
+        try {
+          await driveService.deleteFile(upload.drive_account_id, gFile.id ?? '');
+        } catch {
+          // Best-effort — orphan is storage waste, not data corruption
+        }
+        return xmlError(c, 'QuotaExceeded', 'Storage quota exceeded', 403);
+      }
     }
 
     // Cleanup: Delete temp parts folder from Google Drive & clean SQLite state

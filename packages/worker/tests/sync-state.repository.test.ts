@@ -36,18 +36,20 @@ describe('SyncStateRepository', () => {
   // ─── lock ───
 
   describe('acquireLock', () => {
-    it('conditional UPSERT+RETURNING via .first() (NOT .run), single bind', async () => {
+    it('conditional UPSERT+RETURNING via .first() (NOT .run), binds driveId + stale TTL', async () => {
       mockFirst.mockResolvedValueOnce({ drive_account_id: 'd-1' });
 
       const result = await repo.acquireLock('d-1');
 
       const sql = mockPrepare.mock.calls[0][0] as string;
-      expect(sql).toContain('INSERT INTO sync_state (drive_account_id, status) VALUES (?,');
+      expect(sql).toContain('INSERT INTO sync_state (drive_account_id, status, locked_at)');
       expect(sql).toContain("'syncing'");
+      expect(sql).toContain("datetime('now')");
       expect(sql).toContain('ON CONFLICT(drive_account_id) DO UPDATE SET status =');
       expect(sql).toContain('WHERE sync_state.status !=');
+      expect(sql).toContain('julianday'); // stale-lock TTL check
       expect(sql).toContain('RETURNING drive_account_id');
-      expect(mockBind).toHaveBeenCalledWith('d-1');
+      expect(mockBind).toHaveBeenCalledWith('d-1', 30 * 60 * 1000);
       // MUST use .first() so the RETURNING result is readable — .run() would
       // make the lock appear in sync.test.ts's runCalls (breaking assertions).
       expect(mockFirst).toHaveBeenCalledTimes(1);
