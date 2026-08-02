@@ -3,7 +3,12 @@ import { GoogleDriveService } from '../services/google-drive';
 
 test('iterateAllFilesAndFolders yields chunks of data', async () => {
   const kv = { get: vi.fn(), put: vi.fn() } as any;
-  const service = new GoogleDriveService(kv, 'client_id', 'secret');
+  const service = new GoogleDriveService(
+    kv,
+    'client_id',
+    'secret',
+    'test-encryption-key-32-characters',
+  );
   service.getValidToken = vi.fn().mockResolvedValue('token');
 
   global.fetch = vi.fn().mockResolvedValue({

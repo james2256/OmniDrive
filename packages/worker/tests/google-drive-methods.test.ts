@@ -24,7 +24,12 @@ describe('GoogleDriveService methods', () => {
         })),
       })),
     };
-    service = new GoogleDriveService(mockDb, 'client-id', 'client-secret');
+    service = new GoogleDriveService(
+      mockDb,
+      'client-id',
+      'client-secret',
+      'test-encryption-key-32-characters',
+    );
     // Skip token refresh / D1 token load — every method just uses the fake token.
     service.getValidToken = vi.fn().mockResolvedValue('fake-access-token');
 
@@ -482,7 +487,12 @@ describe('GoogleDriveService methods', () => {
           })),
         })),
       };
-      const cachedService = new GoogleDriveService(cacheDb, 'cid', 'secret');
+      const cachedService = new GoogleDriveService(
+        cacheDb,
+        'cid',
+        'secret',
+        'test-encryption-key-32-characters',
+      );
       cachedService.getValidToken = vi.fn().mockResolvedValue('fake-token');
       globalThis.fetch = fetchMock;
 
@@ -509,7 +519,12 @@ describe('GoogleDriveService methods', () => {
           })),
         })),
       };
-      const staleService = new GoogleDriveService(staleDb, 'cid', 'secret');
+      const staleService = new GoogleDriveService(
+        staleDb,
+        'cid',
+        'secret',
+        'test-encryption-key-32-characters',
+      );
       staleService.getValidToken = vi.fn().mockResolvedValue('fake-token');
       globalThis.fetch = fetchMock;
       fetchMock.mockResolvedValueOnce({

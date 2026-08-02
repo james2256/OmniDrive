@@ -1,25 +1,29 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GoogleDriveService } from '../src/services/google-drive';
+import { encrypt } from '../src/lib/crypto';
+
+const TEST_KEY = 'test-encryption-key-32-characters';
 
 describe('GoogleDriveService Move Operations', () => {
   let service: GoogleDriveService;
   let mockDb: any;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     const tokens = JSON.stringify({
       accessToken: 'fake-access-token',
       refreshToken: 'fake-refresh-token',
       expiresAt: Date.now() + 3600_000,
     });
+    const encryptedTokens = await encrypt(tokens, TEST_KEY);
     mockDb = {
       prepare: vi.fn(() => ({
         bind: vi.fn(() => ({
-          first: vi.fn().mockResolvedValue({ encrypted_tokens: tokens }),
+          first: vi.fn().mockResolvedValue({ encrypted_tokens: encryptedTokens }),
           run: vi.fn().mockResolvedValue(undefined),
         })),
       })),
     };
-    service = new GoogleDriveService(mockDb, 'client-id', 'client-secret');
+    service = new GoogleDriveService(mockDb, 'client-id', 'client-secret', TEST_KEY);
     globalThis.fetch = vi.fn();
   });
 

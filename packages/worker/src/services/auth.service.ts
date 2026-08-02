@@ -22,7 +22,7 @@ export class AuthService {
     } catch (err) {
       const msg = err instanceof UpstreamError ? err.message : 'Network error';
       logErrorNoCtx(errorLabel, msg);
-      throw new AppError(401, 'Failed to communicate with Google');
+      throw new AppError(502, 'Failed to communicate with Google');
     }
   }
 

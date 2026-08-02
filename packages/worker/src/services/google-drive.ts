@@ -26,7 +26,7 @@ interface RefreshedTokens {
 }
 
 export class GoogleDriveService implements DriveProvider {
-  private encryptionKey?: string;
+  private encryptionKey: string;
   // In-memory token cache — avoids a D1 read (loadTokens) on every page of a sync.
   // Scoped to this instance: one GoogleDriveService per sync invocation, so the cache
   // lives only as long as needed and never serves cross-invocation stale tokens.
@@ -37,7 +37,7 @@ export class GoogleDriveService implements DriveProvider {
     db: D1Database,
     private clientId: string,
     private clientSecret: string,
-    encryptionKey?: string,
+    encryptionKey: string,
   ) {
     this.encryptionKey = encryptionKey;
     this.driveRepo = new DriveRepository(db);
@@ -81,11 +81,8 @@ export class GoogleDriveService implements DriveProvider {
       throw new NotFoundError(`No tokens found for drive ${driveAccountId}`);
     }
 
-    let tokensJson = row.encrypted_tokens;
-    if (this.encryptionKey) {
-      const { decryptOrPassthrough } = await import('../lib/crypto');
-      tokensJson = await decryptOrPassthrough(row.encrypted_tokens, this.encryptionKey);
-    }
+    const { decryptOrPassthrough } = await import('../lib/crypto');
+    const tokensJson = await decryptOrPassthrough(row.encrypted_tokens, this.encryptionKey);
     const tokens = safeJsonParse<OAuthTokens | null>(tokensJson, null);
     if (!tokens) {
       throw new AuthError(
@@ -139,9 +136,9 @@ export class GoogleDriveService implements DriveProvider {
 
   private async persistTokens(driveAccountId: string, tokens: OAuthTokens): Promise<void> {
     const serialized = JSON.stringify(tokens);
-    const encryptedTokens = this.encryptionKey
-      ? await (await import('../lib/crypto')).encrypt(serialized, this.encryptionKey)
-      : serialized;
+    const encryptedTokens = await (
+      await import('../lib/crypto')
+    ).encrypt(serialized, this.encryptionKey);
     await this.driveRepo.upsertTokens(driveAccountId, encryptedTokens, Date.now());
   }
 

@@ -32,9 +32,10 @@ async function performBackgroundSync(
   const folderService = new (await import('../services/folder.service')).FolderService(env.DB);
   try {
     await folderService.markSyncing(folderId);
-    if (driveId) {
-      await syncDriveFolder(env, driveId, folderId, userId);
+    if (!driveId) {
+      throw new Error('Cannot sync without a driveId');
     }
+    await syncDriveFolder(env, driveId, folderId, userId);
     await folderService.markSyncComplete(folderId);
   } catch (err) {
     logErrorNoCtx('Background sync error', err);

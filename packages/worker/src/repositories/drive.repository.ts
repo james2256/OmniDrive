@@ -29,10 +29,16 @@ export class DriveRepository {
       .all();
   }
 
-  /** Find a drive by ID + user (full row). */
+  /** Find a drive by ID + user (full row, with sync_state JOIN). */
   findFullByIdAndUser(driveId: string, userId: string) {
     return this.db
-      .prepare('SELECT * FROM drive_accounts WHERE id = ? AND user_id = ?')
+      .prepare(
+        `SELECT a.*, s.status as sync_status, s.last_synced_at, s.error_message as sync_error_message,
+                CASE WHEN s.next_page_token IS NOT NULL THEN 1 ELSE 0 END as sync_paused
+         FROM drive_accounts a
+         LEFT JOIN sync_state s ON a.id = s.drive_account_id
+         WHERE a.id = ? AND a.user_id = ?`,
+      )
       .bind(driveId, userId)
       .first();
   }

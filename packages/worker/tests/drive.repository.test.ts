@@ -71,13 +71,19 @@ describe('DriveRepository', () => {
   });
 
   describe('findFullByIdAndUser', () => {
-    it('selects * by id + user (full row)', async () => {
+    it('SELECTs full row with sync_state LEFT JOIN scoped by id + user', async () => {
       mockFirst.mockResolvedValueOnce({ id: 'd-1', user_id: 'u-1' });
 
       await repo.findFullByIdAndUser('d-1', 'u-1');
 
       const sql = mockPrepare.mock.calls[0][0] as string;
-      expect(sql).toContain('SELECT * FROM drive_accounts WHERE id = ? AND user_id = ?');
+      expect(sql).toContain('SELECT a.*');
+      expect(sql).toContain('FROM drive_accounts a');
+      expect(sql).toContain('LEFT JOIN sync_state s');
+      expect(sql).toContain('a.id = ?');
+      expect(sql).toContain('a.user_id = ?');
+      expect(sql).toContain('sync_status');
+      expect(sql).toContain('sync_paused');
       expect(mockBind).toHaveBeenCalledWith('d-1', 'u-1');
     });
   });

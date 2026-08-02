@@ -56,7 +56,7 @@ describe('AuthService', () => {
       expect(body.get('grant_type')).toBe('authorization_code');
     });
 
-    it('maps upstream HTTP error to AppError(401)', async () => {
+    it('maps upstream HTTP error to AppError(502)', async () => {
       // 400 is non-retryable — withBackoff exhausts immediately and throws UpstreamError.
       fetchSpy.mockResolvedValueOnce(
         new Response(JSON.stringify({ error: 'invalid_grant' }), {
@@ -68,20 +68,28 @@ describe('AuthService', () => {
       await expect(
         service.exchangeCodeForTokens('bad-code', 'https://example.com/callback'),
       ).rejects.toMatchObject({
-        status: 401,
+        status: 502,
         message: 'Failed to communicate with Google',
       });
     });
 
-    it('maps network failure (fetch rejects) to AppError(401)', async () => {
+    it('maps network failure (fetch rejects) to AppError(502)', async () => {
+      // withBackoff now retries TypeError (network errors) with sleep().
+      // Use vi.useFakeTimers to avoid the real 7s backoff delay.
+      vi.useFakeTimers();
       fetchSpy.mockRejectedValue(new TypeError('Connection refused'));
 
-      await expect(
-        service.exchangeCodeForTokens('code', 'https://example.com/callback'),
-      ).rejects.toMatchObject({
-        status: 401,
+      const promise = service.exchangeCodeForTokens('code', 'https://example.com/callback');
+      // Attach the rejection handler BEFORE running timers to prevent
+      // unhandled rejection when vi.runAllTimersAsync resolves first.
+      const expectation = expect(promise).rejects.toMatchObject({
+        status: 502,
         message: 'Failed to communicate with Google',
       });
+      // Fast-forward through all backoff sleeps (3 retries: ~1s + ~2s + ~4s = ~7s)
+      await vi.runAllTimersAsync();
+      await expectation;
+      vi.useRealTimers();
     });
   });
 
@@ -111,7 +119,7 @@ describe('AuthService', () => {
       expect(init?.headers).toMatchObject({ Authorization: 'Bearer access-token-123' });
     });
 
-    it('maps upstream HTTP error to AppError(401)', async () => {
+    it('maps upstream HTTP error to AppError(502)', async () => {
       // 401 from Google — non-retryable, throws UpstreamError.
       fetchSpy.mockResolvedValueOnce(
         new Response(JSON.stringify({ error: 'invalid_token' }), {
@@ -121,7 +129,7 @@ describe('AuthService', () => {
       );
 
       await expect(service.fetchUserInfo('expired-token')).rejects.toMatchObject({
-        status: 401,
+        status: 502,
         message: 'Failed to communicate with Google',
       });
     });

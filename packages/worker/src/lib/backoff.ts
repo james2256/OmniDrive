@@ -82,7 +82,19 @@ export async function withBackoff(
 
   let lastMessage = 'Google Drive API request failed';
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    const response = await fn();
+    let response: Response;
+    try {
+      response = await fn();
+    } catch (err) {
+      // Network error (TypeError: Failed to fetch) — retryable.
+      // Google API never returns a Response for these; fetch() throws.
+      if (attempt === maxRetries) {
+        throw new UpstreamError(err instanceof Error ? err.message : 'Network request failed');
+      }
+      const backoffMs = Math.min(Math.pow(2, attempt) * 1000 + Math.random() * 1000, maxBackoffMs);
+      await sleep(backoffMs);
+      continue;
+    }
 
     if (isSuccess(response)) return response;
 

@@ -68,14 +68,24 @@ authRouter.post('/register', zValidator('json', registerSchema, zodErrorHook), a
   const passwordHash = await hashPassword(password);
   const isSuperAdmin = isSetup ? 0 : 1;
 
-  await authRepo.insertUser({
-    id,
-    username,
-    passwordHash,
-    email: email || null,
-    name: name || username,
-    isSuperAdmin,
-  });
+  try {
+    await authRepo.insertUser({
+      id,
+      username,
+      passwordHash,
+      email: email || null,
+      name: name || username,
+      isSuperAdmin,
+    });
+  } catch (err) {
+    // TOCTOU race: another request inserted the same username/email between
+    // our findByUsername check and this INSERT. The UNIQUE constraint fires.
+    const msg = (err as Error).message || '';
+    if (msg.includes('UNIQUE constraint')) {
+      throw new ConflictError('Username or email already exists');
+    }
+    throw err;
+  }
 
   const now = Date.now();
   const sessionData: SessionData = {

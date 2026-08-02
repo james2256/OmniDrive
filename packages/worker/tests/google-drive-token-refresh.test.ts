@@ -4,7 +4,12 @@ import { GoogleDriveService } from '../src/services/google-drive';
 describe('iterateAllFilesAndFolders token refresh', () => {
   it('calls getValidToken on each page so expired tokens refresh mid-sync', async () => {
     const kv = { get: vi.fn(), put: vi.fn() } as never;
-    const service = new GoogleDriveService(kv, 'client_id', 'secret');
+    const service = new GoogleDriveService(
+      kv,
+      'client_id',
+      'secret',
+      'test-encryption-key-32-characters',
+    );
 
     const getValidToken = vi
       .fn()
