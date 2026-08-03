@@ -125,7 +125,9 @@ export async function uploadChunkWithRetry(
 ): Promise<{ done: true; value: { id: string } } | { done: false; nextStart: number }> {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      return await uploadChunk(url, file, start, onProgress);
+      // Only report progress on the first attempt — retries reset e.loaded to 0,
+      // which would cause the progress bar to jump backwards.
+      return await uploadChunk(url, file, start, attempt === 0 ? onProgress : undefined);
     } catch (err) {
       if (attempt === maxRetries || !isRetryableUploadError(err)) throw err;
       // Exponential backoff: 1s, 2s, 4s

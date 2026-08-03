@@ -13,6 +13,7 @@ import {
   type DriveAccountRow,
   type WorkspaceFolderRow,
   type S3MultipartUploadRow,
+  type S3MultipartPartRow,
 } from '../types/db';
 import type { DriveAccount } from '../types/domain';
 import type { GDriveFile } from '../types/google';
@@ -21,7 +22,7 @@ import { hasPermission } from '../lib/rbac';
 import type { WorkspaceRole } from '../lib/schemas';
 import { parseLifecycleXml, serializeLifecycleXml } from '../services/s3-lifecycle';
 import { PolicyService } from '../services/policy.service';
-import { escapeXml, xmlError } from '../lib/s3-xml';
+import { escapeXml, parseCompleteMultipartBody, xmlError } from '../lib/s3-xml';
 import { ValidationError } from '../lib/errors';
 import { logError } from '../lib/logger';
 import { DriveRepository } from '../repositories/drive.repository';
@@ -587,16 +588,17 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
   // 3. Perform Direct Google Drive Upload
   const driveService = createDriveService(c.env);
 
-  // Enforce workspace storage quota (mirrors HTTP /api/files/upload/init).
-  // Placed after driveService creation so the same instance is reused for
-  // both the check and the increment after the INSERT.
+  // Reserve workspace storage quota BEFORE upload (atomic — prevents TOCTOU race
+  // and data loss on overwrite). If the upload fails after this point, the
+  // reservation is released via updateWorkspaceStorage(workspaceId, -contentLength).
+  const policyService = new PolicyService(db, driveService);
   if (contentLength > 0) {
-    const policyService = new PolicyService(db, driveService);
-    const hasQuota = await policyService.checkQuota(workspace.id, contentLength);
-    if (!hasQuota) {
+    const ok = await policyService.tryReserveQuota(workspace.id, contentLength);
+    if (!ok) {
       return xmlError(c, 'QuotaExceeded', 'Storage quota exceeded', 403);
     }
   }
+  const quotaReserved = contentLength > 0;
 
   const pathParts = key.split('/');
   const fileName = pathParts.pop() ?? '';
@@ -611,57 +613,66 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
     folderId || null,
   )) as FileRow | null;
 
-  // Initiate resumable session
-  const uploadUrl = await driveService.initiateResumableUpload(
-    targetDrive.id,
-    fileName || '',
-    mimeType,
-    targetDrive.rootFolderId || 'root',
-  );
-
-  // Pipe the hashed stream
-  const response = await fetch(uploadUrl, {
-    method: 'PUT',
-    headers: { 'Content-Length': String(contentLength) },
-    body: pipedStream,
-    duplex: 'half',
-  } as RequestInit & { duplex: 'half' });
-
-  if (!response.ok) return xmlError(c, 'InternalError', 'Upload to Google Drive failed', 502);
-
-  // Get Google File ID from response headers / body
-  const rawBody = await response.text();
+  // Initiate resumable session + upload. Wrapped in try/catch to release
+  // the pre-reserved quota on any failure (prevents quota leak).
   let gFile: { id?: string; md5Checksum?: string } = {};
+  let md5Hex: string;
   try {
-    gFile = JSON.parse(rawBody);
-  } catch {
-    /* non-JSON Google response */
-  }
+    const uploadUrl = await driveService.initiateResumableUpload(
+      targetDrive.id,
+      fileName || '',
+      mimeType,
+      targetDrive.rootFolderId || 'root',
+    );
 
-  // Reject if Google did not return a file ID — prevents corrupt D1 rows
-  if (!gFile.id) {
-    return xmlError(c, 'InternalError', 'Google Drive did not return a file ID', 502);
-  }
+    const response = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Length': String(contentLength) },
+      body: pipedStream,
+      duplex: 'half',
+    } as RequestInit & { duplex: 'half' });
 
-  // Get the calculated MD5 hash after the stream has been fully consumed
-  const md5Hex = getMd5Hash();
+    if (!response.ok) throw new Error('Upload to Google Drive failed');
 
-  // Verify body integrity: if x-amz-content-sha256 is a real hash (not UNSIGNED-PAYLOAD),
-  // compare it against the actual body hash. Reject if mismatched (body substitution attack).
-  const expectedSha256 = c.req.header('x-amz-content-sha256');
-  if (
-    expectedSha256 &&
-    expectedSha256 !== 'UNSIGNED-PAYLOAD' &&
-    !expectedSha256.startsWith('STREAMING-')
-  ) {
-    const actualSha256 = getSha256Hash();
-    if (actualSha256 !== expectedSha256) {
-      // Body was substituted after signing — delete the uploaded file and reject
-      try {
-        await driveService.deleteFile(targetDrive.id, gFile.id);
-      } catch {
-        /* best-effort */
+    const rawBody = await response.text();
+    try {
+      gFile = JSON.parse(rawBody);
+    } catch {
+      /* non-JSON Google response */
+    }
+
+    if (!gFile.id) throw new Error('Google Drive did not return a file ID');
+
+    md5Hex = getMd5Hash();
+
+    // Verify body integrity (SHA-256)
+    const expectedSha256 = c.req.header('x-amz-content-sha256');
+    if (
+      expectedSha256 &&
+      expectedSha256 !== 'UNSIGNED-PAYLOAD' &&
+      !expectedSha256.startsWith('STREAMING-')
+    ) {
+      const actualSha256 = getSha256Hash();
+      if (actualSha256 !== expectedSha256) {
+        try {
+          await driveService.deleteFile(targetDrive.id, gFile.id);
+        } catch {
+          /* best-effort */
+        }
+        throw new Error('SignatureDoesNotMatch');
       }
+    }
+  } catch (err) {
+    // Release the pre-reserved quota (compensating decrement)
+    if (quotaReserved) {
+      try {
+        await policyService.updateWorkspaceStorage(workspace.id, -contentLength);
+      } catch {
+        /* best-effort — quota may be slightly over-reserved */
+      }
+    }
+    const msg = (err as Error).message;
+    if (msg === 'SignatureDoesNotMatch') {
       return xmlError(
         c,
         'SignatureDoesNotMatch',
@@ -669,6 +680,7 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
         403,
       );
     }
+    return xmlError(c, 'InternalError', msg, 502);
   }
 
   // Fetch metadata (thumbnail, links) for the newly uploaded file. Non-fatal —
@@ -701,30 +713,49 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
   // file is still alive (no data loss). The old Google file is deleted
   // best-effort AFTER the batch succeeds — an orphan is storage waste, not
   // data corruption.
-  if (existingFile) {
-    await db.batch([fileRepo.deleteByIdStmt(existingFile.id), insertStmt]);
-  } else {
-    // No existing file found — but a concurrent PUT may have inserted one.
-    // On unique constraint error, re-read, delete the race winner, and insert.
-    try {
-      await insertStmt.run();
-    } catch (err) {
-      const raceFile = await fileRepo.findByWorkspaceKeyMinimal(
-        workspace.id,
-        fileName,
-        folderId || null,
-      );
-      if (raceFile) {
-        await db.batch([fileRepo.deleteByIdStmt(raceFile.id), insertStmt]);
-        try {
-          await driveService.deleteFile(raceFile.drive_account_id, raceFile.google_file_id);
-        } catch (e) {
-          logError(c, 'Failed to delete race-loser Google file (orphaned — not data loss)', e);
+  try {
+    if (existingFile) {
+      await db.batch([fileRepo.deleteByIdStmt(existingFile.id), insertStmt]);
+    } else {
+      // No existing file found — but a concurrent PUT may have inserted one.
+      // On unique constraint error, re-read, delete the race winner, and insert.
+      try {
+        await insertStmt.run();
+      } catch (err) {
+        const raceFile = await fileRepo.findByWorkspaceKeyMinimal(
+          workspace.id,
+          fileName,
+          folderId || null,
+        );
+        if (raceFile) {
+          await db.batch([fileRepo.deleteByIdStmt(raceFile.id), insertStmt]);
+          try {
+            await driveService.deleteFile(raceFile.drive_account_id, raceFile.google_file_id);
+          } catch (e) {
+            logError(c, 'Failed to delete race-loser Google file (orphaned — not data loss)', e);
+          }
+        } else {
+          throw err;
         }
-      } else {
-        throw err;
       }
     }
+  } catch (err) {
+    // D1 failed after a successful Google upload — delete the orphaned Google
+    // file and release the pre-reserved quota (prevents quota leak).
+    logError(c, 'D1 insert failed after Google upload — cleaning up', err);
+    try {
+      await driveService.deleteFile(targetDrive.id, gFile.id ?? '');
+    } catch (e) {
+      logError(c, 'Failed to delete orphaned Google file after D1 failure', e);
+    }
+    if (quotaReserved) {
+      try {
+        await policyService.updateWorkspaceStorage(workspace.id, -contentLength);
+      } catch {
+        /* best-effort */
+      }
+    }
+    return xmlError(c, 'InternalError', 'Failed to record uploaded file', 500);
   }
 
   // Delete old Google file after D1 succeeds — best-effort (orphan, not data loss).
@@ -736,21 +767,7 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
     }
   }
 
-  // Update workspace storage usage (atomic quota check — catches TOCTOU race)
-  if (contentLength > 0) {
-    const policyService = new PolicyService(db, driveService);
-    const ok = await policyService.tryReserveQuota(workspace.id, contentLength);
-    if (!ok) {
-      // Race lost — quota exceeded between check and increment. Delete the
-      // uploaded file to avoid orphaning it, then return 403.
-      try {
-        await driveService.deleteFile(targetDrive.id, gFile.id ?? '');
-      } catch {
-        // Best-effort — orphan is storage waste, not data corruption
-      }
-      return xmlError(c, 'QuotaExceeded', 'Storage quota exceeded', 403);
-    }
-  }
+  // Quota was reserved before upload; on success the reservation stands.
 
   c.header('ETag', `"${md5Hex}"`);
   return c.body(null, 200);
@@ -912,10 +929,51 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
     const upload = await multipartRepo.findUploadScoped(uploadId, userId, s3WorkspaceId);
     if (!upload) return xmlError(c, 'NoSuchUpload', 'Upload session not found', 404);
 
-    // Get all parts ordered by part_number
-    const { results: parts } = await multipartRepo.findPartsByUpload(uploadId);
-    if (parts.length === 0) {
+    // Get all parts ordered by part_number from D1
+    const { results: d1Parts } = await multipartRepo.findPartsByUpload(uploadId);
+    if (d1Parts.length === 0) {
       return xmlError(c, 'InvalidRequest', 'No parts found to complete upload', 400);
+    }
+
+    // Parse the <CompleteMultipartUpload> XML body. S3 clients send a list of
+    // (PartNumber, ETag) pairs specifying which parts to concatenate and in what
+    // order. If the body is empty (quirky clients), fall back to all D1 parts.
+    const rawBody = await c.req.text();
+    const requestedParts = parseCompleteMultipartBody(rawBody);
+
+    let parts: S3MultipartPartRow[];
+    if (requestedParts.length > 0) {
+      const d1Map = new Map(d1Parts.map((p) => [p.part_number, p]));
+      parts = [];
+      for (const req of requestedParts) {
+        const d1Part = d1Map.get(req.partNumber);
+        if (!d1Part) {
+          return xmlError(c, 'InvalidPart', `Part number ${req.partNumber} not found`, 400);
+        }
+        // Verify ETag if the client provided one (strips surrounding quotes)
+        if (req.etag) {
+          const clientEtag = req.etag.replace(/^"|"$/g, '');
+          const d1Etag = d1Part.etag.replace(/^"|"$/g, '');
+          if (clientEtag !== d1Etag) {
+            return xmlError(c, 'InvalidPart', `ETag mismatch for part ${req.partNumber}`, 400);
+          }
+        }
+        parts.push(d1Part);
+      }
+    } else {
+      parts = d1Parts;
+    }
+
+    // Cap parts count to stay within Cloudflare Workers' 50-subrequest budget.
+    // Each part requires 1 downloadFile call; 40 parts + 1 upload + D1 + token = ~47.
+    const MAX_PARTS_FOR_COMPLETE = 40;
+    if (parts.length > MAX_PARTS_FOR_COMPLETE) {
+      return xmlError(
+        c,
+        'InvalidRequest',
+        `Multipart upload has ${parts.length} parts. Maximum ${MAX_PARTS_FOR_COMPLETE} parts supported per complete (Worker subrequest budget).`,
+        400,
+      );
     }
 
     const pathParts = key.split('/');
@@ -926,14 +984,16 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
     // Compute total size
     const totalSize = parts.reduce((acc, p) => acc + p.size, 0);
 
-    // Enforce workspace storage quota (mirrors HTTP /api/files/upload/init)
+    // Reserve workspace storage quota BEFORE upload (atomic — prevents TOCTOU race
+    // and data loss on overwrite).
+    const policyService = new PolicyService(db, driveService);
     if (totalSize > 0) {
-      const policyService = new PolicyService(db, driveService);
-      const hasQuota = await policyService.checkQuota(workspace.id, totalSize);
-      if (!hasQuota) {
+      const ok = await policyService.tryReserveQuota(workspace.id, totalSize);
+      if (!ok) {
         return xmlError(c, 'QuotaExceeded', 'Storage quota exceeded', 403);
       }
     }
+    const quotaReserved = totalSize > 0;
 
     // Fetch drive account to get its root folder ID
     const driveRepo = new DriveRepository(db);
@@ -942,79 +1002,80 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
     )) as DriveAccountRow | null;
     const destFolderId = driveAccount?.root_folder_id || 'root';
 
-    // Initiate final file upload in Google Drive
-    // Preserve MIME type from the Initiate request (stored in s3_multipart_uploads.content_type).
-    // Google stores this as the file's mimeType via X-Upload-Content-Type header, which
-    // affects thumbnail generation and FileIcon display.
-    const finalUploadUrl = await driveService.initiateResumableUpload(
-      upload.drive_account_id,
-      fileName || '',
-      upload.content_type ?? 'application/octet-stream',
-      destFolderId,
-    );
-
-    // Stream concatenate all parts
-    // We create a readable stream that pulls parts one-by-one
-    let currentPartIndex = 0;
-    let currentReader: ReadableStreamDefaultReader<Uint8Array> | null = null;
-    const finalStream = new ReadableStream({
-      async pull(controller) {
-        // Loop until we enqueue a chunk or exhaust all parts.
-        // Replaces the fragile `this.pull(controller)` recursion — `this` is
-        // not reliably bound inside ReadableStream pull callbacks (strict mode
-        // makes it undefined), so the old code threw TypeError on multi-part
-        // uploads as soon as the first part finished streaming.
-        while (true) {
-          if (!currentReader) {
-            if (currentPartIndex >= parts.length) {
-              controller.close();
-              return;
-            }
-            const part = parts[currentPartIndex];
-            const { stream: partStream } = await driveService.downloadFile(
-              upload.drive_account_id,
-              part.google_file_id,
-            );
-            currentReader = partStream.getReader();
-          }
-          const { done, value } = await currentReader.read();
-          if (done) {
-            // Release the finished part's reader and advance to the next part.
-            currentReader = null;
-            currentPartIndex++;
-            continue;
-          }
-          if (value) {
-            controller.enqueue(value);
-            return; // Yield control back to the stream consumer.
-          }
-        }
-      },
-      cancel() {
-        if (currentReader) currentReader.cancel();
-      },
-    });
-
-    const response = await fetch(finalUploadUrl, {
-      method: 'PUT',
-      headers: { 'Content-Length': String(totalSize) },
-      body: finalStream,
-      duplex: 'half',
-    } as RequestInit & { duplex: 'half' });
-
-    if (!response.ok) return xmlError(c, 'InternalError', 'Final concatenation failed', 502);
-
-    const rawBody = await response.text();
+    // Initiate final file upload + concatenate. Wrapped in try/catch to release
+    // the pre-reserved quota on any failure.
     let gFile: { id?: string; md5Checksum?: string } = {};
     try {
-      gFile = JSON.parse(rawBody);
-    } catch {
-      /* non-JSON Google response */
-    }
+      const finalUploadUrl = await driveService.initiateResumableUpload(
+        upload.drive_account_id,
+        fileName || '',
+        upload.content_type ?? 'application/octet-stream',
+        destFolderId,
+      );
 
-    // Reject if Google did not return a file ID — prevents corrupt D1 rows
-    if (!gFile.id) {
-      return xmlError(c, 'InternalError', 'Google Drive did not return a file ID', 502);
+      // Stream concatenate all parts
+      let currentPartIndex = 0;
+      let currentReader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+      const finalStream = new ReadableStream({
+        async pull(controller) {
+          while (true) {
+            if (!currentReader) {
+              if (currentPartIndex >= parts.length) {
+                controller.close();
+                return;
+              }
+              const part = parts[currentPartIndex];
+              const { stream: partStream } = await driveService.downloadFile(
+                upload.drive_account_id,
+                part.google_file_id,
+              );
+              currentReader = partStream.getReader();
+            }
+            const { done, value } = await currentReader.read();
+            if (done) {
+              // Release the finished part's reader and advance to the next part.
+              currentReader = null;
+              currentPartIndex++;
+              continue;
+            }
+            if (value) {
+              controller.enqueue(value);
+              return; // Yield control back to the stream consumer.
+            }
+          }
+        },
+        cancel() {
+          if (currentReader) currentReader.cancel();
+        },
+      });
+
+      const response = await fetch(finalUploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Length': String(totalSize) },
+        body: finalStream,
+        duplex: 'half',
+      } as RequestInit & { duplex: 'half' });
+
+      if (!response.ok) throw new Error('Final concatenation failed');
+
+      const rawBody = await response.text();
+      try {
+        gFile = JSON.parse(rawBody);
+      } catch {
+        /* non-JSON Google response */
+      }
+
+      if (!gFile.id) throw new Error('Google Drive did not return a file ID');
+    } catch (err) {
+      // Release the pre-reserved quota (compensating decrement)
+      if (quotaReserved) {
+        try {
+          await policyService.updateWorkspaceStorage(workspace.id, -totalSize);
+        } catch {
+          /* best-effort */
+        }
+      }
+      return xmlError(c, 'InternalError', (err as Error).message, 502);
     }
 
     // Check if file already exists in D1 under the same folder/name/workspace
@@ -1062,29 +1123,48 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
     // Batch the D1 DELETE + INSERT atomically FIRST. If D1 fails, the old
     // Google file is still alive (no data loss). The old Google file is
     // deleted best-effort AFTER the batch succeeds.
-    if (existingFile) {
-      await db.batch([fileRepo.deleteByIdStmt(existingFile.id), insertStmt]);
-    } else {
-      // No existing file — handle concurrent PUT race (same as PutObject handler)
-      try {
-        await insertStmt.run();
-      } catch (err) {
-        const raceFile = await fileRepo.findByWorkspaceKeyMinimal(
-          workspace.id,
-          fileName,
-          folderId || null,
-        );
-        if (raceFile) {
-          await db.batch([fileRepo.deleteByIdStmt(raceFile.id), insertStmt]);
-          try {
-            await driveService.deleteFile(raceFile.drive_account_id, raceFile.google_file_id);
-          } catch (e) {
-            logError(c, 'Failed to delete race-loser Google file (orphaned — not data loss)', e);
+    try {
+      if (existingFile) {
+        await db.batch([fileRepo.deleteByIdStmt(existingFile.id), insertStmt]);
+      } else {
+        // No existing file — handle concurrent PUT race (same as PutObject handler)
+        try {
+          await insertStmt.run();
+        } catch (err) {
+          const raceFile = await fileRepo.findByWorkspaceKeyMinimal(
+            workspace.id,
+            fileName,
+            folderId || null,
+          );
+          if (raceFile) {
+            await db.batch([fileRepo.deleteByIdStmt(raceFile.id), insertStmt]);
+            try {
+              await driveService.deleteFile(raceFile.drive_account_id, raceFile.google_file_id);
+            } catch (e) {
+              logError(c, 'Failed to delete race-loser Google file (orphaned — not data loss)', e);
+            }
+          } else {
+            throw err;
           }
-        } else {
-          throw err;
         }
       }
+    } catch (err) {
+      // D1 failed after a successful Google upload — delete the orphaned Google
+      // file and release the pre-reserved quota (prevents quota leak).
+      logError(c, 'D1 insert failed after Google upload — cleaning up', err);
+      try {
+        await driveService.deleteFile(upload.drive_account_id, gFile.id ?? '');
+      } catch (e) {
+        logError(c, 'Failed to delete orphaned Google file after D1 failure', e);
+      }
+      if (quotaReserved) {
+        try {
+          await policyService.updateWorkspaceStorage(workspace.id, -totalSize);
+        } catch {
+          /* best-effort */
+        }
+      }
+      return xmlError(c, 'InternalError', 'Failed to record uploaded file', 500);
     }
 
     // Delete old Google file after D1 succeeds — best-effort (orphan, not data loss).
@@ -1096,24 +1176,14 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
       }
     }
 
-    // Update workspace storage usage (atomic quota check — catches TOCTOU race)
-    if (totalSize > 0) {
-      const policyService = new PolicyService(db, driveService);
-      const ok = await policyService.tryReserveQuota(workspace.id, totalSize);
-      if (!ok) {
-        // Race lost — quota exceeded between check and increment. Delete the
-        // uploaded file to avoid orphaning it, then return 403.
-        try {
-          await driveService.deleteFile(upload.drive_account_id, gFile.id ?? '');
-        } catch {
-          // Best-effort — orphan is storage waste, not data corruption
-        }
-        return xmlError(c, 'QuotaExceeded', 'Storage quota exceeded', 403);
-      }
-    }
+    // Quota was reserved before upload. On success, the reservation stands.
 
     // Cleanup: Delete temp parts folder from Google Drive & clean SQLite state
-    await driveService.deleteFile(upload.drive_account_id, upload.temp_folder_id);
+    try {
+      await driveService.deleteFile(upload.drive_account_id, upload.temp_folder_id);
+    } catch (err) {
+      logError(c, 'Failed to delete temp multipart folder from Google Drive', err);
+    }
     const s3LifecycleRepo = new S3LifecycleRepository(db);
     await s3LifecycleRepo.deleteUpload(uploadId);
 

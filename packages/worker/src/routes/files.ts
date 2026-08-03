@@ -393,23 +393,23 @@ filesRouter.post(
     const id = generateId();
     const fileSize = parseInt(gFile.size || '0', 10);
 
-    // Re-check quota with ACTUAL size (from Google) before creating the D1 row.
-    // Init checks the client-declared size; a client can declare size:1 at init
-    // and stream more bytes through the proxy. Google records the real size —
-    // use it here. Placed BEFORE finalizeUpload so a failed check creates no
-    // D1 row (no cleanup needed, no Trash-UI pollution).
+    // Reserve workspace storage quota BEFORE finalizeUpload (atomic — prevents
+    // TOCTOU race and D1 row orphaning). If finalizeUpload fails after this,
+    // the reservation is released via updateWorkspaceStorage(workspaceId, -fileSize).
+    const policyService = new PolicyService(db, driveService);
+    let quotaReserved = false;
     if (workspaceId && fileSize > 0) {
-      const policyService = new PolicyService(db, driveService);
-      const hasQuota = await policyService.checkQuota(workspaceId, fileSize);
-      if (!hasQuota) {
+      const ok = await policyService.tryReserveQuota(workspaceId, fileSize);
+      if (!ok) {
         // File is already on Google Drive (can't un-upload). Trash best-effort.
         try {
           await driveService.trashFile(driveAccountId, gFile.id);
         } catch {
-          /* best-effort — quota rejection is the primary signal */
+          /* best-effort */
         }
         throw new AppError(403, 'Storage quota exceeded');
       }
+      quotaReserved = true;
     }
 
     // Only set workspace_folder_id when a genuine workspace folder id is provided
@@ -417,36 +417,34 @@ filesRouter.post(
     const wsFolder = workspaceFolderId || null;
     const googleParent = parentFolderId || null;
 
-    const created = await c.get('fileService').finalizeUpload(userId, {
-      id,
-      driveAccountId,
-      workspaceId: workspaceId || null,
-      workspaceFolderId: wsFolder,
-      googleFileId: gFile.id,
-      googleParentId: googleParent,
-      name: gFile.name,
-      mimeType: gFile.mimeType,
-      size: fileSize,
-      thumbnailUrl: gFile.thumbnailLink || null,
-      webViewLink: gFile.webViewLink || null,
-      webContentLink: gFile.webContentLink || null,
-      googleCreatedAt: gFile.createdTime,
-      googleModifiedAt: gFile.modifiedTime,
-    });
-
-    if (workspaceId && fileSize > 0) {
-      const policyService = new PolicyService(db, driveService);
-      const ok = await policyService.tryReserveQuota(workspaceId, fileSize);
-      if (!ok) {
-        // Race lost — quota exceeded between check and increment. Delete the
-        // uploaded file to avoid orphaning it, then return 403.
+    let created: unknown;
+    try {
+      created = await c.get('fileService').finalizeUpload(userId, {
+        id,
+        driveAccountId,
+        workspaceId: workspaceId || null,
+        workspaceFolderId: wsFolder,
+        googleFileId: gFile.id,
+        googleParentId: googleParent,
+        name: gFile.name,
+        mimeType: gFile.mimeType,
+        size: fileSize,
+        thumbnailUrl: gFile.thumbnailLink || null,
+        webViewLink: gFile.webViewLink || null,
+        webContentLink: gFile.webContentLink || null,
+        googleCreatedAt: gFile.createdTime,
+        googleModifiedAt: gFile.modifiedTime,
+      });
+    } catch (err) {
+      // finalizeUpload failed — release the pre-reserved quota
+      if (quotaReserved) {
         try {
-          await driveService.deleteFile(driveAccountId, googleFileId);
+          await policyService.updateWorkspaceStorage(workspaceId as string, -fileSize);
         } catch {
-          // Best-effort — orphan is storage waste, not data corruption
+          /* best-effort */
         }
-        throw new AppError(403, 'Storage quota exceeded');
       }
+      throw err;
     }
 
     // Invalidate quota cache

@@ -57,12 +57,15 @@ export class S3LifecycleRepository {
       .all<{ upload_id: string; drive_account_id: string; temp_folder_id: string }>();
   }
 
-  /** Delete an s3_multipart_uploads row (parts cascade via ON DELETE CASCADE). */
-  deleteUpload(uploadId: string) {
-    return this.db
-      .prepare('DELETE FROM s3_multipart_uploads WHERE upload_id = ?')
-      .bind(uploadId)
-      .run();
+  /**
+   * Atomically delete an upload session and its parts. Uses db.batch because
+   * D1 does not enforce PRAGMA foreign_keys (CASCADE never fires).
+   */
+  async deleteUpload(uploadId: string): Promise<void> {
+    await this.db.batch([
+      this.db.prepare('DELETE FROM s3_multipart_parts WHERE upload_id = ?').bind(uploadId),
+      this.db.prepare('DELETE FROM s3_multipart_uploads WHERE upload_id = ?').bind(uploadId),
+    ]);
   }
 
   // ─── S3 Lifecycle Rule CRUD (used by S3 protocol route) ───

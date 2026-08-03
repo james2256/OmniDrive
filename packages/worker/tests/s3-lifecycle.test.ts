@@ -71,6 +71,11 @@ describe('cleanupOrphanMultipartUploads', () => {
           return { results: [] };
         },
       }),
+      batch: async (stmts: any[]) => {
+        for (const stmt of stmts) {
+          await stmt.run();
+        }
+      },
     };
     const env = {
       DB,
