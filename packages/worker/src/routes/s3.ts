@@ -4,7 +4,7 @@ import { s3AuthMiddleware } from '../middleware/s3-auth';
 import type { AppContext } from '../types/context';
 import { createDriveService } from '../lib/drive-factory';
 import { generateId } from '../lib/id';
-import { getMD5HashingStream } from '../lib/crypto-s3';
+import { getMD5HashingStream, getSha256HashingStream } from '../lib/crypto-s3';
 import { UploadRouter } from '../services/upload-router';
 import {
   mapDriveRow,
@@ -12,6 +12,7 @@ import {
   type FileRow,
   type DriveAccountRow,
   type WorkspaceFolderRow,
+  type S3MultipartUploadRow,
 } from '../types/db';
 import type { DriveAccount } from '../types/domain';
 import type { GDriveFile } from '../types/google';
@@ -21,6 +22,7 @@ import type { WorkspaceRole } from '../lib/schemas';
 import { parseLifecycleXml, serializeLifecycleXml } from '../services/s3-lifecycle';
 import { PolicyService } from '../services/policy.service';
 import { escapeXml, xmlError } from '../lib/s3-xml';
+import { ValidationError } from '../lib/errors';
 import { logError } from '../lib/logger';
 import { DriveRepository } from '../repositories/drive.repository';
 import { WorkspaceRepository } from '../repositories/workspace.repository';
@@ -76,6 +78,35 @@ function getFileETag(file: { id: string; metadata?: string | null }): string {
   return file.id;
 }
 
+/** Format a SQLite datetime string as an RFC 1123 date (e.g., "Wed, 21 Oct 2015 07:28:00 GMT"). */
+function formatRfc1123Date(dateStr: string | null | undefined): string {
+  if (!dateStr) return new Date().toUTCString();
+  return parseSqliteDate(dateStr).toUTCString();
+}
+
+/**
+ * Select the best drive for an S3 upload using UploadRouter (most free space).
+ * Shared by PutObject (known size) and InitiateMultipartUpload (size unknown → 0).
+ * Throws ValidationError if no drives connected or insufficient quota.
+ */
+async function selectDriveForS3Upload(
+  db: D1Database,
+  userId: string,
+  fileSize: number,
+): Promise<DriveAccount> {
+  const driveRepo = new DriveRepository(db);
+  const { results: driveRows } = await driveRepo.findAllByUser(userId);
+  if (driveRows.length === 0) throw new ValidationError('No connected drives');
+  const drives = driveRows
+    .map((r) => mapDriveRow(r))
+    .map((d: DriveAccount) => ({
+      ...d,
+      freeSpace: Math.max(0, d.totalQuota - d.usedQuota),
+      usagePercent: d.totalQuota > 0 ? (d.usedQuota / d.totalQuota) * 100 : 0,
+    }));
+  return new UploadRouter(drives).selectDriveForUpload(fileSize);
+}
+
 s3Router.use('*', s3AuthMiddleware);
 
 // GET /s3/ (List Buckets - maps to workspaces)
@@ -96,7 +127,7 @@ s3Router.get('/', async (c) => {
   }
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<ListAllMyBucketsResult>
+<ListAllMyBucketsResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
   <Owner>
     <ID>${escapeXml(userId)}</ID>
     <DisplayName>${escapeXml(userId)}</DisplayName>
@@ -144,7 +175,9 @@ s3Router.on(['GET', 'HEAD'], '/:bucket', async (c) => {
   const prefix = c.req.query('prefix') || '';
   const delimiter = c.req.query('delimiter') || '';
   // S3 ListObjectsV2 pagination params (max-keys capped at 1000 per S3 spec).
-  const maxKeys = Math.min(parseInt(c.req.query('max-keys') || '1000', 10) || 1000, 1000);
+  // Use nullish coalescing (??) not || so that max-keys=0 is respected (not treated as falsy).
+  const rawMaxKeys = parseInt(c.req.query('max-keys') ?? '1000', 10);
+  const maxKeys = Number.isFinite(rawMaxKeys) ? Math.min(Math.max(rawMaxKeys, 0), 1000) : 1000;
   const continuationToken = c.req.query('continuation-token') || '';
   const startAfter = c.req.query('start-after') || '';
 
@@ -233,7 +266,7 @@ s3Router.on(['GET', 'HEAD'], '/:bucket', async (c) => {
   }
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<ListBucketResult>
+<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
   <Name>${escapeXml(bucketName)}</Name>
   <Prefix>${escapeXml(prefix)}</Prefix>
   <MaxKeys>${maxKeys}</MaxKeys>
@@ -276,16 +309,21 @@ s3Router.put('/:bucket', async (c) => {
   const rules = parseLifecycleXml(await c.req.text());
   const db = c.env.DB;
   const s3LifecycleRepo = new S3LifecycleRepository(db);
-  await s3LifecycleRepo.deleteRules(workspace.id);
+  // Atomic: delete all existing rules + insert new ones in a single D1 batch.
+  // If the batch fails midway, D1 rolls back — no partial-replace window.
+  const stmts = [s3LifecycleRepo.deleteRulesStmt(workspace.id)];
   for (const r of rules) {
-    await s3LifecycleRepo.replaceRule(
-      generateId(),
-      workspace.id,
-      r.prefix,
-      r.days,
-      r.enabled ? 1 : 0,
+    stmts.push(
+      s3LifecycleRepo.replaceRuleStmt(
+        generateId(),
+        workspace.id,
+        r.prefix,
+        r.days,
+        r.enabled ? 1 : 0,
+      ),
     );
   }
+  await db.batch(stmts);
   return c.body(null, 200);
 });
 
@@ -357,38 +395,9 @@ async function getOrCreateWorkspaceFolder(
   return parentId;
 }
 
-// HEAD /s3/:bucket/:key (HeadObject - Get Metadata)
-s3Router.on('HEAD', '/:bucket/:key{.+}', async (c) => {
-  const key = c.req.param('key');
-  const db = c.env.DB;
-
-  const resolved = await resolveBucket(c, false);
-  if (resolved instanceof Response) return resolved;
-  const { workspace } = resolved;
-
-  const pathParts = key.split('/');
-  const fileName = pathParts.pop() ?? '';
-  const folderPath = pathParts.join('/');
-
-  const folderId = await getWorkspaceFolder(db, workspace.id, folderPath);
-  if (folderId === undefined) return c.text('Not Found', 404);
-
-  const fileRepo = new FileRepository(db);
-  const file = (await fileRepo.findByWorkspaceKeyFull(
-    workspace.id,
-    fileName,
-    folderId,
-  )) as FileRow | null;
-
-  if (!file) return c.text('Not Found', 404);
-
-  c.header('Content-Type', file.mime_type || 'application/octet-stream');
-  c.header('Content-Length', String(file.size));
-  c.header('ETag', `"${getFileETag(file)}"`);
-  return c.body(null);
-});
-
 // GET /s3/:bucket/:key (GetObject - Download)
+// Also handles HEAD (HeadObject) — Hono converts HEAD→GET internally and strips the body.
+// c.req.method returns 'HEAD' for HEAD requests, so we branch on it for metadata-only responses.
 s3Router.get('/:bucket/:key{.+}', async (c) => {
   const key = c.req.param('key');
   const db = c.env.DB;
@@ -416,10 +425,20 @@ s3Router.get('/:bucket/:key{.+}', async (c) => {
 
   if (!file) return xmlError(c, 'NoSuchKey', `The specified key does not exist.`, 404);
 
+  // Common headers for both HEAD and GET
+  const lastModified = formatRfc1123Date(
+    (file.google_modified_at as string | null) ||
+      (file.google_created_at as string | null) ||
+      (file.created_at as string),
+  );
+  c.header('Content-Type', file.mime_type || 'application/octet-stream');
+  c.header('Content-Length', String(file.size));
+  c.header('ETag', `"${getFileETag(file)}"`);
+  c.header('Last-Modified', lastModified);
+  c.header('Accept-Ranges', 'none'); // Range not supported — separate issue
+
+  // HEAD: return headers only (Hono strips body for HEAD at the app level)
   if (c.req.method === 'HEAD') {
-    c.header('Content-Type', file.mime_type || 'application/octet-stream');
-    c.header('Content-Length', String(file.size));
-    c.header('ETag', `"${getFileETag(file)}"`);
     return c.body(null);
   }
 
@@ -436,10 +455,9 @@ s3Router.get('/:bucket/:key{.+}', async (c) => {
   // setting it would truncate or hang the client.
   const isGoogleDocExport = file.mime_type?.startsWith('application/vnd.google-apps.');
   c.header('Content-Type', exportedMimeType || file.mime_type || 'application/octet-stream');
-  if (!isGoogleDocExport) {
-    c.header('Content-Length', String(file.size));
+  if (isGoogleDocExport) {
+    c.header('Content-Length', ''); // clear for chunked encoding
   }
-  c.header('ETag', `"${getFileETag(file)}"`);
   return c.body(stream);
 });
 
@@ -458,13 +476,7 @@ s3Router.delete('/:bucket/:key{.+}', async (c) => {
     const multipartRepo = new S3MultipartRepository(db);
     const upload = await multipartRepo.findUploadExact(uploadId, userId, workspace.id);
     if (!upload) {
-      const errorCode = 'NoSuchUpload';
-      const errorMessage = 'The specified multipart upload does not exist.';
-      return c.text(
-        `<?xml version="1.0" encoding="UTF-8"?><Error><Code>${escapeXml(errorCode)}</Code><Message>${escapeXml(errorMessage)}</Message></Error>`,
-        404,
-        { 'Content-Type': 'application/xml' },
-      );
+      return xmlError(c, 'NoSuchUpload', 'The specified multipart upload does not exist.', 404);
     }
 
     const driveService = createDriveService(c.env);
@@ -514,8 +526,35 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
   const partNumberStr = c.req.query('partNumber');
 
   if (uploadId && partNumberStr) {
-    // Handled in Task 7 (Upload Part)
-    return handleUploadPart(c, uploadId, parseInt(partNumberStr, 10));
+    // UploadPart: validate part number BEFORE any work
+    const partNumber = Number(partNumberStr);
+    if (!Number.isInteger(partNumber) || partNumber < 1 || partNumber > 10000) {
+      return xmlError(c, 'InvalidArgument', 'Part number must be between 1 and 10000', 400);
+    }
+
+    // RBAC: resolve bucket and check write permission before uploading the part.
+    // Previously this was skipped — handleUploadPart was called before resolveBucket,
+    // allowing viewers to upload parts if they had an uploadId.
+    const resolved = await resolveBucket(c, true);
+    if (resolved instanceof Response) return resolved;
+    const { workspace } = resolved;
+
+    // Assert the upload session belongs to the resolved workspace
+    const db = c.env.DB;
+    const multipartRepo = new S3MultipartRepository(db);
+    const upload = await multipartRepo.findUploadScoped(
+      uploadId,
+      c.get('userId'),
+      c.get('s3WorkspaceId') || null,
+    );
+    if (!upload) {
+      return xmlError(c, 'NoSuchUpload', 'The specified multipart upload does not exist.', 404);
+    }
+    if (upload.workspace_id !== workspace.id) {
+      return xmlError(c, 'AccessDenied', 'Upload session does not belong to this bucket', 403);
+    }
+
+    return handleUploadPart(c, upload, partNumber);
   }
 
   const key = c.req.param('key');
@@ -529,28 +568,21 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
   const contentLength = parseInt(c.req.header('Content-Length') || '0', 10);
   const mimeType = c.req.header('Content-Type') || 'application/octet-stream';
 
-  // 1. Select target Drive using UploadRouter
-  const driveRepo = new DriveRepository(db);
-  const { results: driveRows } = await driveRepo.findAllByUser(userId);
-  if (driveRows.length === 0) return c.text('No connected drives', 400);
+  // 1. Select target Drive using UploadRouter (shared helper)
+  let targetDrive: DriveAccount;
+  try {
+    targetDrive = await selectDriveForS3Upload(db, userId, contentLength);
+  } catch (err) {
+    return xmlError(c, 'InvalidRequest', (err as Error).message, 400);
+  }
 
-  const drives = driveRows
-    .map((r) => mapDriveRow(r))
-    .map((d: DriveAccount) => ({
-      ...d,
-      freeSpace: Math.max(0, d.totalQuota - d.usedQuota),
-      usagePercent: d.totalQuota > 0 ? (d.usedQuota / d.totalQuota) * 100 : 0,
-    }));
-
-  const router = new UploadRouter(drives);
-  const targetDrive = router.selectDriveForUpload(contentLength);
-
-  // 2. Hash data on-the-fly to get ETag
+  // 2. Hash data on-the-fly to get ETag (MD5) + verify body integrity (SHA-256)
   const bodyStream = c.req.raw.body;
-  if (!bodyStream) return c.text('Empty request body', 400);
+  if (!bodyStream) return xmlError(c, 'MissingContentLength', 'Empty request body', 400);
 
-  const { stream: hashingStream, getHash } = getMD5HashingStream();
-  const pipedStream = bodyStream.pipeThrough(hashingStream);
+  const { stream: md5Stream, getHash: getMd5Hash } = getMD5HashingStream();
+  const { stream: sha256Stream, getHash: getSha256Hash } = getSha256HashingStream();
+  const pipedStream = bodyStream.pipeThrough(md5Stream).pipeThrough(sha256Stream);
 
   // 3. Perform Direct Google Drive Upload
   const driveService = createDriveService(c.env);
@@ -595,7 +627,7 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
     duplex: 'half',
   } as RequestInit & { duplex: 'half' });
 
-  if (!response.ok) return c.text('Upload to Google Drive failed', 502);
+  if (!response.ok) return xmlError(c, 'InternalError', 'Upload to Google Drive failed', 502);
 
   // Get Google File ID from response headers / body
   const rawBody = await response.text();
@@ -608,11 +640,36 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
 
   // Reject if Google did not return a file ID — prevents corrupt D1 rows
   if (!gFile.id) {
-    return c.text('Google Drive did not return a file ID', 502);
+    return xmlError(c, 'InternalError', 'Google Drive did not return a file ID', 502);
   }
 
   // Get the calculated MD5 hash after the stream has been fully consumed
-  const md5Hex = getHash();
+  const md5Hex = getMd5Hash();
+
+  // Verify body integrity: if x-amz-content-sha256 is a real hash (not UNSIGNED-PAYLOAD),
+  // compare it against the actual body hash. Reject if mismatched (body substitution attack).
+  const expectedSha256 = c.req.header('x-amz-content-sha256');
+  if (
+    expectedSha256 &&
+    expectedSha256 !== 'UNSIGNED-PAYLOAD' &&
+    !expectedSha256.startsWith('STREAMING-')
+  ) {
+    const actualSha256 = getSha256Hash();
+    if (actualSha256 !== expectedSha256) {
+      // Body was substituted after signing — delete the uploaded file and reject
+      try {
+        await driveService.deleteFile(targetDrive.id, gFile.id);
+      } catch {
+        /* best-effort */
+      }
+      return xmlError(
+        c,
+        'SignatureDoesNotMatch',
+        'The provided hash does not match the calculated hash of the request body.',
+        403,
+      );
+    }
+  }
 
   // Fetch metadata (thumbnail, links) for the newly uploaded file. Non-fatal —
   // if this fails, the file is already uploaded; we just won't have a thumbnail yet.
@@ -647,7 +704,27 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
   if (existingFile) {
     await db.batch([fileRepo.deleteByIdStmt(existingFile.id), insertStmt]);
   } else {
-    await insertStmt.run();
+    // No existing file found — but a concurrent PUT may have inserted one.
+    // On unique constraint error, re-read, delete the race winner, and insert.
+    try {
+      await insertStmt.run();
+    } catch (err) {
+      const raceFile = await fileRepo.findByWorkspaceKeyMinimal(
+        workspace.id,
+        fileName,
+        folderId || null,
+      );
+      if (raceFile) {
+        await db.batch([fileRepo.deleteByIdStmt(raceFile.id), insertStmt]);
+        try {
+          await driveService.deleteFile(raceFile.drive_account_id, raceFile.google_file_id);
+        } catch (e) {
+          logError(c, 'Failed to delete race-loser Google file (orphaned — not data loss)', e);
+        }
+      } else {
+        throw err;
+      }
+    }
   }
 
   // Delete old Google file after D1 succeeds — best-effort (orphan, not data loss).
@@ -676,30 +753,26 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
   }
 
   c.header('ETag', `"${md5Hex}"`);
-  return c.text('', 200);
+  return c.body(null, 200);
 });
 
-// Helper to upload a part
+// Helper to upload a part (upload session + workspace already validated by caller)
 async function handleUploadPart(
   c: Context,
-  uploadId: string,
+  upload: S3MultipartUploadRow,
   partNumber: number,
 ): Promise<Response> {
-  const userId = c.get('userId');
-  const s3WorkspaceId = c.get('s3WorkspaceId') || null;
   const db = c.env.DB;
-
   const multipartRepo = new S3MultipartRepository(db);
-  const upload = await multipartRepo.findUploadScoped(uploadId, userId, s3WorkspaceId);
-  if (!upload) return c.text('Invalid uploadId', 404);
 
   const contentLength = parseInt(c.req.header('Content-Length') || '0', 10);
   const bodyStream = c.req.raw.body;
-  if (!bodyStream) return c.text('Missing part body', 400);
+  if (!bodyStream) return xmlError(c, 'MissingContentLength', 'Missing part body', 400);
 
-  // Hash part on the fly
-  const { stream: hashingStream, getHash } = getMD5HashingStream();
-  const pipedStream = bodyStream.pipeThrough(hashingStream);
+  // Hash part on the fly (MD5 for ETag + SHA-256 for body integrity)
+  const { stream: md5Stream, getHash: getMd5Hash } = getMD5HashingStream();
+  const { stream: sha256Stream, getHash: getSha256Hash } = getSha256HashingStream();
+  const pipedStream = bodyStream.pipeThrough(md5Stream).pipeThrough(sha256Stream);
 
   const driveService = createDriveService(c.env);
 
@@ -719,7 +792,9 @@ async function handleUploadPart(
     duplex: 'half',
   } as RequestInit & { duplex: 'half' });
 
-  if (!response.ok) return c.text('Failed uploading part to Google Drive', 502);
+  if (!response.ok) {
+    return xmlError(c, 'InternalError', 'Failed uploading part to Google Drive', 502);
+  }
 
   const rawBody = await response.text();
   let gFile: { id?: string; md5Checksum?: string } = {};
@@ -729,17 +804,40 @@ async function handleUploadPart(
     /* non-JSON Google response */
   }
 
-  const md5Hex = getHash();
+  const md5Hex = getMd5Hash();
 
   // Reject if Google did not return a file ID — prevents corrupt D1 rows
   // (matches the validation in PUT handler and CompleteMultipart handler).
   if (!gFile.id) {
-    return c.text('Google Drive did not return a file ID', 502);
+    return xmlError(c, 'InternalError', 'Google Drive did not return a file ID', 502);
+  }
+
+  // Verify body integrity (same as PutObject)
+  const expectedSha256 = c.req.header('x-amz-content-sha256');
+  if (
+    expectedSha256 &&
+    expectedSha256 !== 'UNSIGNED-PAYLOAD' &&
+    !expectedSha256.startsWith('STREAMING-')
+  ) {
+    const actualSha256 = getSha256Hash();
+    if (actualSha256 !== expectedSha256) {
+      try {
+        await driveService.deleteFile(upload.drive_account_id, gFile.id);
+      } catch {
+        /* best-effort */
+      }
+      return xmlError(
+        c,
+        'SignatureDoesNotMatch',
+        'The provided hash does not match the calculated hash of the request body.',
+        403,
+      );
+    }
   }
 
   // Store part state in DB (replace if already exists)
   await multipartRepo.upsertPart({
-    uploadId,
+    uploadId: upload.upload_id,
     partNumber,
     googleFileId: gFile.id,
     etag: `"${md5Hex}"`,
@@ -747,7 +845,7 @@ async function handleUploadPart(
   });
 
   c.header('ETag', `"${md5Hex}"`);
-  return c.text('', 200);
+  return c.body(null, 200);
 }
 
 // POST /s3/:bucket/:key (Initiate / Complete Multipart Upload)
@@ -770,11 +868,13 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
   if (uploadsParam !== undefined) {
     const uploadId = generateId();
 
-    // Choose target drive
-    const driveRepo = new DriveRepository(db);
-    const { results: driveRows } = await driveRepo.findAllByUser(userId);
-    if (driveRows.length === 0) return c.text('No connected drives', 400);
-    const targetDrive = mapDriveRow(driveRows[0]);
+    // Choose target drive using UploadRouter (same as PutObject — picks drive with most free space)
+    let targetDrive: DriveAccount;
+    try {
+      targetDrive = await selectDriveForS3Upload(db, userId, 0); // size unknown at Initiate
+    } catch (err) {
+      return xmlError(c, 'InvalidRequest', (err as Error).message, 400);
+    }
 
     // Create temp folder inside Google Drive
     const tempFolderName = `.omnidrive_multipart_${uploadId}`;
@@ -796,7 +896,7 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
     });
 
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<InitiateMultipartUploadResult>
+<InitiateMultipartUploadResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
   <Bucket>${escapeXml(bucketName)}</Bucket>
   <Key>${escapeXml(key)}</Key>
   <UploadId>${uploadId}</UploadId>
@@ -810,11 +910,13 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
   if (uploadId) {
     const multipartRepo = new S3MultipartRepository(db);
     const upload = await multipartRepo.findUploadScoped(uploadId, userId, s3WorkspaceId);
-    if (!upload) return c.text('Upload session not found', 404);
+    if (!upload) return xmlError(c, 'NoSuchUpload', 'Upload session not found', 404);
 
     // Get all parts ordered by part_number
     const { results: parts } = await multipartRepo.findPartsByUpload(uploadId);
-    if (parts.length === 0) return c.text('No parts found to complete upload', 400);
+    if (parts.length === 0) {
+      return xmlError(c, 'InvalidRequest', 'No parts found to complete upload', 400);
+    }
 
     const pathParts = key.split('/');
     const fileName = pathParts.pop() ?? '';
@@ -900,7 +1002,7 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
       duplex: 'half',
     } as RequestInit & { duplex: 'half' });
 
-    if (!response.ok) return c.text('Final concatenation failed', 502);
+    if (!response.ok) return xmlError(c, 'InternalError', 'Final concatenation failed', 502);
 
     const rawBody = await response.text();
     let gFile: { id?: string; md5Checksum?: string } = {};
@@ -912,7 +1014,7 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
 
     // Reject if Google did not return a file ID — prevents corrupt D1 rows
     if (!gFile.id) {
-      return c.text('Google Drive did not return a file ID', 502);
+      return xmlError(c, 'InternalError', 'Google Drive did not return a file ID', 502);
     }
 
     // Check if file already exists in D1 under the same folder/name/workspace
@@ -963,7 +1065,26 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
     if (existingFile) {
       await db.batch([fileRepo.deleteByIdStmt(existingFile.id), insertStmt]);
     } else {
-      await insertStmt.run();
+      // No existing file — handle concurrent PUT race (same as PutObject handler)
+      try {
+        await insertStmt.run();
+      } catch (err) {
+        const raceFile = await fileRepo.findByWorkspaceKeyMinimal(
+          workspace.id,
+          fileName,
+          folderId || null,
+        );
+        if (raceFile) {
+          await db.batch([fileRepo.deleteByIdStmt(raceFile.id), insertStmt]);
+          try {
+            await driveService.deleteFile(raceFile.drive_account_id, raceFile.google_file_id);
+          } catch (e) {
+            logError(c, 'Failed to delete race-loser Google file (orphaned — not data loss)', e);
+          }
+        } else {
+          throw err;
+        }
+      }
     }
 
     // Delete old Google file after D1 succeeds — best-effort (orphan, not data loss).
@@ -997,8 +1118,8 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
     await s3LifecycleRepo.deleteUpload(uploadId);
 
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<CompleteMultipartUploadResult>
-  <Location>${escapeXml(`http://${c.req.header('Host')}/s3/${bucketName}/${key}`)}</Location>
+<CompleteMultipartUploadResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+  <Location>${escapeXml(`${c.env.WORKER_URL}/s3/${encodeURIComponent(bucketName)}/${encodeURIComponent(key)}`)}</Location>
   <Bucket>${escapeXml(bucketName)}</Bucket>
   <Key>${escapeXml(key)}</Key>
   <ETag>"${s3Etag}"</ETag>
@@ -1008,5 +1129,5 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
     return c.text(xml);
   }
 
-  return c.text('Invalid query parameter sequence', 400);
+  return xmlError(c, 'InvalidRequest', 'Invalid query parameter sequence', 400);
 });

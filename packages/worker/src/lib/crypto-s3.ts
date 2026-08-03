@@ -14,6 +14,21 @@ export function getMD5HashingStream(): {
   return { stream, getHash: () => hash.digest('hex') };
 }
 
+/** TransformStream that computes SHA-256 while piping data through (for x-amz-content-sha256 verification). */
+export function getSha256HashingStream(): {
+  stream: TransformStream<Uint8Array, Uint8Array>;
+  getHash: () => string;
+} {
+  const hash = createHash('sha256');
+  const stream = new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, controller) {
+      hash.update(chunk);
+      controller.enqueue(chunk);
+    },
+  });
+  return { stream, getHash: () => hash.digest('hex') };
+}
+
 export interface StreamHashingResult {
   stream: ReadableStream<Uint8Array>;
   md5Hex: string;

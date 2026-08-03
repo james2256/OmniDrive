@@ -169,6 +169,11 @@ CREATE INDEX IF NOT EXISTS idx_files_user_parent_trashed_owned ON files(user_id,
 CREATE INDEX IF NOT EXISTS idx_files_external_cursor ON files(user_id, google_parent_id, is_trashed, owned_by_me, name, id);
 CREATE INDEX IF NOT EXISTS idx_files_user_starred_trashed ON files(user_id, is_starred, is_trashed);
 CREATE INDEX IF NOT EXISTS idx_files_ws_wsfol_trash_name_id ON files(workspace_id, workspace_folder_id, is_trashed, name, id);
+-- Prevent concurrent S3 PUTs from creating duplicate active file rows.
+-- COALESCE normalizes NULL workspace_folder_id (root-level files).
+CREATE UNIQUE INDEX IF NOT EXISTS idx_files_workspace_folder_name_active
+  ON files(workspace_id, COALESCE(workspace_folder_id, ''), name)
+  WHERE is_trashed = 0;
 -- drive_folders LEFT JOIN by google_folder_id in shared-links listing. The
 -- UNIQUE(drive_account_id, google_folder_id) cannot serve this — leftmost prefix
 -- is drive_account_id, so SQLite full-scans drive_folders per shared link row.

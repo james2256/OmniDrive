@@ -73,7 +73,7 @@ describe('xmlError', () => {
     const res = await buildApp().request('/err');
     const body = await res.text();
     expect(body).toContain('<?xml version="1.0" encoding="UTF-8"?>');
-    expect(body).toContain('<Error>');
+    expect(body).toContain('<Error xmlns="http://s3.amazonaws.com/doc/2006-03-01/">');
     expect(body).toContain('<Code>NoSuchKey</Code>');
     expect(body).toContain('<Message>The specified key does not exist.</Message>');
     expect(body).toContain('</Error>');

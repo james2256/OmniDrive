@@ -1,4 +1,4 @@
-import type { D1Database } from '@cloudflare/workers-types';
+import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types';
 import type { S3LifecycleRuleRow } from '../types/db';
 
 /**
@@ -41,7 +41,7 @@ export class S3LifecycleRepository {
       LEFT JOIN folder_path fp ON f.workspace_folder_id = fp.id
       WHERE f.workspace_id = ? AND f.is_trashed = 0
         AND COALESCE(fp.path, '') || f.name LIKE ? ESCAPE '^'
-        AND f.updated_at <= datetime('now', ?)
+        AND f.created_at <= datetime('now', ?)
     `,
       )
       .bind(workspaceId, workspaceId, workspaceId, escapedPrefix, modifier)
@@ -85,19 +85,25 @@ export class S3LifecycleRepository {
       .run();
   }
 
-  /** Insert or replace a single lifecycle rule. */
-  replaceRule(
+  /** Prepared statement: Delete all lifecycle rules for a workspace (for atomic batch). */
+  deleteRulesStmt(workspaceId: string): D1PreparedStatement {
+    return this.db
+      .prepare('DELETE FROM s3_lifecycle_rules WHERE workspace_id = ?')
+      .bind(workspaceId);
+  }
+
+  /** Prepared statement: Insert or replace a single lifecycle rule (for atomic batch). */
+  replaceRuleStmt(
     id: string,
     workspaceId: string,
     prefix: string,
     expirationDays: number,
     enabled: number,
-  ) {
+  ): D1PreparedStatement {
     return this.db
       .prepare(
         'INSERT OR REPLACE INTO s3_lifecycle_rules (id, workspace_id, prefix, expiration_days, enabled) VALUES (?, ?, ?, ?, ?)',
       )
-      .bind(id, workspaceId, prefix, expirationDays, enabled)
-      .run();
+      .bind(id, workspaceId, prefix, expirationDays, enabled);
   }
 }

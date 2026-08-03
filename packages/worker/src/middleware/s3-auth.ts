@@ -15,7 +15,7 @@ function returnXmlError(
   extraFields: Record<string, string> = {},
 ) {
   let xml = `<?xml version="1.0" encoding="UTF-8"?>
-<Error>
+<Error xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
   <Code>${code}</Code>
   <Message>${message}</Message>`;
   for (const [key, value] of Object.entries(extraFields)) {

@@ -20,9 +20,12 @@ export function escapeXml(str: string): string {
   });
 }
 
+/** S3 XML namespace required by strict clients (boto3, aws-sdk-go, rclone). */
+const S3_XMLNS = 'xmlns="http://s3.amazonaws.com/doc/2006-03-01/"';
+
 /** Build an S3 XML error response with the given code, message, and HTTP status. */
 export function xmlError(c: Context, code: string, message: string, status: number): Response {
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<Error>\n  <Code>${escapeXml(code)}</Code>\n  <Message>${escapeXml(message)}</Message>\n</Error>`;
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<Error ${S3_XMLNS}>\n  <Code>${escapeXml(code)}</Code>\n  <Message>${escapeXml(message)}</Message>\n</Error>`;
   return c.text(xml, status as 400 | 401 | 403 | 404 | 405 | 409 | 500, {
     'Content-Type': 'application/xml',
   });

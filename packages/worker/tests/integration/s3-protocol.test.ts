@@ -215,7 +215,9 @@ describe('S3 Protocol (integration)', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('Content-Type')).toContain('application/xml');
     const body = await res.text();
-    expect(body).toContain('<ListAllMyBucketsResult>');
+    expect(body).toContain(
+      '<ListAllMyBucketsResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">',
+    );
     expect(body).toContain('<Name>my-bucket</Name>');
     expect(body).toContain('<Name>team-bucket</Name>');
     expect(body).not.toContain('bob-private');
@@ -379,7 +381,9 @@ describe('S3 Protocol (integration)', () => {
 
     expect(res.status).toBe(200);
     const body = await res.text();
-    expect(body).toContain('<InitiateMultipartUploadResult>');
+    expect(body).toContain(
+      '<InitiateMultipartUploadResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">',
+    );
     expect(body).toContain('<UploadId>');
 
     // Extract UploadId from XML
@@ -429,6 +433,14 @@ describe('S3 Protocol (integration)', () => {
         }
         // Upload PUT — return file metadata with id + md5
         if (url.includes('uploadType=resumable') && init?.method === 'PUT') {
+          // Consume the body stream so hashing TransformStreams complete
+          if (init.body instanceof ReadableStream) {
+            const reader = init.body.getReader();
+            while (true) {
+              const { done } = await reader.read();
+              if (done) break;
+            }
+          }
           return new Response(
             JSON.stringify({
               id: 'gfile-new-123',

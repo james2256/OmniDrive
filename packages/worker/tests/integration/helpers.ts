@@ -36,6 +36,7 @@ export const TABLES = [
   `CREATE INDEX IF NOT EXISTS idx_invitation_codes_created_by ON invitation_codes(created_by)`,
   `CREATE INDEX IF NOT EXISTS idx_oauth_states_user ON oauth_states(user_id)`,
   `CREATE INDEX IF NOT EXISTS idx_s3_multipart_uploads_created ON s3_multipart_uploads(created_at)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_files_workspace_folder_name_active ON files(workspace_id, COALESCE(workspace_folder_id, ''), name) WHERE is_trashed = 0`,
 ];
 
 /** Create all tables needed by the integration tests. Idempotent. */

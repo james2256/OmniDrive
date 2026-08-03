@@ -42,7 +42,7 @@ export function serializeLifecycleXml(rules: LifecycleRule[]): string {
     )
     .join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>
-<LifecycleConfiguration>
+<LifecycleConfiguration xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
 ${rulesXml}
 </LifecycleConfiguration>`;
 }

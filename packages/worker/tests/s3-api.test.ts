@@ -275,7 +275,9 @@ describe('S3 API compatibility endpoints', () => {
     expect(res.headers.get('Content-Type')).toContain('application/xml');
 
     const body = await res.text();
-    expect(body).toContain('<ListAllMyBucketsResult>');
+    expect(body).toContain(
+      '<ListAllMyBucketsResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">',
+    );
     expect(body).toContain('<Bucket>');
     expect(body).toContain('<Name>my-bucket-1</Name>');
     expect(body).toContain('<Name>my-bucket-2</Name>');
@@ -456,7 +458,7 @@ describe('S3 API compatibility endpoints', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('Content-Type')).toContain('application/xml');
     const body = await res.text();
-    expect(body).toContain('<ListBucketResult>');
+    expect(body).toContain('<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">');
     expect(body).toContain('<Name>my-bucket-1</Name>');
     expect(body).toContain('<Key>photo.jpg</Key>');
     expect(body).toContain('<Key>documents/report.pdf</Key>');
@@ -636,14 +638,16 @@ describe('S3 API compatibility endpoints', () => {
   });
 
   it('defines handler routes for GET, PUT, DELETE, and HEAD objects', () => {
-    // This verifies route patterns are matched inside Hono
+    // This verifies route patterns are matched inside Hono.
+    // HEAD is handled by the GET handler — Hono converts HEAD→GET internally
+    // (hono-base.js #dispatch: if method === 'HEAD', dispatch as 'GET' and strip body).
+    // The GET handler branches on c.req.method === 'HEAD' for metadata-only responses.
     const routes = app.routes.filter((r) => r.path.startsWith('/s3'));
     expect(routes.some((r) => r.method === 'GET' && r.path === '/s3/:bucket/:key{.+}')).toBe(true);
     expect(routes.some((r) => r.method === 'PUT' && r.path === '/s3/:bucket/:key{.+}')).toBe(true);
     expect(routes.some((r) => r.method === 'DELETE' && r.path === '/s3/:bucket/:key{.+}')).toBe(
       true,
     );
-    expect(routes.some((r) => r.method === 'HEAD' && r.path === '/s3/:bucket/:key{.+}')).toBe(true);
   });
 
   it('defines POST handler on bucket key for multipart operations', () => {
@@ -1179,7 +1183,9 @@ describe('S3 API compatibility endpoints', () => {
 
         expect(res.status).toBe(200);
         const body = await res.text();
-        expect(body).toContain('<InitiateMultipartUploadResult>');
+        expect(body).toContain(
+          '<InitiateMultipartUploadResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">',
+        );
         expect(body).toContain('<Bucket>my-bucket-1</Bucket>');
         expect(body).toContain('<Key>large-file.bin</Key>');
         expect(body).toContain('<UploadId>');
@@ -1411,7 +1417,9 @@ describe('S3 API compatibility endpoints', () => {
 
         expect(res.status).toBe(200);
         const body = await res.text();
-        expect(body).toContain('<CompleteMultipartUploadResult>');
+        expect(body).toContain(
+          '<CompleteMultipartUploadResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">',
+        );
         expect(body).toContain('<Bucket>my-bucket-1</Bucket>');
         expect(body).toContain('<Key>large-file.bin</Key>');
         expect(body).toContain('<ETag>"5957f540217942ac31a98596f9b61399-1"</ETag>');
