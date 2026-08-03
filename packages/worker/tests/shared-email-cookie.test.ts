@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { Hono } from 'hono';
 import { sign } from 'hono/jwt';
-import type { AppContext } from '../src/types/env';
+import type { AppContext } from '../src/types/context';
 import { sharedRouter } from '../src/routes/shared';
 import { sharedServices } from '../src/middleware/shared-services';
 

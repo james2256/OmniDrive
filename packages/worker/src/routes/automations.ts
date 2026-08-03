@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import type { AppContext } from '../types/env';
+import type { AppContext } from '../types/context';
 import { generateId } from '../lib/id';
 import { authGuard } from '../middleware/auth-guard';
 import { NotFoundError } from '../lib/errors';

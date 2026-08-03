@@ -3,7 +3,7 @@ import type { Env } from '../types/env';
 import { computeDriveQuota } from '../lib/storage-quota';
 import { mapDriveRow } from '../types/db';
 import type { DriveWithQuota } from '../types/domain';
-import { createDriveService } from '../middleware/shared-services';
+import { createDriveService } from '../lib/drive-factory';
 import { logErrorNoCtx } from '../lib/logger';
 import { DriveRepository } from '../repositories/drive.repository';
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Hono } from 'hono';
-import type { AppContext } from '../src/types/env';
+import type { AppContext } from '../src/types/context';
 import { filesRouter } from '../src/routes/files';
 
 // These tests guard against IDOR / quota abuse on the upload endpoints:

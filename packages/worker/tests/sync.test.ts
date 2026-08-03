@@ -3,11 +3,11 @@ import { runScheduledSync } from '../src/services/sync';
 
 // Mock the createDriveService factory so sync.ts uses our mock GoogleDriveService
 // instead of constructing a real one (which would hit the network).
-vi.mock('../src/middleware/shared-services', () => ({
+vi.mock('../src/lib/drive-factory', () => ({
   createDriveService: vi.fn(),
 }));
 
-import { createDriveService } from '../src/middleware/shared-services';
+import { createDriveService } from '../src/lib/drive-factory';
 
 // ─── Mock factories ────────────────────────────────────────────
 

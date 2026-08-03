@@ -1,5 +1,5 @@
 import type { Context, MiddlewareHandler } from 'hono';
-import type { AppContext } from '../types/env';
+import type { AppContext } from '../types/context';
 import type { S3CredentialRow } from '../types/db';
 import { timingSafeEqual } from 'node:crypto';
 import { decrypt } from '../lib/crypto';

@@ -1,10 +1,10 @@
 import type { DbFile } from '../services/automation.service';
 import type { ExecutionContext } from '@cloudflare/workers-types';
 import { Hono } from 'hono';
-import type { AppContext } from '../types/env';
+import type { AppContext } from '../types/context';
 import { generateId } from '../lib/id';
 import { authGuard } from '../middleware/auth-guard';
-import { createDriveService } from '../middleware/shared-services';
+import { createDriveService } from '../lib/drive-factory';
 import { AppError, ConflictError, NotFoundError, ForbiddenError } from '../lib/errors';
 import { DriveRepository } from '../repositories/drive.repository';
 import { resolveDrivesWithQuota } from '../services/drive-quota';

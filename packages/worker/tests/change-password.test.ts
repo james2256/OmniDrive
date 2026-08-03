@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Hono } from 'hono';
-import type { AppContext } from '../src/types/env';
+import type { AppContext } from '../src/types/context';
 import { authRouter } from '../src/routes/auth';
 import { hashPassword } from '../src/lib/password';
 

@@ -2,7 +2,8 @@ import { describe, it, expect, vi } from 'vitest';
 import Database from 'better-sqlite3';
 import { authGuard } from '../src/middleware/auth-guard';
 import { AppError } from '../src/lib/errors';
-import type { AppContext, Env } from '../src/types/env';
+import type { Env } from '../src/types/env';
+import type { AppContext } from '../src/types/context';
 
 function createDb(): Database.Database {
   const db = new Database(':memory:');

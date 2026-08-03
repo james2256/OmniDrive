@@ -5,7 +5,7 @@ import { encrypt } from '../lib/crypto';
 import { getWorkspaceRole, hasPermission } from '../lib/rbac';
 import { zValidator } from '@hono/zod-validator';
 import { createS3CredentialsSchema, zodErrorHook } from '../lib/schemas';
-import type { AppContext } from '../types/env';
+import type { AppContext } from '../types/context';
 import { mapS3CredentialRow } from '../types/db';
 
 export const s3CredentialsRouter = new Hono<AppContext>();

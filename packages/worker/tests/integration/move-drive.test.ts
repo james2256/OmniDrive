@@ -39,7 +39,7 @@ const mockDrive = vi.hoisted(() => ({
   deleteFile: vi.fn(),
 }));
 
-vi.mock('../../src/middleware/shared-services', async (importOriginal) => {
+vi.mock('../../src/lib/drive-factory', async (importOriginal) => {
   // importOriginal is typed by vitest to resolve to the real module's
   // namespace, so no `typeof import()` cast is needed (and that form is
   // banned by @typescript-eslint/consistent-type-imports).

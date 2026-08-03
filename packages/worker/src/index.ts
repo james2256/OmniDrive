@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import { Hono } from 'hono';
-import type { AppContext, Env } from './types/env';
+import type { Env } from './types/env';
+import type { AppContext } from './types/context';
 import { corsMiddleware } from './middleware/cors';
 import { securityHeaders } from './middleware/security-headers';
 import { csrfGuard } from './middleware/csrf-guard';
@@ -17,7 +18,7 @@ import { AuditRepository } from './repositories/audit.repository';
 import { AuthRepository } from './repositories/auth.repository';
 import { DriveRepository } from './repositories/drive.repository';
 import { PolicyService } from './services/policy.service';
-import { createDriveService } from './middleware/shared-services';
+import { createDriveService } from './lib/drive-factory';
 
 import { authRouter } from './routes/auth';
 import { drivesRouter } from './routes/drives';

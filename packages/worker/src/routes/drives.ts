@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import { AppError, ConflictError, ValidationError } from '../lib/errors';
-import type { AppContext } from '../types/env';
+import type { AppContext } from '../types/context';
 import { authGuard } from '../middleware/auth-guard';
-import { createDriveService } from '../middleware/shared-services';
+import { createDriveService } from '../lib/drive-factory';
 import { DriveRepository } from '../repositories/drive.repository';
 import { syncDriveAccount, batchUpsertFolderContents } from '../services/sync';
 import { mapDriveRow, mapDriveFolderRow, mapFileRow } from '../types/db';

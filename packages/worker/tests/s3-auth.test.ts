@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import { s3AuthMiddleware } from '../src/middleware/s3-auth';
 import { encrypt } from '../src/lib/crypto';
 import { hmacSha256, sha256 } from '../src/lib/crypto-s3';
-import type { AppContext } from '../src/types/env';
+import type { AppContext } from '../src/types/context';
 
 const TOKEN_ENCRYPTION_KEY = 'test-token-encryption-key-which-is-long-enough';
 const ACCESS_KEY_ID = 'AKIAIOSFODNN7EXAMPLE';

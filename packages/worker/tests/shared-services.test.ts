@@ -25,7 +25,8 @@ vi.mock('../src/services/shared.service', () => ({
   }),
 }));
 
-import { sharedServices, createDriveService } from '../src/middleware/shared-services';
+import { createDriveService } from '../src/lib/drive-factory';
+import { sharedServices } from '../src/middleware/shared-services';
 import { GoogleDriveService } from '../src/services/google-drive';
 import { SharedService } from '../src/services/shared.service';
 

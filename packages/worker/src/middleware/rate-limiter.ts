@@ -1,6 +1,6 @@
 import type { Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
-import type { AppContext } from '../types/env';
+import type { AppContext } from '../types/context';
 
 interface RateLimitEntry {
   timestamps: number[];

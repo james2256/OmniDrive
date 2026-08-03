@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Hono } from 'hono';
-import type { AppContext } from '../src/types/env';
+import type { AppContext } from '../src/types/context';
 import { drivesRouter } from '../src/routes/drives';
 
 vi.mock('../src/lib/google-service-account', () => ({

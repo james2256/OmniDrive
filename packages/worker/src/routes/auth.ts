@@ -1,13 +1,14 @@
 import { Hono } from 'hono';
 import { setCookie, deleteCookie, getCookie } from 'hono/cookie';
 import { hashPassword, verifyPassword, timingSafeEqual } from '../lib/password';
-import type { AppContext, SessionData } from '../types/env';
+import type { SessionData } from '../types/env';
+import type { AppContext } from '../types/context';
 import type { UserRow } from '../types/db';
 import { AuthService } from '../services/auth.service';
 import { AppError, ConflictError, NotFoundError } from '../lib/errors';
 import { generateId } from '../lib/id';
 import { authGuard } from '../middleware/auth-guard';
-import { createDriveService } from '../middleware/shared-services';
+import { createDriveService } from '../lib/drive-factory';
 import { zValidator } from '@hono/zod-validator';
 import { registerSchema, loginSchema, changePasswordSchema, zodErrorHook } from '../lib/schemas';
 import { encrypt } from '../lib/crypto';

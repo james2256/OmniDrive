@@ -1,7 +1,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import { DriveRepository } from '../repositories/drive.repository';
 import type { DriveProvider } from '../types/drive-provider';
-import { createDriveService } from '../middleware/shared-services';
+import { createDriveService } from '../lib/drive-factory';
 import { NotFoundError, ForbiddenError } from '../lib/errors';
 import { generateId } from '../lib/id';
 import { encodeCursor } from '../lib/cursor';

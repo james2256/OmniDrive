@@ -1,5 +1,5 @@
 import type { Env } from '../types/env';
-import { createDriveService } from '../middleware/shared-services';
+import { createDriveService } from '../lib/drive-factory';
 import { logErrorNoCtx } from '../lib/logger';
 import { S3LifecycleRepository } from '../repositories/s3-lifecycle.repository';
 import { FileRepository } from '../repositories/file.repository';

@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import type { AppContext } from '../types/env';
+import type { AppContext } from '../types/context';
 import { authGuard } from '../middleware/auth-guard';
 import { zValidator } from '@hono/zod-validator';
 import {

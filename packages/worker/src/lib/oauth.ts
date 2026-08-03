@@ -2,7 +2,8 @@ import type { Context } from 'hono';
 import { setCookie } from 'hono/cookie';
 import { generatePKCE } from './pkce';
 import { AuthRepository } from '../repositories/auth.repository';
-import type { AppContext, Env } from '../types/env';
+import type { Env } from '../types/env';
+import type { AppContext } from '../types/context';
 
 export interface BuildOAuthUrlOptions {
   /** Google OAuth prompt flags. auth.ts uses 'consent'; drives.ts uses 'select_account consent'. */

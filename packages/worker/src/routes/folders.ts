@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
-import type { AppContext, Env } from '../types/env';
+import type { Env } from '../types/env';
+import type { AppContext } from '../types/context';
 import { authGuard } from '../middleware/auth-guard';
-import { createDriveService } from '../middleware/shared-services';
+import { createDriveService } from '../lib/drive-factory';
 import { AppError } from '../lib/errors';
 import { mapDriveRow } from '../types/db';
 import { syncDriveAccount, syncDriveFolder } from '../services/sync';

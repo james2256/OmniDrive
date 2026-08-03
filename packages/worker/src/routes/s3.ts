@@ -1,8 +1,8 @@
 import type { Context } from 'hono';
 import { Hono } from 'hono';
 import { s3AuthMiddleware } from '../middleware/s3-auth';
-import type { AppContext } from '../types/env';
-import { createDriveService } from '../middleware/shared-services';
+import type { AppContext } from '../types/context';
+import { createDriveService } from '../lib/drive-factory';
 import { generateId } from '../lib/id';
 import { getMD5HashingStream } from '../lib/crypto-s3';
 import { UploadRouter } from '../services/upload-router';

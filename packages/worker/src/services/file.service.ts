@@ -3,7 +3,7 @@ import { FileRepository } from '../repositories/file.repository';
 import { FolderRepository } from '../repositories/folder.repository';
 import { DriveRepository } from '../repositories/drive.repository';
 import type { DriveProvider } from '../types/drive-provider';
-import { createDriveService } from '../middleware/shared-services';
+import { createDriveService } from '../lib/drive-factory';
 import { PolicyService } from './policy.service';
 import { getWorkspaceRole, hasPermission } from '../lib/rbac';
 import { AppError, NotFoundError, ForbiddenError } from '../lib/errors';

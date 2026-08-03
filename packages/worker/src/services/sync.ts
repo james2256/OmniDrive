@@ -4,7 +4,7 @@ import type { DriveAccount } from '../types/domain';
 import { mapDriveRow } from '../types/db';
 import type { GDriveFile, GDriveFolder, GDriveOwner } from '../types/google';
 import type { DriveProvider } from '../types/drive-provider';
-import { createDriveService } from '../middleware/shared-services';
+import { createDriveService } from '../lib/drive-factory';
 import { resolveSyncRootFolderId } from '../lib/drive-folder';
 import type { Env } from '../types/env';
 import { DriveRepository } from '../repositories/drive.repository';
