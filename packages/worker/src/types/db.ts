@@ -389,6 +389,7 @@ export interface S3MultipartUploadRow {
   key: string;
   drive_account_id: string;
   temp_folder_id: string;
+  content_type: string | null;
   created_at: string;
 }
 

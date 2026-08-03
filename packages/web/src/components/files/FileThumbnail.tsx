@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FileEntry } from '../../types';
 import { FileIcon } from './FileIcon';
 
@@ -15,17 +15,26 @@ interface FileThumbnailProps {
  *
  * Google's `thumbnailLink` includes a size suffix (`=s220` = 220px). Swapping
  * it to `=s600` fetches a larger image (600px) from the same signed URL — no
- * extra API call, no extra D1 read — so the grid/list shows a higher-quality
+ * extra API call, no D1 read — so the grid/list shows a higher-quality
  * preview without a performance cost.
  *
  * The thumbnail URL is a short-lived Google-signed URL (typically hours).
  * On expiry or load failure, `onError` flips the internal `errored` state and
  * the component re-renders the {@link FileIcon} — a graceful degradation with
  * no broken-image icon. The next file-list fetch (navigation/refetch) brings
- * fresh signed URLs.
+ * fresh signed URLs, and the `useEffect` below resets `errored` so the new
+ * URL is retried (self-healing — no manual reload needed).
  */
 export function FileThumbnail({ file, className }: FileThumbnailProps) {
   const [errored, setErrored] = useState(false);
+
+  // Reset error state when the thumbnail URL changes (e.g., after TanStack
+  // refetch brings a fresh Google-signed URL). Without this, a once-expired
+  // URL would permanently show FileIcon even after the URL is refreshed.
+  // Matches the pattern in FilePreviewModal.tsx (reset on file/id change).
+  useEffect(() => {
+    setErrored(false);
+  }, [file.thumbnailUrl]);
 
   if (!file.thumbnailUrl || errored) {
     return <FileIcon mimeType={file.mimeType} className={className} />;

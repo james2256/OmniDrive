@@ -2,9 +2,10 @@ import { useEffect, useState, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
 import { sharedApi } from '../lib/api/shared';
-import type { SharedMetaResponse } from '../types';
+import type { SharedMetaResponse, FileEntry } from '../types';
 import { formatFileSize } from '../lib/utils';
 import { FileIcon } from '../components/files/FileIcon';
+import { FileThumbnail } from '../components/files/FileThumbnail';
 import { Lock, Download, CircleAlert, LoaderCircle, Folder } from 'lucide-react';
 import { FolderDownloadModal } from '../components/FolderDownloadModal';
 import { Button } from '../components/ui/Button';
@@ -19,7 +20,13 @@ export function PublicSharedPage() {
   const [verifying, setVerifying] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [folderContents, setFolderContents] = useState<{
-    files: Array<{ id: string; name: string; mimeType: string; size: number }>;
+    files: Array<{
+      id: string;
+      name: string;
+      mimeType: string;
+      size: number;
+      thumbnailUrl: string | null;
+    }>;
     folders: Array<{ id: string; name: string }>;
   } | null>(null);
   const [folderContentsError, setFolderContentsError] = useState('');
@@ -213,8 +220,11 @@ export function PublicSharedPage() {
                           href={`${apiUrl}/api/shared/${id}/download?fileId=${f.id}`}
                           className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-50 group"
                         >
-                          <div className="text-base flex-shrink-0">
-                            <FileIcon mimeType={f.mimeType} />
+                          <div className="flex-shrink-0">
+                            <FileThumbnail
+                              file={f as unknown as FileEntry}
+                              className="w-8 h-8 rounded object-cover"
+                            />
                           </div>
                           <span className="text-sm text-slate-700 truncate flex-1">{f.name}</span>
                           <span className="text-xs text-slate-400 flex-shrink-0">

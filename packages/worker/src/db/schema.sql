@@ -316,7 +316,8 @@ CREATE TABLE IF NOT EXISTS s3_multipart_uploads (
     key                TEXT NOT NULL,
     drive_account_id   TEXT NOT NULL REFERENCES drive_accounts(id) ON DELETE CASCADE,
     temp_folder_id     TEXT NOT NULL,
-    created_at         TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at         TEXT NOT NULL DEFAULT (datetime('now')),
+    content_type       TEXT
 );
 
 -- Track uploaded parts for active multipart uploads

@@ -771,13 +771,18 @@ export class FileRepository {
     mimeType: string;
     size: number;
     metadata: string;
+    thumbnailUrl: string | null;
+    webViewLink: string | null;
+    webContentLink: string | null;
   }): D1PreparedStatement {
     return this.db
       .prepare(
         `INSERT INTO files (
           id, user_id, drive_account_id, workspace_id, workspace_folder_id, 
-          google_file_id, name, mime_type, size, metadata, google_created_at, google_modified_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+          google_file_id, name, mime_type, size, metadata,
+          thumbnail_url, web_view_link, web_content_link,
+          google_created_at, google_modified_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
       )
       .bind(
         params.id,
@@ -790,6 +795,9 @@ export class FileRepository {
         params.mimeType,
         params.size,
         params.metadata,
+        params.thumbnailUrl,
+        params.webViewLink,
+        params.webContentLink,
       );
   }
 }

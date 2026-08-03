@@ -6,7 +6,8 @@ import type { FileEntry } from '../../types';
 import { foldersApi } from '../../lib/api/folders';
 import { filesApi } from '../../lib/api/files';
 import { invalidateAfterFileMutation } from '../../lib/invalidate';
-import { FileIcon, getFileTypeName } from '../files/FileIcon';
+import { getFileTypeName } from '../files/FileIcon';
+import { FileThumbnail } from '../files/FileThumbnail';
 import { DriveBadge } from '../DriveBadge';
 import { X, File, Folder, RefreshCw } from 'lucide-react';
 import { useUIStore } from '../../stores/useUIStore';
@@ -137,8 +138,11 @@ export const InfoPanel: React.FC = () => {
               <Folder size={48} className="text-blue-500" fill="currentColor" />
             </div>
           ) : (
-            <div className="w-24 h-24 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-center text-5xl shadow-sm">
-              <FileIcon mimeType={item?.mimeType} />
+            <div className="w-24 h-24 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-center overflow-hidden shadow-sm">
+              <FileThumbnail
+                file={item as unknown as FileEntry}
+                className="w-16 h-16 rounded-lg object-cover"
+              />
             </div>
           )}
         </div>

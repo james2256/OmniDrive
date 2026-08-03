@@ -3,9 +3,11 @@ import { useUIStore } from './useUIStore';
 
 describe('useUIStore', () => {
   beforeEach(() => {
+    localStorage.clear(); // Clear persisted state from prior tests
     useUIStore.setState({
       isSidebarOpen: true,
       isInfoPanelOpen: false,
+      mobileSidebarOpen: false,
       viewMode: 'list',
       theme: 'light',
       sortField: 'name',

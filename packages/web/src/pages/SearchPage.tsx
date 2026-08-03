@@ -69,7 +69,6 @@ export function SearchPage() {
             subfolders={folderResults}
             getDriveInfo={getDriveInfo}
             isTargetShared={isTargetShared}
-            viewMode="list"
             actions={{
               onShare: (id, type) => itemModals.setShareTarget({ id, type }),
               onMoveDrive: (file) => itemModals.setMoveDriveFiles([file]),

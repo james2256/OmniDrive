@@ -47,11 +47,12 @@ export class S3MultipartRepository {
     key: string;
     driveAccountId: string;
     tempFolderId: string;
+    contentType: string | null;
   }) {
     return this.db
       .prepare(
-        `INSERT INTO s3_multipart_uploads (upload_id, user_id, workspace_id, key, drive_account_id, temp_folder_id)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO s3_multipart_uploads (upload_id, user_id, workspace_id, key, drive_account_id, temp_folder_id, content_type)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         params.uploadId,
@@ -60,6 +61,7 @@ export class S3MultipartRepository {
         params.key,
         params.driveAccountId,
         params.tempFolderId,
+        params.contentType,
       )
       .run();
   }

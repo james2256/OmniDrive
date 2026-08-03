@@ -14,6 +14,7 @@ import {
   type WorkspaceFolderRow,
 } from '../types/db';
 import type { DriveAccount } from '../types/domain';
+import type { GDriveFile } from '../types/google';
 import { createHash } from 'node:crypto';
 import { hasPermission } from '../lib/rbac';
 import type { WorkspaceRole } from '../lib/schemas';
@@ -613,6 +614,15 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
   // Get the calculated MD5 hash after the stream has been fully consumed
   const md5Hex = getHash();
 
+  // Fetch metadata (thumbnail, links) for the newly uploaded file. Non-fatal —
+  // if this fails, the file is already uploaded; we just won't have a thumbnail yet.
+  let fileMeta: GDriveFile | null = null;
+  try {
+    fileMeta = await driveService.getFile(targetDrive.id, gFile.id);
+  } catch (err) {
+    logError(c, 'S3 upload: metadata fetch failed (non-fatal)', err);
+  }
+
   const fileId = generateId();
   const insertStmt = fileRepo.insertS3ObjectStmt({
     id: fileId,
@@ -625,6 +635,9 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
     mimeType,
     size: contentLength,
     metadata: JSON.stringify({ md5: md5Hex }),
+    thumbnailUrl: fileMeta?.thumbnailLink ?? null,
+    webViewLink: fileMeta?.webViewLink ?? null,
+    webContentLink: fileMeta?.webContentLink ?? null,
   });
 
   // Batch the D1 DELETE + INSERT atomically FIRST. If D1 fails, the old Google
@@ -779,6 +792,7 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
       key,
       driveAccountId: targetDrive.id,
       tempFolderId,
+      contentType: c.req.header('Content-Type') ?? null,
     });
 
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -827,10 +841,13 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
     const destFolderId = driveAccount?.root_folder_id || 'root';
 
     // Initiate final file upload in Google Drive
+    // Preserve MIME type from the Initiate request (stored in s3_multipart_uploads.content_type).
+    // Google stores this as the file's mimeType via X-Upload-Content-Type header, which
+    // affects thumbnail generation and FileIcon display.
     const finalUploadUrl = await driveService.initiateResumableUpload(
       upload.drive_account_id,
       fileName || '',
-      'application/octet-stream',
+      upload.content_type ?? 'application/octet-stream',
       destFolderId,
     );
 
@@ -913,6 +930,15 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
     const finalMd5 = createHash('md5').update(concatenatedMd5s).digest('hex');
     const s3Etag = `${finalMd5}-${parts.length}`;
 
+    // Fetch metadata (thumbnail, links) for the newly uploaded file. Non-fatal —
+    // if this fails, the file is already uploaded; we just won't have a thumbnail yet.
+    let fileMeta: GDriveFile | null = null;
+    try {
+      fileMeta = await driveService.getFile(upload.drive_account_id, gFile.id ?? '');
+    } catch (err) {
+      logError(c, 'S3 multipart upload: metadata fetch failed (non-fatal)', err);
+    }
+
     // Insert completed file record into database
     const fileId = generateId();
     const insertStmt = fileRepo.insertS3ObjectStmt({
@@ -923,9 +949,12 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
       folderId: folderId || null,
       googleFileId: gFile.id ?? '',
       name: fileName,
-      mimeType: 'application/octet-stream',
+      mimeType: upload.content_type ?? 'application/octet-stream',
       size: totalSize,
       metadata: JSON.stringify({ md5: s3Etag }),
+      thumbnailUrl: fileMeta?.thumbnailLink ?? null,
+      webViewLink: fileMeta?.webViewLink ?? null,
+      webContentLink: fileMeta?.webContentLink ?? null,
     });
 
     // Batch the D1 DELETE + INSERT atomically FIRST. If D1 fails, the old
