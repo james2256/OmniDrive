@@ -1,4 +1,4 @@
-import { request, API_BASE, ApiError, uploadChunk } from './core';
+import { request, API_BASE, ApiError, uploadChunkWithRetry } from './core';
 import type {
   FileEntry,
   UploadInitResponse,
@@ -52,6 +52,16 @@ export const filesApi = {
       method: 'POST',
       body: JSON.stringify({ path, parentFolderId }),
     }),
+  /**
+   * Batch-ensure multiple folder paths in a single request. Used by folder
+   * upload to avoid N+1 HTTP round-trips. Returns a map of path → googleFolderId.
+   * Server caps at 15 folder creations per call (D1 + external subrequest budget).
+   */
+  ensureFoldersBatch: (driveId: string, paths: string[], parentFolderId?: string) =>
+    request<{ folderIds: Record<string, string> }>(`/api/drives/${driveId}/folders/ensure-batch`, {
+      method: 'POST',
+      body: JSON.stringify({ paths, parentFolderId }),
+    }),
   uploadViaProxy: async (
     uploadUrl: string,
     file: File,
@@ -59,7 +69,9 @@ export const filesApi = {
   ): Promise<{ id: string }> => {
     let startByte = 0;
     while (true) {
-      const result = await uploadChunk(uploadUrl, file, startByte, onProgress);
+      // uploadChunkWithRetry handles transient 429/5xx/network errors with
+      // exponential backoff (mirrors worker's withBackoff pattern).
+      const result = await uploadChunkWithRetry(uploadUrl, file, startByte, onProgress);
       if (result.done) return result.value;
       startByte = result.nextStart;
     }

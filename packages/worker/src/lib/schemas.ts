@@ -171,13 +171,59 @@ export const createDriveFolderSchema = z.object({
 });
 
 /**
+ * A single folder-path segment: non-empty, no path separators, no traversal.
+ * Used by ensureDriveFolderSchema and ensureDriveFoldersBatchSchema.
+ */
+const folderPathSegment = z
+  .string()
+  .min(1, 'Folder name is required')
+  .max(255, 'Folder name too long')
+  .refine(
+    (s) => !s.includes('/') && !s.includes('\\'),
+    'Path separators not allowed in folder name',
+  )
+  .refine((s) => s !== '.' && s !== '..', 'Traversal segments are not allowed');
+
+/**
+ * A slash-separated folder path (e.g. "projects/src/utils"). Each segment must
+ * be a valid folder name. Rejects "..", absolute paths, backslashes, and empty
+ * segments. Used by folder upload — the web client sends webkitRelativePath
+ * directory portions, which are always sanitized by the browser.
+ */
+const folderPathSchema = z
+  .string()
+  .min(1, 'Path is required')
+  .max(2048, 'Path too long')
+  .refine((p) => !p.startsWith('/') && !p.startsWith('\\'), 'Absolute paths are not allowed')
+  .refine((p) => !p.includes('\\'), 'Backslash separators are not allowed')
+  .refine(
+    (p) => p.split('/').every((seg) => folderPathSegment.safeParse(seg).success),
+    'Path contains invalid segments',
+  );
+
+/**
  * Ensure a nested folder path exists (creating as needed). Used by folder upload
  * — the web client sends `projects/src/utils` and the worker walks each segment,
  * creating real Google Drive folders. Returns the leaf folder's Google ID so
  * the caller can use it as `parentFolderId` for files inside that path.
  */
 export const ensureDriveFolderSchema = z.object({
-  path: z.string().min(1, 'Path is required').max(2048, 'Path too long'),
+  path: folderPathSchema,
+  parentFolderId: z.string().nullable().optional(),
+});
+
+/**
+ * Batch-ensure multiple folder paths in a single request. Used by folder upload
+ * (drag-drop + picker) to avoid N+1 HTTP round-trips. Schema allows up to 1000
+ * paths — the subrequest cap is enforced server-side at execution time, not
+ * schema time, because the cap depends on how many folders already exist vs.
+ * need creation.
+ */
+export const ensureDriveFoldersBatchSchema = z.object({
+  paths: z
+    .array(folderPathSchema)
+    .min(1, 'At least one path is required')
+    .max(1000, 'Too many paths'),
   parentFolderId: z.string().nullable().optional(),
 });
 

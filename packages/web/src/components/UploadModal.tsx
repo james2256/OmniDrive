@@ -35,8 +35,42 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
   }, [driveId]);
 
   const handleUpload = async () => {
+    let resolvedDriveId = selectedDriveId || undefined;
+
+    // Only auto-resolve if there are folder-structured files in the queue.
+    // Flat file uploads (no webkitRelativePath) use server-side Auto as before.
+    // NOTE: This mirrors UploadRouter.selectDriveForUpload (upload-router.ts:31-32).
+    // Folder upload can't use server-side per-file Auto — the whole tree must
+    // live on one drive — so we resolve once client-side.
+    const hasFolderFiles = useUploadStore.getState().queue.some((item) => {
+      const relPath = (item.file as File & { webkitRelativePath?: string }).webkitRelativePath;
+      return relPath && relPath.includes('/');
+    });
+
+    if (!resolvedDriveId && hasFolderFiles) {
+      if (drives.length === 0) {
+        addToast('error', 'No connected drives. Connect a Google Drive account first.');
+        return;
+      }
+      const totalSize = useUploadStore
+        .getState()
+        .queue.reduce((sum, item) => sum + item.file.size, 0);
+      // Same logic as server: sort by freeSpace desc, pick [0].
+      const sorted = [...drives].sort((a, b) => b.freeSpace - a.freeSpace);
+      const bestDrive = sorted[0];
+
+      if (bestDrive.freeSpace < totalSize) {
+        addToast(
+          'error',
+          `Folder is ${formatFileSize(totalSize)} but largest drive has only ${formatFileSize(bestDrive.freeSpace)} free. Select a drive manually or split the folder.`,
+        );
+        return;
+      }
+      resolvedDriveId = bestDrive.id;
+    }
+
     try {
-      await startUpload(selectedDriveId || undefined, folderId);
+      await startUpload(resolvedDriveId, folderId);
       const { queue: finalQueue } = useUploadStore.getState();
       const failedCount = finalQueue.filter((q) => q.status === 'error').length;
       const succeededCount = finalQueue.filter((q) => q.status === 'done').length;
@@ -95,8 +129,8 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
             <div className="py-6 flex flex-col items-center justify-center">
               <input
                 type="file"
-                multiple={!folderMode || undefined}
-                {...(folderMode ? { webkitdirectory: '', directory: '' as unknown as string } : {})}
+                multiple
+                {...(folderMode ? { webkitdirectory: '' } : {})}
                 onChange={(e) => {
                   if (e.target.files && e.target.files.length > 0) {
                     useUploadStore.getState().addFiles(Array.from(e.target.files));

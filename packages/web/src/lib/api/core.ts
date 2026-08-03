@@ -32,6 +32,12 @@ export async function request<T>(path: string, options?: RequestInit): Promise<T
   return response.json();
 }
 
+// 8MB chunk size. Google's guidance: "multiples of 256KB, as large as possible"
+// (https://developers.google.com/drive/api/guides/manage-uploads#resumable).
+// 8MB = 256KB × 32, a valid multiple. Community convention for reliability.
+// Google's .NET client defaults to 10MB; we choose 8MB for finer-grained resume.
+const CHUNK_SIZE = 8 * 1024 * 1024;
+
 /**
  * Upload one chunk of a resumable upload via the Worker proxy.
  *
@@ -39,6 +45,10 @@ export async function request<T>(path: string, options?: RequestInit): Promise<T
  * On 308 Resume Incomplete, parses the `Range` header to find the next
  * start byte and returns `{ done: false, nextStart }` so the caller can
  * slice the file and retry from that offset.
+ *
+ * Sends one 8MB chunk (or the remainder if < 8MB left). For files smaller
+ * than 8MB, the whole file is sent in one chunk with zero-copy (passes `file`
+ * directly instead of slicing, matching prior behavior).
  */
 export function uploadChunk(
   url: string,
@@ -48,7 +58,12 @@ export function uploadChunk(
 ): Promise<{ done: true; value: { id: string } } | { done: false; nextStart: number }> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    const end = file.size - 1;
+    // Send one 8MB chunk (or the remainder if < 8MB left).
+    const end = Math.min(start + CHUNK_SIZE - 1, file.size - 1);
+    // Preserve zero-copy for small files / first chunk (matches prior behavior).
+    // Browsers optimize Blob.slice as a view, but passing the original File
+    // when possible is still marginally cheaper and clearer in DevTools.
+    const isWholeFile = start === 0 && end === file.size - 1;
     xhr.upload.addEventListener('progress', (e) => {
       if (e.lengthComputable) onProgress?.(Math.round(((start + e.loaded) / file.size) * 100));
     });
@@ -69,7 +84,7 @@ export function uploadChunk(
       } else if (xhr.status === 308) {
         const range = xhr.getResponseHeader('Range') ?? '';
         const match = range.match(/bytes=0-(\d+)/);
-        const nextStart = match ? parseInt(match[1], 10) + 1 : 0;
+        const nextStart = match ? parseInt(match[1], 10) + 1 : start + CHUNK_SIZE;
         resolve({ done: false, nextStart });
       } else {
         reject(
@@ -85,6 +100,50 @@ export function uploadChunk(
     if (file.size > 0) {
       xhr.setRequestHeader('Content-Range', `bytes ${start}-${end}/${file.size}`);
     }
-    xhr.send(start > 0 ? file.slice(start) : file);
+    xhr.send(isWholeFile ? file : file.slice(start, end + 1));
   });
+}
+
+/**
+ * Retry wrapper for uploadChunk. Mirrors the worker-side withBackoff pattern
+ * (packages/worker/src/lib/backoff.ts:71). The frontend upload path uses
+ * plain XMLHttpRequest with no built-in retry, so concurrent uploads (Fix 4)
+ * need this safety net for transient 429s and network errors.
+ *
+ * Retries only on transient errors (429, 5xx, network errors) — not on 4xx
+ * client errors (400/401/403/404) which won't succeed on retry. Mirrors the
+ * worker's withBackoff error discrimination (backoff.ts:55-62).
+ *
+ * Exponential backoff: 1s, 2s, 4s. Max 3 attempts (1 initial + 2 retries).
+ */
+export async function uploadChunkWithRetry(
+  url: string,
+  file: File,
+  start: number,
+  onProgress?: (percent: number) => void,
+  maxRetries = 2,
+): Promise<{ done: true; value: { id: string } } | { done: false; nextStart: number }> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await uploadChunk(url, file, start, onProgress);
+    } catch (err) {
+      if (attempt === maxRetries || !isRetryableUploadError(err)) throw err;
+      // Exponential backoff: 1s, 2s, 4s
+      const delayMs = Math.pow(2, attempt) * 1000;
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+  throw new Error('unreachable');
+}
+
+/**
+ * Determine if an upload error is worth retrying. Network errors, 429 (rate
+ * limit), and 5xx (server errors) are transient. 4xx client errors (400/401/
+ * 403/404) are not — retrying won't help. Mirrors worker's withBackoff logic.
+ */
+function isRetryableUploadError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const msg = err.message;
+  // Network errors and 5xx/429 are retryable. 4xx (except 429) are not.
+  return msg.includes('network error') || msg.includes('429') || /\b5\d\d\b/.test(msg);
 }

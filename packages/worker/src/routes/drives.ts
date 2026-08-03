@@ -20,6 +20,7 @@ import { zValidator } from '@hono/zod-validator';
 import {
   createDriveFolderSchema,
   ensureDriveFolderSchema,
+  ensureDriveFoldersBatchSchema,
   renameDriveFolderSchema,
   serviceAccountSchema,
   moveWithinDriveSchema,
@@ -509,6 +510,112 @@ drivesRouter.post(
     }
 
     return c.json({ googleFolderId: currentParentId });
+  },
+);
+
+/**
+ * Batch-ensure multiple folder paths on a drive in a single request.
+ * Builds an in-memory trie from all paths, walks it once — creating each
+ * unique folder exactly once. Returns a map of path → googleFolderId.
+ *
+ * Replaces the N+1 pattern of calling /ensure once per path.
+ *
+ * Idempotent: existing folders are reused (same contract as single /ensure).
+ * Throws on first failure (Google API error, quota) — matches single /ensure
+ * contract. Client retries the entire batch.
+ *
+ * SUBREQUEST BUDGET (Free tier):
+ * - External (Google API): 50/invocation
+ *   (https://developers.cloudflare.com/workers/platform/limits/)
+ * - D1: 50/invocation — separate co-bottleneck on Free tier
+ *   (https://developers.cloudflare.com/d1/platform/limits/, sync.ts:32)
+ *
+ * Per createDriveFolder cost:
+ * - 2-3 D1 calls (getDriveOrThrow + insertDriveFolder + possible loadTokens)
+ * - 1 external call (Google API create)
+ *
+ * Cap at 15 folder creations: 15 × 3 D1 = 45 (under 50 D1), 15 × 1 ext = 15
+ * (under 50 ext). Matches codebase pattern: MAX_QUOTA_FETCHES=10,
+ * MAX_DELETES_PER_CYCLE=20, download-tree caps at 40 API calls. If batch
+ * would exceed 15 creates, throws 400 — client chunks and retries.
+ */
+drivesRouter.post(
+  '/:driveId/folders/ensure-batch',
+  zValidator('json', ensureDriveFoldersBatchSchema, zodErrorHook),
+  async (c) => {
+    const driveService = c.get('driveService');
+    const driveRepo = new DriveRepository(c.env.DB);
+    const userId = c.get('userId');
+    const driveId = c.req.param('driveId');
+    const { paths, parentFolderId } = c.req.valid('json');
+
+    const uniquePaths = [...new Set(paths)];
+
+    // Build a trie: { "projects": { "src": { "utils": {} } } }
+    const trie: Record<string, unknown> = {};
+    for (const path of uniquePaths) {
+      const segments = path.split('/');
+      let node = trie;
+      for (const seg of segments) {
+        node[seg] = (node[seg] as Record<string, unknown>) ?? {};
+        node = node[seg] as Record<string, unknown>;
+      }
+    }
+
+    // Walk the trie, creating folders as needed. cache: segment-path → googleFolderId.
+    const cache = new Map<string, string>();
+    const MAX_FOLDER_CREATES = 15; // 15 × 3 D1 = 45 (under 50 D1 limit on Free)
+    let createCount = 0;
+
+    async function walkTrie(
+      node: Record<string, unknown>,
+      currentPath: string,
+      currentParentId: string | undefined,
+    ): Promise<void> {
+      const childNames = Object.keys(node);
+      if (childNames.length === 0) return;
+
+      // Batch-lookup existing folders at this level (D1-safe chunking inside).
+      const existing = await driveRepo.findDriveFoldersByParentAndNames(
+        driveId,
+        currentParentId ?? null,
+        childNames,
+      );
+      for (const row of existing) {
+        const fullPath = currentPath ? `${currentPath}/${row.name}` : row.name;
+        cache.set(fullPath, row.google_folder_id);
+      }
+
+      // Create missing children sequentially (Google Drive API doesn't batch folder creation).
+      for (const name of childNames) {
+        const fullPath = currentPath ? `${currentPath}/${name}` : name;
+        if (cache.has(fullPath)) continue;
+        if (createCount >= MAX_FOLDER_CREATES) {
+          throw new ValidationError(
+            `Batch exceeds ${MAX_FOLDER_CREATES} folder creations (D1 + external subrequest budget). Split into smaller batches.`,
+          );
+        }
+        const googleFolderId = await driveService.createDriveFolder(
+          userId,
+          driveId,
+          name,
+          currentParentId,
+        );
+        createCount++; // each createDriveFolder = 2-3 D1 + 1 external subrequest
+        cache.set(fullPath, googleFolderId);
+        await walkTrie(node[name] as Record<string, unknown>, fullPath, googleFolderId);
+      }
+    }
+
+    await walkTrie(trie, '', parentFolderId || undefined);
+
+    // Return only the requested paths (not intermediate nodes).
+    const result: Record<string, string> = {};
+    for (const path of uniquePaths) {
+      const id = cache.get(path);
+      if (id) result[path] = id;
+    }
+    return c.json({ folderIds: result });
   },
 );
 

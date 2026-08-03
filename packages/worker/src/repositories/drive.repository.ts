@@ -609,6 +609,46 @@ export class DriveRepository {
   }
 
   /**
+   * Batch-lookup existing folders by parent + names. Returns matching rows.
+   * Chunks the names array to respect D1's 100-bind-variable limit
+   * (same pattern as file.repository.ts:findExistingForDelta, commit 43ecf57).
+   * 2 fixed binds (driveId + googleParentId) + N name binds ≤ 100.
+   */
+  async findDriveFoldersByParentAndNames(
+    driveId: string,
+    googleParentId: string | null,
+    names: string[],
+  ): Promise<{ google_folder_id: string; name: string }[]> {
+    if (names.length === 0) return [];
+
+    const CHUNK = D1_MAX_BIND_VARIABLES - 2; // 98 names per query max
+    const out: { google_folder_id: string; name: string }[] = [];
+
+    for (let i = 0; i < names.length; i += CHUNK) {
+      const chunk = names.slice(i, i + CHUNK);
+      const placeholders = chunk.map(() => '?').join(',');
+      assertWithinD1Limit(2 + chunk.length, 'findDriveFoldersByParentAndNames');
+
+      const sql =
+        googleParentId === null
+          ? `SELECT google_folder_id, name FROM drive_folders
+             WHERE drive_account_id = ? AND google_parent_id IS NULL
+               AND name IN (${placeholders}) AND is_trashed = 0`
+          : `SELECT google_folder_id, name FROM drive_folders
+             WHERE drive_account_id = ? AND google_parent_id = ?
+               AND name IN (${placeholders}) AND is_trashed = 0`;
+      const binds =
+        googleParentId === null ? [driveId, ...chunk] : [driveId, googleParentId, ...chunk];
+      const { results } = await this.db
+        .prepare(sql)
+        .bind(...binds)
+        .all<{ google_folder_id: string; name: string }>();
+      out.push(...(results ?? []));
+    }
+    return out;
+  }
+
+  /**
    * Find a drive folder's `drive_account_id` + `name` by `google_folder_id`,
    * scoped to drives owned by `userId`. Used by `SharedService.resolveFolderTarget`
    * for public shared-link download — the `userId` scope prevents a link from
