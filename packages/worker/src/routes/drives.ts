@@ -455,7 +455,7 @@ drivesRouter.post(
       c.get('userId'),
       c.req.param('driveId'),
       name.trim(),
-      parentId || undefined,
+      parentId && parentId !== 'root' ? parentId : undefined,
     );
     return c.json({ googleFolderId });
   },
@@ -487,7 +487,7 @@ drivesRouter.post(
       throw new ValidationError('Path must contain at least one folder name');
     }
 
-    let currentParentId = parentFolderId || undefined;
+    let currentParentId = parentFolderId && parentFolderId !== 'root' ? parentFolderId : undefined;
 
     for (const segment of segments) {
       // Check if this folder already exists (by name + parent) — idempotent.
@@ -607,7 +607,11 @@ drivesRouter.post(
       }
     }
 
-    await walkTrie(trie, '', parentFolderId || undefined);
+    await walkTrie(
+      trie,
+      '',
+      parentFolderId && parentFolderId !== 'root' ? parentFolderId : undefined,
+    );
 
     // Return only the requested paths (not intermediate nodes).
     const result: Record<string, string> = {};

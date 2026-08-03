@@ -1,9 +1,18 @@
-import { X, Upload, Check, CircleAlert, LoaderCircle, FolderUp, FileUp } from 'lucide-react';
+import {
+  X,
+  Upload,
+  Check,
+  CircleAlert,
+  LoaderCircle,
+  FolderUp,
+  FileUp,
+  Folder,
+} from 'lucide-react';
 import { useUploadStore } from '../stores/useUploadStore';
 import { useDrives } from '../hooks/useDrives';
 import { useToastStore } from '../stores/useToastStore';
 import { formatFileSize, getDriveColor } from '../lib/utils';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -98,6 +107,28 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
   const allDone =
     queue.length > 0 && queue.every((item) => item.status === 'done' || item.status === 'error');
 
+  // Group queue items by directory prefix from webkitRelativePath.
+  // Flat files (no webkitRelativePath) get dir = '' → no header → same as before.
+  const groupedQueue = useMemo(() => {
+    if (queue.length === 0) return [];
+    const groups: { dir: string; items: typeof queue }[] = [];
+    const groupMap = new Map<string, typeof queue>();
+
+    for (const item of queue) {
+      const relPath =
+        (item.file as File & { webkitRelativePath?: string }).webkitRelativePath || '';
+      const dir = relPath.includes('/') ? relPath.split('/').slice(0, -1).join('/') : '';
+      let group = groupMap.get(dir);
+      if (!group) {
+        group = [];
+        groupMap.set(dir, group);
+        groups.push({ dir, items: group });
+      }
+      group.push(item);
+    }
+    return groups;
+  }, [queue]);
+
   const statusIcon = (status: string) => {
     switch (status) {
       case 'done':
@@ -169,33 +200,45 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
             </div>
           ) : (
             <div className="max-h-[160px] overflow-y-auto mb-2">
-              {queue.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center gap-2 py-2 border-b border-slate-100 last:border-0"
-                >
-                  <span className="flex-1 text-sm text-slate-700 truncate">{item.file.name}</span>
-                  <span className="text-xs text-slate-500 whitespace-nowrap">
-                    {formatFileSize(item.file.size)}
-                  </span>
-                  {item.status === 'uploading' && (
-                    <span className="text-xs text-primary min-w-[36px] text-right font-medium">
-                      {item.progress}%
-                    </span>
+              {groupedQueue.map(({ dir, items }) => (
+                <div key={dir || '_root'}>
+                  {dir && (
+                    <div className="flex items-center gap-1.5 py-1.5 px-1 text-xs font-semibold text-slate-500">
+                      <Folder size={12} />
+                      <span className="truncate">{dir}/</span>
+                    </div>
                   )}
-                  <div className="w-4 h-4 flex items-center justify-center shrink-0">
-                    {statusIcon(item.status)}
-                  </div>
-                  {item.status === 'pending' && !isUploading && (
-                    <Button
-                      variant="ghost"
-                      className="p-1 text-slate-500 hover:text-slate-600 hover:bg-slate-100 rounded-md"
-                      onClick={() => removeFile(item.id)}
-                      aria-label="Remove file"
+                  {items.map((item) => (
+                    <div
+                      key={item.id}
+                      className={`flex items-center gap-2 py-2 border-b border-slate-100 last:border-0 ${dir ? 'pl-4' : ''}`}
                     >
-                      <X size={14} />
-                    </Button>
-                  )}
+                      <span className="flex-1 text-sm text-slate-700 truncate">
+                        {item.file.name}
+                      </span>
+                      <span className="text-xs text-slate-500 whitespace-nowrap">
+                        {formatFileSize(item.file.size)}
+                      </span>
+                      {item.status === 'uploading' && (
+                        <span className="text-xs text-primary min-w-[36px] text-right font-medium">
+                          {item.progress}%
+                        </span>
+                      )}
+                      <div className="w-4 h-4 flex items-center justify-center shrink-0">
+                        {statusIcon(item.status)}
+                      </div>
+                      {item.status === 'pending' && !isUploading && (
+                        <Button
+                          variant="ghost"
+                          className="p-1 text-slate-500 hover:text-slate-600 hover:bg-slate-100 rounded-md"
+                          onClick={() => removeFile(item.id)}
+                          aria-label="Remove file"
+                        >
+                          <X size={14} />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
                 </div>
               ))}
             </div>
