@@ -1,6 +1,7 @@
 import type { RuleCondition, RuleAction } from '../types/automation';
 import type { Env } from '../types/env';
 import type { DriveProvider } from '../types/drive-provider';
+import type { FileRow } from '../types/db';
 import { logErrorNoCtx } from '../lib/logger';
 import { FileRepository } from '../repositories/file.repository';
 import { FolderRepository } from '../repositories/folder.repository';
@@ -25,6 +26,19 @@ export interface AutomationFile {
 export interface DbFile extends AutomationFile {
   id: string;
   user_id: string;
+}
+
+/**
+ * Convert a FileRow (DB row without an `extension` column) into a DbFile by
+ * deriving `extension` from `name`. This avoids unsafe casts — FileRow's index
+ * signature types `extension` as `unknown`, while DbFile requires `string`.
+ * evaluateCondition still recomputes if empty, so this is a hint, not a source
+ * of truth.
+ */
+function toDbFile(row: FileRow): DbFile {
+  const parts = row.name.split('.');
+  const extension = parts.length > 1 ? (parts.pop() ?? '').toLowerCase() : '';
+  return { ...row, extension };
 }
 
 interface ParsedRule {
@@ -128,9 +142,10 @@ export class AutomationEngine {
         }
 
         for (const file of files) {
+          const dbFile = toDbFile(file);
           for (const rule of rules) {
-            if (evaluateCondition(file as unknown as DbFile, rule.conditions)) {
-              ctx.waitUntil(this.executeActions(rule.id, file as unknown as DbFile, rule.actions));
+            if (evaluateCondition(dbFile, rule.conditions)) {
+              ctx.waitUntil(this.executeActions(rule.id, dbFile, rule.actions));
             }
           }
         }

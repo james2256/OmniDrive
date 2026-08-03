@@ -51,11 +51,11 @@ export class AuthService {
       'OAuth token exchange failed',
     );
 
-    const data = (await response.json()) as unknown as {
+    const data = await response.json<{
       access_token: string;
       refresh_token?: string;
       expires_in: number;
-    };
+    }>();
     return {
       accessToken: data.access_token,
       refreshToken: data.refresh_token,
@@ -74,11 +74,11 @@ export class AuthService {
       'OAuth userinfo fetch failed',
     );
 
-    return (await response.json()) as unknown as {
+    return response.json<{
       id: string;
       email: string;
       name: string;
       picture?: string;
-    };
+    }>();
   }
 }

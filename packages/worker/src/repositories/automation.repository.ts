@@ -1,5 +1,6 @@
 import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types';
 import { generateId } from '../lib/id';
+import type { AutomationRuleRow } from '../types/db';
 
 /**
  * Data access layer for the `automation_rules` table.
@@ -11,7 +12,10 @@ export class AutomationRepository {
 
   /** Find all automation rules for a user. */
   findAllByUser(userId: string) {
-    return this.db.prepare('SELECT * FROM automation_rules WHERE user_id = ?').bind(userId).all();
+    return this.db
+      .prepare('SELECT * FROM automation_rules WHERE user_id = ?')
+      .bind(userId)
+      .all<AutomationRuleRow>();
   }
 
   /**
@@ -26,7 +30,7 @@ export class AutomationRepository {
         'SELECT * FROM automation_rules WHERE trigger_type = ? AND is_active = ? AND user_id = ?',
       )
       .bind('event', 1, userId)
-      .all();
+      .all<AutomationRuleRow>();
   }
 
   /**
@@ -38,7 +42,7 @@ export class AutomationRepository {
     return this.db
       .prepare('SELECT * FROM automation_rules WHERE trigger_type = ? AND is_active = ?')
       .bind('cron', 1)
-      .all();
+      .all<AutomationRuleRow>();
   }
 
   /** Insert a new automation rule. */

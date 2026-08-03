@@ -1,4 +1,5 @@
 import type { D1Database } from '@cloudflare/workers-types';
+import type { UserRow, InvitationCodeRow } from '../types/db';
 
 /**
  * Data access layer for the `users`, `sessions`, and `invitation_codes` tables
@@ -21,12 +22,18 @@ export class AuthRepository {
 
   /** Find a user by username (for login + register duplicate check). */
   findByUsername(username: string) {
-    return this.db.prepare('SELECT id FROM users WHERE username = ?').bind(username).first();
+    return this.db
+      .prepare('SELECT id FROM users WHERE username = ?')
+      .bind(username)
+      .first<{ id: string }>();
   }
 
   /** Find a user by email (for register duplicate check). */
   findByEmail(email: string) {
-    return this.db.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
+    return this.db
+      .prepare('SELECT id FROM users WHERE email = ?')
+      .bind(email)
+      .first<{ id: string }>();
   }
 
   /** Find a user by username with all auth fields (for login). */
@@ -36,7 +43,7 @@ export class AuthRepository {
         'SELECT id, username, password_hash, email, name, avatar_url, is_super_admin, is_blocked FROM users WHERE username = ?',
       )
       .bind(username)
-      .first();
+      .first<UserRow>();
   }
 
   /** Find a user's password hash by ID (for change-password). */
@@ -181,6 +188,9 @@ export class AuthRepository {
 
   /** Check if an invitation code exists (for error messaging). */
   findInvitation(code: string) {
-    return this.db.prepare('SELECT id FROM invitation_codes WHERE code = ?').bind(code).first();
+    return this.db
+      .prepare('SELECT id FROM invitation_codes WHERE code = ?')
+      .bind(code)
+      .first<InvitationCodeRow>();
   }
 }

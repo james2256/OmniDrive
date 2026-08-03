@@ -1,4 +1,5 @@
 import type { D1Database } from '@cloudflare/workers-types';
+import type { S3LifecycleRuleRow } from '../types/db';
 
 /**
  * Repository for S3 lifecycle rule reads + orphan multipart-upload cleanup.
@@ -73,7 +74,7 @@ export class S3LifecycleRepository {
         'SELECT prefix, expiration_days, enabled FROM s3_lifecycle_rules WHERE workspace_id = ?',
       )
       .bind(workspaceId)
-      .all();
+      .all<S3LifecycleRuleRow>();
   }
 
   /** Delete all lifecycle rules for a workspace (before replacing). */

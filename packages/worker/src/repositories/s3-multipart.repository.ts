@@ -1,4 +1,5 @@
 import type { D1Database } from '@cloudflare/workers-types';
+import type { S3MultipartUploadRow, S3MultipartPartRow } from '../types/db';
 
 /**
  * Data access layer for the `s3_multipart_uploads` and `s3_multipart_parts` tables.
@@ -20,7 +21,7 @@ export class S3MultipartRepository {
         'SELECT * FROM s3_multipart_uploads WHERE upload_id = ? AND user_id = ? AND workspace_id = ?',
       )
       .bind(uploadId, userId, workspaceId)
-      .first();
+      .first<S3MultipartUploadRow>();
   }
 
   /**
@@ -35,7 +36,7 @@ export class S3MultipartRepository {
            AND (? IS NULL OR workspace_id = ?)`,
       )
       .bind(uploadId, userId, s3WorkspaceId, s3WorkspaceId)
-      .first();
+      .first<S3MultipartUploadRow>();
   }
 
   /** Insert a new multipart upload session. */
@@ -84,6 +85,6 @@ export class S3MultipartRepository {
     return this.db
       .prepare('SELECT * FROM s3_multipart_parts WHERE upload_id = ? ORDER BY part_number ASC')
       .bind(uploadId)
-      .all();
+      .all<S3MultipartPartRow>();
   }
 }

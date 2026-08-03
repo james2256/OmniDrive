@@ -194,9 +194,10 @@ filesRouter.post(
       );
 
       const updatedFile = await c.get('fileService').findById(fileId);
+      if (!updatedFile) throw new NotFoundError('File not found after move');
 
       return c.json({
-        file: mapFileRow(updatedFile as unknown as Record<string, unknown>),
+        file: mapFileRow(updatedFile),
       });
     } catch (error) {
       logError(c, 'Move drive failed', error);

@@ -184,12 +184,12 @@ export class SharedService {
     const row = await this.sharedRepo.findById(id);
     if (!row) throw new NotFoundError('Link not found');
 
-    const link = mapSharedLinkRow(row as unknown as Record<string, unknown>);
+    const link = mapSharedLinkRow(row);
 
     if (link.targetType === 'file') {
       const file = await this.fileRepo.findById(link.targetId);
       if (!file) throw new NotFoundError('File not found');
-      return { link, target: mapFileRow(file as unknown as Record<string, unknown>) };
+      return { link, target: mapFileRow(file) };
     }
     const folderName = await this.sharedRepo.findFolderName(link.targetId);
     return { link, targetName: folderName ?? undefined };
@@ -198,7 +198,7 @@ export class SharedService {
   /** Get shared link for validation (no target fetch). */
   async getLinkForValidation(id: string): Promise<SharedLink | null> {
     const row = await this.sharedRepo.findById(id);
-    return row ? mapSharedLinkRow(row as unknown as Record<string, unknown>) : null;
+    return row ? mapSharedLinkRow(row) : null;
   }
 
   /**

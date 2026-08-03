@@ -45,7 +45,7 @@ export class SharedRepository {
     `,
       )
       .bind(userId)
-      .all();
+      .all<Record<string, unknown>>();
   }
 
   /** Resolve a folder's name by ID (checks both workspace_folders and drive_folders). */

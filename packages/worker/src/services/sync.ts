@@ -367,7 +367,7 @@ async function performIncrementalSync(
         );
       } else {
         const parentId = resolveParentId(file.parents, rootFolderId, false);
-        stmts.push(fileRepo.buildUpsertStmt(drive, file as unknown as GDriveFile, parentId, true));
+        stmts.push(fileRepo.buildUpsertStmt(drive, file, parentId, true));
         // Delta: old state → active (handles insert, update, and UPSERT-untrashes)
         const newState: FileStateForStats = {
           size: parseInt(file.size ?? '0', 10),

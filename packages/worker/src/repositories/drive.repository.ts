@@ -1,5 +1,6 @@
 import type { D1Database, D1PreparedStatement, D1Result } from '@cloudflare/workers-types';
 import { D1_MAX_BIND_VARIABLES, assertWithinD1Limit } from '../lib/d1-constants';
+import type { DriveAccountRow, DriveFolderRow, FileRow } from '../types/db';
 
 /**
  * Data access layer for `drive_accounts` and `drive_folders` tables.
@@ -26,7 +27,7 @@ export class DriveRepository {
         'SELECT a.*, s.status as sync_status, s.last_synced_at, s.error_message as sync_error_message, CASE WHEN s.next_page_token IS NOT NULL THEN 1 ELSE 0 END as sync_paused FROM drive_accounts a LEFT JOIN sync_state s ON a.id = s.drive_account_id WHERE a.user_id = ?',
       )
       .bind(userId)
-      .all();
+      .all<Record<string, unknown>>();
   }
 
   /** Find a drive by ID + user (full row, with sync_state JOIN). */
@@ -40,7 +41,7 @@ export class DriveRepository {
          WHERE a.id = ? AND a.user_id = ?`,
       )
       .bind(driveId, userId)
-      .first();
+      .first<Record<string, unknown>>();
   }
 
   /** Find drive with root_folder_id for move operation. */
@@ -89,12 +90,18 @@ export class DriveRepository {
 
   /** Find a drive by ID (no user check — used after creation when user is implied). */
   findById(driveId: string) {
-    return this.db.prepare('SELECT * FROM drive_accounts WHERE id = ?').bind(driveId).first();
+    return this.db
+      .prepare('SELECT * FROM drive_accounts WHERE id = ?')
+      .bind(driveId)
+      .first<DriveAccountRow>();
   }
 
   /** Find all drives for a user (no sync_state JOIN — plain SELECT *). */
   findAllByUser(userId: string) {
-    return this.db.prepare('SELECT * FROM drive_accounts WHERE user_id = ?').bind(userId).all();
+    return this.db
+      .prepare('SELECT * FROM drive_accounts WHERE user_id = ?')
+      .bind(userId)
+      .all<DriveAccountRow>();
   }
 
   /**
@@ -111,7 +118,7 @@ export class DriveRepository {
     return this.db
       .prepare(`SELECT * FROM drive_accounts WHERE type IN (${placeholders})`)
       .bind(...types)
-      .all();
+      .all<DriveAccountRow>();
   }
 
   /**
@@ -210,7 +217,7 @@ export class DriveRepository {
     `,
       )
       .bind(folderId, folderId, userId)
-      .all();
+      .all<DriveAccountRow>();
   }
 
   /**
@@ -321,7 +328,7 @@ export class DriveRepository {
        ORDER BY df.name ASC`,
       )
       .bind(userId)
-      .all();
+      .all<Record<string, unknown>>();
   }
 
   /**
@@ -347,7 +354,7 @@ export class DriveRepository {
     return this.db
       .prepare(sql)
       .bind(...binds)
-      .all();
+      .all<Record<string, unknown>>();
   }
 
   /** Search drive folders by name (for global search). */
@@ -360,7 +367,7 @@ export class DriveRepository {
        ORDER BY df.name ASC LIMIT ?`,
       )
       .bind(userId, `%${query}%`, limit)
-      .all();
+      .all<Record<string, unknown>>();
   }
 
   // ─── item ownership + parent update (for move within drive) ───
@@ -434,7 +441,7 @@ export class DriveRepository {
        WHERE d.user_id = ? AND df.google_folder_id = ? AND df.owned_by_me = 1`,
       )
       .bind(userId, googleFolderId)
-      .first();
+      .first<Record<string, unknown>>();
   }
 
   markDriveFolderTrashed(driveId: string, googleFolderId: string) {
@@ -542,12 +549,12 @@ export class DriveRepository {
       return this.db
         .prepare(`${base} AND google_parent_id IS NULL ORDER BY name ASC LIMIT 1000`)
         .bind(driveId)
-        .all();
+        .all<DriveFolderRow>();
     }
     return this.db
       .prepare(`${base} AND google_parent_id = ? ORDER BY name ASC LIMIT 1000`)
       .bind(driveId, parentId)
-      .all();
+      .all<DriveFolderRow>();
   }
 
   /** Find files by Google parent ID (folder browsing). */
@@ -557,7 +564,7 @@ export class DriveRepository {
         'SELECT * FROM files WHERE drive_account_id = ? AND google_parent_id = ? AND is_trashed = 0 ORDER BY name ASC LIMIT 1000',
       )
       .bind(driveId, parentId)
-      .all();
+      .all<FileRow>();
   }
 
   /** Mark a drive folder as synced (lazy-load completion). */
@@ -575,7 +582,7 @@ export class DriveRepository {
     return this.db
       .prepare('SELECT * FROM drive_folders WHERE drive_account_id = ? AND google_folder_id = ?')
       .bind(driveId, googleFolderId)
-      .first();
+      .first<DriveFolderRow>();
   }
 
   /**
@@ -633,7 +640,7 @@ export class DriveRepository {
         'SELECT df.*, d.email as driveEmail FROM drive_folders df JOIN drive_accounts d ON df.drive_account_id = d.id WHERE d.user_id = ? AND df.is_starred = 1 AND df.is_trashed = 0 ORDER BY df.synced_at DESC',
       )
       .bind(userId)
-      .all();
+      .all<Record<string, unknown>>();
   }
 
   /**
@@ -650,7 +657,7 @@ export class DriveRepository {
        ORDER BY df.created_at DESC`,
       )
       .bind(userId)
-      .all();
+      .all<Record<string, unknown>>();
   }
 
   /** Insert a new drive account (service account flow). */

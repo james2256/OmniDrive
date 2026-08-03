@@ -3,6 +3,7 @@ import { generateId } from '../lib/id';
 import { batchInChunks } from '../lib/d1-batch';
 import type { DriveAccount } from '../types/domain';
 import type { GDriveFolder } from '../types/google';
+import type { WorkspaceFolderRow, FileRow } from '../types/db';
 
 /**
  * Data access layer for the `workspace_folders` and `drive_folders` tables.
@@ -50,7 +51,7 @@ export class FolderRepository {
        ORDER BY f.updated_at DESC LIMIT ?`,
       )
       .bind(userId, `%${query}%`, limit)
-      .all();
+      .all<Record<string, unknown>>();
   }
 
   /** Find a folder by ID + user membership, with workspace name. */
@@ -63,7 +64,7 @@ export class FolderRepository {
        WHERE f.id = ?`,
       )
       .bind(userId, folderId)
-      .first();
+      .first<Record<string, unknown>>();
   }
 
   /** Find root folders in a workspace (parent_id IS NULL). */
@@ -73,7 +74,7 @@ export class FolderRepository {
         'SELECT * FROM workspace_folders WHERE workspace_id = ? AND parent_id IS NULL ORDER BY name ASC',
       )
       .bind(workspaceId)
-      .all();
+      .all<WorkspaceFolderRow>();
   }
 
   /** Find subfolders of a specific parent folder. */
@@ -81,7 +82,7 @@ export class FolderRepository {
     return this.db
       .prepare('SELECT * FROM workspace_folders WHERE parent_id = ? ORDER BY name ASC')
       .bind(parentId)
-      .all();
+      .all<WorkspaceFolderRow>();
   }
 
   /** Find all folders a user has access to (via workspace membership). */
@@ -93,7 +94,7 @@ export class FolderRepository {
        WHERE wm.user_id = ? ORDER BY f.name ASC`,
       )
       .bind(userId)
-      .all();
+      .all<Record<string, unknown>>();
   }
 
   // ─── workspace_folders mutations ───
@@ -284,7 +285,7 @@ export class FolderRepository {
     `,
       )
       .bind(userId, limit)
-      .all();
+      .all<Record<string, unknown>>();
   }
 
   /**
@@ -297,7 +298,7 @@ export class FolderRepository {
         'SELECT f.*, w.name as ws_name FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id JOIN workspaces w ON f.workspace_id = w.id WHERE wm.user_id = ? AND f.is_starred = 1 ORDER BY f.updated_at DESC',
       )
       .bind(userId)
-      .all();
+      .all<Record<string, unknown>>();
   }
 
   // ─── drive_folders UPSERT (sync engine) ───
@@ -392,6 +393,6 @@ export class FolderRepository {
     `,
       )
       .bind(...binds)
-      .all();
+      .all<FileRow>();
   }
 }

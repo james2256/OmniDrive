@@ -229,7 +229,7 @@ foldersRouter.post('/:id/sync', async (c) => {
   if (results && results.length > 0) {
     const driveService = createDriveService(c.env);
     for (const row of results) {
-      const drive = mapDriveRow(row as unknown as Record<string, unknown>);
+      const drive = mapDriveRow(row);
       c.executionCtx.waitUntil(
         syncDriveAccount(drive, db, driveService).catch((e) =>
           logError(c, 'Sync drive account failed', e),

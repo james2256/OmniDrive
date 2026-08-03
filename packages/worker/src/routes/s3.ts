@@ -11,10 +11,7 @@ import {
   type WorkspaceRow,
   type FileRow,
   type DriveAccountRow,
-  type S3MultipartUploadRow,
-  type S3MultipartPartRow,
   type WorkspaceFolderRow,
-  type WorkspaceWithRoleRow,
 } from '../types/db';
 import type { DriveAccount } from '../types/domain';
 import { createHash } from 'node:crypto';
@@ -87,12 +84,7 @@ s3Router.get('/', async (c) => {
   const db = c.env.DB;
 
   const workspaceRepo = new WorkspaceRepository(db);
-  const { results: workspaces } = (await workspaceRepo.findBucketsByUser(
-    userId,
-    s3WorkspaceId,
-  )) as unknown as {
-    results: WorkspaceRow[];
-  };
+  const { results: workspaces } = await workspaceRepo.findBucketsByUser(userId, s3WorkspaceId);
 
   let bucketsXml = '';
   for (const ws of workspaces) {
@@ -127,9 +119,7 @@ s3Router.on(['GET', 'HEAD'], '/:bucket', async (c) => {
   // GET /s3/:bucket?lifecycle -> GetBucketLifecycleConfiguration
   if (c.req.method === 'GET' && c.req.query('lifecycle') !== undefined) {
     const s3LifecycleRepo = new S3LifecycleRepository(db);
-    const { results } = (await s3LifecycleRepo.findRules(workspace.id)) as unknown as {
-      results: { prefix: string; expiration_days: number; enabled: number }[];
-    };
+    const { results } = await s3LifecycleRepo.findRules(workspace.id);
     if (!results?.length) {
       return xmlError(
         c,
@@ -179,12 +169,12 @@ s3Router.on(['GET', 'HEAD'], '/:bucket', async (c) => {
   // ORDER BY s3_key, id ensures deterministic cursor pagination.
   const escapedPrefix = prefix.replace(/[%_^]/g, (ch) => '^' + ch) + '%';
 
-  const { results: files } = (await new FolderRepository(db).listFilesAsS3Keys(
+  const { results: files } = await new FolderRepository(db).listFilesAsS3Keys(
     workspace.id,
     escapedPrefix,
     cursor,
     maxKeys,
-  )) as unknown as { results: FileRow[] };
+  );
 
   // Detect truncation: if we got more than maxKeys, there's another page.
   const truncated = files.length > maxKeys;
@@ -261,11 +251,7 @@ async function resolveBucket(
   const s3WorkspaceId = c.get('s3WorkspaceId') || null;
   const bucketName = c.req.param('bucket') ?? '';
   const workspaceRepo = new WorkspaceRepository(c.env.DB);
-  const workspace = (await workspaceRepo.resolveBucket(
-    bucketName,
-    userId,
-    s3WorkspaceId,
-  )) as unknown as WorkspaceWithRoleRow;
+  const workspace = await workspaceRepo.resolveBucket(bucketName, userId, s3WorkspaceId);
   if (!workspace) return xmlError(c, 'NoSuchBucket', 'Bucket not found', 404);
   const denied = requireS3Role(c, workspace.role, needWrite);
   if (denied) return denied;
@@ -469,11 +455,7 @@ s3Router.delete('/:bucket/:key{.+}', async (c) => {
   const uploadId = c.req.query('uploadId');
   if (uploadId) {
     const multipartRepo = new S3MultipartRepository(db);
-    const upload = (await multipartRepo.findUploadExact(
-      uploadId,
-      userId,
-      workspace.id,
-    )) as unknown as S3MultipartUploadRow;
+    const upload = await multipartRepo.findUploadExact(uploadId, userId, workspace.id);
     if (!upload) {
       const errorCode = 'NoSuchUpload';
       const errorMessage = 'The specified multipart upload does not exist.';
@@ -548,9 +530,7 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
 
   // 1. Select target Drive using UploadRouter
   const driveRepo = new DriveRepository(db);
-  const { results: driveRows } = (await driveRepo.findAllByUser(userId)) as unknown as {
-    results: Record<string, unknown>[];
-  };
+  const { results: driveRows } = await driveRepo.findAllByUser(userId);
   if (driveRows.length === 0) return c.text('No connected drives', 400);
 
   const drives = driveRows
@@ -697,11 +677,7 @@ async function handleUploadPart(
   const db = c.env.DB;
 
   const multipartRepo = new S3MultipartRepository(db);
-  const upload = (await multipartRepo.findUploadScoped(
-    uploadId,
-    userId,
-    s3WorkspaceId,
-  )) as unknown as S3MultipartUploadRow;
+  const upload = await multipartRepo.findUploadScoped(uploadId, userId, s3WorkspaceId);
   if (!upload) return c.text('Invalid uploadId', 404);
 
   const contentLength = parseInt(c.req.header('Content-Length') || '0', 10);
@@ -783,11 +759,9 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
 
     // Choose target drive
     const driveRepo = new DriveRepository(db);
-    const { results: driveRows } = (await driveRepo.findAllByUser(userId)) as unknown as {
-      results: DriveAccountRow[];
-    };
+    const { results: driveRows } = await driveRepo.findAllByUser(userId);
     if (driveRows.length === 0) return c.text('No connected drives', 400);
-    const targetDrive = mapDriveRow(driveRows[0] as unknown as Record<string, unknown>);
+    const targetDrive = mapDriveRow(driveRows[0]);
 
     // Create temp folder inside Google Drive
     const tempFolderName = `.omnidrive_multipart_${uploadId}`;
@@ -821,17 +795,11 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
   // 2. Complete Multipart Upload
   if (uploadId) {
     const multipartRepo = new S3MultipartRepository(db);
-    const upload = (await multipartRepo.findUploadScoped(
-      uploadId,
-      userId,
-      s3WorkspaceId,
-    )) as unknown as S3MultipartUploadRow;
+    const upload = await multipartRepo.findUploadScoped(uploadId, userId, s3WorkspaceId);
     if (!upload) return c.text('Upload session not found', 404);
 
     // Get all parts ordered by part_number
-    const { results: parts } = (await multipartRepo.findPartsByUpload(uploadId)) as unknown as {
-      results: S3MultipartPartRow[];
-    };
+    const { results: parts } = await multipartRepo.findPartsByUpload(uploadId);
     if (parts.length === 0) return c.text('No parts found to complete upload', 400);
 
     const pathParts = key.split('/');

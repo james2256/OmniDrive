@@ -1,4 +1,5 @@
 import type { D1Database } from '@cloudflare/workers-types';
+import type { S3CredentialRow } from '../types/db';
 
 /**
  * Data access layer for the `s3_credentials` table.
@@ -40,7 +41,7 @@ export class S3CredentialsRepository {
         'SELECT c.id, c.access_key_id, c.description, c.created_at, c.workspace_id, w.name as workspace_name FROM s3_credentials c LEFT JOIN workspaces w ON c.workspace_id = w.id WHERE c.user_id = ?',
       )
       .bind(userId)
-      .all();
+      .all<Record<string, unknown>>();
   }
 
   /** Delete a credential. */
@@ -62,6 +63,6 @@ export class S3CredentialsRepository {
     return this.db
       .prepare('SELECT * FROM s3_credentials WHERE access_key_id = ?')
       .bind(accessKeyId)
-      .first();
+      .first<S3CredentialRow>();
   }
 }

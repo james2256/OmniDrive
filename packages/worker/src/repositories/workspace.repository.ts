@@ -1,5 +1,6 @@
 import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types';
 import { generateId } from '../lib/id';
+import type { WorkspaceRow, WorkspaceWithRoleRow, WorkspacePolicyRow } from '../types/db';
 
 /**
  * Data access layer for the `workspaces` and `workspace_members` tables.
@@ -24,7 +25,7 @@ export class WorkspaceRepository {
     `,
       )
       .bind(userId)
-      .all();
+      .all<Record<string, unknown>>();
   }
 
   /**
@@ -48,7 +49,7 @@ export class WorkspaceRepository {
     `,
       )
       .bind(userId)
-      .all();
+      .all<WorkspaceWithRoleRow>();
   }
 
   /** Find a workspace by ID + membership (returns null if not a member). */
@@ -62,7 +63,7 @@ export class WorkspaceRepository {
     `,
       )
       .bind(workspaceId, userId)
-      .first();
+      .first<Record<string, unknown>>();
   }
 
   /** Find a workspace by ID + ownership (returns null if not owner). */
@@ -70,7 +71,7 @@ export class WorkspaceRepository {
     return this.db
       .prepare('SELECT id FROM workspaces WHERE id = ? AND owner_id = ?')
       .bind(workspaceId, ownerId)
-      .first();
+      .first<WorkspaceRow>();
   }
 
   /** Get the sync TTL for a workspace. */
@@ -83,12 +84,18 @@ export class WorkspaceRepository {
 
   /** Check if a workspace exists (by ID only, no membership check). */
   exists(workspaceId: string) {
-    return this.db.prepare('SELECT id FROM workspaces WHERE id = ?').bind(workspaceId).first();
+    return this.db
+      .prepare('SELECT id FROM workspaces WHERE id = ?')
+      .bind(workspaceId)
+      .first<WorkspaceRow>();
   }
 
   /** Find a workspace by ID (no membership check). Returns the full row. */
   findById(workspaceId: string) {
-    return this.db.prepare('SELECT * FROM workspaces WHERE id = ?').bind(workspaceId).first();
+    return this.db
+      .prepare('SELECT * FROM workspaces WHERE id = ?')
+      .bind(workspaceId)
+      .first<WorkspaceRow>();
   }
 
   /**
@@ -128,15 +135,15 @@ export class WorkspaceRepository {
   findBucketsByUser(userId: string, s3WorkspaceId: string | null = null) {
     return this.db
       .prepare(
-        `SELECT w.id, w.name, w.created_at 
-         FROM workspaces w 
-         JOIN workspace_members wm ON w.id = wm.workspace_id 
-         WHERE wm.user_id = ? 
+        `SELECT w.id, w.name, w.created_at
+         FROM workspaces w
+         JOIN workspace_members wm ON w.id = wm.workspace_id
+         WHERE wm.user_id = ?
            AND (? IS NULL OR w.id = ?)
          ORDER BY w.name`,
       )
       .bind(userId, s3WorkspaceId, s3WorkspaceId)
-      .all();
+      .all<WorkspaceRow>();
   }
 
   /**
@@ -152,7 +159,7 @@ export class WorkspaceRepository {
            AND (? IS NULL OR w.id = ?)`,
       )
       .bind(bucketName, userId, s3WorkspaceId, s3WorkspaceId)
-      .first();
+      .first<WorkspaceWithRoleRow>();
   }
 
   // ─── Mutations ───
@@ -320,7 +327,7 @@ export class WorkspaceRepository {
         'SELECT a.*, u.email as actor_email FROM audit_logs a JOIN users u ON a.actor_id = u.id WHERE workspace_id = ? ORDER BY created_at DESC LIMIT 100',
       )
       .bind(workspaceId)
-      .all();
+      .all<Record<string, unknown>>();
   }
 
   /** Find all policies for a workspace. */
@@ -328,7 +335,7 @@ export class WorkspaceRepository {
     return this.db
       .prepare('SELECT * FROM workspace_policies WHERE workspace_id = ?')
       .bind(workspaceId)
-      .all();
+      .all<WorkspacePolicyRow>();
   }
 
   /** Create a policy. Returns the created policy row. */
@@ -353,7 +360,10 @@ export class WorkspaceRepository {
         params.config,
       )
       .run();
-    return this.db.prepare('SELECT * FROM workspace_policies WHERE id = ?').bind(policyId).first();
+    return this.db
+      .prepare('SELECT * FROM workspace_policies WHERE id = ?')
+      .bind(policyId)
+      .first<WorkspacePolicyRow>();
   }
 
   /** Delete a policy. */

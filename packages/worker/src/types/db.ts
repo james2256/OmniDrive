@@ -241,6 +241,7 @@ export function mapWorkspacePolicyRow(row: Record<string, unknown>): WorkspacePo
 // ─── D1 Row Types (matching schema.sql exactly) ───
 
 export interface WorkspaceRow {
+  [key: string]: unknown;
   id: string;
   name: string;
   owner_id: string;
@@ -252,6 +253,7 @@ export interface WorkspaceRow {
 }
 
 export interface WorkspaceFolderRow {
+  [key: string]: unknown;
   id: string;
   workspace_id: string;
   name: string;
@@ -268,6 +270,7 @@ export interface WorkspaceFolderRow {
 }
 
 export interface FileRow {
+  [key: string]: unknown;
   id: string;
   user_id: string;
   drive_account_id: string;
@@ -294,6 +297,7 @@ export interface FileRow {
 }
 
 export interface UserRow {
+  [key: string]: unknown;
   id: string;
   username: string;
   password_hash: string;
@@ -309,6 +313,7 @@ export interface UserRow {
 }
 
 export interface DriveAccountRow {
+  [key: string]: unknown;
   id: string;
   user_id: string;
   google_account_id: string;
@@ -325,6 +330,7 @@ export interface DriveAccountRow {
 }
 
 export interface DriveFolderRow {
+  [key: string]: unknown;
   id: string;
   drive_account_id: string;
   google_folder_id: string;
@@ -336,6 +342,7 @@ export interface DriveFolderRow {
 }
 
 export interface SharedLinkRow {
+  [key: string]: unknown;
   id: string;
   user_id: string;
   target_type: 'file' | 'folder';
@@ -353,6 +360,7 @@ export interface SharedLinkRow {
 }
 
 export interface InvitationCodeRow {
+  [key: string]: unknown;
   id: string;
   code: string;
   created_by: string;
@@ -363,6 +371,7 @@ export interface InvitationCodeRow {
 }
 
 export interface S3CredentialRow {
+  [key: string]: unknown;
   id: string;
   user_id: string;
   access_key_id: string;
@@ -373,6 +382,7 @@ export interface S3CredentialRow {
 }
 
 export interface S3MultipartUploadRow {
+  [key: string]: unknown;
   upload_id: string;
   user_id: string;
   workspace_id: string;
@@ -383,6 +393,7 @@ export interface S3MultipartUploadRow {
 }
 
 export interface AuditLogRow {
+  [key: string]: unknown;
   id: string;
   workspace_id: string | null;
   actor_id: string;
@@ -394,6 +405,7 @@ export interface AuditLogRow {
 }
 
 export interface AutomationRuleRow {
+  [key: string]: unknown;
   id: string;
   user_id: string;
   name: string;
@@ -408,6 +420,7 @@ export interface AutomationRuleRow {
 }
 
 export interface WorkspacePolicyRow {
+  [key: string]: unknown;
   id: string;
   workspace_id: string;
   target_type: 'workspace' | 'folder';
@@ -420,6 +433,7 @@ export interface WorkspacePolicyRow {
 }
 
 export interface S3MultipartPartRow {
+  [key: string]: unknown;
   upload_id: string;
   part_number: number;
   google_file_id: string;
@@ -430,4 +444,74 @@ export interface S3MultipartPartRow {
 
 export interface WorkspaceWithRoleRow extends WorkspaceRow {
   role: WorkspaceRole;
+}
+
+export interface SyncStateRow {
+  [key: string]: unknown;
+  drive_account_id: string;
+  change_token: string | null;
+  next_page_token: string | null;
+  last_synced_at: string | null;
+  status: string;
+  error_message: string | null;
+  locked_at: string | null;
+}
+
+export interface QuotaCacheRow {
+  [key: string]: unknown;
+  drive_account_id: string;
+  payload: string;
+  updated_at: number;
+}
+
+export interface DriveTokenRow {
+  [key: string]: unknown;
+  drive_account_id: string;
+  encrypted_tokens: string;
+  updated_at: number;
+}
+
+export interface OAuthStateRow {
+  [key: string]: unknown;
+  state: string;
+  code_verifier: string;
+  user_id: string;
+  created_at: number;
+}
+
+export interface SessionRow {
+  [key: string]: unknown;
+  id: string;
+  user_id: string;
+  data: string;
+  expires_at: number;
+  touched_at: number;
+}
+
+export interface S3LifecycleRuleRow {
+  [key: string]: unknown;
+  id: string;
+  workspace_id: string;
+  prefix: string;
+  expiration_days: number;
+  enabled: number;
+  created_at: string;
+}
+
+export interface WorkspaceMemberRow {
+  [key: string]: unknown;
+  id: string;
+  workspace_id: string;
+  user_id: string;
+  role: string;
+  joined_at: string;
+}
+
+export interface AutomationLogRow {
+  [key: string]: unknown;
+  id: string;
+  rule_id: string;
+  status: string;
+  details: string | null;
+  executed_at: string;
 }

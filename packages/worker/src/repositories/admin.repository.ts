@@ -1,4 +1,5 @@
 import type { D1Database } from '@cloudflare/workers-types';
+import type { UserRow, InvitationCodeRow, AuditLogRow } from '../types/db';
 
 /**
  * Data access layer for admin operations.
@@ -35,17 +36,23 @@ export class AdminRepository {
       .prepare(
         'SELECT id, username, email, name, avatar_url, is_super_admin, is_blocked FROM users ORDER BY created_at DESC LIMIT 100',
       )
-      .all();
+      .all<UserRow>();
   }
 
   /** Check if a username already exists. */
   findByUsername(username: string) {
-    return this.db.prepare('SELECT id FROM users WHERE username = ?').bind(username).first();
+    return this.db
+      .prepare('SELECT id FROM users WHERE username = ?')
+      .bind(username)
+      .first<{ id: string }>();
   }
 
   /** Check if an email already exists. */
   findByEmail(email: string) {
-    return this.db.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
+    return this.db
+      .prepare('SELECT id FROM users WHERE email = ?')
+      .bind(email)
+      .first<{ id: string }>();
   }
 
   /** Insert a new user (admin-created). */
@@ -201,7 +208,9 @@ export class AdminRepository {
 
   /** Find all invitation codes, most recent first. */
   findAllInvitations() {
-    return this.db.prepare('SELECT * FROM invitation_codes ORDER BY created_at DESC').all();
+    return this.db
+      .prepare('SELECT * FROM invitation_codes ORDER BY created_at DESC')
+      .all<InvitationCodeRow>();
   }
 
   /** Insert a new invitation code. */
@@ -225,6 +234,6 @@ export class AdminRepository {
       .prepare(
         'SELECT a.*, u.email as actor_email, w.name as workspace_name FROM audit_logs a JOIN users u ON a.actor_id = u.id LEFT JOIN workspaces w ON a.workspace_id = w.id ORDER BY a.created_at DESC LIMIT 100',
       )
-      .all();
+      .all<AuditLogRow>();
   }
 }

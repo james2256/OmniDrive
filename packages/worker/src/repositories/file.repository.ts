@@ -59,7 +59,7 @@ export class FileRepository {
     `,
       )
       .bind(userId, limit, userId, limit, limit)
-      .all();
+      .all<Record<string, unknown>>();
   }
 
   // ─── Storage stats (delta-maintained, replaces category_cache) ───
@@ -231,7 +231,7 @@ export class FileRepository {
     const { results } = await this.db
       .prepare(sql)
       .bind(...binds)
-      .all();
+      .all<Record<string, unknown>>();
     return { results };
   }
 
@@ -242,7 +242,7 @@ export class FileRepository {
         'SELECT f.*, d.email as driveEmail FROM files f JOIN drive_accounts d ON f.drive_account_id = d.id WHERE f.user_id = ? AND f.is_starred = 1 AND f.is_trashed = 0 ORDER BY f.created_at DESC',
       )
       .bind(userId)
-      .all();
+      .all<Record<string, unknown>>();
   }
 
   /** Find trashed files for a user. */
@@ -255,7 +255,7 @@ export class FileRepository {
        ORDER BY f.updated_at DESC`,
       )
       .bind(userId)
-      .all();
+      .all<Record<string, unknown>>();
   }
 
   /** Find a file with drive email + source drive ID for move-drive operation. */
@@ -265,7 +265,7 @@ export class FileRepository {
         `SELECT f.*, d.email as driveEmail, d.id as sourceDriveId FROM files f JOIN drive_accounts d ON f.drive_account_id = d.id WHERE f.id = ? AND f.user_id = ?`,
       )
       .bind(fileId, userId)
-      .first();
+      .first<Record<string, unknown>>();
   }
 
   /** Insert an uploaded file. Returns the created file row. */
@@ -311,7 +311,7 @@ export class FileRepository {
         params.googleModifiedAt,
       )
       .run();
-    return this.db.prepare('SELECT * FROM files WHERE id = ?').bind(params.id).first();
+    return this.db.prepare('SELECT * FROM files WHERE id = ?').bind(params.id).first<FileRow>();
   }
 
   // ─── Mutations ───
@@ -518,7 +518,7 @@ export class FileRepository {
     const { results } = await this.db
       .prepare(sql)
       .bind(...binds)
-      .all();
+      .all<Record<string, unknown>>();
     return { results };
   }
 
@@ -546,7 +546,7 @@ export class FileRepository {
     const { results } = await this.db
       .prepare(sql)
       .bind(...binds)
-      .all();
+      .all<Record<string, unknown>>();
     return { results };
   }
 
@@ -619,7 +619,7 @@ export class FileRepository {
     return this.db
       .prepare(sql)
       .bind(...binds)
-      .all();
+      .all<FileRow>();
   }
 
   /**
@@ -737,7 +737,7 @@ export class FileRepository {
            AND is_trashed = 0`,
       )
       .bind(workspaceId, name, folderId, folderId)
-      .first();
+      .first<FileRow>();
   }
 
   /**
@@ -753,7 +753,7 @@ export class FileRepository {
            AND is_trashed = 0`,
       )
       .bind(workspaceId, name, folderId, folderId)
-      .first();
+      .first<FileRow>();
   }
 
   /**
