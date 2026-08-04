@@ -55,8 +55,13 @@ export function uploadChunk(
   file: File,
   start: number,
   onProgress?: (percent: number) => void,
+  signal?: AbortSignal,
 ): Promise<{ done: true; value: { id: string } } | { done: false; nextStart: number }> {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException('Upload aborted', 'AbortError'));
+      return;
+    }
     const xhr = new XMLHttpRequest();
     // Send one 8MB chunk (or the remainder if < 8MB left).
     const end = Math.min(start + CHUNK_SIZE - 1, file.size - 1);
@@ -64,10 +69,18 @@ export function uploadChunk(
     // Browsers optimize Blob.slice as a view, but passing the original File
     // when possible is still marginally cheaper and clearer in DevTools.
     const isWholeFile = start === 0 && end === file.size - 1;
+
+    const onAbort = () => {
+      xhr.abort();
+      reject(new DOMException('Upload aborted', 'AbortError'));
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+
     xhr.upload.addEventListener('progress', (e) => {
       if (e.lengthComputable) onProgress?.(Math.round(((start + e.loaded) / file.size) * 100));
     });
     xhr.addEventListener('load', () => {
+      signal?.removeEventListener('abort', onAbort);
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
           const result = JSON.parse(xhr.responseText);
@@ -92,7 +105,10 @@ export function uploadChunk(
         );
       }
     });
-    xhr.addEventListener('error', () => reject(new Error('Upload network error')));
+    xhr.addEventListener('error', () => {
+      signal?.removeEventListener('abort', onAbort);
+      reject(new Error('Upload network error'));
+    });
     xhr.open('PUT', `${API_BASE}/api/files/upload/proxy`);
     xhr.withCredentials = true;
     xhr.setRequestHeader('X-Upload-Url', url);
@@ -122,13 +138,16 @@ export async function uploadChunkWithRetry(
   start: number,
   onProgress?: (percent: number) => void,
   maxRetries = 2,
+  signal?: AbortSignal,
 ): Promise<{ done: true; value: { id: string } } | { done: false; nextStart: number }> {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       // Only report progress on the first attempt — retries reset e.loaded to 0,
       // which would cause the progress bar to jump backwards.
-      return await uploadChunk(url, file, start, attempt === 0 ? onProgress : undefined);
+      return await uploadChunk(url, file, start, attempt === 0 ? onProgress : undefined, signal);
     } catch (err) {
+      // AbortError is never retryable
+      if (err instanceof DOMException && err.name === 'AbortError') throw err;
       if (attempt === maxRetries || !isRetryableUploadError(err)) throw err;
       // Exponential backoff: 1s, 2s, 4s
       const delayMs = Math.pow(2, attempt) * 1000;

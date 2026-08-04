@@ -6,8 +6,9 @@ export interface UploadItem {
   id: string;
   file: File;
   progress: number;
-  status: 'pending' | 'uploading' | 'confirming' | 'done' | 'error';
+  status: 'pending' | 'uploading' | 'confirming' | 'done' | 'error' | 'cancelled';
   error?: string;
+  abortController?: AbortController;
 }
 
 interface UploadState {
@@ -22,6 +23,7 @@ interface UploadState {
   clearQueue: () => void;
   startUpload: (driveAccountId?: string, parentFolderId?: string) => Promise<void>;
   setShowModal: (show: boolean) => void;
+  cancelUpload: (id: string) => void;
 }
 
 /**
@@ -71,6 +73,16 @@ export const useUploadStore = create<UploadState>((set, get) => ({
   },
 
   clearQueue: () => set({ queue: [], isUploading: false, emptyFolders: [] }),
+
+  cancelUpload: (id: string) => {
+    const item = get().queue.find((q) => q.id === id);
+    if (item?.abortController) {
+      item.abortController.abort();
+    }
+    set((state) => ({
+      queue: state.queue.map((q) => (q.id === id ? { ...q, status: 'cancelled' as const } : q)),
+    }));
+  },
 
   startUpload: async (driveAccountId?: string, parentFolderId?: string) => {
     set({ isUploading: true });
@@ -144,30 +156,38 @@ export const useUploadStore = create<UploadState>((set, get) => ({
     const tasks = queue
       .filter((item) => item.status === 'pending')
       .map((item) => async () => {
+        const abortController = new AbortController();
+        set((state) => ({
+          queue: state.queue.map((q) =>
+            q.id === item.id ? { ...q, status: 'uploading' as const, abortController } : q,
+          ),
+        }));
         try {
           const itemParentId = resolveParentForItem(item.file);
 
-          set((state) => ({
-            queue: state.queue.map((q) =>
-              q.id === item.id ? { ...q, status: 'uploading' as const } : q,
-            ),
-          }));
-
           // 1. Initiate upload — get resumable URL from Worker
-          const { uploadUrl, driveAccountId: actualDriveId } = await filesApi.initiateUpload({
-            name: item.file.name,
-            mimeType: item.file.type || 'application/octet-stream',
-            size: item.file.size,
-            driveAccountId,
-            parentFolderId: itemParentId,
-          });
+          const { uploadUrl, driveAccountId: actualDriveId } = await filesApi.initiateUpload(
+            {
+              name: item.file.name,
+              mimeType: item.file.type || 'application/octet-stream',
+              size: item.file.size,
+              driveAccountId,
+              parentFolderId: itemParentId,
+            },
+            abortController.signal,
+          );
 
           // 2. Upload via Worker proxy (uploadChunkWithRetry handles 429s)
-          const uploadResponse = await filesApi.uploadViaProxy(uploadUrl, item.file, (progress) => {
-            set((state) => ({
-              queue: state.queue.map((q) => (q.id === item.id ? { ...q, progress } : q)),
-            }));
-          });
+          const uploadResponse = await filesApi.uploadViaProxy(
+            uploadUrl,
+            item.file,
+            (progress) => {
+              set((state) => ({
+                queue: state.queue.map((q) => (q.id === item.id ? { ...q, progress } : q)),
+              }));
+            },
+            abortController.signal,
+          );
 
           // 3. Confirm upload with Worker
           set((state) => ({
@@ -176,11 +196,14 @@ export const useUploadStore = create<UploadState>((set, get) => ({
             ),
           }));
 
-          await filesApi.confirmUpload({
-            googleFileId: uploadResponse.id,
-            driveAccountId: actualDriveId,
-            parentFolderId: itemParentId,
-          });
+          await filesApi.confirmUpload(
+            {
+              googleFileId: uploadResponse.id,
+              driveAccountId: actualDriveId,
+              parentFolderId: itemParentId,
+            },
+            abortController.signal,
+          );
 
           set((state) => ({
             queue: state.queue.map((q) =>
@@ -188,6 +211,14 @@ export const useUploadStore = create<UploadState>((set, get) => ({
             ),
           }));
         } catch (err) {
+          if (err instanceof DOMException && err.name === 'AbortError') {
+            set((state) => ({
+              queue: state.queue.map((q) =>
+                q.id === item.id ? { ...q, status: 'cancelled' as const } : q,
+              ),
+            }));
+            return;
+          }
           set((state) => ({
             queue: state.queue.map((q) =>
               q.id === item.id

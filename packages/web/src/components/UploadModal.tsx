@@ -7,6 +7,7 @@ import {
   FolderUp,
   FileUp,
   Folder,
+  Ban,
 } from 'lucide-react';
 import { useUploadStore } from '../stores/useUploadStore';
 import { useDrives } from '../hooks/useDrives';
@@ -32,7 +33,8 @@ interface UploadModalProps {
 }
 
 export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: UploadModalProps) {
-  const { queue, isUploading, removeFile, startUpload, clearQueue } = useUploadStore();
+  const { queue, isUploading, removeFile, startUpload, clearQueue, cancelUpload } =
+    useUploadStore();
   const { data: drivesData } = useDrives();
   const drives = drivesData?.drives ?? [];
   const { addToast } = useToastStore();
@@ -105,7 +107,10 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
   };
 
   const allDone =
-    queue.length > 0 && queue.every((item) => item.status === 'done' || item.status === 'error');
+    queue.length > 0 &&
+    queue.every(
+      (item) => item.status === 'done' || item.status === 'error' || item.status === 'cancelled',
+    );
 
   // Group queue items by directory prefix from webkitRelativePath.
   // Flat files (no webkitRelativePath) get dir = '' → no header → same as before.
@@ -135,6 +140,8 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
         return <Check size={16} className="text-green-500" />;
       case 'error':
         return <CircleAlert size={16} className="text-red-500" />;
+      case 'cancelled':
+        return <Ban size={16} className="text-slate-400" />;
       case 'uploading':
       case 'confirming':
         return <LoaderCircle size={16} className="text-primary animate-spin" />;
@@ -233,6 +240,16 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
                           className="p-1 text-slate-500 hover:text-slate-600 hover:bg-slate-100 rounded-md"
                           onClick={() => removeFile(item.id)}
                           aria-label="Remove file"
+                        >
+                          <X size={14} />
+                        </Button>
+                      )}
+                      {(item.status === 'uploading' || item.status === 'confirming') && (
+                        <Button
+                          variant="ghost"
+                          className="p-1 text-slate-500 hover:text-red-500 hover:bg-red-50 rounded-md"
+                          onClick={() => cancelUpload(item.id)}
+                          aria-label="Cancel upload"
                         >
                           <X size={14} />
                         </Button>

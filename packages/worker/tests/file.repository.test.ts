@@ -201,6 +201,7 @@ describe('FileRepository', () => {
         webContentLink: null,
         googleCreatedAt: '2026-01-01',
         googleModifiedAt: '2026-01-02',
+        metadata: '{"md5":"abc123"}',
       });
 
       // 2 prepare calls: INSERT + SELECT
@@ -208,7 +209,8 @@ describe('FileRepository', () => {
       const insertSql = mockPrepare.mock.calls[0][0] as string;
       expect(insertSql).toContain('INSERT INTO files');
       expect(insertSql).toContain("datetime('now')");
-      // 15 binds for INSERT
+      expect(insertSql).toContain('metadata');
+      // 16 binds for INSERT (including metadata)
       expect(mockBind).toHaveBeenNthCalledWith(
         1,
         'f-1',
@@ -226,6 +228,7 @@ describe('FileRepository', () => {
         null,
         '2026-01-01',
         '2026-01-02',
+        '{"md5":"abc123"}',
       );
       // 2nd call: SELECT * to return the inserted row.
       const selectSql = mockPrepare.mock.calls[1][0] as string;

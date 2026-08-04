@@ -22,25 +22,33 @@ export async function fetchFilePreviewBlob(fileId: string): Promise<Blob> {
 export const filesApi = {
   searchFiles: (query: string) =>
     request<SearchResults>(`/api/files/search?q=${encodeURIComponent(query)}`),
-  initiateUpload: (data: {
-    name: string;
-    mimeType: string;
-    size: number;
-    driveAccountId?: string;
-    parentFolderId?: string;
-  }) =>
+  initiateUpload: (
+    data: {
+      name: string;
+      mimeType: string;
+      size: number;
+      driveAccountId?: string;
+      parentFolderId?: string;
+    },
+    signal?: AbortSignal,
+  ) =>
     request<UploadInitResponse>('/api/files/upload/init', {
       method: 'POST',
       body: JSON.stringify(data),
+      signal,
     }),
-  confirmUpload: (data: {
-    googleFileId: string;
-    driveAccountId: string;
-    parentFolderId?: string;
-  }) =>
+  confirmUpload: (
+    data: {
+      googleFileId: string;
+      driveAccountId: string;
+      parentFolderId?: string;
+    },
+    signal?: AbortSignal,
+  ) =>
     request<{ file: FileEntry }>('/api/files/upload/finalize', {
       method: 'POST',
       body: JSON.stringify(data),
+      signal,
     }),
   /**
    * Ensure a nested folder path exists on a drive (creating as needed).
@@ -66,12 +74,13 @@ export const filesApi = {
     uploadUrl: string,
     file: File,
     onProgress?: (percent: number) => void,
+    signal?: AbortSignal,
   ): Promise<{ id: string }> => {
     let startByte = 0;
     while (true) {
       // uploadChunkWithRetry handles transient 429/5xx/network errors with
       // exponential backoff (mirrors worker's withBackoff pattern).
-      const result = await uploadChunkWithRetry(uploadUrl, file, startByte, onProgress);
+      const result = await uploadChunkWithRetry(uploadUrl, file, startByte, onProgress, 2, signal);
       if (result.done) return result.value;
       startByte = result.nextStart;
     }

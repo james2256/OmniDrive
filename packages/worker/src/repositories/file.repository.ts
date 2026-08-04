@@ -285,12 +285,13 @@ export class FileRepository {
     webContentLink: string | null;
     googleCreatedAt: string | null;
     googleModifiedAt: string | null;
+    metadata: string;
   }): Promise<unknown> {
     await this.db
       .prepare(
         `
-      INSERT INTO files (id, user_id, drive_account_id, workspace_id, workspace_folder_id, google_file_id, google_parent_id, name, mime_type, size, thumbnail_url, web_view_link, web_content_link, google_created_at, google_modified_at, synced_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      INSERT INTO files (id, user_id, drive_account_id, workspace_id, workspace_folder_id, google_file_id, google_parent_id, name, mime_type, size, thumbnail_url, web_view_link, web_content_link, google_created_at, google_modified_at, metadata, synced_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     `,
       )
       .bind(
@@ -309,6 +310,7 @@ export class FileRepository {
         params.webContentLink,
         params.googleCreatedAt,
         params.googleModifiedAt,
+        params.metadata,
       )
       .run();
     return this.db.prepare('SELECT * FROM files WHERE id = ?').bind(params.id).first<FileRow>();

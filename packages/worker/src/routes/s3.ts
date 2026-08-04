@@ -767,6 +767,15 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
     }
   }
 
+  // Update per-MIME-type storage stats (mirrors Web UI finalizeUpload).
+  // Best-effort — a failure here only affects the "Storage by type" chart,
+  // not the file record or quota. recomputeStorageStats() is the backstop.
+  try {
+    await fileRepo.applyStorageDeltas([{ userId, mimeType, delta: contentLength }]);
+  } catch (err) {
+    logError(c, 'S3 PutObject: storage stats update failed (non-fatal)', err);
+  }
+
   // Quota was reserved before upload; on success the reservation stands.
 
   c.header('ETag', `"${md5Hex}"`);
@@ -1189,6 +1198,19 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
     }
 
     // Quota was reserved before upload. On success, the reservation stands.
+
+    // Update per-MIME-type storage stats (mirrors Web UI finalizeUpload).
+    try {
+      await fileRepo.applyStorageDeltas([
+        {
+          userId,
+          mimeType: upload.content_type ?? 'application/octet-stream',
+          delta: totalSize,
+        },
+      ]);
+    } catch (err) {
+      logError(c, 'S3 CompleteMultipart: storage stats update failed (non-fatal)', err);
+    }
 
     // Cleanup: Delete temp parts folder from Google Drive & clean SQLite state
     try {

@@ -91,23 +91,30 @@ describe('useUploadStore', () => {
 
     await useUploadStore.getState().startUpload('d1', 'g1');
 
-    expect(filesApi.initiateUpload).toHaveBeenCalledWith({
-      name: 'a.txt',
-      mimeType: 'text/plain',
-      size: 100,
-      driveAccountId: 'd1',
-      parentFolderId: 'g1',
-    });
+    expect(filesApi.initiateUpload).toHaveBeenCalledWith(
+      {
+        name: 'a.txt',
+        mimeType: 'text/plain',
+        size: 100,
+        driveAccountId: 'd1',
+        parentFolderId: 'g1',
+      },
+      expect.any(AbortSignal),
+    );
     expect(filesApi.uploadViaProxy).toHaveBeenCalledWith(
       'http://upload/url',
       expect.any(File),
       expect.any(Function),
+      expect.any(AbortSignal),
     );
-    expect(filesApi.confirmUpload).toHaveBeenCalledWith({
-      googleFileId: 'g-file-1',
-      driveAccountId: 'd1',
-      parentFolderId: 'g1',
-    });
+    expect(filesApi.confirmUpload).toHaveBeenCalledWith(
+      {
+        googleFileId: 'g-file-1',
+        driveAccountId: 'd1',
+        parentFolderId: 'g1',
+      },
+      expect.any(AbortSignal),
+    );
 
     const item = useUploadStore.getState().queue.find((q) => q.id === id);
     expect(item?.status).toBe('done');
@@ -265,12 +272,15 @@ describe('useUploadStore', () => {
     useUploadStore.getState().addFiles([makeFile('a.txt')]);
     await useUploadStore.getState().startUpload();
 
-    expect(filesApi.initiateUpload).toHaveBeenCalledWith({
-      name: 'a.txt',
-      mimeType: 'text/plain',
-      size: 100,
-      driveAccountId: undefined,
-      parentFolderId: undefined,
-    });
+    expect(filesApi.initiateUpload).toHaveBeenCalledWith(
+      {
+        name: 'a.txt',
+        mimeType: 'text/plain',
+        size: 100,
+        driveAccountId: undefined,
+        parentFolderId: undefined,
+      },
+      expect.any(AbortSignal),
+    );
   });
 });

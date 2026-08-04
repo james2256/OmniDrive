@@ -403,15 +403,22 @@ export class FileService {
       webContentLink: string | null;
       googleCreatedAt: string | null;
       googleModifiedAt: string | null;
+      metadata: string;
     },
   ): Promise<unknown> {
     const created = await this.fileRepo.insertUploaded({
       ...params,
       userId,
     });
-    await this.fileRepo.applyStorageDeltas([
-      { userId, mimeType: params.mimeType ?? '', delta: params.size },
-    ]);
+    // Best-effort — a failure here only affects the "Storage by type" chart,
+    // not the file record or quota. recomputeStorageStats() is the backstop.
+    try {
+      await this.fileRepo.applyStorageDeltas([
+        { userId, mimeType: params.mimeType ?? '', delta: params.size },
+      ]);
+    } catch (err) {
+      logErrorNoCtx('applyStorageDeltas failed (non-fatal)', err);
+    }
     return created;
   }
 

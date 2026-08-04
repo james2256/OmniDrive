@@ -434,6 +434,7 @@ filesRouter.post(
         webContentLink: gFile.webContentLink || null,
         googleCreatedAt: gFile.createdTime,
         googleModifiedAt: gFile.modifiedTime,
+        metadata: JSON.stringify(gFile.md5Checksum ? { md5: gFile.md5Checksum } : {}),
       });
     } catch (err) {
       // finalizeUpload failed — release the pre-reserved quota
