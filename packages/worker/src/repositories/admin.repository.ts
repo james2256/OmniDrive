@@ -124,11 +124,15 @@ export class AdminRepository {
   }
 
   /**
-   * Permanently delete a user with manual cascade. D1 FKs are OFF
-   * (PRAGMA foreign_keys is never enabled), so ON DELETE CASCADE is
-   * documentation-only. We delete all 23 dependent tables + the user row
-   * in dependency order (children before parents) via a single db.batch()
-   * which executes statements in array order.
+   * Permanently delete a user with manual cascade. Production D1 enforces FK +
+   * ON DELETE CASCADE by default (developers.cloudflare.com/d1/sql-api/foreign-keys),
+   * so the batch is redundant in production but defensive: it ensures correct
+   * behavior on runtimes that don't enforce FK (better-sqlite3-based runtimes —
+   * unit tests and the node-server Docker deployment — do not enable
+   * PRAGMA foreign_keys) and survives any schema change that drops the FK.
+   * We delete all 23 dependent tables + the user row in dependency order
+   * (children before parents) via a single db.batch() which executes
+   * statements in array order.
    */
   async deleteUser(userId: string) {
     await this.db.batch([

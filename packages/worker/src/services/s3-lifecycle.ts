@@ -87,7 +87,8 @@ export async function runLifecycleExpiration(env: Env): Promise<void> {
  * Cron: reap orphan S3 multipart uploads that were never Completed or Aborted.
  * These leave a temp Google Drive folder + an s3_multipart_uploads row (and its
  * parts) behind forever. We delete the temp folder best-effort, then remove the
- * upload row; s3_multipart_parts rows cascade via ON DELETE CASCADE.
+ * upload row; s3_multipart_parts rows are deleted explicitly via deleteUpload's
+ * batch (manual cascade — see S3LifecycleRepository.deleteUpload).
  * created_at is a TEXT datetime string, so age is filtered in SQL with
  * datetime('now','-1 day') — never epoch ms.
  * ponytail: 24h threshold hardcoded — the ceiling is that a legitimate upload

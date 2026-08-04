@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Hono } from 'hono';
-import { escapeXml, xmlError } from '../src/lib/s3-xml';
+import { escapeXml, xmlError, parseCompleteMultipartBody } from '../src/lib/s3-xml';
 
 describe('escapeXml', () => {
   it('escapes <', () => {
@@ -101,5 +101,83 @@ describe('xmlError', () => {
       expect(res.status).toBe(status);
       expect(res.headers.get('Content-Type')).toBe('application/xml');
     }
+  });
+});
+
+describe('parseCompleteMultipartBody', () => {
+  it('parses a standard aws-sdk body with namespace + XML declaration', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<CompleteMultipartUpload xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+  <Part><ETag>"aaa111"</ETag><PartNumber>1</PartNumber></Part>
+  <Part><ETag>"bbb222"</ETag><PartNumber>2</PartNumber></Part>
+</CompleteMultipartUpload>`;
+    const parts = parseCompleteMultipartBody(xml);
+    expect(parts).toEqual([
+      { partNumber: 1, etag: '"aaa111"' },
+      { partNumber: 2, etag: '"bbb222"' },
+    ]);
+  });
+
+  it('parses s3cmd body without namespace or XML declaration', () => {
+    const xml = `<CompleteMultipartUpload>
+<Part><PartNumber>1</PartNumber><ETag>"aaa"</ETag></Part>
+<Part><PartNumber>2</PartNumber><ETag>"bbb"</ETag></Part>
+</CompleteMultipartUpload>`;
+    const parts = parseCompleteMultipartBody(xml);
+    expect(parts).toHaveLength(2);
+    expect(parts[0]).toEqual({ partNumber: 1, etag: '"aaa"' });
+  });
+
+  it('returns empty array for empty body (lenient fallback signal)', () => {
+    expect(parseCompleteMultipartBody('')).toEqual([]);
+  });
+
+  it('returns empty array for body with no <Part> elements', () => {
+    const xml = `<CompleteMultipartUpload xmlns="http://s3.amazonaws.com/doc/2006-03-01/"></CompleteMultipartUpload>`;
+    expect(parseCompleteMultipartBody(xml)).toEqual([]);
+  });
+
+  it('skips <Part> blocks missing <PartNumber> (lenient, not MalformedXML)', () => {
+    const xml = `<CompleteMultipartUpload>
+<Part><ETag>"aaa"</ETag></Part>
+<Part><PartNumber>2</PartNumber><ETag>"bbb"</ETag></Part>
+</CompleteMultipartUpload>`;
+    const parts = parseCompleteMultipartBody(xml);
+    expect(parts).toHaveLength(1);
+    expect(parts[0]).toEqual({ partNumber: 2, etag: '"bbb"' });
+  });
+
+  it('parses parts in any order (order validation is caller responsibility)', () => {
+    const xml = `<CompleteMultipartUpload>
+<Part><PartNumber>3</PartNumber><ETag>"ccc"</ETag></Part>
+<Part><PartNumber>1</PartNumber><ETag>"aaa"</ETag></Part>
+</CompleteMultipartUpload>`;
+    const parts = parseCompleteMultipartBody(xml);
+    expect(parts.map((p) => p.partNumber)).toEqual([3, 1]);
+  });
+
+  it('handles ETag without surrounding quotes', () => {
+    const xml = `<CompleteMultipartUpload>
+<Part><PartNumber>1</PartNumber><ETag>abc123</ETag></Part>
+</CompleteMultipartUpload>`;
+    const parts = parseCompleteMultipartBody(xml);
+    expect(parts[0].etag).toBe('abc123');
+  });
+
+  it('is case-insensitive on tag names (handles <part> lowercase)', () => {
+    const xml = `<CompleteMultipartUpload>
+<part><partnumber>1</partnumber><etag>"x"</etag></part>
+</CompleteMultipartUpload>`;
+    const parts = parseCompleteMultipartBody(xml);
+    expect(parts).toHaveLength(1);
+    expect(parts[0].partNumber).toBe(1);
+  });
+
+  it('ignores <ChecksumSHA256> and other optional sibling elements', () => {
+    const xml = `<CompleteMultipartUpload xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+<Part><ChecksumSHA256>deadbeef</ChecksumSHA256><ETag>"aaa"</ETag><PartNumber>1</PartNumber></Part>
+</CompleteMultipartUpload>`;
+    const parts = parseCompleteMultipartBody(xml);
+    expect(parts).toEqual([{ partNumber: 1, etag: '"aaa"' }]);
   });
 });

@@ -945,7 +945,19 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
     if (requestedParts.length > 0) {
       const d1Map = new Map(d1Parts.map((p) => [p.part_number, p]));
       parts = [];
+      let lastPartNumber = 0;
       for (const req of requestedParts) {
+        // S3 requires parts in ascending PartNumber order (InvalidPartOrder).
+        // Out-of-order parts would concatenate in the wrong sequence → corrupt file.
+        if (req.partNumber <= lastPartNumber) {
+          return xmlError(
+            c,
+            'InvalidPartOrder',
+            `Part numbers must be in ascending order. ${req.partNumber} follows ${lastPartNumber}.`,
+            400,
+          );
+        }
+        lastPartNumber = req.partNumber;
         const d1Part = d1Map.get(req.partNumber);
         if (!d1Part) {
           return xmlError(c, 'InvalidPart', `Part number ${req.partNumber} not found`, 400);

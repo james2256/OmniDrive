@@ -118,8 +118,12 @@ export class FolderRepository {
   }
 
   /**
-   * Delete a workspace folder with manual cascade. D1 FKs are OFF, so
-   * ON DELETE CASCADE / SET NULL are documentation-only.
+   * Delete a workspace folder with manual cascade. Production D1 enforces FK +
+   * ON DELETE CASCADE by default (developers.cloudflare.com/d1/sql-api/foreign-keys),
+   * so the batch is redundant in production but defensive: it ensures correct
+   * behavior on runtimes that don't enforce FK (better-sqlite3-based runtimes —
+   * unit tests and the node-server Docker deployment — do not enable
+   * PRAGMA foreign_keys) and survives any schema change that drops the FK.
    *
    * Cascade order (children before parents):
    * 1. Recursively delete subfolders (self-FK parent_id, arbitrary depth via CTE)

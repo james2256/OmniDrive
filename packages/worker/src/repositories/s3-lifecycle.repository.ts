@@ -58,8 +58,12 @@ export class S3LifecycleRepository {
   }
 
   /**
-   * Atomically delete an upload session and its parts. Uses db.batch because
-   * D1 does not enforce PRAGMA foreign_keys (CASCADE never fires).
+   * Atomically delete an upload session and its parts. Production D1 enforces
+   * FK + ON DELETE CASCADE by default (developers.cloudflare.com/d1/sql-api/foreign-keys),
+   * so the batch is redundant in production but defensive: it ensures correct
+   * behavior on runtimes that don't enforce FK (better-sqlite3-based runtimes —
+   * unit tests and the node-server Docker deployment — do not enable
+   * PRAGMA foreign_keys) and survives any schema change that drops the FK.
    */
   async deleteUpload(uploadId: string): Promise<void> {
     await this.db.batch([
