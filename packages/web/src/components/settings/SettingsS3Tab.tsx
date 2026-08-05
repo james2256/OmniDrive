@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { S3Credential } from '../../types';
 import { useToastStore } from '../../stores/useToastStore';
+import { useClipboard } from '../../hooks/useClipboard';
 import {
   Plus,
   Trash2,
@@ -43,8 +44,7 @@ export function SettingsS3Tab() {
     secretAccessKey: string;
     description: string;
   } | null>(null);
-  const [copiedAccessKey, setCopiedAccessKey] = useState(false);
-  const [copiedSecretKey, setCopiedSecretKey] = useState(false);
+  const { copiedId, copy } = useClipboard();
 
   // Revoke-key confirmation dialog state
   const [revokeTargetId, setRevokeTargetId] = useState<string | null>(null);
@@ -122,14 +122,7 @@ export function SettingsS3Tab() {
   };
 
   const handleCopy = (text: string, type: 'access' | 'secret') => {
-    navigator.clipboard.writeText(text);
-    if (type === 'access') {
-      setCopiedAccessKey(true);
-      setTimeout(() => setCopiedAccessKey(false), 2000);
-    } else {
-      setCopiedSecretKey(true);
-      setTimeout(() => setCopiedSecretKey(false), 2000);
-    }
+    copy(text, type);
   };
 
   return (
@@ -345,7 +338,7 @@ export function SettingsS3Tab() {
                       variant="ghost"
                       className="gap-1 text-xs text-primary hover:text-primary hover:bg-transparent px-0 py-0 rounded-none"
                     >
-                      {copiedAccessKey ? (
+                      {copiedId === 'access' ? (
                         <>
                           <Check size={14} />
                           Copied!
@@ -373,7 +366,7 @@ export function SettingsS3Tab() {
                       variant="ghost"
                       className="gap-1 text-xs text-primary hover:text-primary hover:bg-transparent px-0 py-0 rounded-none"
                     >
-                      {copiedSecretKey ? (
+                      {copiedId === 'secret' ? (
                         <>
                           <Check size={14} />
                           Copied!

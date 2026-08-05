@@ -23,6 +23,31 @@ export class FileRepository {
   }
 
   /**
+   * Batch-lookup files by ID, scoped to the caller. Returns only the fields
+   * needed for cross-workspace membership validation in addFilesToFolder.
+   * Chunks to stay under D1's bind-variable limit.
+   */
+  async findByIds(
+    fileIds: string[],
+    userId: string,
+  ): Promise<{ id: string; workspace_id: string | null }[]> {
+    if (fileIds.length === 0) return [];
+    const results: { id: string; workspace_id: string | null }[] = [];
+    const CHUNK = D1_MAX_BIND_VARIABLES - 1; // 1 bind for userId
+    for (let i = 0; i < fileIds.length; i += CHUNK) {
+      const chunk = fileIds.slice(i, i + CHUNK);
+      const placeholders = chunk.map(() => '?').join(',');
+      assertWithinD1Limit(1 + chunk.length, 'findByIds');
+      const { results: rows } = await this.db
+        .prepare(`SELECT id, workspace_id FROM files WHERE user_id = ? AND id IN (${placeholders})`)
+        .bind(userId, ...chunk)
+        .all<{ id: string; workspace_id: string | null }>();
+      results.push(...(rows ?? []));
+    }
+    return results;
+  }
+
+  /**
    * Find recent files across user's own files + workspace files.
    * CTE form with per-branch LIMIT so each branch reads at most `limit` rows
    * instead of ALL user files. Branch 1 (user_id filter) seeks

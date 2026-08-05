@@ -23,3 +23,5 @@ jobs:
         env:
           VITE_PUBLIC_URL: ${{ vars.VITE_PUBLIC_URL || 'http://localhost:8999' }}
       - run: npm run format:check
+      - run: npm audit --audit-level=high
+        continue-on-error: true

@@ -33,7 +33,7 @@ COPY --from=builder /app/packages/web/dist ./web/dist
 
 # Install only better-sqlite3 for the runner (it contains native bindings)
 # esbuild bundles everything else, but native modules must be installed
-RUN npm init -y && npm install better-sqlite3
+RUN npm init -y && npm install better-sqlite3@^13.0.1
 
 ENV NODE_ENV=production
 ENV STATIC_DIR=./web/dist

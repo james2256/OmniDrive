@@ -35,6 +35,14 @@ export function useItemInteractions(opts: {
   const selectMultiple = useSelectionStore((s) => s.selectMultiple);
   const hoverTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Clear pending hover-prefetch timeout on unmount (prevents a wasted API call
+  // after the user navigated away).
+  React.useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    };
+  }, []);
+
   const allItems = React.useMemo<SelectedItem[]>(
     () => [
       ...sortedSubfolders.map((f) => ({ type: 'folder' as const, item: f })),

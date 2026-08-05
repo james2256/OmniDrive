@@ -204,6 +204,7 @@ describe('PublicSharedPage', () => {
 
     expect(fetchMock).toHaveBeenCalledWith('/api/shared/link-abc/folder-contents', {
       credentials: 'include',
+      signal: expect.any(AbortSignal),
     });
   });
 

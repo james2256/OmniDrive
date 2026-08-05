@@ -215,6 +215,7 @@ CREATE TABLE IF NOT EXISTS shared_link_logs (
     visitor_email   TEXT,
     created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE INDEX IF NOT EXISTS idx_shared_link_logs_link ON shared_link_logs(shared_link_id);
 
 -- S3 bucket lifecycle rules. "expire" = move object to Google Drive trash
 -- (recoverable ~30 days), NOT a permanent delete (see s3-lifecycle service).

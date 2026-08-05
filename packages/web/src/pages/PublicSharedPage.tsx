@@ -62,20 +62,25 @@ export function PublicSharedPage() {
   // Fetch folder contents when meta loads (if it's a folder link and not password-gated).
   // folderContentsRetryKey lets the Retry button re-trigger the fetch.
   useEffect(() => {
-    if (meta?.type === 'folder' && id && !meta.requiresPassword) {
-      const apiUrl = import.meta.env.VITE_API_URL || '';
-      setFolderContentsError('');
-      fetch(`${apiUrl}/api/shared/${id}/folder-contents`, { credentials: 'include' })
-        .then((res) => (res.ok ? res.json() : Promise.reject(new Error('Failed to load folder'))))
-        .then((data) => {
-          setFolderContents(data);
-          setFolderContentsError('');
-        })
-        .catch(() => {
-          setFolderContents(null);
-          setFolderContentsError('Failed to load folder contents');
-        });
-    }
+    if (meta?.type !== 'folder' || !id || meta.requiresPassword) return;
+    const apiUrl = import.meta.env.VITE_API_URL || '';
+    const controller = new AbortController();
+    setFolderContentsError('');
+    fetch(`${apiUrl}/api/shared/${id}/folder-contents`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('Failed to load folder'))))
+      .then((data) => {
+        setFolderContents(data);
+        setFolderContentsError('');
+      })
+      .catch((err) => {
+        if (err.name === 'AbortError') return;
+        setFolderContents(null);
+        setFolderContentsError('Failed to load folder contents');
+      });
+    return () => controller.abort();
   }, [meta, id, folderContentsRetryKey]);
 
   const handlePasswordSubmit = async (e: React.FormEvent) => {

@@ -4,7 +4,7 @@ import { WorkspaceRepository } from '../repositories/workspace.repository';
 import { FileRepository } from '../repositories/file.repository';
 import { getWorkspaceRole, hasPermission } from '../lib/rbac';
 import { encodeCursor } from '../lib/cursor';
-import { NotFoundError, ForbiddenError } from '../lib/errors';
+import { NotFoundError, ForbiddenError, AppError } from '../lib/errors';
 import { generateId } from '../lib/id';
 import { mapFileRow } from '../types/db';
 import type { FileEntry } from '../types/domain';
@@ -360,6 +360,19 @@ export class FolderService {
         workspaceId = f.workspace_id;
         workspaceFolderId = folderId;
       }
+    }
+
+    // Validate files don't already belong to a DIFFERENT workspace (prevent
+    // cross-workspace data-integrity issues — files moved to a different
+    // workspace disappear from their original workspace's file list).
+    // Files with workspace_id = null (unassigned, e.g. in Drive root) can be
+    // assigned to any workspace — that's the normal "add to workspace" flow.
+    const files = await this.fileRepo.findByIds(fileIds, userId);
+    const wrongWorkspace = files.find(
+      (f) => f.workspace_id !== null && f.workspace_id !== workspaceId,
+    );
+    if (wrongWorkspace) {
+      throw new AppError(400, 'Files must belong to the same workspace as the folder');
     }
 
     await this.fileRepo.batchAssignToFolder(fileIds, userId, workspaceId, workspaceFolderId);
