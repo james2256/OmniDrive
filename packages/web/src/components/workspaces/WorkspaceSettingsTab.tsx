@@ -4,6 +4,15 @@ import type { WorkspacePolicy } from '../../types';
 import { ConfirmDialog } from '../ConfirmDialog';
 import { Button } from '../ui/Button';
 
+/** Parse policy config JSON, returning {} on malformed input (mirrors InfoPanel.parseMetadata). */
+function safeParseConfig(config: string): Record<string, unknown> {
+  try {
+    return JSON.parse(config);
+  } catch {
+    return {};
+  }
+}
+
 export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
   const [policies, setPolicies] = useState<WorkspacePolicy[]>([]);
   const [quotaInput, setQuotaInput] = useState('');
@@ -66,7 +75,9 @@ export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
   };
 
   const quotaPolicy = policies.find((p) => p.policyType === 'storage_quota');
-  const maxBytes = quotaPolicy ? JSON.parse(quotaPolicy.config).max_bytes : null;
+  const maxBytes = quotaPolicy
+    ? ((safeParseConfig(quotaPolicy.config).max_bytes as number | undefined) ?? null)
+    : null;
 
   return (
     <div className="p-4 sm:p-6 max-w-4xl mx-auto flex flex-col gap-4 sm:gap-6">
@@ -133,7 +144,7 @@ export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
             </thead>
             <tbody className="divide-y divide-slate-200">
               {policies.map((p) => {
-                const config = JSON.parse(p.config);
+                const config = safeParseConfig(p.config);
                 return (
                   <tr key={p.id} className="hover:bg-slate-50">
                     <td className="px-2 sm:px-6 py-4 text-sm font-medium text-slate-900">
@@ -144,7 +155,7 @@ export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
                     </td>
                     <td className="px-2 sm:px-6 py-4 text-sm text-slate-500 font-mono text-xs">
                       {p.policyType === 'storage_quota'
-                        ? `${Math.round(config.max_bytes / (1024 * 1024 * 1024))} GB limit`
+                        ? `${Math.round(Number(config.max_bytes) / (1024 * 1024 * 1024))} GB limit`
                         : `${config.action} (${config.days || 'indefinite'} days)`}
                     </td>
                     <td className="px-2 sm:px-6 py-4 text-sm text-right">

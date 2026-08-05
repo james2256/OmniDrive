@@ -85,6 +85,7 @@ export const useUploadStore = create<UploadState>((set, get) => ({
   },
 
   startUpload: async (driveAccountId?: string, parentFolderId?: string) => {
+    if (get().isUploading) return; // Prevent double-entry on rapid clicks
     set({ isUploading: true });
     const { queue, emptyFolders } = get();
 

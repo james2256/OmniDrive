@@ -5,6 +5,7 @@
 name = "omnidrive-api"
 main = "src/index.ts"
 compatibility_date = "2025-06-01"
+compatibility_flags = ["nodejs_compat_v2"]
 
 [triggers]
 crons = ["*/30 * * * *"]

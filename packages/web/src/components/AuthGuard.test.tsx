@@ -2,6 +2,7 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthGuard } from './AuthGuard';
 import { useAuthStore } from '../stores/useAuthStore';
 
@@ -33,24 +34,6 @@ describe('AuthGuard', () => {
       value: originalLocation,
     });
   });
-
-  // Helper: stub window.location.href with a setter that records assignments.
-  const stubLocationHref = () => {
-    const hrefSetter = vi.fn();
-    Object.defineProperty(window, 'location', {
-      writable: true,
-      value: {
-        ...originalLocation,
-        set href(url: string) {
-          hrefSetter(url);
-        },
-        get href() {
-          return '';
-        },
-      },
-    });
-    return hrefSetter;
-  };
 
   it('renders children when authenticated and not loading', () => {
     (useAuthStore as unknown as Mock).mockReturnValue({
@@ -107,24 +90,40 @@ describe('AuthGuard', () => {
     expect(container.querySelector('.animate-spin')).toBeTruthy();
   });
 
-  it('redirects to /login via window.location.href when not authenticated and not loading', () => {
+  it('redirects to /login via <Navigate> when not authenticated and not loading', () => {
     (useAuthStore as unknown as Mock).mockReturnValue({
       isAuthenticated: false,
       isLoading: false,
       authError: null,
       fetchUser,
     });
-    const hrefSetter = stubLocationHref();
+
+    // LocationCapture renders the current pathname so we can assert the redirect.
+    const LocationCapture = () => {
+      const location = useLocation();
+      return <span data-testid="location">{location.pathname}</span>;
+    };
 
     render(
-      <AuthGuard>
-        <div data-testid="protected" />
-      </AuthGuard>,
+      <MemoryRouter initialEntries={['/protected']}>
+        <Routes>
+          <Route
+            path="/protected"
+            element={
+              <AuthGuard>
+                <div data-testid="protected" />
+              </AuthGuard>
+            }
+          />
+          <Route path="/login" element={<LocationCapture />} />
+        </Routes>
+      </MemoryRouter>,
     );
 
-    expect(hrefSetter).toHaveBeenCalledWith('/login');
-    // No children rendered — AuthGuard returns null after redirect.
+    // No children rendered — AuthGuard redirected away from /protected.
     expect(screen.queryByTestId('protected')).toBeNull();
+    // <Navigate to="/login" replace /> rendered the /login route.
+    expect(screen.getByTestId('location').textContent).toBe('/login');
   });
 
   it('renders the authError UI with a Retry button when authError is set (and not loading)', () => {
