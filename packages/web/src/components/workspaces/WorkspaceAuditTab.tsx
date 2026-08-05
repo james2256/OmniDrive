@@ -1,17 +1,21 @@
 import { useEffect, useState } from 'react';
 import type { AuditLog } from '../../types';
 import { workspacesApi } from '../../lib/api/workspaces';
+import { useToastStore } from '../../stores/useToastStore';
 import { formatAbsoluteDate } from '../../lib/utils';
 
 export function WorkspaceAuditTab({ workspaceId }: { workspaceId: string }) {
   const [logs, setLogs] = useState<AuditLog[]>([]);
+  const { addToast } = useToastStore();
 
   useEffect(() => {
     workspacesApi
       .getWorkspaceAuditLogs(workspaceId)
       .then((res) => setLogs(res.logs))
-      .catch(console.error);
-  }, [workspaceId]);
+      .catch(() => {
+        addToast('error', 'Failed to load audit logs');
+      });
+  }, [workspaceId, addToast]);
 
   return (
     <div className="p-6">

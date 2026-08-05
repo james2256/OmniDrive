@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { foldersApi } from '../../lib/api/folders';
+import { useToastStore } from '../../stores/useToastStore';
 import type { WorkspaceFolder, FileEntry } from '../../types';
 import { Folder } from 'lucide-react';
 import {
@@ -30,13 +31,15 @@ export function AddToWorkspaceModal({ open, file, onClose, onSuccess }: Props) {
     }
   }, [open]);
 
+  const { addToast } = useToastStore();
+
   const handleAdd = async () => {
     if (!selectedId || !file) return;
     try {
       await foldersApi.addFilesToWorkspace(selectedId, [file.id]);
       onSuccess();
     } catch {
-      // Error handled by parent
+      addToast('error', 'Failed to add file to workspace');
     }
   };
 

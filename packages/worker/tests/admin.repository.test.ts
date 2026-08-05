@@ -186,13 +186,13 @@ describe('AdminRepository', () => {
   });
 
   describe('deleteUser', () => {
-    it('runs a 24-statement batch for manual cascade delete', async () => {
-      // 10 grandchild (subquery) + 4 intermediate + 9 direct child + 1 user = 24.
+    it('runs a 25-statement batch for manual cascade delete', async () => {
+      // 10 grandchild (subquery) + 1 used_bytes decrement + 4 intermediate + 9 direct child + 1 user = 25.
       await repo.deleteUser('u-1');
 
       expect(mockBatch).toHaveBeenCalledTimes(1);
       const stmts = mockBatch.mock.calls[0][0] as unknown[];
-      expect(stmts).toHaveLength(24);
+      expect(stmts).toHaveLength(25);
     });
 
     it('deletes the user row last (after all dependents)', async () => {
@@ -206,10 +206,17 @@ describe('AdminRepository', () => {
     it('binds userId for every statement (no off-by-one or missing binds)', async () => {
       await repo.deleteUser('u-1');
 
-      // All 24 statements bind exactly one value (the userId).
-      expect(mockBind).toHaveBeenCalledTimes(24);
-      for (let i = 1; i <= 24; i++) {
-        expect(mockBind).toHaveBeenNthCalledWith(i, 'u-1');
+      // 25 statements, each calls .bind() once. The used_bytes UPDATE (11th
+      // statement) binds userId twice in a single .bind(userId, userId) call;
+      // all others bind once.
+      expect(mockBind).toHaveBeenCalledTimes(25);
+      for (let i = 1; i <= 25; i++) {
+        if (i === 11) {
+          // 11th call (used_bytes decrement) binds userId twice
+          expect(mockBind).toHaveBeenNthCalledWith(i, 'u-1', 'u-1');
+        } else {
+          expect(mockBind).toHaveBeenNthCalledWith(i, 'u-1');
+        }
       }
     });
 

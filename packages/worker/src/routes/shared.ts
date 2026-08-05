@@ -269,6 +269,15 @@ sharedRouter.get('/:id/download', async (c) => {
 
     const driveService = createDriveService(c.env);
 
+    // Enforce download limit BEFORE opening Google Drive stream (prevents wasted subrequests)
+    if (link.maxDownloads !== null && link.maxDownloads !== undefined) {
+      const newCount = await sharedService.incrementDownloadCountWithLimit(link.id);
+      if (newCount === null) return c.text('Maximum download limit reached', 403);
+    } else {
+      c.executionCtx.waitUntil(sharedService.incrementDownloadCount(link.id));
+    }
+    c.executionCtx.waitUntil(sharedService.logAction(link.id, 'download'));
+
     let stream: ReadableStream<Uint8Array>;
     let finalMimeType = (file.mime_type as string) || 'application/octet-stream';
     let finalFileName = file.name as string;
@@ -288,15 +297,6 @@ sharedRouter.get('/:id/download', async (c) => {
       logError(c, 'Download error', e);
       return c.text('Failed to download file', 502);
     }
-
-    // Enforce download limit
-    if (link.maxDownloads !== null && link.maxDownloads !== undefined) {
-      const newCount = await sharedService.incrementDownloadCountWithLimit(link.id);
-      if (newCount === null) return c.text('Maximum download limit reached', 403);
-    } else {
-      c.executionCtx.waitUntil(sharedService.incrementDownloadCount(link.id));
-    }
-    c.executionCtx.waitUntil(sharedService.logAction(link.id, 'download'));
 
     if (link.webhookUrl) {
       c.executionCtx.waitUntil(
@@ -335,6 +335,15 @@ sharedRouter.get('/:id/download', async (c) => {
     const fileMeta = await driveService.getFile(driveId, fileId);
     if (!fileMeta) return c.text('File not found', 404);
 
+    // Enforce download limit BEFORE opening Google Drive stream (prevents wasted subrequests)
+    if (link.maxDownloads !== null && link.maxDownloads !== undefined) {
+      const newCount = await sharedService.incrementDownloadCountWithLimit(link.id);
+      if (newCount === null) return c.text('Maximum download limit reached', 403);
+    } else {
+      c.executionCtx.waitUntil(sharedService.incrementDownloadCount(link.id));
+    }
+    c.executionCtx.waitUntil(sharedService.logAction(link.id, 'download'));
+
     let stream: ReadableStream<Uint8Array>;
     let finalMimeType = fileMeta.mimeType || 'application/octet-stream';
     let finalFileName = fileMeta.name;
@@ -354,15 +363,6 @@ sharedRouter.get('/:id/download', async (c) => {
       logError(c, 'Download error', e);
       return c.text('Failed to download file', 502);
     }
-
-    // Enforce download limit (same as file links)
-    if (link.maxDownloads !== null && link.maxDownloads !== undefined) {
-      const newCount = await sharedService.incrementDownloadCountWithLimit(link.id);
-      if (newCount === null) return c.text('Maximum download limit reached', 403);
-    } else {
-      c.executionCtx.waitUntil(sharedService.incrementDownloadCount(link.id));
-    }
-    c.executionCtx.waitUntil(sharedService.logAction(link.id, 'download'));
 
     c.header('Content-Type', finalMimeType);
     c.header(

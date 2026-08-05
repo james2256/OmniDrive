@@ -75,6 +75,10 @@ export async function runLifecycleExpiration(env: Env): Promise<void> {
       try {
         await driveService.trashFile(file.drive_account_id, file.google_file_id);
         await fileRepo.markTrashedSystem(file.id);
+        // Update per-MIME storage stats (mirrors sync.ts and file.service.ts trashFile).
+        await fileRepo.applyStorageDeltas([
+          { userId: file.user_id, mimeType: file.mime_type ?? '', delta: -file.size },
+        ]);
       } catch (e) {
         // Best-effort: skip this file, keep processing the rest.
         logErrorNoCtx('Lifecycle expire failed for file', e, { fileId: file.id });

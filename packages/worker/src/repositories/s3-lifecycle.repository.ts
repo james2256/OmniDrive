@@ -36,7 +36,7 @@ export class S3LifecycleRepository {
           JOIN folder_path fp ON f.parent_id = fp.id
           WHERE f.workspace_id = ?
       )
-      SELECT f.id, f.drive_account_id, f.google_file_id
+      SELECT f.id, f.drive_account_id, f.google_file_id, f.user_id, f.mime_type, f.size
       FROM files f
       LEFT JOIN folder_path fp ON f.workspace_folder_id = fp.id
       WHERE f.workspace_id = ? AND f.is_trashed = 0
@@ -45,7 +45,14 @@ export class S3LifecycleRepository {
     `,
       )
       .bind(workspaceId, workspaceId, workspaceId, escapedPrefix, modifier)
-      .all<{ id: string; drive_account_id: string; google_file_id: string }>();
+      .all<{
+        id: string;
+        drive_account_id: string;
+        google_file_id: string;
+        user_id: string;
+        mime_type: string | null;
+        size: number;
+      }>();
   }
 
   /** Orphan multipart uploads older than 24h (never Completed or Aborted). */

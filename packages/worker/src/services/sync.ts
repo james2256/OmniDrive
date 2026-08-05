@@ -269,9 +269,8 @@ async function performIncrementalSync(
   let externalCount = 1;
 
   let currentToken = pageToken;
-  let hasMore = true;
 
-  while (hasMore) {
+  while (true) {
     if (getIsShuttingDown()) return currentToken;
     // Pause before hitting the 50-subrequest wall. currentToken is saved by
     // the caller so the next cron cycle resumes from here.
@@ -389,11 +388,15 @@ async function performIncrementalSync(
     if (response.nextPageToken) {
       currentToken = response.nextPageToken;
     } else {
-      hasMore = false;
+      // Google returned no newStartPageToken and no nextPageToken.
+      // This is an API anomaly — returning currentToken would cause an infinite
+      // re-fetch loop (same token → same changes → same token). Throw so
+      // upsertError fires and the token is NOT updated.
+      throw new Error(
+        'Google Drive Changes API returned no newStartPageToken and no nextPageToken — cannot advance sync cursor',
+      );
     }
   }
-
-  return currentToken;
 }
 
 export async function runScheduledSync(env: {

@@ -39,8 +39,9 @@ export function MoveModal({ open, items, driveId, onClose, onSuccess }: MoveModa
       setBreadcrumb(data.breadcrumb || [{ id: 'root', name: 'My Drive' }]);
     } catch {
       setSubfolders([]);
+      addToast('error', 'Failed to load folders. Check your connection.');
     }
-  }, [open, driveId, currentFolderId]);
+  }, [open, driveId, currentFolderId, addToast]);
 
   useEffect(() => {
     fetchFolders();

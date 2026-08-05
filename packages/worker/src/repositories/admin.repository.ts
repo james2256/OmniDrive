@@ -189,6 +189,15 @@ export class AdminRepository {
         )
         .bind(userId),
       // ─── Level 1: intermediate parents (depend on users; have grandchildren) ───
+      // Decrement used_bytes for workspaces where the deleted user uploaded files.
+      // Must run BEFORE DELETE FROM files — the subquery reads from files.
+      this.db
+        .prepare(
+          `UPDATE workspaces SET used_bytes = MAX(0, COALESCE(used_bytes, 0) -
+            (SELECT COALESCE(SUM(size), 0) FROM files WHERE user_id = ? AND workspace_id IS NOT NULL))
+           WHERE id IN (SELECT DISTINCT workspace_id FROM files WHERE user_id = ? AND workspace_id IS NOT NULL)`,
+        )
+        .bind(userId, userId),
       this.db.prepare('DELETE FROM s3_multipart_uploads WHERE user_id = ?').bind(userId),
       this.db.prepare('DELETE FROM shared_links WHERE user_id = ?').bind(userId),
       this.db.prepare('DELETE FROM automation_rules WHERE user_id = ?').bind(userId),
