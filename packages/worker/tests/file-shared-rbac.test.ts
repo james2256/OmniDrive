@@ -94,6 +94,19 @@ describe('FileService RBAC (unit)', () => {
       status: 403,
     });
   });
+
+  it('does not double-subtract storage stats when trashing an already-trashed file', async () => {
+    const file = makeFileRow({ user_id: 'user-1', workspace_id: null, is_trashed: 1 });
+    vi.spyOn(fileService['fileRepo'], 'findById').mockResolvedValue(file);
+    const applyDeltasSpy = vi.spyOn(fileService['fileRepo'], 'applyStorageDeltas');
+    const trashSpy = vi.spyOn(fileService['driveProvider'], 'trashFile');
+
+    await fileService.trashFile('user-1', 'file-1');
+
+    // Should return early — no Google API call, no D1 mutation, no stats delta
+    expect(trashSpy).not.toHaveBeenCalled();
+    expect(applyDeltasSpy).not.toHaveBeenCalled();
+  });
 });
 
 describe('SharedService RBAC (unit)', () => {

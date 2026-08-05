@@ -127,6 +127,7 @@ export default {
     return app.fetch(req, env, ctx);
   },
   async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext) {
+    validateEnv(env as unknown as Record<string, unknown>);
     // Heavy tasks run first (Google API + D1), sequentially to avoid D1 subrequest
     // budget contention on Free tier (50/invocation). Cron has no HTTP response to
     // return quickly, so blocking is fine — the Worker stays alive until all finish.

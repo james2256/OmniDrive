@@ -90,6 +90,7 @@ export class D1DatabaseWrapper {
 
   constructor(dbPath: string) {
     this.db = new Database(dbPath);
+    this.db.pragma('foreign_keys = ON');
   }
 
   prepare(query: string) {

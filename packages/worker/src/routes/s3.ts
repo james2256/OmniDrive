@@ -607,11 +607,11 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
 
   // Check if file already exists in D1 under the same folder/name/workspace
   const fileRepo = new FileRepository(db);
-  const existingFile = (await fileRepo.findByWorkspaceKeyMinimal(
+  const existingFile = await fileRepo.findByWorkspaceKeyFull(
     workspace.id,
     fileName,
     folderId || null,
-  )) as FileRow | null;
+  );
 
   // Initiate resumable session + upload. Wrapped in try/catch to release
   // the pre-reserved quota on any failure (prevents quota leak).
@@ -764,6 +764,19 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
       await driveService.deleteFile(existingFile.drive_account_id, existingFile.google_file_id);
     } catch (err) {
       logError(c, 'Failed to delete old file from Google Drive (orphaned — not data loss)', err);
+    }
+    // Release old file's quota + storage stats (prevents quota drift on overwrite).
+    try {
+      await policyService.updateWorkspaceStorage(workspace.id, -(existingFile.size as number));
+      await fileRepo.applyStorageDeltas([
+        {
+          userId: existingFile.user_id as string,
+          mimeType: (existingFile.mime_type as string) ?? '',
+          delta: -(existingFile.size as number),
+        },
+      ]);
+    } catch (err) {
+      logError(c, 'S3 PutObject: old file quota release failed (non-fatal)', err);
     }
   }
 
@@ -1101,11 +1114,11 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
 
     // Check if file already exists in D1 under the same folder/name/workspace
     const fileRepo = new FileRepository(db);
-    const existingFile = (await fileRepo.findByWorkspaceKeyMinimal(
+    const existingFile = await fileRepo.findByWorkspaceKeyFull(
       workspace.id,
       fileName,
       folderId || null,
-    )) as FileRow | null;
+    );
 
     // Calculate S3-compliant ETag
     const concatenatedMd5s = Buffer.concat(
@@ -1194,6 +1207,19 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
         await driveService.deleteFile(existingFile.drive_account_id, existingFile.google_file_id);
       } catch (err) {
         logError(c, 'Failed to delete old file from Google Drive (orphaned — not data loss)', err);
+      }
+      // Release old file's quota + storage stats (prevents quota drift on overwrite).
+      try {
+        await policyService.updateWorkspaceStorage(workspace.id, -(existingFile.size as number));
+        await fileRepo.applyStorageDeltas([
+          {
+            userId: existingFile.user_id as string,
+            mimeType: (existingFile.mime_type as string) ?? '',
+            delta: -(existingFile.size as number),
+          },
+        ]);
+      } catch (err) {
+        logError(c, 'S3 CompleteMultipart: old file quota release failed (non-fatal)', err);
       }
     }
 

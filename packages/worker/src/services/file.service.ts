@@ -50,6 +50,7 @@ export class FileService {
    */
   async trashFile(userId: string, fileId: string): Promise<void> {
     const file = await this.getFileOrThrow(fileId, userId, 'editor');
+    if (file.is_trashed === 1) return; // Idempotent — sync may have already trashed + applied stats delta
 
     await this.driveProvider.trashFile(file.drive_account_id, file.google_file_id);
     await this.fileRepo.markTrashed(fileId, file.user_id);
