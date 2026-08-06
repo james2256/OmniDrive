@@ -4,6 +4,7 @@ import type {
   UploadInitResponse,
   DriveFolder,
   WorkspaceFolder,
+  BreadcrumbItem,
   SearchResults,
 } from '../../types';
 
@@ -101,18 +102,32 @@ export const filesApi = {
       method: 'POST',
       body: JSON.stringify({ targetDriveId }),
     }),
-  getTrashFiles: () => request<{ files: FileEntry[]; folders: DriveFolder[] }>('/api/files/trash'),
+  getTrashFiles: () =>
+    request<{
+      folder: DriveFolder | null;
+      subfolders: DriveFolder[];
+      files: FileEntry[];
+      breadcrumb: BreadcrumbItem[];
+    }>('/api/files/trash'),
   restoreFile: (id: string) => request<void>(`/api/files/${id}/restore`, { method: 'POST' }),
   deleteFilePermanent: (id: string) =>
     request<void>(`/api/files/${id}/permanent`, { method: 'DELETE' }),
   getStarred: () =>
-    request<{ files: FileEntry[]; folders: WorkspaceFolder[]; driveFolders: DriveFolder[] }>(
-      '/api/files/starred',
-    ),
+    request<{
+      folder: null;
+      subfolders: (WorkspaceFolder | DriveFolder)[];
+      files: FileEntry[];
+      breadcrumb: BreadcrumbItem[];
+    }>('/api/files/starred'),
   starFile: (id: string) => request<void>(`/api/files/${id}/star`, { method: 'POST' }),
   unstarFile: (id: string) => request<void>(`/api/files/${id}/unstar`, { method: 'POST' }),
   getRecentFiles: () =>
-    request<{ files: FileEntry[]; folders: WorkspaceFolder[] }>('/api/files/recent'),
+    request<{
+      folder: null;
+      subfolders: WorkspaceFolder[];
+      files: FileEntry[];
+      breadcrumb: BreadcrumbItem[];
+    }>('/api/files/recent'),
   getFileCategoryOverview: () =>
     request<{
       images: number;

@@ -176,10 +176,11 @@ describe('ExternalPage', () => {
       data: {
         pages: [
           {
+            folder: null,
+            subfolders: [topFolder],
             files: [topFile],
-            folders: [topFolder],
-            hasMore: false,
-            nextCursor: null,
+            breadcrumb: [],
+            pagination: { hasMore: false, nextCursor: null },
           },
         ],
       },
@@ -234,7 +235,17 @@ describe('ExternalPage', () => {
 
   it('renders empty state when top-level returns no items', () => {
     (useInfiniteQuery as Mock).mockReturnValue({
-      data: { pages: [{ files: [], folders: [], hasMore: false, nextCursor: null }] },
+      data: {
+        pages: [
+          {
+            folder: null,
+            subfolders: [],
+            files: [],
+            breadcrumb: [],
+            pagination: { hasMore: false, nextCursor: null },
+          },
+        ],
+      },
       isLoading: false,
       error: null,
       hasNextPage: false,
@@ -258,10 +269,11 @@ describe('ExternalPage', () => {
       data: {
         pages: [
           {
+            folder: null,
+            subfolders: [],
             files: [topFile],
-            folders: [],
-            hasMore: true,
-            nextCursor: 'cursor-1',
+            breadcrumb: [],
+            pagination: { hasMore: true, nextCursor: 'cursor-1' },
           },
         ],
       },
@@ -281,10 +293,11 @@ describe('ExternalPage', () => {
       data: {
         pages: [
           {
+            folder: null,
+            subfolders: [],
             files: [topFile],
-            folders: [],
-            hasMore: true,
-            nextCursor: 'cursor-1',
+            breadcrumb: [],
+            pagination: { hasMore: true, nextCursor: 'cursor-1' },
           },
         ],
       },
@@ -305,10 +318,11 @@ describe('ExternalPage', () => {
       data: {
         pages: [
           {
+            folder: null,
+            subfolders: [],
             files: [topFile],
-            folders: [],
-            hasMore: true,
-            nextCursor: 'cursor-1',
+            breadcrumb: [],
+            pagination: { hasMore: true, nextCursor: 'cursor-1' },
           },
         ],
       },

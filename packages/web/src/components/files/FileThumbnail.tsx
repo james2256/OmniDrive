@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
-import type { FileEntry } from '../../types';
 import { FileIcon } from './FileIcon';
 
 interface FileThumbnailProps {
-  file: FileEntry;
+  file: { thumbnailUrl: string | null; mimeType: string | null };
   /** Size + shape classes, e.g. "w-12 h-12 rounded object-cover" (grid) or "w-6 h-6" (list). */
   className?: string;
 }

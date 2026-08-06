@@ -239,9 +239,10 @@ export interface S3Credential {
 
 /** Search results from GET /api/files/search — files + workspace folders + drive folders. */
 export interface SearchResults {
+  folder: null;
+  subfolders: (WorkspaceFolder | DriveFolder)[];
   files: FileEntry[];
-  folders: WorkspaceFolder[];
-  driveFolders: DriveFolder[];
+  breadcrumb: BreadcrumbItem[];
   query: string;
 }
 

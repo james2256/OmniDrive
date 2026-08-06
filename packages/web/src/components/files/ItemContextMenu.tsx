@@ -97,8 +97,7 @@ const ItemContextMenuContent: React.FC<ItemContextMenuContentProps> = ({
   isStarred,
 }) => {
   const file = type === 'file' ? (item as FileEntry) : undefined;
-  const driveFolder =
-    type === 'folder' && 'googleFolderId' in item ? (item as DriveFolder) : undefined;
+  const driveFolder = type === 'folder' && 'googleFolderId' in item ? item : undefined;
 
   const fileId = file?.id;
   const webViewLink = file?.webViewLink;

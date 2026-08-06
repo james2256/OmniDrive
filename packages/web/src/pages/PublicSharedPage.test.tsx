@@ -185,11 +185,13 @@ describe('PublicSharedPage', () => {
       ok: true,
       json: () =>
         Promise.resolve({
+          folder: null,
+          subfolders: [{ id: 'sub1', name: 'Subfolder' }],
           files: [
             { id: 'f1', name: 'doc.pdf', mimeType: 'application/pdf', size: 1024 },
             { id: 'f2', name: 'img.png', mimeType: 'image/png', size: 4096 },
           ],
-          folders: [{ id: 'sub1', name: 'Subfolder' }],
+          breadcrumb: [],
         }),
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -235,7 +237,7 @@ describe('PublicSharedPage', () => {
       .mockResolvedValueOnce({ ok: false })
       .mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ files: [], folders: [] }),
+        json: () => Promise.resolve({ folder: null, subfolders: [], files: [], breadcrumb: [] }),
       });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -263,7 +265,7 @@ describe('PublicSharedPage', () => {
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({ files: [], folders: [] }),
+        json: () => Promise.resolve({ folder: null, subfolders: [], files: [], breadcrumb: [] }),
       }),
     );
 

@@ -131,7 +131,7 @@ describe('StarredPage', () => {
       data: { drives: [{ id: 'd1', email: 'u@gmail.com' }] },
     });
     (useQuery as Mock).mockReturnValue({
-      data: { files: [], folders: [], driveFolders: [] },
+      data: { folder: null, subfolders: [], files: [], breadcrumb: [] },
       isLoading: false,
       error: null,
       refetch: refetchMock,
@@ -176,9 +176,13 @@ describe('StarredPage', () => {
   it('renders starred files and folders in the file grid', () => {
     (useQuery as Mock).mockReturnValue({
       data: {
+        folder: null,
+        subfolders: [
+          { id: 'ws1', name: 'WS Folder', driveId: 'virtual' },
+          { id: 'df1', name: 'Drive Folder', driveId: 'd1' },
+        ],
         files: [{ id: 'f1', name: 'starred.pdf', isStarred: true, mimeType: 'application/pdf' }],
-        folders: [{ id: 'ws1', name: 'WS Folder', driveId: 'virtual' }],
-        driveFolders: [{ id: 'df1', name: 'Drive Folder', driveId: 'd1' }],
+        breadcrumb: [],
       },
       isLoading: false,
       error: null,
@@ -194,9 +198,10 @@ describe('StarredPage', () => {
   it('toggles star when star button clicked', () => {
     (useQuery as Mock).mockReturnValue({
       data: {
+        folder: null,
+        subfolders: [],
         files: [{ id: 'f1', name: 'starred.pdf', isStarred: true, mimeType: 'application/pdf' }],
-        folders: [],
-        driveFolders: [],
+        breadcrumb: [],
       },
       isLoading: false,
       error: null,
@@ -210,9 +215,10 @@ describe('StarredPage', () => {
   it('navigates to workspace folder when driveId is virtual', () => {
     (useQuery as Mock).mockReturnValue({
       data: {
+        folder: null,
+        subfolders: [{ id: 'ws1', name: 'WS Folder', driveId: 'virtual' }],
         files: [],
-        folders: [{ id: 'ws1', name: 'WS Folder', driveId: 'virtual' }],
-        driveFolders: [],
+        breadcrumb: [],
       },
       isLoading: false,
       error: null,
@@ -226,9 +232,10 @@ describe('StarredPage', () => {
   it('navigates to external folder when driveId is real', () => {
     (useQuery as Mock).mockReturnValue({
       data: {
+        folder: null,
+        subfolders: [{ id: 'df1', name: 'Drive Folder', driveId: 'd1' }],
         files: [],
-        folders: [],
-        driveFolders: [{ id: 'df1', name: 'Drive Folder', driveId: 'd1' }],
+        breadcrumb: [],
       },
       isLoading: false,
       error: null,
@@ -242,9 +249,10 @@ describe('StarredPage', () => {
   it('opens preview modal when preview button clicked', () => {
     (useQuery as Mock).mockReturnValue({
       data: {
+        folder: null,
+        subfolders: [],
         files: [{ id: 'f1', name: 'starred.pdf', isStarred: true, mimeType: 'application/pdf' }],
-        folders: [],
-        driveFolders: [],
+        breadcrumb: [],
       },
       isLoading: false,
       error: null,
@@ -258,9 +266,10 @@ describe('StarredPage', () => {
   it('opens share modal when share button clicked', () => {
     (useQuery as Mock).mockReturnValue({
       data: {
+        folder: null,
+        subfolders: [],
         files: [{ id: 'f1', name: 'starred.pdf', isStarred: true, mimeType: 'application/pdf' }],
-        folders: [],
-        driveFolders: [],
+        breadcrumb: [],
       },
       isLoading: false,
       error: null,
@@ -274,9 +283,10 @@ describe('StarredPage', () => {
   it('triggers rename handler when rename button clicked', () => {
     (useQuery as Mock).mockReturnValue({
       data: {
+        folder: null,
+        subfolders: [],
         files: [{ id: 'f1', name: 'starred.pdf', isStarred: true, mimeType: 'application/pdf' }],
-        folders: [],
-        driveFolders: [],
+        breadcrumb: [],
       },
       isLoading: false,
       error: null,
@@ -290,9 +300,10 @@ describe('StarredPage', () => {
   it('triggers delete handler when delete button clicked', () => {
     (useQuery as Mock).mockReturnValue({
       data: {
+        folder: null,
+        subfolders: [],
         files: [{ id: 'f1', name: 'starred.pdf', isStarred: true, mimeType: 'application/pdf' }],
-        folders: [],
-        driveFolders: [],
+        breadcrumb: [],
       },
       isLoading: false,
       error: null,
@@ -306,9 +317,10 @@ describe('StarredPage', () => {
   it('triggers move target setter when move button clicked', () => {
     (useQuery as Mock).mockReturnValue({
       data: {
+        folder: null,
+        subfolders: [],
         files: [{ id: 'f1', name: 'starred.pdf', isStarred: true, mimeType: 'application/pdf' }],
-        folders: [],
-        driveFolders: [],
+        breadcrumb: [],
       },
       isLoading: false,
       error: null,
@@ -322,9 +334,10 @@ describe('StarredPage', () => {
   it('triggers move-drive target setter when move-drive button clicked', () => {
     (useQuery as Mock).mockReturnValue({
       data: {
+        folder: null,
+        subfolders: [],
         files: [{ id: 'f1', name: 'starred.pdf', isStarred: true, mimeType: 'application/pdf' }],
-        folders: [],
-        driveFolders: [],
+        breadcrumb: [],
       },
       isLoading: false,
       error: null,

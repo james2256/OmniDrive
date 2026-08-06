@@ -95,7 +95,7 @@ export function DashboardPage() {
     queryFn: () => filesApi.getRecentFiles(),
   });
   const recentFiles = (recentData?.files ?? []).slice(0, 8);
-  const recentFolders = (recentData?.folders ?? []).slice(0, 8);
+  const recentFolders = (recentData?.subfolders ?? []).slice(0, 8);
 
   const itemModals = useItemModals({
     onRefresh: refetchRecent,

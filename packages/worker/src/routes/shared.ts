@@ -394,6 +394,8 @@ sharedRouter.get('/:id/folder-contents', async (c) => {
   const { files, folders } = await driveService.listFolderContents(driveId, googleFolderId);
 
   return c.json({
+    folder: null,
+    subfolders: folders.map((f) => ({ id: f.id, name: f.name })),
     files: files.map((f) => ({
       id: f.id,
       name: f.name,
@@ -401,7 +403,7 @@ sharedRouter.get('/:id/folder-contents', async (c) => {
       size: parseInt(f.size ?? '0', 10),
       thumbnailUrl: f.thumbnailLink ?? null,
     })),
-    folders: folders.map((f) => ({ id: f.id, name: f.name })),
+    breadcrumb: [],
   });
 });
 

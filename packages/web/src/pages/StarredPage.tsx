@@ -35,9 +35,7 @@ export function StarredPage() {
   });
 
   const files = data?.files ?? [];
-  const wsFolders = data?.folders ?? [];
-  const driveFolders = data?.driveFolders ?? [];
-  const allFolders = [...wsFolders, ...driveFolders];
+  const allFolders = data?.subfolders ?? [];
 
   const filteredFiles = files.filter((f) =>
     f.name.toLowerCase().includes(searchQuery.toLowerCase()),

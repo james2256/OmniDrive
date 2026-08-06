@@ -174,7 +174,7 @@ describe('SearchPage', () => {
 
   it('renders no-results message when search returns no items', () => {
     (useQuery as Mock).mockReturnValue({
-      data: { files: [], folders: [], driveFolders: [] },
+      data: { folder: null, subfolders: [], files: [], breadcrumb: [], query: 'test' },
       isLoading: false,
       error: null,
       refetch: refetchMock,
@@ -186,9 +186,11 @@ describe('SearchPage', () => {
   it('renders search results (files + drive folders) in the file grid', () => {
     (useQuery as Mock).mockReturnValue({
       data: {
+        folder: null,
+        subfolders: [{ id: 'df1', name: 'Drive Folder' }],
         files: [{ id: 'f1', name: 'report.pdf', isStarred: false, mimeType: 'application/pdf' }],
-        folders: [],
-        driveFolders: [{ id: 'df1', name: 'Drive Folder' }],
+        breadcrumb: [],
+        query: 'test',
       },
       isLoading: false,
       error: null,
@@ -203,9 +205,11 @@ describe('SearchPage', () => {
   it('calls setShareTarget with correct target when share button clicked', () => {
     (useQuery as Mock).mockReturnValue({
       data: {
+        folder: null,
+        subfolders: [],
         files: [{ id: 'f1', name: 'report.pdf', isStarred: false, mimeType: 'application/pdf' }],
-        folders: [],
-        driveFolders: [],
+        breadcrumb: [],
+        query: 'test',
       },
       isLoading: false,
       error: null,
@@ -219,9 +223,11 @@ describe('SearchPage', () => {
   it('calls setMoveDriveFiles when move-drive clicked', () => {
     (useQuery as Mock).mockReturnValue({
       data: {
+        folder: null,
+        subfolders: [],
         files: [{ id: 'f1', name: 'report.pdf', isStarred: false, mimeType: 'application/pdf' }],
-        folders: [],
-        driveFolders: [],
+        breadcrumb: [],
+        query: 'test',
       },
       isLoading: false,
       error: null,
@@ -235,9 +241,11 @@ describe('SearchPage', () => {
   it('calls setPreviewFile with the correct file when preview clicked', () => {
     (useQuery as Mock).mockReturnValue({
       data: {
+        folder: null,
+        subfolders: [],
         files: [{ id: 'f1', name: 'report.pdf', isStarred: false, mimeType: 'application/pdf' }],
-        folders: [],
-        driveFolders: [],
+        breadcrumb: [],
+        query: 'test',
       },
       isLoading: false,
       error: null,
@@ -253,9 +261,11 @@ describe('SearchPage', () => {
   it('calls toggleStar with the correct args when star button clicked', () => {
     (useQuery as Mock).mockReturnValue({
       data: {
+        folder: null,
+        subfolders: [],
         files: [{ id: 'f1', name: 'report.pdf', isStarred: false, mimeType: 'application/pdf' }],
-        folders: [],
-        driveFolders: [],
+        breadcrumb: [],
+        query: 'test',
       },
       isLoading: false,
       error: null,

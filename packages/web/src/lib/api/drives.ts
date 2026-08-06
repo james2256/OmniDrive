@@ -6,6 +6,7 @@ import type {
   DriveFolder,
   FileEntry,
   BreadcrumbItem,
+  PaginationMeta,
 } from '../../types';
 
 export const drivesApi = {
@@ -62,10 +63,11 @@ export const drivesApi = {
     }),
   getExternal: (cursor?: string) =>
     request<{
+      folder: null;
+      subfolders: DriveFolder[];
       files: FileEntry[];
-      folders: DriveFolder[];
-      hasMore: boolean;
-      nextCursor: string | null;
+      breadcrumb: BreadcrumbItem[];
+      pagination: PaginationMeta;
     }>(`/api/drives/external${cursor ? `?cursor=${cursor}` : ''}`),
   getExternalFolderContents: (driveId: string, folderId: string) =>
     request<{

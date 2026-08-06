@@ -40,7 +40,7 @@ export function SearchPage() {
   });
 
   const fileResults = searchResults?.files ?? [];
-  const folderResults = [...(searchResults?.driveFolders ?? []), ...(searchResults?.folders ?? [])];
+  const folderResults = searchResults?.subfolders ?? [];
 
   const getDriveInfo = useGetDriveInfo(drives);
 

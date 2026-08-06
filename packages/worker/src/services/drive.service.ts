@@ -187,14 +187,15 @@ export class DriveService {
     }
 
     return {
-      folders: folderRows.map((r: Record<string, unknown>) => ({
+      folder: null,
+      subfolders: folderRows.map((r: Record<string, unknown>) => ({
         ...mapDriveFolderRow(r),
         driveEmail: r.driveEmail,
         driveId: r.drive_account_id,
       })),
       files,
-      hasMore,
-      nextCursor,
+      breadcrumb: [],
+      pagination: { hasMore, nextCursor },
     };
   }
 

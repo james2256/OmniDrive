@@ -366,14 +366,15 @@ describe('Complex SQL integration (integration)', () => {
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
+      folder: unknown;
+      subfolders: { name: string }[];
       files: { name: string }[];
-      folders: { name: string }[];
-      driveFolders: { name: string }[];
+      breadcrumb: unknown;
     };
     expect(body.files.map((f) => f.name)).toContain('starred-file.txt');
     expect(body.files.map((f) => f.name)).not.toContain('regular-file.txt');
-    expect(body.folders.map((f) => f.name)).toContain('starred-folder');
-    expect(body.driveFolders.map((f) => f.name)).toContain('starred-drive-folder');
+    expect(body.subfolders.map((f) => f.name)).toContain('starred-folder');
+    expect(body.subfolders.map((f) => f.name)).toContain('starred-drive-folder');
   });
 
   // 4.7 — GET /trash returns trashed files + drive folders
@@ -412,10 +413,15 @@ describe('Complex SQL integration (integration)', () => {
       env,
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { files: { name: string }[]; folders: { name: string }[] };
+    const body = (await res.json()) as {
+      folder: unknown;
+      subfolders: { name: string }[];
+      files: { name: string }[];
+      breadcrumb: unknown;
+    };
     expect(body.files.map((f) => f.name)).toContain('trashed-file.txt');
     expect(body.files.map((f) => f.name)).not.toContain('active-file.txt');
-    expect(body.folders.map((f) => f.name)).toContain('trashed-drive-folder');
+    expect(body.subfolders.map((f) => f.name)).toContain('trashed-drive-folder');
   });
 
   // 4.8 — Breadcrumb CTE returns correct path (WITH RECURSIVE)

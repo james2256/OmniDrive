@@ -133,7 +133,7 @@ describe('TrashPage', () => {
       data: { drives: [{ id: 'd1', email: 'u@gmail.com' }] },
     });
     (useQuery as Mock).mockReturnValue({
-      data: { files: [], folders: [] },
+      data: { folder: null, subfolders: [], files: [], breadcrumb: [] },
       isLoading: false,
       error: null,
       refetch: mocks.refetch,
@@ -179,11 +179,13 @@ describe('TrashPage', () => {
   it('renders files and folders in the file grid', () => {
     (useQuery as Mock).mockReturnValue({
       data: {
+        folder: null,
+        subfolders: [{ id: 'sf1', name: 'Old Folder', driveId: 'd1' }],
         files: [
           { id: 'f1', name: 'deleted-file.pdf', mimeType: 'application/pdf' },
           { id: 'f2', name: 'old-photo.jpg', mimeType: 'image/jpeg' },
         ],
-        folders: [{ id: 'sf1', name: 'Old Folder', driveId: 'd1' }],
+        breadcrumb: [],
       },
       isLoading: false,
       error: null,
@@ -199,8 +201,10 @@ describe('TrashPage', () => {
   it('triggers restore mutation when file restore button clicked', () => {
     (useQuery as Mock).mockReturnValue({
       data: {
+        folder: null,
+        subfolders: [],
         files: [{ id: 'f1', name: 'doc.pdf', mimeType: 'application/pdf' }],
-        folders: [],
+        breadcrumb: [],
       },
       isLoading: false,
       error: null,
@@ -214,8 +218,10 @@ describe('TrashPage', () => {
   it('opens confirm dialog and permanently deletes a file on confirm', async () => {
     (useQuery as Mock).mockReturnValue({
       data: {
+        folder: null,
+        subfolders: [],
         files: [{ id: 'f1', name: 'doc.pdf', mimeType: 'application/pdf' }],
-        folders: [],
+        breadcrumb: [],
       },
       isLoading: false,
       error: null,
@@ -235,8 +241,10 @@ describe('TrashPage', () => {
   it('triggers restore mutation when folder restore button clicked', () => {
     (useQuery as Mock).mockReturnValue({
       data: {
+        folder: null,
+        subfolders: [{ id: 'sf1', name: 'Old Folder', driveId: 'd1' }],
         files: [],
-        folders: [{ id: 'sf1', name: 'Old Folder', driveId: 'd1' }],
+        breadcrumb: [],
       },
       isLoading: false,
       error: null,
@@ -250,8 +258,10 @@ describe('TrashPage', () => {
   it('opens confirm dialog and permanently deletes a folder on confirm', async () => {
     (useQuery as Mock).mockReturnValue({
       data: {
+        folder: null,
+        subfolders: [{ id: 'sf1', name: 'Old Folder', driveId: 'd1' }],
         files: [],
-        folders: [{ id: 'sf1', name: 'Old Folder', driveId: 'd1' }],
+        breadcrumb: [],
       },
       isLoading: false,
       error: null,

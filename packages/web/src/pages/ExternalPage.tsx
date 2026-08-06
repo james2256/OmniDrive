@@ -15,7 +15,13 @@ import { drivesApi } from '../lib/api/drives';
 import { useDrives, useGetDriveInfo } from '../hooks/useDrives';
 import { useSharedLinks, useIsTargetSharedCallback } from '../hooks/useSharedLinks';
 import { useItemModals } from '../hooks/useItemModals';
-import type { FileEntry, DriveFolder, BreadcrumbItem } from '../types';
+import type {
+  FileEntry,
+  DriveFolder,
+  BreadcrumbItem,
+  DriveFolderContents,
+  PaginationMeta,
+} from '../types';
 import { qk } from '../lib/queryKeys';
 import type { SelectedItem } from '../stores/useSelectionStore';
 import { useSelectionStore, useClearSelectionOnRouteChange } from '../stores/useSelectionStore';
@@ -44,15 +50,10 @@ export function ExternalPage() {
   const isTopLevel = !folderId;
 
   const externalInfinite = useInfiniteQuery<
-    { files: FileEntry[]; folders: DriveFolder[]; hasMore: boolean; nextCursor: string | null },
+    DriveFolderContents & { pagination: PaginationMeta },
     Error,
     {
-      pages: {
-        files: FileEntry[];
-        folders: DriveFolder[];
-        hasMore: boolean;
-        nextCursor: string | null;
-      }[];
+      pages: (DriveFolderContents & { pagination: PaginationMeta })[];
       pageParams: (string | undefined)[];
     },
     readonly ['external'],
@@ -61,7 +62,7 @@ export function ExternalPage() {
     queryKey: qk.external,
     queryFn: ({ pageParam }) => drivesApi.getExternal(pageParam),
     initialPageParam: undefined,
-    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    getNextPageParam: (lastPage) => lastPage.pagination?.nextCursor ?? undefined,
     enabled: isTopLevel,
   });
 
@@ -86,7 +87,7 @@ export function ExternalPage() {
 
   // Derive subfolders/files/breadcrumb from whichever query is active.
   const subfolders: DriveFolder[] = isTopLevel
-    ? (externalInfinite.data?.pages.flatMap((p) => p.folders) ?? [])
+    ? (externalInfinite.data?.pages.flatMap((p) => p.subfolders) ?? [])
     : (folderQuery.data?.subfolders ?? []);
   const files: FileEntry[] = isTopLevel
     ? (externalInfinite.data?.pages.flatMap((p) => p.files) ?? [])

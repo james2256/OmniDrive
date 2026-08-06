@@ -16,6 +16,7 @@ import { computeDriveQuota } from '../lib/storage-quota';
 import { encrypt } from '../lib/crypto';
 import { resolveGoogleFolderId } from '../lib/drive-folder';
 import { logError } from '../lib/logger';
+import { runWithConcurrency } from '../lib/concurrency';
 import { zValidator } from '@hono/zod-validator';
 import {
   createDriveFolderSchema,
@@ -142,8 +143,8 @@ drivesRouter.get('/', async (c) => {
   // 10 drives × 3 = 30 subrequests (safe). Beyond 10, skip live fetch to avoid
   // exceeding the 50-subrequest limit. Users with >10 drives see cached quota only.
   const MAX_QUOTA_FETCHES = 10;
-  const drivesWithQuota = await Promise.all(
-    drives.slice(0, MAX_QUOTA_FETCHES).map(async (drive) => {
+  const drivesWithQuota = await runWithConcurrency(
+    drives.slice(0, MAX_QUOTA_FETCHES).map((drive) => async () => {
       const hasTokens = await driveService.hasValidTokens(drive.id);
       if (!hasTokens) {
         const computed = computeDriveQuota(drive);
@@ -197,6 +198,7 @@ drivesRouter.get('/', async (c) => {
         return { ...drive, ...computed, health: 'error' as const };
       }
     }),
+    3,
   );
   // Append remaining drives with cached quota (no live Google API fetch)
   for (let i = MAX_QUOTA_FETCHES; i < drives.length; i++) {

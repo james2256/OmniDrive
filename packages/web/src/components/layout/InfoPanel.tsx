@@ -140,7 +140,7 @@ export const InfoPanel: React.FC = () => {
           ) : (
             <div className="w-24 h-24 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-center overflow-hidden shadow-sm">
               <FileThumbnail
-                file={item as unknown as FileEntry}
+                file={item as unknown as { thumbnailUrl: string | null; mimeType: string | null }}
                 className="w-16 h-16 rounded-lg object-cover"
               />
             </div>

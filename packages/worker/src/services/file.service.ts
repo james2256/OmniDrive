@@ -8,7 +8,13 @@ import { PolicyService } from './policy.service';
 import { getWorkspaceRole, hasPermission } from '../lib/rbac';
 import { AppError, NotFoundError, ForbiddenError } from '../lib/errors';
 import { logErrorNoCtx } from '../lib/logger';
-import { mapFileRow, mapFolderRow, mapDriveFolderRow, type FileRow } from '../types/db';
+import {
+  mapFileRow,
+  mapFolderRow,
+  mapDriveFolderRow,
+  mapWorkspaceFolderRow,
+  type FileRow,
+} from '../types/db';
 
 /**
  * Business logic layer for file operations.
@@ -200,25 +206,14 @@ export class FileService {
     const { results: fileRows } = await this.fileRepo.findRecent(userId);
     const { results: folderRows } = await this.folderRepo.findRecentFolders(userId);
 
-    const folders = folderRows.map((f: Record<string, unknown>) => ({
-      id: f.id,
-      workspaceId: f.workspace_id,
-      name: f.name,
-      parentId: f.parent_id,
-      icon: f.icon,
-      color: f.color,
-      isStarred: !!f.is_starred,
-      metadata: f.metadata,
-      createdAt: f.created_at,
-      updatedAt: f.updated_at,
-    }));
-
     return {
+      folder: null,
+      subfolders: folderRows.map(mapWorkspaceFolderRow),
       files: fileRows.map((r: Record<string, unknown>) => ({
         ...mapFileRow(r),
         driveEmail: r.driveEmail,
       })),
-      folders,
+      breadcrumb: [],
     };
   }
 
@@ -322,15 +317,19 @@ export class FileService {
     }
 
     return {
+      folder: null,
+      subfolders: [
+        ...folderRows.map(mapFolderRow),
+        ...driveFolderRows.map((r: Record<string, unknown>) => ({
+          ...mapDriveFolderRow(r),
+          driveEmail: r.driveEmail,
+        })),
+      ],
       files: fileRows.map((r: Record<string, unknown>) => ({
         ...mapFileRow(r),
         driveEmail: r.driveEmail,
       })),
-      folders: folderRows.map(mapFolderRow),
-      driveFolders: driveFolderRows.map((r: Record<string, unknown>) => ({
-        ...mapDriveFolderRow(r),
-        driveEmail: r.driveEmail,
-      })),
+      breadcrumb: [],
       query: query || '',
     };
   }
@@ -344,16 +343,19 @@ export class FileService {
     const { results: driveFolderRows } = await this.driveRepo.findStarredDriveFolders(userId);
 
     return {
+      folder: null,
+      subfolders: [
+        ...folderRows.map(mapFolderRow),
+        ...driveFolderRows.map((r: Record<string, unknown>) => ({
+          ...mapDriveFolderRow(r),
+          driveEmail: r.driveEmail,
+        })),
+      ],
       files: fileRows.map((r: Record<string, unknown>) => ({
         ...mapFileRow(r),
         driveEmail: r.driveEmail,
       })),
-      folders: folderRows.map(mapFolderRow),
-      driveFolders: driveFolderRows.map((r: Record<string, unknown>) => ({
-        ...mapDriveFolderRow(r),
-        driveEmail: r.driveEmail,
-        isStarred: true,
-      })),
+      breadcrumb: [],
     };
   }
 
@@ -364,11 +366,16 @@ export class FileService {
     const { results: folderRows } = await this.driveRepo.findTrashedDriveFolders(userId);
 
     return {
+      folder: null,
+      subfolders: folderRows.map((r: Record<string, unknown>) => ({
+        ...mapDriveFolderRow(r),
+        driveEmail: r.driveEmail,
+      })),
       files: fileRows.map((r: Record<string, unknown>) => ({
         ...mapFileRow(r),
         driveEmail: r.driveEmail,
       })),
-      folders: folderRows.map((r: Record<string, unknown>) => mapDriveFolderRow(r)),
+      breadcrumb: [],
     };
   }
 

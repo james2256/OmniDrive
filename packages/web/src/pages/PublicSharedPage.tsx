@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
 import { sharedApi } from '../lib/api/shared';
-import type { SharedMetaResponse, FileEntry } from '../types';
+import type { SharedMetaResponse } from '../types';
 import { formatFileSize } from '../lib/utils';
 import { FileIcon } from '../components/files/FileIcon';
 import { FileThumbnail } from '../components/files/FileThumbnail';
@@ -20,6 +20,8 @@ export function PublicSharedPage() {
   const [verifying, setVerifying] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [folderContents, setFolderContents] = useState<{
+    folder: null;
+    subfolders: Array<{ id: string; name: string }>;
     files: Array<{
       id: string;
       name: string;
@@ -27,7 +29,7 @@ export function PublicSharedPage() {
       size: number;
       thumbnailUrl: string | null;
     }>;
-    folders: Array<{ id: string; name: string }>;
+    breadcrumb: unknown[];
   } | null>(null);
   const [folderContentsError, setFolderContentsError] = useState('');
   const [folderContentsRetryKey, setFolderContentsRetryKey] = useState(0);
@@ -200,11 +202,11 @@ export function PublicSharedPage() {
             {/* File list */}
             {folderContents ? (
               <div className="space-y-1 max-h-60 overflow-y-auto border border-slate-200 rounded-lg p-2">
-                {folderContents.folders.length === 0 && folderContents.files.length === 0 ? (
+                {folderContents.subfolders.length === 0 && folderContents.files.length === 0 ? (
                   <p className="text-sm text-slate-500 text-center py-4">This folder is empty.</p>
                 ) : (
                   <>
-                    {folderContents.folders.map((f) => (
+                    {folderContents.subfolders.map((f) => (
                       <div
                         key={f.id}
                         className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-50"
@@ -226,10 +228,7 @@ export function PublicSharedPage() {
                           className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-50 group"
                         >
                           <div className="flex-shrink-0">
-                            <FileThumbnail
-                              file={f as unknown as FileEntry}
-                              className="w-8 h-8 rounded object-cover"
-                            />
+                            <FileThumbnail file={f} className="w-8 h-8 rounded object-cover" />
                           </div>
                           <span className="text-sm text-slate-700 truncate flex-1">{f.name}</span>
                           <span className="text-xs text-slate-400 flex-shrink-0">

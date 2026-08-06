@@ -4,6 +4,7 @@ import { Search, SlidersHorizontal, File, Folder } from 'lucide-react';
 import { filesApi } from '../../lib/api/files';
 import type { FileEntry, WorkspaceFolder, DriveFolder } from '../../types';
 import { Button } from '../ui/Button';
+import { isDriveFolder, isWorkspaceFolder } from '../files/utils';
 
 export const Omnibar: React.FC = () => {
   const navigate = useNavigate();
@@ -48,8 +49,9 @@ export const Omnibar: React.FC = () => {
           metadataKey && metadataValue ? { [metadataKey]: metadataValue } : undefined;
         const res = await filesApi.globalSearch(query, undefined, metadata, controller.signal);
         setFileResults(res.files);
-        setFolderResults(res.folders ?? []);
-        setDriveFolderResults(res.driveFolders ?? []);
+        const subfolders = res.subfolders ?? [];
+        setFolderResults(subfolders.filter(isWorkspaceFolder));
+        setDriveFolderResults(subfolders.filter(isDriveFolder));
         setIsOpen(true);
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') return;

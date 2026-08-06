@@ -39,7 +39,7 @@ export function TrashPage() {
   });
 
   const fileResults = data?.files ?? [];
-  const folderResults = data?.folders ?? [];
+  const folderResults = data?.subfolders ?? [];
 
   const filteredFiles = fileResults.filter((f) =>
     f.name.toLowerCase().includes(searchQuery.toLowerCase()),

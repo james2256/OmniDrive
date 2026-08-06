@@ -162,7 +162,7 @@ describe('DashboardPage', () => {
 
     const { useQuery } = await import('@tanstack/react-query');
     (useQuery as Mock)
-      .mockReturnValueOnce({ data: { files: [], folders: [] } }) // recent
+      .mockReturnValueOnce({ data: { folder: null, subfolders: [], files: [], breadcrumb: [] } }) // recent
       .mockReturnValueOnce({ data: null }); // category
 
     render(<DashboardPage />);
@@ -196,7 +196,14 @@ describe('DashboardPage', () => {
 
     const { useQuery } = await import('@tanstack/react-query');
     (useQuery as Mock)
-      .mockReturnValueOnce({ data: { files: [{ id: 'f1', name: 'report.pdf' }], folders: [] } })
+      .mockReturnValueOnce({
+        data: {
+          folder: null,
+          subfolders: [],
+          files: [{ id: 'f1', name: 'report.pdf' }],
+          breadcrumb: [],
+        },
+      })
       .mockReturnValueOnce({
         data: { images: 0, videos: 0, documents: 100, audio: 0, archives: 0, others: 0 },
       });
@@ -228,7 +235,7 @@ describe('DashboardPage', () => {
 
     const { useQuery } = await import('@tanstack/react-query');
     (useQuery as Mock)
-      .mockReturnValueOnce({ data: { files: [], folders: [] } })
+      .mockReturnValueOnce({ data: { folder: null, subfolders: [], files: [], breadcrumb: [] } })
       .mockReturnValueOnce({
         data: { images: 50, videos: 30, documents: 20, audio: 0, archives: 0, others: 0 },
       });
@@ -265,7 +272,7 @@ describe('DashboardPage', () => {
 
     const { useQuery } = await import('@tanstack/react-query');
     (useQuery as Mock)
-      .mockReturnValueOnce({ data: { files: [], folders: [] } })
+      .mockReturnValueOnce({ data: { folder: null, subfolders: [], files: [], breadcrumb: [] } })
       .mockReturnValueOnce({ data: null });
 
     render(<DashboardPage />);
