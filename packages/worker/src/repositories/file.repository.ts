@@ -652,36 +652,35 @@ export class FileRepository {
   /**
    * Find the first drive ID associated with files in a folder/workspace.
    * Used by GET /:id? and POST /:id/force-sync for drive lookup.
+   *
+   * CTE with LIMIT 1 in each branch (not UNION with outer LIMIT 1).
+   * SQLite/D1 cannot push an outer LIMIT 1 into UNION branches — the UNION
+   * materializes ALL matching rows before applying the limit. For a workspace
+   * with 43K files, this caused 43K rows_read per call (46% of D1 runtime).
+   * The CTE pattern (matching findRecent) lets SQLite stop after 1 row/branch.
+   *
+   * The JOIN to drive_accounts is eliminated — files.drive_account_id is
+   * TEXT NOT NULL REFERENCES drive_accounts(id) ON DELETE CASCADE (FK-enforced
+   * in all runtimes via polyfills/d1.ts:93). No need to validate the FK at
+   * read time; reading drive_account_id directly saves 1 row per match.
+   *
+   * Branch 2 uses COALESCE to resolve workspace_id internally (handles both
+   * folder IDs and workspace IDs — see the prior comment for details).
    */
   findDriveIdForFolder(folderId: string, userId: string) {
-    // Rewritten as UNION so each branch uses its own index:
-    // - Branch 1 seeks idx_files_workspace_folder (workspace_folder_id)
-    // - Branch 2 seeks idx_files_user_workspace (user_id, workspace_id)
-    // The OR form forced a full table scan because D1/SQLite can't use a
-    // single index for OR conditions. The outer LIMIT 1 returns the first match.
-    //
-    // Branch 2 uses COALESCE to resolve the workspace_id internally:
-    //   - If folderId is a workspace_folders.id → subquery returns the parent
-    //     workspace_id (NOT NULL per schema) → branch 2 seeks sibling files.
-    //   - If folderId is a workspaces.id (workspace root, called from force-sync)
-    //     → subquery returns NULL → COALESCE falls back to folderId itself.
-    // This avoids a signature change (callers pass folderId only) and handles
-    // both ID types without the caller needing to know which it is.
     return this.db
       .prepare(
         `
-      SELECT id FROM (
-        SELECT d.id FROM files f
-        JOIN drive_accounts d ON f.drive_account_id = d.id
-        WHERE f.workspace_folder_id = ? AND f.user_id = ?
-        UNION
-        SELECT d.id FROM files f
-        JOIN drive_accounts d ON f.drive_account_id = d.id
-        WHERE f.workspace_id = COALESCE(
-          (SELECT workspace_id FROM workspace_folders WHERE id = ?),
-          ?
-        ) AND f.user_id = ?
-      ) LIMIT 1
+      WITH branch1 AS (
+        SELECT drive_account_id as id FROM files
+        WHERE workspace_folder_id = ? AND user_id = ? LIMIT 1
+      ), branch2 AS (
+        SELECT drive_account_id as id FROM files
+        WHERE workspace_id = COALESCE(
+          (SELECT workspace_id FROM workspace_folders WHERE id = ?), ?
+        ) AND user_id = ? LIMIT 1
+      )
+      SELECT id FROM (SELECT * FROM branch1 UNION SELECT * FROM branch2) LIMIT 1
     `,
       )
       .bind(folderId, userId, folderId, folderId, userId)

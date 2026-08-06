@@ -190,6 +190,7 @@ CREATE INDEX IF NOT EXISTS idx_workspace_folders_parent ON workspace_folders(wor
 CREATE INDEX IF NOT EXISTS idx_workspace_members_user ON workspace_members(user_id);
 CREATE INDEX IF NOT EXISTS idx_drives_user ON drive_accounts(user_id);
 CREATE INDEX IF NOT EXISTS idx_drive_folders_parent ON drive_folders(drive_account_id, google_parent_id);
+CREATE INDEX IF NOT EXISTS idx_drive_folders_drive_trashed_created ON drive_folders(drive_account_id, is_trashed, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS shared_links (
     id              TEXT PRIMARY KEY,
