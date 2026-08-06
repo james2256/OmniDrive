@@ -659,6 +659,14 @@ export class FileRepository {
     // - Branch 2 seeks idx_files_user_workspace (user_id, workspace_id)
     // The OR form forced a full table scan because D1/SQLite can't use a
     // single index for OR conditions. The outer LIMIT 1 returns the first match.
+    //
+    // Branch 2 uses COALESCE to resolve the workspace_id internally:
+    //   - If folderId is a workspace_folders.id → subquery returns the parent
+    //     workspace_id (NOT NULL per schema) → branch 2 seeks sibling files.
+    //   - If folderId is a workspaces.id (workspace root, called from force-sync)
+    //     → subquery returns NULL → COALESCE falls back to folderId itself.
+    // This avoids a signature change (callers pass folderId only) and handles
+    // both ID types without the caller needing to know which it is.
     return this.db
       .prepare(
         `
@@ -669,11 +677,14 @@ export class FileRepository {
         UNION
         SELECT d.id FROM files f
         JOIN drive_accounts d ON f.drive_account_id = d.id
-        WHERE f.workspace_id = ? AND f.user_id = ?
+        WHERE f.workspace_id = COALESCE(
+          (SELECT workspace_id FROM workspace_folders WHERE id = ?),
+          ?
+        ) AND f.user_id = ?
       ) LIMIT 1
     `,
       )
-      .bind(folderId, userId, folderId, userId)
+      .bind(folderId, userId, folderId, folderId, userId)
       .first<{ id: string }>();
   }
 

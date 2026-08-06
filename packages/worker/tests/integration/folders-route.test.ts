@@ -571,4 +571,131 @@ describe('Folders routes (integration)', () => {
     // performBackgroundSync dispatched to waitUntil (swallowed).
     expect(executionCtx.waitUntil).toHaveBeenCalled();
   });
+
+  // ─── Auto-sync guard + findDriveIdForFolder COALESCE subquery ───
+
+  it('GET /:id on empty folder with no drives does not trigger background sync', async () => {
+    // Regression: previously the guard didn't check driveId, so a null driveId
+    // was passed to performBackgroundSync which threw "Cannot sync without a
+    // driveId" — causing an error storm on every visit to an empty folder.
+    const user = await insertUserAndSession('empty-folder');
+    await createWorkspace(user.userId, 'ws-empty');
+    await createWorkspaceFolder('ws-empty', 'wf-empty', 'Empty Folder');
+    // No drive, no files in the folder or workspace.
+
+    executionCtx.waitUntil.mockClear();
+    const res = await app.request(
+      '/api/folders/wf-empty',
+      { headers: { Cookie: user.cookie, Origin: ORIGIN } },
+      env,
+      executionCtx,
+    );
+
+    expect(res.status).toBe(200);
+    // No background sync scheduled — driveId is null, guard skips.
+    expect(executionCtx.waitUntil).not.toHaveBeenCalled();
+  });
+
+  it('GET /:id on folder resolves driveId via sibling files in the same workspace', async () => {
+    // Tests the COALESCE subquery: folder has no files of its own, but a
+    // sibling folder in the same workspace has a file. Branch 2 should
+    // resolve the workspace_id and find the drive via the sibling file.
+    const user = await insertUserAndSession('sibling');
+    await createWorkspace(user.userId, 'ws-sibling');
+    await createWorkspaceFolder('ws-sibling', 'wf-target', 'Target Folder');
+    await createWorkspaceFolder('ws-sibling', 'wf-sibling', 'Sibling Folder');
+    await createDrive(user.userId, 'drive-sibling');
+    // File in the SIBLING folder, same workspace — branch 2 should find this.
+    await createFile({
+      id: 'file-sibling',
+      userId: user.userId,
+      driveId: 'drive-sibling',
+      name: 'sibling.txt',
+      workspaceId: 'ws-sibling',
+      workspaceFolderId: 'wf-sibling',
+    });
+
+    executionCtx.waitUntil.mockClear();
+    const res = await app.request(
+      '/api/folders/wf-target',
+      { headers: { Cookie: user.cookie, Origin: ORIGIN } },
+      env,
+      executionCtx,
+    );
+
+    expect(res.status).toBe(200);
+    // driveId resolved via COALESCE subquery → sync scheduled.
+    expect(executionCtx.waitUntil).toHaveBeenCalled();
+  });
+
+  it('POST /:id/sync on a folder (not workspace) finds drives via sibling files', async () => {
+    // Regression: findDrivesForFolder had the same bind bug as findDriveIdForFolder
+    // (bound folderId as workspace_id) and used OR instead of UNION (full scan).
+    // This test verifies the fix: a folder with no direct files but sibling files
+    // in the same workspace should find the drive.
+    const user = await insertUserAndSession('sync-folder');
+    await createWorkspace(user.userId, 'ws-sync-folder');
+    await createWorkspaceFolder('ws-sync-folder', 'wf-sync-folder', 'Sync Folder');
+    await createWorkspaceFolder('ws-sync-folder', 'wf-other', 'Other Folder');
+    await createDrive(user.userId, 'drive-sync-folder');
+    // File in a different folder but same workspace.
+    await createFile({
+      id: 'file-sync-sibling',
+      userId: user.userId,
+      driveId: 'drive-sync-folder',
+      name: 'sync-sibling.txt',
+      workspaceId: 'ws-sync-folder',
+      workspaceFolderId: 'wf-other',
+    });
+
+    executionCtx.waitUntil.mockClear();
+    const res = await app.request(
+      '/api/folders/wf-sync-folder/sync',
+      { method: 'POST', headers: { Cookie: user.cookie, Origin: ORIGIN } },
+      env,
+      executionCtx,
+    );
+
+    expect(res.status).toBe(204);
+    // findDrivesForFolder resolved the drive via the COALESCE subquery.
+    expect(executionCtx.waitUntil).toHaveBeenCalled();
+  });
+
+  it('GET /:id on folder in error state with valid driveId retries sync', async () => {
+    // Regression guard: ensures the guard does NOT include `&& syncStatus !== 'error'`.
+    // A folder that failed transiently (e.g., Google API 500) should auto-retry
+    // on the next visit, not be stuck in 'error' forever.
+    const user = await insertUserAndSession('error-retry');
+    await createWorkspace(user.userId, 'ws-error-retry');
+    await createWorkspaceFolder('ws-error-retry', 'wf-error-retry', 'Error Retry');
+    await createWorkspaceFolder('ws-error-retry', 'wf-other', 'Other Folder');
+    await createDrive(user.userId, 'drive-error-retry');
+    // Sibling file so driveId resolves.
+    await createFile({
+      id: 'file-error-retry',
+      userId: user.userId,
+      driveId: 'drive-error-retry',
+      name: 'error-retry.txt',
+      workspaceId: 'ws-error-retry',
+      workspaceFolderId: 'wf-other',
+    });
+    // Set folder to 'error' state with an old last_synced_at so isExpired=true.
+    await env.DB.prepare(
+      "UPDATE workspace_folders SET sync_status = 'error', last_synced_at = datetime('now', '-1 hour') WHERE id = ?",
+    )
+      .bind('wf-error-retry')
+      .run();
+
+    executionCtx.waitUntil.mockClear();
+    const res = await app.request(
+      '/api/folders/wf-error-retry',
+      { headers: { Cookie: user.cookie, Origin: ORIGIN } },
+      env,
+      executionCtx,
+    );
+
+    expect(res.status).toBe(200);
+    // Sync retried despite 'error' state — auto-recovery works.
+    expect(executionCtx.waitUntil).toHaveBeenCalled();
+  });
 });

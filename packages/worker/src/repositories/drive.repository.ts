@@ -207,16 +207,31 @@ export class DriveRepository {
    * Returns full drive rows joined via the files table.
    */
   findDrivesForFolder(folderId: string, userId: string) {
+    // UNION (not OR) so each branch uses its own index — the OR form forced a
+    // full table scan because D1/SQLite can't use a single index for OR conditions.
+    // UNION also deduplicates, so no outer DISTINCT is needed.
+    //
+    // Branch 2 uses COALESCE to resolve the workspace_id internally (same pattern
+    // as findDriveIdForFolder): handles both folder IDs and workspace IDs without
+    // a signature change.
     return this.db
       .prepare(
         `
-      SELECT DISTINCT d.*
-      FROM files f
-      JOIN drive_accounts d ON f.drive_account_id = d.id
-      WHERE (f.workspace_folder_id = ? OR f.workspace_id = ?) AND f.user_id = ?
+      SELECT * FROM (
+        SELECT d.* FROM files f
+        JOIN drive_accounts d ON f.drive_account_id = d.id
+        WHERE f.workspace_folder_id = ? AND f.user_id = ?
+        UNION
+        SELECT d.* FROM files f
+        JOIN drive_accounts d ON f.drive_account_id = d.id
+        WHERE f.workspace_id = COALESCE(
+          (SELECT workspace_id FROM workspace_folders WHERE id = ?),
+          ?
+        ) AND f.user_id = ?
+      )
     `,
       )
-      .bind(folderId, folderId, userId)
+      .bind(folderId, userId, folderId, folderId, userId)
       .all<DriveAccountRow>();
   }
 

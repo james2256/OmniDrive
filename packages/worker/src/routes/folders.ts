@@ -143,7 +143,7 @@ foldersRouter.get('/:id?', async (c) => {
       }
     }
 
-    if (isExpired && cf.syncStatus !== 'syncing') {
+    if (isExpired && cf.syncStatus !== 'syncing' && driveId) {
       c.executionCtx.waitUntil(performBackgroundSync(c.env, cf.id, driveId, userId));
     }
   }
