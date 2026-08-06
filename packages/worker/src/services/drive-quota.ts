@@ -7,6 +7,7 @@ import { createDriveService } from '../lib/drive-factory';
 import { logErrorNoCtx } from '../lib/logger';
 import { runWithConcurrency } from '../lib/concurrency';
 import { DriveRepository } from '../repositories/drive.repository';
+import { NotFoundError } from '../lib/errors';
 
 export async function resolveDrivesWithQuota(
   env: Env,
@@ -20,12 +21,6 @@ export async function resolveDrivesWithQuota(
   const drives = results.map(mapDriveRow);
 
   const tasks = drives.map((drive) => async () => {
-    const tokenRow = await driveRepo.findTokenStatus(drive.id);
-    if (!tokenRow) {
-      const { freeSpace, usagePercent } = computeDriveQuota(drive);
-      return { ...drive, freeSpace, usagePercent };
-    }
-
     try {
       const driveService = createDriveService(env);
       const quota = await driveService.getQuota(drive.id);
@@ -33,8 +28,16 @@ export async function resolveDrivesWithQuota(
       const computed = computeDriveQuota(drive, quota);
       return { ...drive, ...computed };
     } catch (e) {
+      // NotFoundError: drive disconnected (no tokens row). Return cached quota
+      // silently — same as the previous findTokenStatus null path, but without
+      // the redundant D1 read (loadTokens already throws NotFoundError).
+      if (e instanceof NotFoundError) {
+        const computed = computeDriveQuota(drive);
+        return { ...drive, ...computed };
+      }
       logErrorNoCtx('Failed to fetch quota for drive', e, { driveId: drive.id });
-      // Tokens exist but quota API failed — treat unknown stored quota as unlimited for routing
+      // Google API failure or corrupt tokens (AuthError) — treat unknown
+      // stored quota as unlimited for routing.
       const computed = computeDriveQuota({
         totalQuota: drive.totalQuota,
         usedQuota: drive.usedQuota,

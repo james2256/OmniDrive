@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { AppError, ConflictError, ValidationError } from '../lib/errors';
+import { AppError, ConflictError, ValidationError, NotFoundError } from '../lib/errors';
 import type { AppContext } from '../types/context';
 import { authGuard } from '../middleware/auth-guard';
 import { createDriveService } from '../lib/drive-factory';
@@ -145,12 +145,6 @@ drivesRouter.get('/', async (c) => {
   const MAX_QUOTA_FETCHES = 10;
   const drivesWithQuota = await runWithConcurrency(
     drives.slice(0, MAX_QUOTA_FETCHES).map((drive) => async () => {
-      const hasTokens = await driveService.hasValidTokens(drive.id);
-      if (!hasTokens) {
-        const computed = computeDriveQuota(drive);
-        return { ...drive, ...computed, health: 'auth_expired' as const };
-      }
-
       // Skip live quota fetch for drives already in sync error — the token refresh
       // will fail and hang the entire Promise.all for 10-30s (withBackoff retries).
       // Return cached quota with 'error' health so the UI shows the broken state
@@ -189,6 +183,14 @@ drivesRouter.get('/', async (c) => {
         });
         return { ...drive, ...computed, health: 'connected' as const };
       } catch (e) {
+        // NotFoundError: drive disconnected (no tokens row). getQuota →
+        // getValidToken → loadTokens throws NotFoundError. Previously caught by
+        // the hasValidTokens pre-check (a redundant findTokenStatus D1 read);
+        // now caught here to eliminate that read.
+        if (e instanceof NotFoundError) {
+          const computed = computeDriveQuota(drive);
+          return { ...drive, ...computed, health: 'auth_expired' as const };
+        }
         logError(c, 'Failed to fetch quota for drive', e, { driveId: drive.id });
         const computed = computeDriveQuota({
           totalQuota: drive.totalQuota,
@@ -381,9 +383,6 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/sync', async (c) => {
       breadcrumb,
     });
   }
-
-  const hasTokens = await c.get('driveService').hasValidTokens(driveId);
-  if (!hasTokens) return c.json({ error: 'No tokens for drive' }, 400);
 
   const drive = mapDriveRow(driveRow as Record<string, unknown>);
   const driveService = createDriveService(c.env);

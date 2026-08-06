@@ -298,30 +298,6 @@ describe('Repositories (integration)', () => {
       expect(d2.sync_paused).toBe(0); // CASE WHEN next_page_token IS NOT NULL → 0
     });
 
-    // ─── 8.7 marks auth_expired when no tokens ───
-    it('findTokenStatus returns null when no tokens exist', async () => {
-      await insertUser('u1', 'alice', 1);
-      await insertDrive('d1', 'u1', 'alice@gmail.com', 1);
-
-      const repo = new DriveRepository(env.DB);
-      const status = await repo.findTokenStatus('d1');
-      expect(status).toBeNull(); // no drive_tokens row → auth_expired
-    });
-
-    it('findTokenStatus returns { ok: 1 } when tokens exist', async () => {
-      await insertUser('u1', 'alice', 1);
-      await insertDrive('d1', 'u1', 'alice@gmail.com', 1);
-      await env.DB.prepare(
-        'INSERT INTO drive_tokens (drive_account_id, encrypted_tokens, updated_at) VALUES (?, ?, ?)',
-      )
-        .bind('d1', 'encrypted-token-blob', Date.now())
-        .run();
-
-      const repo = new DriveRepository(env.DB);
-      const status = await repo.findTokenStatus('d1');
-      expect(status?.ok).toBe(1);
-    });
-
     // ─── 8.8 external: returns only top-level external entry points ───
     it('findExternalFolders + findExternalFiles return only items whose immediate parent is __shared__', async () => {
       await insertUser('u1', 'alice', 1);

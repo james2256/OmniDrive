@@ -102,19 +102,6 @@ describe('DriveRepository', () => {
     });
   });
 
-  describe('findTokenStatus', () => {
-    it('selects 1 as ok from drive_tokens (health check)', async () => {
-      mockFirst.mockResolvedValueOnce({ ok: 1 });
-
-      const result = await repo.findTokenStatus('d-1');
-
-      const sql = mockPrepare.mock.calls[0][0] as string;
-      expect(sql).toContain('SELECT 1 as ok FROM drive_tokens WHERE drive_account_id = ?');
-      expect(mockBind).toHaveBeenCalledWith('d-1');
-      expect(result).toEqual({ ok: 1 });
-    });
-  });
-
   describe('findNextDrive', () => {
     it('selects next drive by created_at ASC (for primary promotion)', async () => {
       mockFirst.mockResolvedValueOnce({ id: 'd-2' });

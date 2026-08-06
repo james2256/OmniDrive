@@ -159,12 +159,6 @@ export class DriveService {
     return results.map(mapDriveRow);
   }
 
-  /** Check if a drive has valid tokens. RBAC: user ownership (implicit via drive ID). */
-  async hasValidTokens(driveId: string): Promise<boolean> {
-    const row = await this.driveRepo.findTokenStatus(driveId);
-    return !!row;
-  }
-
   /** Get folders + files for the external items page. RBAC: user ownership. */
   async listExternal(userId: string, cursor: { name: string; id: string } | null, limit = 50) {
     const { results: folderRows } = await this.driveRepo.findExternalFolders(userId);

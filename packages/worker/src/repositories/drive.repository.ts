@@ -52,14 +52,6 @@ export class DriveRepository {
       .first<{ id: string; root_folder_id: string | null }>();
   }
 
-  /** Check if a drive has valid tokens (for health check). */
-  findTokenStatus(driveId: string) {
-    return this.db
-      .prepare('SELECT 1 as ok FROM drive_tokens WHERE drive_account_id = ?')
-      .bind(driveId)
-      .first<{ ok: number }>();
-  }
-
   /**
    * Read the encrypted token blob for a drive. Used by `GoogleDriveService.loadTokens`
    * (the first call per sync — subsequent calls hit the in-memory token cache).

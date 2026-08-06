@@ -7,8 +7,9 @@ import type { GDriveFile, GDriveFolder } from './google';
  * (Dropbox, OneDrive) implement the same interface to plug into the
  * existing routes, services, and sync engine without changes.
  *
- * `hasValidTokens()` is intentionally NOT here — it's a D1 query on
- * `DriveService` (`services/drive.service.ts`), not a provider API call.
+ * Token existence checks are D1 queries, not provider API calls —
+ * callers catch `NotFoundError` from `loadTokens` (via `getValidToken`)
+ * to detect disconnected drives.
  *
  * // ponytail: The return types use `GDriveFile`/`GDriveFolder`, which are
  * Google-specific data shapes. A future refactor should define neutral
