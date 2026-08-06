@@ -16,4 +16,6 @@ export const qk = {
   workspaceContents: (folderId: string) => ['workspaceContents', folderId] as const,
   adminUsers: ['adminUsers'] as const,
   adminInvitations: ['adminInvitations'] as const,
+  automations: ['automations'] as const,
+  automationLogs: (ruleId: string) => ['automationLogs', ruleId] as const,
 };

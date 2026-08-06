@@ -5,10 +5,6 @@ import { AutomationRepository } from '../src/repositories/automation.repository'
  * Direct unit tests for AutomationRepository. Verifies SQL fragments and
  * bind values for each method. Complementary to integration/repositories.test.ts
  * which exercises the same repository through a real D1.
- *
- * NOTE: the task spec referenced a `delete` method — AutomationRepository only
- * exports `findAllByUser`, `insert`, `toggleActive`. Tests cover the actual
- * exports; no `delete` method exists in the source.
  */
 
 describe('AutomationRepository', () => {
@@ -149,6 +145,78 @@ describe('AutomationRepository', () => {
         'SELECT * FROM automation_rules WHERE trigger_type = ? AND is_active = ?',
       );
       expect(mockBind).toHaveBeenCalledWith('cron', 1);
+    });
+  });
+
+  // ─── update / delete / findLogsByRule ───
+
+  describe('update', () => {
+    it('UPDATEs name/trigger_type/trigger_config/conditions/actions, scoped to id + user_id', async () => {
+      const changed = await repo.update('r-1', 'u-1', {
+        name: 'Renamed',
+        triggerType: 'cron',
+        triggerConfig: '{}',
+        conditions: '[]',
+        actions: '[]',
+      });
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain('UPDATE automation_rules SET name = ?');
+      expect(sql).toContain('trigger_type = ?');
+      expect(sql).toContain('trigger_config = ?');
+      expect(sql).toContain('conditions = ?');
+      expect(sql).toContain('actions = ?');
+      expect(sql).toContain('updated_at = CURRENT_TIMESTAMP');
+      expect(sql).toContain('WHERE id = ? AND user_id = ?');
+      expect(sql).not.toContain('is_active'); // must not touch activation state
+      expect(mockBind).toHaveBeenCalledWith('Renamed', 'cron', '{}', '[]', '[]', 'r-1', 'u-1');
+      expect(changed).toBe(true);
+    });
+
+    it('returns false when meta.changes === 0 (wrong user / rule missing)', async () => {
+      mockRun.mockResolvedValueOnce({ success: true, meta: { changes: 0 } });
+      const changed = await repo.update('r-x', 'wrong-user', {
+        name: 'X',
+        triggerType: 'event',
+        triggerConfig: '{}',
+        conditions: '[]',
+        actions: '[]',
+      });
+      expect(changed).toBe(false);
+    });
+  });
+
+  describe('delete', () => {
+    it('DELETEs a rule scoped to id + user_id', async () => {
+      const deleted = await repo.delete('r-1', 'u-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain('DELETE FROM automation_rules WHERE id = ? AND user_id = ?');
+      expect(mockBind).toHaveBeenCalledWith('r-1', 'u-1');
+      expect(deleted).toBe(true);
+    });
+
+    it('returns false when meta.changes === 0 (wrong user / rule missing)', async () => {
+      mockRun.mockResolvedValueOnce({ success: true, meta: { changes: 0 } });
+      const deleted = await repo.delete('r-x', 'wrong-user');
+      expect(deleted).toBe(false);
+    });
+  });
+
+  describe('findLogsByRule', () => {
+    it('SELECTs logs JOINed to automation_rules for user ownership, binds (ruleId, userId, limit)', async () => {
+      mockAll.mockResolvedValueOnce({
+        results: [{ id: 'log-1', rule_id: 'r-1', status: 'success', details: '{}' }],
+      });
+
+      await repo.findLogsByRule('r-1', 'u-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain('SELECT l.* FROM automation_logs l');
+      expect(sql).toContain('JOIN automation_rules r ON l.rule_id = r.id');
+      expect(sql).toContain('WHERE l.rule_id = ? AND r.user_id = ?');
+      expect(sql).toContain('ORDER BY l.executed_at DESC LIMIT ?');
+      expect(mockBind).toHaveBeenCalledWith('r-1', 'u-1', 50);
     });
   });
 });

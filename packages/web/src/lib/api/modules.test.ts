@@ -131,7 +131,11 @@ describe('api/ domain modules', () => {
   describe('automationsApi', () => {
     it('has all automations methods', () => {
       expect(typeof automationsApi.getAutomations).toBe('function');
+      expect(typeof automationsApi.createAutomation).toBe('function');
+      expect(typeof automationsApi.updateAutomation).toBe('function');
+      expect(typeof automationsApi.deleteAutomation).toBe('function');
       expect(typeof automationsApi.toggleAutomation).toBe('function');
+      expect(typeof automationsApi.getAutomationLogs).toBe('function');
     });
   });
 

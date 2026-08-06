@@ -233,44 +233,44 @@ describe('workspacePolicySchema', () => {
 });
 
 describe('createAutomationSchema', () => {
-  it('rejects invalid trigger_type', () => {
+  it('rejects invalid triggerType', () => {
     const result = createAutomationSchema.safeParse({
       name: 'Test',
-      trigger_type: 'webhook',
+      triggerType: 'webhook',
     });
     expect(result.success).toBe(false);
   });
-  it('accepts event trigger_type', () => {
+  it('accepts event triggerType', () => {
     expect(
       createAutomationSchema.safeParse({
         name: 'Test',
-        trigger_type: 'event',
+        triggerType: 'event',
       }).success,
     ).toBe(true);
   });
-  it('accepts cron trigger_type', () => {
+  it('accepts cron triggerType', () => {
     expect(
       createAutomationSchema.safeParse({
         name: 'Test',
-        trigger_type: 'cron',
+        triggerType: 'cron',
       }).success,
     ).toBe(true);
   });
   it('requires name', () => {
     expect(
       createAutomationSchema.safeParse({
-        trigger_type: 'event',
+        triggerType: 'event',
       }).success,
     ).toBe(false);
   });
 });
 
 describe('toggleAutomationSchema', () => {
-  it('rejects non-boolean is_active', () => {
-    expect(toggleAutomationSchema.safeParse({ is_active: 'true' }).success).toBe(false);
+  it('rejects non-boolean isActive', () => {
+    expect(toggleAutomationSchema.safeParse({ isActive: 'true' }).success).toBe(false);
   });
-  it('accepts boolean is_active', () => {
-    expect(toggleAutomationSchema.safeParse({ is_active: true }).success).toBe(true);
+  it('accepts boolean isActive', () => {
+    expect(toggleAutomationSchema.safeParse({ isActive: true }).success).toBe(true);
   });
 });
 

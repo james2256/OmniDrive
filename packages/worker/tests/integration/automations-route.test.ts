@@ -71,7 +71,7 @@ describe('Automations routes (integration)', () => {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
-        body: JSON.stringify({ name: 'rule', trigger_type: 'event' }),
+        body: JSON.stringify({ name: 'rule', triggerType: 'event' }),
       },
       env,
     );
@@ -84,7 +84,7 @@ describe('Automations routes (integration)', () => {
       {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
-        body: JSON.stringify({ is_active: false }),
+        body: JSON.stringify({ isActive: false }),
       },
       env,
     );
@@ -145,8 +145,8 @@ describe('Automations routes (integration)', () => {
         headers: { 'Content-Type': 'application/json', Cookie: cookie, Origin: ORIGIN },
         body: JSON.stringify({
           name: 'Move PDFs',
-          trigger_type: 'event',
-          trigger_config: { source: 'upload' },
+          triggerType: 'event',
+          triggerConfig: { source: 'upload' },
           conditions: [{ field: 'name', operator: 'endswith', value: '.pdf' }],
           actions: [{ type: 'move', targetFolderId: 'folder-1' }],
         }),
@@ -189,7 +189,7 @@ describe('Automations routes (integration)', () => {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Cookie: cookie, Origin: ORIGIN },
-        body: JSON.stringify({ name: 'Bare rule', trigger_type: 'cron' }),
+        body: JSON.stringify({ name: 'Bare rule', triggerType: 'cron' }),
       },
       env,
     );
@@ -214,7 +214,7 @@ describe('Automations routes (integration)', () => {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Cookie: cookie, Origin: ORIGIN },
-        body: JSON.stringify({ name: '', trigger_type: 'event' }),
+        body: JSON.stringify({ name: '', triggerType: 'event' }),
       },
       env,
     );
@@ -232,7 +232,7 @@ describe('Automations routes (integration)', () => {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Cookie: cookie, Origin: ORIGIN },
-        body: JSON.stringify({ trigger_type: 'event' }),
+        body: JSON.stringify({ triggerType: 'event' }),
       },
       env,
     );
@@ -244,7 +244,7 @@ describe('Automations routes (integration)', () => {
     expect(body.error).toContain('string');
   });
 
-  it('POST / rejects invalid trigger_type (zod → 400)', async () => {
+  it('POST / rejects invalid triggerType (zod → 400)', async () => {
     const { cookie } = await insertUserAndSession('frank');
 
     const res = await app.request(
@@ -252,14 +252,14 @@ describe('Automations routes (integration)', () => {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Cookie: cookie, Origin: ORIGIN },
-        body: JSON.stringify({ name: 'Bad', trigger_type: 'webhook' }),
+        body: JSON.stringify({ name: 'Bad', triggerType: 'webhook' }),
       },
       env,
     );
 
     expect(res.status).toBe(400);
     const body = (await res.json()) as { error: string };
-    expect(body.error).toContain('trigger_type');
+    expect(body.error).toContain('triggerType');
   });
 
   // ─── PATCH /:id/toggle ───
@@ -277,7 +277,7 @@ describe('Automations routes (integration)', () => {
       {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Cookie: cookie, Origin: ORIGIN },
-        body: JSON.stringify({ is_active: false }),
+        body: JSON.stringify({ isActive: false }),
       },
       env,
     );
@@ -302,7 +302,7 @@ describe('Automations routes (integration)', () => {
       {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Cookie: cookie, Origin: ORIGIN },
-        body: JSON.stringify({ is_active: true }),
+        body: JSON.stringify({ isActive: true }),
       },
       env,
     );
@@ -322,7 +322,7 @@ describe('Automations routes (integration)', () => {
       {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Cookie: cookie, Origin: ORIGIN },
-        body: JSON.stringify({ is_active: false }),
+        body: JSON.stringify({ isActive: false }),
       },
       env,
     );
@@ -346,7 +346,7 @@ describe('Automations routes (integration)', () => {
       {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Cookie: alice.cookie, Origin: ORIGIN },
-        body: JSON.stringify({ is_active: false }),
+        body: JSON.stringify({ isActive: false }),
       },
       env,
     );
@@ -355,7 +355,7 @@ describe('Automations routes (integration)', () => {
     expect(res.status).toBe(404);
   });
 
-  it('PATCH /:id/toggle rejects missing is_active (zod → 400)', async () => {
+  it('PATCH /:id/toggle rejects missing isActive (zod → 400)', async () => {
     const { userId, cookie } = await insertUserAndSession('judy');
     await env.DB.prepare(
       'INSERT INTO automation_rules (id, user_id, name, trigger_type, is_active) VALUES (?, ?, ?, ?, ?)',
@@ -374,5 +374,269 @@ describe('Automations routes (integration)', () => {
     );
 
     expect(res.status).toBe(400);
+  });
+
+  // ─── PUT /:id (update) ───
+
+  it('PUT /:id updates a rule definition and preserves is_active (204)', async () => {
+    const { userId, cookie } = await insertUserAndSession('karen');
+    await env.DB.prepare(
+      'INSERT INTO automation_rules (id, user_id, name, trigger_type, is_active) VALUES (?, ?, ?, ?, ?)',
+    )
+      .bind('rule-karen', userId, 'Old name', 'event', 0)
+      .run();
+
+    const res = await app.request(
+      '/api/automations/rule-karen',
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Cookie: cookie, Origin: ORIGIN },
+        body: JSON.stringify({
+          name: 'Renamed rule',
+          triggerType: 'cron',
+          triggerConfig: {},
+          conditions: [{ field: 'name', operator: 'contains', value: 'temp' }],
+          actions: [{ type: 'delete' }],
+        }),
+      },
+      env,
+    );
+
+    expect(res.status).toBe(204);
+    const row = await env.DB.prepare(
+      'SELECT name, trigger_type, is_active, conditions, actions FROM automation_rules WHERE id = ?',
+    )
+      .bind('rule-karen')
+      .first<{
+        name: string;
+        trigger_type: string;
+        is_active: number;
+        conditions: string;
+        actions: string;
+      }>();
+    expect(row?.name).toBe('Renamed rule');
+    expect(row?.trigger_type).toBe('cron');
+    expect(row?.is_active).toBe(0); // preserved — PUT does not touch is_active
+    expect(JSON.parse(row?.conditions ?? '[]')).toHaveLength(1);
+    expect(JSON.parse(row?.actions ?? '[]')).toHaveLength(1);
+  });
+
+  it('PUT /:id on a nonexistent rule → 404', async () => {
+    const { cookie } = await insertUserAndSession('liam');
+
+    const res = await app.request(
+      '/api/automations/rule-missing',
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Cookie: cookie, Origin: ORIGIN },
+        body: JSON.stringify({ name: 'X', triggerType: 'event' }),
+      },
+      env,
+    );
+
+    expect(res.status).toBe(404);
+  });
+
+  it('PUT /:id on another user rule → 404 (no cross-user update)', async () => {
+    const alice = await insertUserAndSession('alice3');
+    const bob = await insertUserAndSession('bob3');
+    await env.DB.prepare(
+      'INSERT INTO automation_rules (id, user_id, name, trigger_type, is_active) VALUES (?, ?, ?, ?, ?)',
+    )
+      .bind('rule-bob3', bob.userId, 'Bob rule', 'event', 1)
+      .run();
+
+    const res = await app.request(
+      '/api/automations/rule-bob3',
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Cookie: alice.cookie, Origin: ORIGIN },
+        body: JSON.stringify({ name: 'Hacked', triggerType: 'event' }),
+      },
+      env,
+    );
+
+    expect(res.status).toBe(404);
+  });
+
+  it('PUT /:id rejects invalid triggerType (zod → 400)', async () => {
+    const { userId, cookie } = await insertUserAndSession('mia');
+    await env.DB.prepare(
+      'INSERT INTO automation_rules (id, user_id, name, trigger_type, is_active) VALUES (?, ?, ?, ?, ?)',
+    )
+      .bind('rule-mia', userId, 'Mia rule', 'event', 1)
+      .run();
+
+    const res = await app.request(
+      '/api/automations/rule-mia',
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Cookie: cookie, Origin: ORIGIN },
+        body: JSON.stringify({ name: 'Mia', triggerType: 'webhook' }),
+      },
+      env,
+    );
+
+    expect(res.status).toBe(400);
+  });
+
+  // ─── DELETE /:id ───
+
+  it('DELETE /:id removes a rule (204)', async () => {
+    const { userId, cookie } = await insertUserAndSession('nora');
+    await env.DB.prepare(
+      'INSERT INTO automation_rules (id, user_id, name, trigger_type, is_active) VALUES (?, ?, ?, ?, ?)',
+    )
+      .bind('rule-nora', userId, 'Nora rule', 'event', 1)
+      .run();
+
+    const res = await app.request(
+      '/api/automations/rule-nora',
+      { method: 'DELETE', headers: { Cookie: cookie, Origin: ORIGIN } },
+      env,
+    );
+
+    expect(res.status).toBe(204);
+    const row = await env.DB.prepare('SELECT id FROM automation_rules WHERE id = ?')
+      .bind('rule-nora')
+      .first();
+    expect(row).toBeNull();
+  });
+
+  it('DELETE /:id on a nonexistent rule → 404', async () => {
+    const { cookie } = await insertUserAndSession('oscar');
+
+    const res = await app.request(
+      '/api/automations/rule-missing',
+      { method: 'DELETE', headers: { Cookie: cookie, Origin: ORIGIN } },
+      env,
+    );
+
+    expect(res.status).toBe(404);
+  });
+
+  it('DELETE /:id on another user rule → 404 (no cross-user delete)', async () => {
+    const alice = await insertUserAndSession('alice4');
+    const bob = await insertUserAndSession('bob4');
+    await env.DB.prepare(
+      'INSERT INTO automation_rules (id, user_id, name, trigger_type, is_active) VALUES (?, ?, ?, ?, ?)',
+    )
+      .bind('rule-bob4', bob.userId, 'Bob rule', 'event', 1)
+      .run();
+
+    const res = await app.request(
+      '/api/automations/rule-bob4',
+      { method: 'DELETE', headers: { Cookie: alice.cookie, Origin: ORIGIN } },
+      env,
+    );
+
+    expect(res.status).toBe(404);
+  });
+
+  it('DELETE /:id cascades to automation_logs (FK ON DELETE CASCADE)', async () => {
+    const { userId, cookie } = await insertUserAndSession('paul');
+    await env.DB.prepare(
+      'INSERT INTO automation_rules (id, user_id, name, trigger_type, is_active) VALUES (?, ?, ?, ?, ?)',
+    )
+      .bind('rule-paul', userId, 'Paul rule', 'event', 1)
+      .run();
+    await env.DB.prepare(
+      'INSERT INTO automation_logs (id, rule_id, status, details) VALUES (?, ?, ?, ?)',
+    )
+      .bind('log-1', 'rule-paul', 'success', '{"fileId":"f-1"}')
+      .run();
+
+    const res = await app.request(
+      '/api/automations/rule-paul',
+      { method: 'DELETE', headers: { Cookie: cookie, Origin: ORIGIN } },
+      env,
+    );
+
+    expect(res.status).toBe(204);
+    const logRow = await env.DB.prepare('SELECT id FROM automation_logs WHERE rule_id = ?')
+      .bind('rule-paul')
+      .first();
+    expect(logRow).toBeNull(); // cascaded
+  });
+
+  // ─── GET /:id/logs ───
+
+  it('GET /:id/logs returns execution logs for a rule', async () => {
+    const { userId, cookie } = await insertUserAndSession('quinn');
+    await env.DB.prepare(
+      'INSERT INTO automation_rules (id, user_id, name, trigger_type, is_active) VALUES (?, ?, ?, ?, ?)',
+    )
+      .bind('rule-quinn', userId, 'Quinn rule', 'event', 1)
+      .run();
+    await env.DB.prepare(
+      'INSERT INTO automation_logs (id, rule_id, status, details) VALUES (?, ?, ?, ?)',
+    )
+      .bind('log-q1', 'rule-quinn', 'success', '{"fileId":"f-1"}')
+      .run();
+    await env.DB.prepare(
+      'INSERT INTO automation_logs (id, rule_id, status, details) VALUES (?, ?, ?, ?)',
+    )
+      .bind('log-q2', 'rule-quinn', 'error', 'Google API failed')
+      .run();
+
+    const res = await app.request(
+      '/api/automations/rule-quinn/logs',
+      { headers: { Cookie: cookie, Origin: ORIGIN } },
+      env,
+    );
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { logs: { id: string; status: string }[] };
+    expect(body.logs).toHaveLength(2);
+    // Ordered by executed_at DESC — both inserted near-simultaneously, so just
+    // check both statuses are present.
+    const statuses = body.logs.map((l) => l.status).sort();
+    expect(statuses).toEqual(['error', 'success']);
+  });
+
+  it('GET /:id/logs returns empty array for a rule with no logs', async () => {
+    const { userId, cookie } = await insertUserAndSession('rachel');
+    await env.DB.prepare(
+      'INSERT INTO automation_rules (id, user_id, name, trigger_type, is_active) VALUES (?, ?, ?, ?, ?)',
+    )
+      .bind('rule-rachel', userId, 'Rachel rule', 'event', 1)
+      .run();
+
+    const res = await app.request(
+      '/api/automations/rule-rachel/logs',
+      { headers: { Cookie: cookie, Origin: ORIGIN } },
+      env,
+    );
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { logs: unknown[] };
+    expect(body.logs).toEqual([]);
+  });
+
+  it('GET /:id/logs on another user rule → empty (no cross-user leak)', async () => {
+    const alice = await insertUserAndSession('alice5');
+    const bob = await insertUserAndSession('bob5');
+    await env.DB.prepare(
+      'INSERT INTO automation_rules (id, user_id, name, trigger_type, is_active) VALUES (?, ?, ?, ?, ?)',
+    )
+      .bind('rule-bob5', bob.userId, 'Bob rule', 'event', 1)
+      .run();
+    await env.DB.prepare(
+      'INSERT INTO automation_logs (id, rule_id, status, details) VALUES (?, ?, ?, ?)',
+    )
+      .bind('log-b5', 'rule-bob5', 'success', '{}')
+      .run();
+
+    const res = await app.request(
+      '/api/automations/rule-bob5/logs',
+      { headers: { Cookie: alice.cookie, Origin: ORIGIN } },
+      env,
+    );
+
+    // JOIN on user_id returns 0 rows → empty logs array (not 404, since the
+    // route doesn't distinguish "rule exists but not yours" from "no logs")
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { logs: unknown[] };
+    expect(body.logs).toEqual([]);
   });
 });

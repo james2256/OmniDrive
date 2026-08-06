@@ -83,6 +83,66 @@ export class AutomationRepository {
   }
 
   /**
+   * Update a rule definition (name, trigger, conditions, actions).
+   * is_active is intentionally excluded — use toggleActive for activation state.
+   * Returns true if a row was updated.
+   */
+  async update(
+    ruleId: string,
+    userId: string,
+    fields: {
+      name: string;
+      triggerType: string;
+      triggerConfig: string;
+      conditions: string;
+      actions: string;
+    },
+  ): Promise<boolean> {
+    const { meta } = await this.db
+      .prepare(
+        `UPDATE automation_rules SET name = ?, trigger_type = ?, trigger_config = ?,
+         conditions = ?, actions = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ? AND user_id = ?`,
+      )
+      .bind(
+        fields.name,
+        fields.triggerType,
+        fields.triggerConfig,
+        fields.conditions,
+        fields.actions,
+        ruleId,
+        userId,
+      )
+      .run();
+    return meta.changes > 0;
+  }
+
+  /** Delete a rule. Returns true if a row was deleted (logs cascade via FK). */
+  async delete(ruleId: string, userId: string): Promise<boolean> {
+    const { meta } = await this.db
+      .prepare('DELETE FROM automation_rules WHERE id = ? AND user_id = ?')
+      .bind(ruleId, userId)
+      .run();
+    return meta.changes > 0;
+  }
+
+  /**
+   * Find recent execution logs for a rule. JOINs automation_rules to enforce
+   * user ownership (automation_logs has no user_id column — the FK is rule_id).
+   */
+  findLogsByRule(ruleId: string, userId: string, limit = 50) {
+    return this.db
+      .prepare(
+        `SELECT l.* FROM automation_logs l
+         JOIN automation_rules r ON l.rule_id = r.id
+         WHERE l.rule_id = ? AND r.user_id = ?
+         ORDER BY l.executed_at DESC LIMIT ?`,
+      )
+      .bind(ruleId, userId, limit)
+      .all<Record<string, unknown>>();
+  }
+
+  /**
    * Return a prepared automation_logs INSERT statement (not run) for batch
    * operations. Used by AutomationEngine to log success/error per file.
    */

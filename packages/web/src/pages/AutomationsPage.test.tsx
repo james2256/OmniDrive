@@ -1,34 +1,106 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { AutomationsPage } from './AutomationsPage';
-import { useAutomationStore } from '../stores/useAutomationStore';
 
-vi.mock('../stores/useAutomationStore', () => ({
-  useAutomationStore: vi.fn(),
+// Stable mock refs — hoisted so the vi.mock factory can reference them.
+const useAutomationsMock = vi.hoisted(() => vi.fn());
+const useToggleAutomationMock = vi.hoisted(() => vi.fn());
+const useDeleteAutomationMock = vi.hoisted(() => vi.fn());
+
+vi.mock('../hooks/useAutomations', () => ({
+  useAutomations: useAutomationsMock,
+  useToggleAutomation: useToggleAutomationMock,
+  useDeleteAutomation: useDeleteAutomationMock,
 }));
 
+// Modals are tested independently — stub them so page tests focus on the list.
+vi.mock('../components/automation/CreateAutomationModal', () => ({
+  CreateAutomationModal: ({ open, editingRule }: { open: boolean; editingRule: unknown }) =>
+    open ? <div data-testid="create-modal">editing:{editingRule ? 'yes' : 'no'}</div> : null,
+}));
+vi.mock('../components/automation/AutomationLogsModal', () => ({
+  AutomationLogsModal: ({ ruleId }: { ruleId: string | null }) =>
+    ruleId ? <div data-testid="logs-modal">{ruleId}</div> : null,
+}));
+vi.mock('../components/ConfirmDialog', () => ({
+  ConfirmDialog: ({
+    open,
+    onConfirm,
+    message,
+  }: {
+    open: boolean;
+    onConfirm: () => void;
+    message: string;
+  }) =>
+    open ? (
+      <div data-testid="confirm-dialog">
+        <span>{message}</span>
+        <button data-testid="confirm-btn" onClick={onConfirm}>
+          Delete
+        </button>
+      </div>
+    ) : null,
+}));
 vi.mock('../components/ui/Button', () => ({
-  Button: ({ children, onClick, disabled, type, ...props }: any) => (
-    <button onClick={onClick} disabled={disabled} type={type} {...props}>
+  Button: ({ children, onClick, disabled, ...props }: any) => (
+    <button onClick={onClick} disabled={disabled} {...props}>
       {children}
     </button>
   ),
 }));
+vi.mock('../components/EmptyState', () => ({
+  EmptyState: ({ title }: any) => <div data-testid="empty-state">{title}</div>,
+  ListSkeleton: () => <div data-testid="skeleton">Loading...</div>,
+}));
+vi.mock('../components/ErrorState', () => ({
+  ErrorState: ({ onRetry }: any) => (
+    <div data-testid="error-state">
+      <button data-testid="retry-btn" onClick={onRetry}>
+        Retry
+      </button>
+    </div>
+  ),
+}));
+vi.mock('lucide-react', () => ({
+  Zap: () => <svg data-testid="zap-icon" />,
+  Plus: () => <svg data-testid="plus-icon" />,
+  Pencil: () => <svg data-testid="pencil-icon" />,
+  Trash2: () => <svg data-testid="trash-icon" />,
+  ScrollText: () => <svg data-testid="scroll-icon" />,
+}));
+
+const toggleMutate = vi.fn();
+const deleteMutate = vi.fn();
+const deleteMutateAsync = vi.fn().mockResolvedValue(undefined);
+
+function mockHookReturn(
+  overrides: Partial<{
+    data: unknown[];
+    isLoading: boolean;
+    error: unknown;
+    refetch: () => void;
+  }> = {},
+) {
+  return {
+    data: [],
+    isLoading: false,
+    error: null,
+    refetch: vi.fn(),
+    ...overrides,
+  };
+}
 
 describe('AutomationsPage', () => {
-  const fetchRules = vi.fn();
-  const toggleRule = vi.fn();
-
   beforeEach(() => {
     vi.clearAllMocks();
-    (useAutomationStore as unknown as Mock).mockReturnValue({
-      rules: [],
-      fetchRules,
-      toggleRule,
-      isLoading: false,
-      error: null,
+    useAutomationsMock.mockReturnValue(mockHookReturn());
+    useToggleAutomationMock.mockReturnValue({ mutate: toggleMutate, isPending: false });
+    useDeleteAutomationMock.mockReturnValue({
+      mutate: deleteMutate,
+      mutateAsync: deleteMutateAsync,
+      isPending: false,
     });
   });
 
@@ -39,202 +111,295 @@ describe('AutomationsPage', () => {
 
   it('renders page title "Automation Rules"', () => {
     render(<AutomationsPage />);
-
     expect(screen.getByText('Automation Rules')).toBeTruthy();
   });
 
-  it('calls fetchRules on mount', () => {
+  it('renders loading skeleton while isLoading is true', () => {
+    useAutomationsMock.mockReturnValue(mockHookReturn({ isLoading: true }));
     render(<AutomationsPage />);
-
-    expect(fetchRules).toHaveBeenCalledTimes(1);
-  });
-
-  it('renders loading state when isLoading is true', () => {
-    (useAutomationStore as unknown as Mock).mockReturnValue({
-      rules: [],
-      fetchRules,
-      toggleRule,
-      isLoading: true,
-      error: null,
-    });
-
-    render(<AutomationsPage />);
-
-    expect(screen.getByText('Loading rules...')).toBeTruthy();
+    expect(screen.getByTestId('skeleton')).toBeTruthy();
   });
 
   it('renders empty state when there are no rules', () => {
     render(<AutomationsPage />);
-
-    expect(screen.getByText('No automation rules')).toBeTruthy();
+    expect(screen.getByTestId('empty-state')).toBeTruthy();
   });
 
-  it('renders error banner when error is set', () => {
-    (useAutomationStore as unknown as Mock).mockReturnValue({
-      rules: [],
-      fetchRules,
-      toggleRule,
-      isLoading: false,
-      error: 'Failed to fetch rules',
-    });
-
+  it('renders error state with retry when fetch fails', () => {
+    const refetch = vi.fn();
+    useAutomationsMock.mockReturnValue(mockHookReturn({ error: new Error('boom'), refetch }));
     render(<AutomationsPage />);
-
-    expect(screen.getByText('Failed to fetch rules')).toBeTruthy();
+    expect(screen.getByTestId('error-state')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('retry-btn'));
+    expect(refetch).toHaveBeenCalledTimes(1);
   });
 
-  it('renders a list of automation rules with name, trigger type, and Active/Inactive button', () => {
-    (useAutomationStore as unknown as Mock).mockReturnValue({
-      rules: [
-        { id: 'r1', name: 'Auto-share PDFs', triggerType: 'file_created', isActive: true },
-        { id: 'r2', name: 'Cleanup expired', triggerType: 'scheduled', isActive: false },
-      ],
-      fetchRules,
-      toggleRule,
-      isLoading: false,
-      error: null,
-    });
-
+  it('renders a list of rules with name, trigger, conditions, and toggle button', () => {
+    useAutomationsMock.mockReturnValue(
+      mockHookReturn({
+        data: [
+          {
+            id: 'r1',
+            userId: 'u',
+            name: 'Auto-archive PDFs',
+            triggerType: 'event',
+            triggerConfig: {},
+            conditions: [{ field: 'extension', operator: 'endswith', value: 'pdf' }],
+            actions: [{ type: 'move', targetFolderId: 'wf-1' }],
+            isActive: true,
+            createdAt: '',
+            updatedAt: '',
+          },
+        ],
+      }),
+    );
     render(<AutomationsPage />);
-
-    expect(screen.getByText('Auto-share PDFs')).toBeTruthy();
-    expect(screen.getByText('file_created')).toBeTruthy();
+    expect(screen.getByText('Auto-archive PDFs')).toBeTruthy();
+    // Trigger text is split across <p> + <span class="capitalize">; match the span.
+    expect(screen.getByText('event')).toBeTruthy();
+    expect(screen.getByText(/extension endswith "pdf"/)).toBeTruthy();
+    expect(screen.getByText(/Move to wf-1/)).toBeTruthy();
     expect(screen.getByText('Active')).toBeTruthy();
-
-    expect(screen.getByText('Cleanup expired')).toBeTruthy();
-    expect(screen.getByText('scheduled')).toBeTruthy();
-    expect(screen.getByText('Inactive')).toBeTruthy();
   });
 
-  it('toggles a rule when its Active/Inactive button is clicked (calls toggleRule with inverted state)', () => {
-    (useAutomationStore as unknown as Mock).mockReturnValue({
-      rules: [{ id: 'r1', name: 'Auto-share PDFs', triggerType: 'file_created', isActive: true }],
-      fetchRules,
-      toggleRule,
-      isLoading: false,
-      error: null,
-    });
-
+  it('toggles a rule when Active button is clicked (calls mutate with inverted state)', () => {
+    useAutomationsMock.mockReturnValue(
+      mockHookReturn({
+        data: [
+          {
+            id: 'r1',
+            userId: 'u',
+            name: 'Rule',
+            triggerType: 'event',
+            triggerConfig: {},
+            conditions: [],
+            actions: [],
+            isActive: true,
+            createdAt: '',
+            updatedAt: '',
+          },
+        ],
+      }),
+    );
     render(<AutomationsPage />);
-
     fireEvent.click(screen.getByText('Active'));
-
-    expect(toggleRule).toHaveBeenCalledWith('r1', false);
+    expect(toggleMutate).toHaveBeenCalledWith({ id: 'r1', isActive: false });
   });
 
   it('toggles an inactive rule to active when Inactive button clicked', () => {
-    (useAutomationStore as unknown as Mock).mockReturnValue({
-      rules: [{ id: 'r2', name: 'Cleanup expired', triggerType: 'scheduled', isActive: false }],
-      fetchRules,
-      toggleRule,
-      isLoading: false,
-      error: null,
-    });
-
+    useAutomationsMock.mockReturnValue(
+      mockHookReturn({
+        data: [
+          {
+            id: 'r2',
+            userId: 'u',
+            name: 'Rule',
+            triggerType: 'cron',
+            triggerConfig: {},
+            conditions: [],
+            actions: [],
+            isActive: false,
+            createdAt: '',
+            updatedAt: '',
+          },
+        ],
+      }),
+    );
     render(<AutomationsPage />);
-
     fireEvent.click(screen.getByText('Inactive'));
-
-    expect(toggleRule).toHaveBeenCalledWith('r2', true);
+    expect(toggleMutate).toHaveBeenCalledWith({ id: 'r2', isActive: true });
   });
 
-  it('renders trigger type with capitalized first letter (capitalize class is applied)', () => {
-    (useAutomationStore as unknown as Mock).mockReturnValue({
-      rules: [{ id: 'r1', name: 'Auto-share', triggerType: 'file_created', isActive: true }],
-      fetchRules,
-      toggleRule,
-      isLoading: false,
-      error: null,
-    });
-
+  it('renders triggerType with capitalized first letter (capitalize class)', () => {
+    useAutomationsMock.mockReturnValue(
+      mockHookReturn({
+        data: [
+          {
+            id: 'r1',
+            userId: 'u',
+            name: 'Rule',
+            triggerType: 'event',
+            triggerConfig: {},
+            conditions: [],
+            actions: [],
+            isActive: true,
+            createdAt: '',
+            updatedAt: '',
+          },
+        ],
+      }),
+    );
     render(<AutomationsPage />);
-
-    // The triggerType is rendered as text inside a <span className="capitalize">.
-    expect(screen.getByText('file_created')).toBeTruthy();
-    const triggerSpan = screen.getByText('file_created');
-    // Source wraps the triggerType in <span className="capitalize">{rule.triggerType}</span>
+    const triggerSpan = screen.getByText('event');
     expect(triggerSpan.tagName).toBe('SPAN');
     expect(triggerSpan.className).toContain('capitalize');
   });
 
-  it('re-renders multiple rules each with their own toggle button', () => {
-    (useAutomationStore as unknown as Mock).mockReturnValue({
-      rules: [
-        { id: 'r1', name: 'Rule A', triggerType: 'file_created', isActive: true },
-        { id: 'r2', name: 'Rule B', triggerType: 'scheduled', isActive: true },
-        { id: 'r3', name: 'Rule C', triggerType: 'manual', isActive: false },
-      ],
-      fetchRules,
-      toggleRule,
-      isLoading: false,
-      error: null,
-    });
-
+  it('renders multiple rules each with their own toggle button', () => {
+    useAutomationsMock.mockReturnValue(
+      mockHookReturn({
+        data: [
+          {
+            id: 'r1',
+            userId: 'u',
+            name: 'A',
+            triggerType: 'event',
+            triggerConfig: {},
+            conditions: [],
+            actions: [],
+            isActive: true,
+            createdAt: '',
+            updatedAt: '',
+          },
+          {
+            id: 'r2',
+            userId: 'u',
+            name: 'B',
+            triggerType: 'cron',
+            triggerConfig: {},
+            conditions: [],
+            actions: [],
+            isActive: false,
+            createdAt: '',
+            updatedAt: '',
+          },
+        ],
+      }),
+    );
     render(<AutomationsPage />);
-
-    // Three toggle buttons: two "Active" + one "Inactive"
-    const activeButtons = screen.getAllByText('Active');
-    const inactiveButtons = screen.getAllByText('Inactive');
-    expect(activeButtons).toHaveLength(2);
-    expect(inactiveButtons).toHaveLength(1);
-
-    // Click first "Active" button → toggles r1 to inactive
-    fireEvent.click(activeButtons[0]);
-    expect(toggleRule).toHaveBeenLastCalledWith('r1', false);
+    expect(screen.getAllByText('Active')).toHaveLength(1);
+    expect(screen.getAllByText('Inactive')).toHaveLength(1);
   });
 
   it('does not render rule list while loading', () => {
-    (useAutomationStore as unknown as Mock).mockReturnValue({
-      rules: [{ id: 'r1', name: 'Auto-share', triggerType: 'file_created', isActive: true }],
-      fetchRules,
-      toggleRule,
-      isLoading: true,
-      error: null,
-    });
-
+    useAutomationsMock.mockReturnValue(
+      mockHookReturn({
+        isLoading: true,
+        data: [
+          {
+            id: 'r1',
+            userId: 'u',
+            name: 'Hidden',
+            triggerType: 'event',
+            triggerConfig: {},
+            conditions: [],
+            actions: [],
+            isActive: true,
+            createdAt: '',
+            updatedAt: '',
+          },
+        ],
+      }),
+    );
     render(<AutomationsPage />);
-
-    expect(screen.queryByText('Auto-share')).toBeNull();
-    expect(screen.getByText('Loading rules...')).toBeTruthy();
+    expect(screen.queryByText('Hidden')).toBeNull();
+    expect(screen.getByTestId('skeleton')).toBeTruthy();
   });
 
-  it('renders neither loading nor empty state when rules exist (shows rule list instead)', () => {
-    (useAutomationStore as unknown as Mock).mockReturnValue({
-      rules: [{ id: 'r1', name: 'Auto-share', triggerType: 'file_created', isActive: true }],
-      fetchRules,
-      toggleRule,
-      isLoading: false,
-      error: null,
-    });
-
+  it('opens create modal when Create Rule button is clicked', () => {
     render(<AutomationsPage />);
-
-    expect(screen.queryByText('Loading rules...')).toBeNull();
-    expect(screen.queryByText('No automation rules')).toBeNull();
-    expect(screen.getByText('Auto-share')).toBeTruthy();
+    fireEvent.click(screen.getByText('Create'));
+    expect(screen.getByTestId('create-modal')).toBeTruthy();
+    expect(screen.getByText('editing:no')).toBeTruthy();
   });
 
-  it('toggle button click triggers re-render and remains idempotent across multiple clicks', async () => {
-    (useAutomationStore as unknown as Mock).mockReturnValue({
-      rules: [{ id: 'r1', name: 'Auto-share', triggerType: 'file_created', isActive: true }],
-      fetchRules,
-      toggleRule,
-      isLoading: false,
-      error: null,
-    });
-
+  it('opens edit modal when Edit button is clicked', () => {
+    useAutomationsMock.mockReturnValue(
+      mockHookReturn({
+        data: [
+          {
+            id: 'r1',
+            userId: 'u',
+            name: 'Editable',
+            triggerType: 'event',
+            triggerConfig: {},
+            conditions: [],
+            actions: [],
+            isActive: true,
+            createdAt: '',
+            updatedAt: '',
+          },
+        ],
+      }),
+    );
     render(<AutomationsPage />);
+    fireEvent.click(screen.getByLabelText('Edit Editable'));
+    expect(screen.getByTestId('create-modal')).toBeTruthy();
+    expect(screen.getByText('editing:yes')).toBeTruthy();
+  });
 
-    const button = screen.getByText('Active');
-    fireEvent.click(button);
-    fireEvent.click(button);
-    fireEvent.click(button);
+  it('opens logs modal when logs button is clicked', () => {
+    useAutomationsMock.mockReturnValue(
+      mockHookReturn({
+        data: [
+          {
+            id: 'r1',
+            userId: 'u',
+            name: 'With logs',
+            triggerType: 'event',
+            triggerConfig: {},
+            conditions: [],
+            actions: [],
+            isActive: true,
+            createdAt: '',
+            updatedAt: '',
+          },
+        ],
+      }),
+    );
+    render(<AutomationsPage />);
+    fireEvent.click(screen.getByLabelText('View logs for With logs'));
+    expect(screen.getByTestId('logs-modal')).toBeTruthy();
+    expect(screen.getByTestId('logs-modal').textContent).toBe('r1');
+  });
 
-    await waitFor(() => {
-      expect(toggleRule).toHaveBeenCalledTimes(3);
-    });
-    expect(toggleRule).toHaveBeenNthCalledWith(1, 'r1', false);
-    expect(toggleRule).toHaveBeenNthCalledWith(2, 'r1', false);
-    expect(toggleRule).toHaveBeenNthCalledWith(3, 'r1', false);
+  it('opens delete confirm dialog when Delete button is clicked', () => {
+    useAutomationsMock.mockReturnValue(
+      mockHookReturn({
+        data: [
+          {
+            id: 'r1',
+            userId: 'u',
+            name: 'Deletable',
+            triggerType: 'event',
+            triggerConfig: {},
+            conditions: [],
+            actions: [],
+            isActive: true,
+            createdAt: '',
+            updatedAt: '',
+          },
+        ],
+      }),
+    );
+    render(<AutomationsPage />);
+    fireEvent.click(screen.getByLabelText('Delete Deletable'));
+    expect(screen.getByTestId('confirm-dialog')).toBeTruthy();
+    expect(screen.getByText(/Delete "Deletable"/)).toBeTruthy();
+  });
+
+  it('calls deleteMutateAsync when confirm is clicked', async () => {
+    useAutomationsMock.mockReturnValue(
+      mockHookReturn({
+        data: [
+          {
+            id: 'r1',
+            userId: 'u',
+            name: 'Deletable',
+            triggerType: 'event',
+            triggerConfig: {},
+            conditions: [],
+            actions: [],
+            isActive: true,
+            createdAt: '',
+            updatedAt: '',
+          },
+        ],
+      }),
+    );
+    render(<AutomationsPage />);
+    fireEvent.click(screen.getByLabelText('Delete Deletable'));
+    fireEvent.click(screen.getByTestId('confirm-btn'));
+    await waitFor(() => expect(deleteMutateAsync).toHaveBeenCalledWith('r1'));
   });
 });

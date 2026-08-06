@@ -308,16 +308,22 @@ export const updateWorkspaceMetadataSchema = z.object({
 
 export const createAutomationSchema = z.object({
   name: z.string().min(1, 'name is required'),
-  trigger_type: z.enum(['event', 'cron'], {
-    message: 'trigger_type must be "event" or "cron"',
+  triggerType: z.enum(['event', 'cron'], {
+    message: 'triggerType must be "event" or "cron"',
   }),
-  trigger_config: z.record(z.string(), z.unknown()).optional(),
+  triggerConfig: z.record(z.string(), z.unknown()).optional(),
   conditions: z.array(z.record(z.string(), z.unknown())).optional(),
   actions: z.array(z.record(z.string(), z.unknown())).optional(),
 });
 
+// PUT = full replace → same validation as POST. Differs from
+// updateSharedLinkSchema (partial/PATCH) because a rule definition is a
+// cohesive unit — partial updates make little semantic sense. Use
+// PATCH /:id/toggle for activation state changes.
+export const updateAutomationSchema = createAutomationSchema;
+
 export const toggleAutomationSchema = z.object({
-  is_active: z.boolean(),
+  isActive: z.boolean(),
 });
 
 // ─── Admin schemas (admin.ts: 2 routes) ───
