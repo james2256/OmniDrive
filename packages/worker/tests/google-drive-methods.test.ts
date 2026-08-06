@@ -357,6 +357,51 @@ describe('GoogleDriveService methods', () => {
     });
   });
 
+  // ─── getFileWithParents (metadata + IDOR data in one call) ───
+
+  describe('getFileWithParents', () => {
+    it('GETs /files/{id} with id,name,mimeType,parents fields', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: 'file1',
+          name: 'doc',
+          mimeType: 'text/plain',
+          parents: ['rootFolderId'],
+        }),
+      });
+
+      const file = await service.getFileWithParents('drive1', 'file1');
+
+      expect(file?.id).toBe('file1');
+      expect(file?.name).toBe('doc');
+      expect(file?.mimeType).toBe('text/plain');
+      expect(file?.parents).toEqual(['rootFolderId']);
+      expect(fetchMock).toHaveBeenCalledWith(
+        `${DRIVE_API}/files/file1?fields=id,name,mimeType,parents&supportsAllDrives=true`,
+        expect.objectContaining({
+          headers: { Authorization: 'Bearer fake-access-token' },
+        }),
+      );
+    });
+
+    it('returns null on 404 (file not found) without throwing', async () => {
+      // Regression guard: the isSuccess option treats 404 as success so
+      // withBackoff returns the response instead of throwing UpstreamError.
+      // Without this, the `if (response.status === 404) return null` check
+      // would be dead code and the method would throw on 404.
+      fetchMock.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        json: async () => ({}),
+      });
+
+      const file = await service.getFileWithParents('drive1', 'nonexistent');
+
+      expect(file).toBeNull();
+    });
+  });
+
   // ─── downloadFile ───
 
   describe('downloadFile', () => {

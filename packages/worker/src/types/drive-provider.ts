@@ -40,6 +40,12 @@ export interface DriveProvider {
 
   getFile(driveAccountId: string, fileId: string): Promise<GDriveFile>;
   getFileParents(driveAccountId: string, fileId: string): Promise<string[]>;
+  /**
+   * Fetch a file's metadata + parents in a single API call. Used by the
+   * shared-folder download path which needs both (parents for the IDOR check,
+   * name/mimeType for the download). Returns null on 404 (file not found).
+   */
+  getFileWithParents(driveAccountId: string, fileId: string): Promise<GDriveFile | null>;
   downloadFile(
     driveAccountId: string,
     fileId: string,

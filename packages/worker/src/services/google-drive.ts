@@ -378,6 +378,35 @@ export class GoogleDriveService implements DriveProvider {
     return data.parents ?? [];
   }
 
+  /**
+   * Fetch a file's metadata + parents in a single API call. Used by the
+   * shared-folder download path which needs both (parents for the IDOR check,
+   * name/mimeType for the download) — eliminates the separate getFileParents
+   * + getFile round-trip. Returns null on 404 (file not found).
+   *
+   * The `isSuccess` option treats 404 as success so withBackoff returns the
+   * response instead of throwing UpstreamError — matches the pattern at the
+   * delete-file call (line ~451). Without this, the `if (status === 404)`
+   * check below would be dead code.
+   */
+  async getFileWithParents(
+    driveAccountId: string,
+    googleFileId: string,
+  ): Promise<GDriveFile | null> {
+    const token = await this.getValidToken(driveAccountId);
+    const fields = 'id,name,mimeType,parents';
+    const response = await this.driveFetch(
+      `${DRIVE_API}/files/${googleFileId}?fields=${fields}&supportsAllDrives=true`,
+      { headers: { Authorization: `Bearer ${token}` } },
+      {
+        isSuccess: (r) => r.ok || r.status === 404,
+        context: 'Failed to get file with parents',
+      },
+    );
+    if (response.status === 404) return null;
+    return response.json();
+  }
+
   async downloadFile(
     driveAccountId: string,
     googleFileId: string,

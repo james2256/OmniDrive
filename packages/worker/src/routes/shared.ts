@@ -328,12 +328,23 @@ sharedRouter.get('/:id/download', async (c) => {
 
     const driveService = createDriveService(c.env);
 
-    // IDOR prevention: verify the file is inside the shared folder tree
-    const isInside = await isFileInSharedFolder(driveService, driveId, fileId, googleFolderId);
-    if (!isInside) return c.text('File not found in this shared folder', 404);
-
-    const fileMeta = await driveService.getFile(driveId, fileId);
+    // Fetch metadata + parents in ONE API call (previously 2 calls: getFileParents
+    // for the IDOR check + getFile for the download metadata). The parents feed
+    // into isFileInSharedFolder; name + mimeType feed into the download below.
+    const fileMeta = await driveService.getFileWithParents(driveId, fileId);
     if (!fileMeta) return c.text('File not found', 404);
+
+    // IDOR prevention: verify the file is inside the shared folder tree.
+    // Pass fileMeta.parents so isFileInSharedFolder skips its first getFileParents
+    // call — reuses the parents already fetched by getFileWithParents.
+    const isInside = await isFileInSharedFolder(
+      driveService,
+      driveId,
+      fileId,
+      googleFolderId,
+      fileMeta.parents,
+    );
+    if (!isInside) return c.text('File not found in this shared folder', 404);
 
     // Enforce download limit BEFORE opening Google Drive stream (prevents wasted subrequests)
     if (link.maxDownloads !== null && link.maxDownloads !== undefined) {

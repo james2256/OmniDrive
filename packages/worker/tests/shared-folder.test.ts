@@ -123,4 +123,15 @@ describe('isFileInSharedFolder', () => {
     await isFileInSharedFolder(drive, 'drive-xyz', 'file-1', 'root');
     expect(seenDriveIds.every((d) => d === 'drive-xyz')).toBe(true);
   });
+
+  it('uses initialParents when provided (skips first getFileParents call)', async () => {
+    // The shared-download path passes fileMeta.parents from getFileWithParents
+    // so isFileInSharedFolder can skip its own first getFileParents(fileId) call.
+    const { drive, calls } = mockDrive(async (_d, id) => (id === 'folder-1' ? ['root'] : []));
+    // Pass initialParents=['folder-1'] — should skip getFileParents('file-1')
+    const result = await isFileInSharedFolder(drive, 'drive-1', 'file-1', 'root', ['folder-1']);
+    expect(result).toBe(true);
+    // Only 1 call — for 'folder-1' (the initialParent), not 'file-1'
+    expect(calls).toEqual([{ driveId: 'drive-1', id: 'folder-1' }]);
+  });
 });
