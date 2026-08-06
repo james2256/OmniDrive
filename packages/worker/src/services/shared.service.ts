@@ -58,8 +58,10 @@ export class SharedService {
       webhookUrl?: string | null;
     },
   ): Promise<string> {
-    // RBAC: verify ownership/workspace access
-    await this.assertCanShare(userId, params.targetType, params.targetId);
+    // RBAC: verify ownership/workspace access. Returns target name + mime type
+    // for denormalization (files: 0 extra reads; folders: 1 extra read via
+    // findFolderName — acceptable for a rare user action).
+    const targetMeta = await this.assertCanShare(userId, params.targetType, params.targetId);
 
     // Webhook validation
     if (params.webhookUrl) {
@@ -75,6 +77,8 @@ export class SharedService {
       userId,
       targetType: params.targetType,
       targetId: params.targetId,
+      targetName: targetMeta.name,
+      targetMimeType: targetMeta.mimeType,
       passwordHash,
       expiresAt: params.expiresAt ?? null,
       allowDownloads: params.allowDownloads,
@@ -265,7 +269,7 @@ export class SharedService {
     userId: string,
     targetType: 'file' | 'folder',
     targetId: string,
-  ): Promise<void> {
+  ): Promise<{ name: string; mimeType: string | null }> {
     if (targetType === 'file') {
       const file = await this.fileRepo.findById(targetId);
       if (!file) throw new NotFoundError('File not found');
@@ -278,14 +282,20 @@ export class SharedService {
       } else if (file.user_id !== userId) {
         throw new ForbiddenError('Forbidden');
       }
-    } else {
-      // Folder: check workspace membership first, then drive folder ownership
-      const wsOk = await this.checkFolderAccess(userId, targetId);
-      if (!wsOk) {
-        const driveOk = !!(await this.driveRepo.findOwnedDriveFolderByGoogleId(targetId, userId));
-        if (!driveOk) throw new ForbiddenError('You do not own this folder');
-      }
+      // Reuse the RBAC fetch — 0 extra D1 reads for file links.
+      return { name: file.name, mimeType: file.mime_type };
     }
+
+    // Folder: check workspace membership first, then drive folder ownership
+    const wsOk = await this.checkFolderAccess(userId, targetId);
+    if (!wsOk) {
+      const driveOk = !!(await this.driveRepo.findOwnedDriveFolderByGoogleId(targetId, userId));
+      if (!driveOk) throw new ForbiddenError('You do not own this folder');
+    }
+
+    // Fetch folder name for denormalization (1 extra D1 read — acceptable for a rare action).
+    const folderName = await this.sharedRepo.findFolderName(targetId);
+    return { name: folderName ?? targetId, mimeType: null };
   }
 
   /** Check if user has editor access to a workspace folder. */

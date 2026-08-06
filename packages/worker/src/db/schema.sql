@@ -205,7 +205,9 @@ CREATE TABLE IF NOT EXISTS shared_links (
     webhook_url     TEXT,
     view_count      INTEGER NOT NULL DEFAULT 0,
     download_count  INTEGER NOT NULL DEFAULT 0,
-    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    target_name     TEXT,
+    target_mime_type TEXT
 );
 
 CREATE TABLE IF NOT EXISTS shared_link_logs (

@@ -122,8 +122,8 @@ export function mapSharedLinkRow(row: Record<string, unknown>): SharedLink {
     userId: row.user_id as string,
     targetType: targetType as 'file' | 'folder',
     targetId: row.target_id as string,
-    targetName: (row.targetName as string) ?? undefined,
-    targetMimeType: (row.targetMimeType as string | null) ?? null,
+    targetName: (row.target_name as string) ?? undefined,
+    targetMimeType: (row.target_mime_type as string | null) ?? null,
     passwordHash: (row.password_hash as string | null | undefined) ?? null,
     expiresAt: (row.expires_at as string | null | undefined) ?? null,
     allowDownloads: Boolean(row.allow_downloads ?? 1),
@@ -347,6 +347,8 @@ export interface SharedLinkRow {
   user_id: string;
   target_type: 'file' | 'folder';
   target_id: string;
+  target_name: string | null;
+  target_mime_type: string | null;
   password_hash: string | null;
   expires_at: string | null;
   allow_downloads: number;

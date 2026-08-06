@@ -30,20 +30,12 @@ export class SharedRepository {
       .first<SharedLinkRow>();
   }
 
-  /** List all shared links for a user, with target name + mime type via JOIN. */
+  /** List all shared links for a user. target_name + target_mime_type are
+   * denormalized onto the row (set at creation time, not updated on rename).
+   * Eliminates the previous 3-table JOIN (files + workspace_folders + drive_folders). */
   findAllByUserWithTargetName(userId: string) {
     return this.db
-      .prepare(
-        `
-      SELECT s.*, COALESCE(f.name, v.name, MIN(df.name)) as targetName, f.mime_type as targetMimeType
-      FROM shared_links s
-      LEFT JOIN files f ON s.target_type = 'file' AND s.target_id = f.id
-      LEFT JOIN workspace_folders v ON s.target_type = 'folder' AND s.target_id = v.id
-      LEFT JOIN drive_folders df ON s.target_type = 'folder' AND s.target_id = df.google_folder_id
-      WHERE s.user_id = ?
-      GROUP BY s.id
-    `,
-      )
+      .prepare('SELECT * FROM shared_links WHERE user_id = ?')
       .bind(userId)
       .all<Record<string, unknown>>();
   }
@@ -77,6 +69,8 @@ export class SharedRepository {
     userId: string;
     targetType: 'file' | 'folder';
     targetId: string;
+    targetName: string | null;
+    targetMimeType: string | null;
     passwordHash: string | null;
     expiresAt: string | null;
     allowDownloads: boolean;
@@ -91,13 +85,15 @@ export class SharedRepository {
       try {
         await this.db
           .prepare(
-            'INSERT INTO shared_links (id, user_id, target_type, target_id, password_hash, expires_at, allow_downloads, allow_uploads, max_downloads, require_email, webhook_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO shared_links (id, user_id, target_type, target_id, target_name, target_mime_type, password_hash, expires_at, allow_downloads, allow_uploads, max_downloads, require_email, webhook_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
           )
           .bind(
             id,
             params.userId,
             params.targetType,
             params.targetId,
+            params.targetName,
+            params.targetMimeType,
             params.passwordHash,
             params.expiresAt,
             params.allowDownloads ? 1 : 0,

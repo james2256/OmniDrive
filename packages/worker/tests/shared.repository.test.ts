@@ -72,21 +72,17 @@ describe('SharedRepository', () => {
   });
 
   describe('findAllByUserWithTargetName', () => {
-    it('JOINs files + workspace_folders + drive_folders with GROUP BY, single bind', async () => {
+    it('SELECTs * from shared_links by user_id (denormalized target_name)', async () => {
       mockAll.mockResolvedValueOnce({
-        results: [{ id: 'sl-1', targetName: 'doc.pdf', targetMimeType: 'application/pdf' }],
+        results: [{ id: 'sl-1', target_name: 'doc.pdf', target_mime_type: 'application/pdf' }],
       });
 
       await repo.findAllByUserWithTargetName('u-1');
 
       const sql = mockPrepare.mock.calls[0][0] as string;
-      expect(sql).toContain('SELECT s.*, COALESCE(f.name, v.name, MIN(df.name)) as targetName');
-      expect(sql).toContain('f.mime_type as targetMimeType');
-      expect(sql).toContain("LEFT JOIN files f ON s.target_type = 'file' AND s.target_id = f.id");
-      expect(sql).toContain("LEFT JOIN workspace_folders v ON s.target_type = 'folder'");
-      expect(sql).toContain("LEFT JOIN drive_folders df ON s.target_type = 'folder'");
-      expect(sql).toContain('WHERE s.user_id = ?');
-      expect(sql).toContain('GROUP BY s.id');
+      expect(sql).toContain('SELECT * FROM shared_links WHERE user_id = ?');
+      expect(sql).not.toContain('JOIN');
+      expect(sql).not.toContain('GROUP BY');
       expect(mockBind).toHaveBeenCalledWith('u-1');
     });
   });
@@ -117,11 +113,13 @@ describe('SharedRepository', () => {
   // ─── mutations ───
 
   describe('insertWithUniqueSlug', () => {
-    it('INSERTs a shared link with all 11 fields in order, returns the id', async () => {
+    it('INSERTs a shared link with all 13 fields in order, returns the id', async () => {
       const id = await repo.insertWithUniqueSlug({
         userId: 'u-1',
         targetType: 'file',
         targetId: 'f-1',
+        targetName: 'doc.pdf',
+        targetMimeType: 'application/pdf',
         passwordHash: null,
         expiresAt: null,
         allowDownloads: true,
@@ -134,14 +132,16 @@ describe('SharedRepository', () => {
       const sql = mockPrepare.mock.calls[0][0] as string;
       expect(sql).toContain('INSERT INTO shared_links');
       expect(sql).toContain(
-        'id, user_id, target_type, target_id, password_hash, expires_at, allow_downloads, allow_uploads, max_downloads, require_email, webhook_url',
+        'id, user_id, target_type, target_id, target_name, target_mime_type, password_hash, expires_at, allow_downloads, allow_uploads, max_downloads, require_email, webhook_url',
       );
-      // 11 binds — booleans converted to 0/1.
+      // 13 binds — booleans converted to 0/1.
       expect(mockBind).toHaveBeenCalledWith(
         expect.any(String),
         'u-1',
         'file',
         'f-1',
+        'doc.pdf',
+        'application/pdf',
         null,
         null,
         1, // allowDownloads
@@ -166,6 +166,8 @@ describe('SharedRepository', () => {
         userId: 'u-1',
         targetType: 'folder',
         targetId: 'f-1',
+        targetName: 'My Folder',
+        targetMimeType: null,
         passwordHash: null,
         expiresAt: null,
         allowDownloads: true,
@@ -188,6 +190,8 @@ describe('SharedRepository', () => {
           userId: 'u-1',
           targetType: 'file',
           targetId: 'f-1',
+          targetName: 'doc.pdf',
+          targetMimeType: 'application/pdf',
           passwordHash: null,
           expiresAt: null,
           allowDownloads: true,
