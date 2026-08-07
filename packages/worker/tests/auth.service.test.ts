@@ -42,6 +42,7 @@ describe('AuthService', () => {
       expect(tokens.accessToken).toBe('access-123');
       expect(tokens.refreshToken).toBe('refresh-456');
       expect(tokens.expiresAt).toBeGreaterThan(Date.now());
+      expect(tokens.authType).toBe('oauth');
 
       // Verify the fetch was called with the correct form body
       expect(fetchSpy).toHaveBeenCalledOnce();

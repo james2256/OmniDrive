@@ -120,6 +120,9 @@ export class PolicyService {
         await this.db.batch([
           this.fileRepo.deleteByIdStmt(file.id),
           this.workspaceRepo.updateUsedBytesStmt(file.workspace_id, -file.size),
+          // Keep file_storage_stats in sync with the deletion — same pattern
+          // as FileService.trashFile so the dashboard chart stays accurate.
+          this.fileRepo.applyStorageDeltaStmt(file.user_id, file.mime_type ?? '', -file.size),
         ]);
         deleted++;
       }

@@ -443,7 +443,7 @@ describe('FileRepository', () => {
 
       const sql = mockPrepare.mock.calls[0][0] as string;
       expect(sql).toContain(
-        'SELECT f.id, f.user_id, f.google_file_id, f.size, f.workspace_id, d.id as driveId',
+        'SELECT f.id, f.user_id, f.google_file_id, f.size, f.mime_type, f.workspace_id, d.id as driveId',
       );
       expect(sql).toContain('FROM files f JOIN drive_accounts d ON f.drive_account_id = d.id');
       expect(sql).toContain('f.workspace_id = ?');

@@ -157,6 +157,7 @@ export const App = () => {
               <Route path="/starred" element={<StarredPage />} />
               <Route path="/admin/users" element={<AdminUsersPage />} />
             </Route>
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
       </ErrorBoundary>

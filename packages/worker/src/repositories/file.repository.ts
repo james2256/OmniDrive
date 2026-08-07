@@ -596,7 +596,7 @@ export class FileRepository {
       | { kind: 'workspace'; workspaceId: string; cutoffStr: string }
       | { kind: 'folder'; workspaceId: string; folderId: string; cutoffStr: string },
   ) {
-    const base = `SELECT f.id, f.user_id, f.google_file_id, f.size, f.workspace_id, d.id as driveId
+    const base = `SELECT f.id, f.user_id, f.google_file_id, f.size, f.mime_type, f.workspace_id, d.id as driveId
                  FROM files f JOIN drive_accounts d ON f.drive_account_id = d.id
                  WHERE f.workspace_id = ? AND f.created_at < ? AND f.is_trashed = 0`;
     if (target.kind === 'workspace') {
@@ -605,6 +605,7 @@ export class FileRepository {
         user_id: string;
         google_file_id: string;
         size: number;
+        mime_type: string | null;
         workspace_id: string;
         driveId: string;
       }>();
@@ -617,6 +618,7 @@ export class FileRepository {
         user_id: string;
         google_file_id: string;
         size: number;
+        mime_type: string | null;
         workspace_id: string;
         driveId: string;
       }>();

@@ -3,6 +3,7 @@ import { createDriveService } from '../lib/drive-factory';
 import { logErrorNoCtx } from '../lib/logger';
 import { S3LifecycleRepository } from '../repositories/s3-lifecycle.repository';
 import { FileRepository } from '../repositories/file.repository';
+import { escapeXml } from '../lib/s3-xml';
 
 export interface LifecycleRule {
   prefix: string;
@@ -35,7 +36,7 @@ export function serializeLifecycleXml(rules: LifecycleRule[]): string {
     .map(
       (r, i) => `  <Rule>
     <ID>rule-${i}</ID>
-    <Filter><Prefix>${r.prefix}</Prefix></Filter>
+    <Filter><Prefix>${escapeXml(r.prefix)}</Prefix></Filter>
     <Status>${r.enabled ? 'Enabled' : 'Disabled'}</Status>
     <Expiration><Days>${r.days}</Days></Expiration>
   </Rule>`,

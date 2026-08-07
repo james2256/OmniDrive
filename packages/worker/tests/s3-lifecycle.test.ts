@@ -35,6 +35,25 @@ describe('parseLifecycleXml', () => {
     const rules = [{ prefix: 'tmp/', days: 14, enabled: true }];
     expect(parseLifecycleXml(serializeLifecycleXml(rules))).toEqual(rules);
   });
+
+  it('XML-escapes special characters in the prefix (& < > " \')', () => {
+    // A prefix with XML-significant chars would produce malformed XML if
+    // not escaped — S3 clients fail to parse the GET ?lifecycle response.
+    const rules = [{ prefix: 'logs&data/<"test\'>', days: 30, enabled: true }];
+    const xml = serializeLifecycleXml(rules);
+    // Every special char in the prefix must be escaped to its entity.
+    expect(xml).toContain('logs&amp;data/&lt;&quot;test&apos;&gt;');
+    // Raw unescaped forms must NOT appear (would break XML parsing).
+    expect(xml).not.toContain('logs&data/');
+    expect(xml).not.toContain('<test>');
+  });
+
+  it('escapes & as &amp; (the most common XML-breaking char)', () => {
+    const rules = [{ prefix: 'a&b', days: 7, enabled: true }];
+    const xml = serializeLifecycleXml(rules);
+    expect(xml).toContain('<Prefix>a&amp;b</Prefix>');
+    expect(xml).not.toContain('a&b<');
+  });
 });
 
 describe('cleanupOrphanMultipartUploads', () => {

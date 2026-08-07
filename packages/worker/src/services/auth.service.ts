@@ -60,6 +60,7 @@ export class AuthService {
       accessToken: data.access_token,
       refreshToken: data.refresh_token,
       expiresAt: Date.now() + data.expires_in * 1000,
+      authType: 'oauth' as const,
     };
   }
 

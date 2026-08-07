@@ -214,7 +214,7 @@ async function main() {
     const existingPages = runCmdSilent('npx wrangler pages project info omnidrive');
     const hasWeb = existingPages !== null && existingPages.includes('omnidrive');
 
-    const existingWorker = runCmdSilent('npx wrangler deployments list --name omnidrive-api');
+    const existingWorker = runCmdSilent('npx wrangler deployments list --name omnidrive');
     const hasWorker = existingWorker !== null;
 
     sCheck.stop('Cloudflare deployment status checked.');

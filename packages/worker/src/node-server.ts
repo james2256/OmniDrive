@@ -110,6 +110,7 @@ async function main() {
     WORKER_URL: process.env.WORKER_URL || 'http://localhost:8080',
     JWT_SECRET: process.env.JWT_SECRET,
     TOKEN_ENCRYPTION_KEY: process.env.TOKEN_ENCRYPTION_KEY,
+    BOOTSTRAP_TOKEN: process.env.BOOTSTRAP_TOKEN,
   }) as Env;
 
   // Serve static React files from /usr/share/nginx/html or local web/dist

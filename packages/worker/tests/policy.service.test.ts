@@ -42,10 +42,17 @@ function createDb(): Database.Database {
       workspace_id TEXT,
       workspace_folder_id TEXT,
       name TEXT NOT NULL,
+      mime_type TEXT,
       size INTEGER DEFAULT 0,
       is_trashed INTEGER NOT NULL DEFAULT 0,
       created_at TEXT,
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE file_storage_stats (
+      user_id TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      total_size INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (user_id, mime_type)
     );
     CREATE TABLE workspace_policies (
       id TEXT PRIMARY KEY,
@@ -149,6 +156,74 @@ describe('PolicyService.processAutoDeleteRetentionPolicies', () => {
       used_bytes: number;
     };
     expect(ws.used_bytes).toBe(500); // 1000 - 500
+
+    db.close();
+  });
+
+  it('decrements file_storage_stats by the deleted file size', async () => {
+    // Regression: retention batch previously omitted applyStorageDeltaStmt,
+    // leaving the dashboard "Storage by type" chart inflated after auto-delete.
+    const db = createDb();
+    db.prepare(
+      "INSERT INTO workspaces (id, name, owner_id, used_bytes) VALUES ('ws-1', 'Test', 'u1', 500)",
+    ).run();
+    db.prepare(
+      "INSERT INTO drive_accounts (id, user_id, email) VALUES ('d1', 'u1', 'a@b.com')",
+    ).run();
+    // Pre-existing stats row for this (user, mime) — simulates prior upload.
+    db.prepare(
+      "INSERT INTO file_storage_stats (user_id, mime_type, total_size) VALUES ('u1', 'application/pdf', 1000)",
+    ).run();
+    const oldDate = toSQLiteDatetime(new Date(Date.now() - 10 * 24 * 60 * 60 * 1000));
+    db.prepare(
+      'INSERT INTO files (id, user_id, drive_account_id, google_file_id, workspace_id, name, mime_type, size, is_trashed, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)',
+    ).run('f1', 'u1', 'd1', 'gfile-1', 'ws-1', 'old.pdf', 'application/pdf', 500, oldDate);
+    db.prepare(
+      "INSERT INTO workspace_policies (id, workspace_id, target_type, target_id, policy_type, config) VALUES ('p1', 'ws-1', 'workspace', NULL, 'data_retention', ?)",
+    ).run(JSON.stringify({ action: 'auto_delete', days: 7 }));
+
+    const driveService = makeMockDriveService();
+    const service = new PolicyService(wrapSqlite(db), driveService);
+
+    await service.processAutoDeleteRetentionPolicies();
+
+    const stats = db
+      .prepare('SELECT total_size FROM file_storage_stats WHERE user_id = ? AND mime_type = ?')
+      .get('u1', 'application/pdf') as { total_size: number } | undefined;
+    expect(stats?.total_size).toBe(500); // 1000 - 500
+
+    db.close();
+  });
+
+  it('handles null mime_type gracefully (coerces to empty string for stats)', async () => {
+    const db = createDb();
+    db.prepare(
+      "INSERT INTO workspaces (id, name, owner_id, used_bytes) VALUES ('ws-1', 'Test', 'u1', 100)",
+    ).run();
+    db.prepare(
+      "INSERT INTO drive_accounts (id, user_id, email) VALUES ('d1', 'u1', 'a@b.com')",
+    ).run();
+    const oldDate = toSQLiteDatetime(new Date(Date.now() - 10 * 24 * 60 * 60 * 1000));
+    // File with NULL mime_type — the fix must coerce to '' before the stats INSERT.
+    db.prepare(
+      'INSERT INTO files (id, user_id, drive_account_id, google_file_id, workspace_id, name, mime_type, size, is_trashed, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)',
+    ).run('f1', 'u1', 'd1', 'gfile-1', 'ws-1', 'unknown.bin', null, 100, oldDate);
+    db.prepare(
+      "INSERT INTO workspace_policies (id, workspace_id, target_type, target_id, policy_type, config) VALUES ('p1', 'ws-1', 'workspace', NULL, 'data_retention', ?)",
+    ).run(JSON.stringify({ action: 'auto_delete', days: 7 }));
+
+    const driveService = makeMockDriveService();
+    const service = new PolicyService(wrapSqlite(db), driveService);
+
+    await service.processAutoDeleteRetentionPolicies();
+
+    // Stats row written with mime_type='' (coerced from null by ?? '' in the
+    // service). Without the coercion, applyStorageDeltaStmt would bind null
+    // for mime_type — a NOT NULL column violation.
+    const stats = db
+      .prepare('SELECT total_size FROM file_storage_stats WHERE user_id = ? AND mime_type = ?')
+      .get('u1', '') as { total_size: number } | undefined;
+    expect(stats).toBeTruthy();
 
     db.close();
   });

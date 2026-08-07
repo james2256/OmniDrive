@@ -517,6 +517,11 @@ s3Router.delete('/:bucket/:key{.+}', async (c) => {
   // Matches s3-lifecycle.ts pattern — S3 DELETE trashes, not hard-deletes.
   await driveService.trashFile(file.drive_account_id, file.google_file_id);
   await fileRepo.markTrashedSystem(file.id);
+  // Decrement file_storage_stats — mirrors FileService.trashFile so the
+  // dashboard "Storage by type" chart stays accurate after S3 deletions.
+  await fileRepo.applyStorageDeltas([
+    { userId: file.user_id, mimeType: file.mime_type ?? '', delta: -file.size },
+  ]);
 
   return c.body(null, 204);
 });
@@ -950,6 +955,13 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
     const multipartRepo = new S3MultipartRepository(db);
     const upload = await multipartRepo.findUploadScoped(uploadId, userId, s3WorkspaceId);
     if (!upload) return xmlError(c, 'NoSuchUpload', 'Upload session not found', 404);
+
+    // Cross-bucket guard: an unscoped credential can resolve a different
+    // workspace than the one the upload started in. Reject before writing —
+    // otherwise the file lands in the wrong workspace's folder tree.
+    if (upload.workspace_id !== workspace.id) {
+      return xmlError(c, 'InvalidRequest', 'Upload session does not belong to this bucket', 400);
+    }
 
     // Get all parts ordered by part_number from D1
     const { results: d1Parts } = await multipartRepo.findPartsByUpload(uploadId);

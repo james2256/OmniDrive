@@ -155,7 +155,7 @@ export function WorkspaceSettingsTab({ workspaceId }: { workspaceId: string }) {
                     </td>
                     <td className="px-2 sm:px-6 py-4 text-sm text-slate-500 font-mono text-xs">
                       {p.policyType === 'storage_quota'
-                        ? `${Math.round(Number(config.max_bytes) / (1024 * 1024 * 1024))} GB limit`
+                        ? `${Math.round((Number(config.max_bytes) || 0) / (1024 * 1024 * 1024))} GB limit`
                         : `${config.action} (${config.days || 'indefinite'} days)`}
                     </td>
                     <td className="px-2 sm:px-6 py-4 text-sm text-right">

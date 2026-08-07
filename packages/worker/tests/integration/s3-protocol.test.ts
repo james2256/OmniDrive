@@ -336,6 +336,34 @@ describe('S3 Protocol (integration)', () => {
     expect(row!.is_trashed).toBe(1);
   });
 
+  // ─── 9.3b DeleteObject → decrements file_storage_stats ───
+  it('DELETE /s3/:bucket/:key decrements file_storage_stats by the file size', async () => {
+    const { userId } = await insertUserAndS3Cred('alice');
+    const wsId = await insertWorkspace(userId, 'my-bucket');
+    await insertDrive(userId, 'drive-1', 'alice@gmail.com');
+    await insertFile(userId, 'drive-1', wsId, null, 'stats-test.txt', 'gfile-stats');
+
+    // Pre-seed a stats row so we can verify the delta (not just that a row exists).
+    await env.DB.prepare(
+      'INSERT INTO file_storage_stats (user_id, mime_type, total_size) VALUES (?, ?, ?)',
+    )
+      .bind(userId, 'text/plain', 1000)
+      .run();
+
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 204 }));
+
+    const res = await signedRequest('DELETE', '/s3/my-bucket/stats-test.txt');
+
+    expect(res.status).toBe(204);
+    const stats = (await env.DB.prepare(
+      'SELECT total_size FROM file_storage_stats WHERE user_id = ? AND mime_type = ?',
+    )
+      .bind(userId, 'text/plain')
+      .first()) as { total_size: number } | null;
+    expect(stats).toBeTruthy();
+    expect(stats!.total_size).toBe(900); // 1000 - 100 (file size from insertFile)
+  });
+
   // ─── 9.4 Multipart init → creates s3_multipart_uploads row ───
   it('POST /s3/:bucket/:key?uploads creates s3_multipart_uploads row and returns UploadId', async () => {
     const { userId } = await insertUserAndS3Cred('alice');
@@ -477,5 +505,42 @@ describe('S3 Protocol (integration)', () => {
     expect(file).toBeTruthy();
     expect(file!.google_file_id).toBe('gfile-new-123');
     expect(file!.workspace_id).toBe(wsId);
+  });
+
+  // ─── 9.5 CompleteMultipartUpload cross-bucket guard ───
+  it('POST /s3/:bucket/:key?uploadId rejects completion against a different bucket (400)', async () => {
+    const { userId } = await insertUserAndS3Cred('alice');
+    const wsA = await insertWorkspace(userId, 'bucket-a');
+    await insertWorkspace(userId, 'bucket-b');
+    await insertDrive(userId, 'drive-1', 'alice@gmail.com');
+
+    // Seed a multipart upload session that belongs to bucket-a (ws-a).
+    // The credential is unscoped (workspace_id = null), so findUploadScoped
+    // returns the upload even when the URL points at bucket-b — the cross-
+    // bucket guard must catch this.
+    await env.DB.prepare(
+      'INSERT INTO s3_multipart_uploads (upload_id, user_id, workspace_id, key, drive_account_id, temp_folder_id, created_at, content_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    )
+      .bind(
+        'upload-cross-bucket',
+        userId,
+        wsA,
+        'cross-bucket-file.bin',
+        'drive-1',
+        'temp-folder-1',
+        Date.now(),
+        'application/octet-stream',
+      )
+      .run();
+
+    const res = await signedRequest('POST', '/s3/bucket-b/cross-bucket-file.bin', {
+      queryParams: { uploadId: 'upload-cross-bucket' },
+      body: '<CompleteMultipartUpload><Part><PartNumber>1</PartNumber><ETag>"abc"</ETag></Part></CompleteMultipartUpload>',
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.text();
+    expect(body).toContain('InvalidRequest');
+    expect(body).toContain('does not belong to this bucket');
   });
 });
