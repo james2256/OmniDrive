@@ -54,6 +54,7 @@ ${rulesXml}
  * Files already trashed are skipped via is_trashed = 0.
  */
 export async function runLifecycleExpiration(env: Env): Promise<void> {
+  const MAX_LIFECYCLE_EXPIRES_PER_CYCLE = 15;
   const s3LifecycleRepo = new S3LifecycleRepository(env.DB);
   const fileRepo = new FileRepository(env.DB);
 
@@ -63,6 +64,7 @@ export async function runLifecycleExpiration(env: Env): Promise<void> {
 
   const driveService = createDriveService(env);
 
+  let expiredCount = 0;
   for (const rule of rules) {
     // Escape LIKE wildcards in the prefix (matches s3.ts ListObjectsV2 pattern).
     const escapedPrefix = rule.prefix.replace(/[%_^]/g, (ch) => '^' + ch) + '%';
@@ -73,18 +75,23 @@ export async function runLifecycleExpiration(env: Env): Promise<void> {
     );
 
     for (const file of expired ?? []) {
+      if (expiredCount >= MAX_LIFECYCLE_EXPIRES_PER_CYCLE) break;
       try {
         await driveService.trashFile(file.drive_account_id, file.google_file_id);
-        await fileRepo.markTrashedSystem(file.id);
-        // Update per-MIME storage stats (mirrors sync.ts and file.service.ts trashFile).
-        await fileRepo.applyStorageDeltas([
-          { userId: file.user_id, mimeType: file.mime_type ?? '', delta: -file.size },
+        // Atomic: mark trashed + apply storage delta in a single D1 batch.
+        // If the batch fails, is_trashed stays 0 → findExpiredFiles returns
+        // the file again on retry. Matches policy.service.ts:120 pattern.
+        await env.DB.batch([
+          fileRepo.markTrashedSystemStmt(file.id),
+          fileRepo.applyStorageDeltaStmt(file.user_id, file.mime_type ?? '', -file.size),
         ]);
+        expiredCount++;
       } catch (e) {
         // Best-effort: skip this file, keep processing the rest.
         logErrorNoCtx('Lifecycle expire failed for file', e, { fileId: file.id });
       }
     }
+    if (expiredCount >= MAX_LIFECYCLE_EXPIRES_PER_CYCLE) break;
   }
 }
 
@@ -100,6 +107,7 @@ export async function runLifecycleExpiration(env: Env): Promise<void> {
  * spanning >24h gets reaped; make it configurable if long-running uploads appear.
  */
 export async function cleanupOrphanMultipartUploads(env: Env): Promise<void> {
+  const MAX_ORPHAN_CLEANUPS_PER_CYCLE = 5;
   const s3LifecycleRepo = new S3LifecycleRepository(env.DB);
 
   const { results: orphans } = await s3LifecycleRepo.findOrphanUploads();
@@ -108,7 +116,9 @@ export async function cleanupOrphanMultipartUploads(env: Env): Promise<void> {
 
   const driveService = createDriveService(env);
 
+  let orphanCount = 0;
   for (const upload of orphans) {
+    if (orphanCount >= MAX_ORPHAN_CLEANUPS_PER_CYCLE) break;
     try {
       await driveService.deleteFile(upload.drive_account_id, upload.temp_folder_id);
     } catch (err) {
@@ -116,5 +126,6 @@ export async function cleanupOrphanMultipartUploads(env: Env): Promise<void> {
       logErrorNoCtx('Failed to delete orphan multipart temp folder from Google Drive', err);
     }
     await s3LifecycleRepo.deleteUpload(upload.upload_id);
+    orphanCount++;
   }
 }

@@ -101,7 +101,7 @@ drivesRouter.get('/:driveId/external-folders/:googleFolderId', async (c) => {
   const driveRow = await driveRepo.findFullByIdAndUser(driveId, userId);
   if (!driveRow) return c.json({ error: 'Drive not found' }, 404);
 
-  const drive = mapDriveRow(driveRow as Record<string, unknown>);
+  const drive = mapDriveRow(driveRow);
   const driveService = createDriveService(c.env);
   const { files: gFiles, folders: gFolders } = await driveService.listFolderContents(
     driveId,
@@ -125,9 +125,9 @@ drivesRouter.get('/:driveId/external-folders/:googleFolderId', async (c) => {
   const folderRow = await driveRepo.findDriveFolderByGoogleId(driveId, googleFolderId);
 
   return c.json({
-    folder: folderRow ? mapDriveFolderRow(folderRow as Record<string, unknown>) : null,
-    subfolders: newFolders.results.map((r) => mapDriveFolderRow(r as Record<string, unknown>)),
-    files: newFiles.results.map((r) => mapFileRow(r as Record<string, unknown>)),
+    folder: folderRow ? mapDriveFolderRow(folderRow) : null,
+    subfolders: newFolders.results.map((r) => mapDriveFolderRow(r)),
+    files: newFiles.results.map((r) => mapFileRow(r)),
     breadcrumb: breadcrumbPath.map((b) => ({ id: b.id, name: b.name })),
   });
 });
@@ -295,7 +295,7 @@ drivesRouter.post(
 
     const driveRow = await c.get('driveService').findById(driveId);
     if (driveRow) {
-      const driveObj = mapDriveRow(driveRow as Record<string, unknown>);
+      const driveObj = mapDriveRow(driveRow);
       const driveService = createDriveService(c.env);
       c.executionCtx.waitUntil(syncDriveAccount(driveObj, db, driveService));
     }
@@ -330,10 +330,10 @@ drivesRouter.get('/:driveId/folders/:googleFolderId', async (c) => {
 
   return c.json({
     folder: folder
-      ? mapDriveFolderRow(folder as Record<string, unknown>)
+      ? mapDriveFolderRow(folder)
       : { googleFolderId: 'root', name: 'My Drive', isSynced: true },
-    subfolders: subfolderResult.results.map((r) => mapDriveFolderRow(r as Record<string, unknown>)),
-    files: filesResult.results.map((r) => mapFileRow(r as Record<string, unknown>)),
+    subfolders: subfolderResult.results.map((r) => mapDriveFolderRow(r)),
+    files: filesResult.results.map((r) => mapFileRow(r)),
     breadcrumb,
   });
 });
@@ -349,7 +349,7 @@ drivesRouter.post('/:id/sync', async (c) => {
 
   if (!row) return c.json({ error: 'Drive not found' }, 404);
 
-  const drive = mapDriveRow(row as Record<string, unknown>);
+  const drive = mapDriveRow(row);
   const driveService = createDriveService(c.env);
 
   // Run the sync process in the background via c.executionCtx.waitUntil
@@ -377,14 +377,14 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/sync', async (c) => {
     const breadcrumb = await buildDriveBreadcrumb(c.env.DB, driveId, googleFolderId);
 
     return c.json({
-      folder: mapDriveFolderRow(folder as Record<string, unknown>),
-      subfolders: subfolders.results.map((r) => mapDriveFolderRow(r as Record<string, unknown>)),
-      files: files.results.map((r) => mapFileRow(r as Record<string, unknown>)),
+      folder: mapDriveFolderRow(folder),
+      subfolders: subfolders.results.map((r) => mapDriveFolderRow(r)),
+      files: files.results.map((r) => mapFileRow(r)),
       breadcrumb,
     });
   }
 
-  const drive = mapDriveRow(driveRow as Record<string, unknown>);
+  const drive = mapDriveRow(driveRow);
   const driveService = createDriveService(c.env);
   const effectiveFolderId = resolveGoogleFolderId(drive, googleFolderId);
   const { files: gFiles, folders: gFolders } = await driveService.listFolderContents(
@@ -405,9 +405,9 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/sync', async (c) => {
   const breadcrumb = await buildDriveBreadcrumb(c.env.DB, driveId, googleFolderId);
 
   return c.json({
-    folder: folder ? mapDriveFolderRow(folder as Record<string, unknown>) : null,
-    subfolders: newSubfolders.results.map((r) => mapDriveFolderRow(r as Record<string, unknown>)),
-    files: newFiles.results.map((r) => mapFileRow(r as Record<string, unknown>)),
+    folder: folder ? mapDriveFolderRow(folder) : null,
+    subfolders: newSubfolders.results.map((r) => mapDriveFolderRow(r)),
+    files: newFiles.results.map((r) => mapFileRow(r)),
     breadcrumb,
   });
 });
@@ -707,7 +707,7 @@ drivesRouter.get('/:driveId/folders/:googleFolderId/download-tree', async (c) =>
   const driveRow = await driveRepo.findFullByIdAndUser(driveId, userId);
   if (!driveRow) return c.json({ error: 'Drive not found' }, 404);
 
-  const drive = mapDriveRow(driveRow as Record<string, unknown>);
+  const drive = mapDriveRow(driveRow);
   const driveService = createDriveService(c.env);
 
   // Build a googleFileId → FileEntry map as we persist each folder's contents
@@ -729,7 +729,7 @@ drivesRouter.get('/:driveId/folders/:googleFolderId/download-tree', async (c) =>
       await batchUpsertFolderContents(db, drive, gFolders, gFiles, folderId);
       const fileRows = await driveRepo.findFilesByParent(driveId, folderId);
       for (const row of fileRows.results) {
-        const file = mapFileRow(row as Record<string, unknown>);
+        const file = mapFileRow(row);
         d1FilesByGoogleId.set(file.googleFileId, file);
       }
     },

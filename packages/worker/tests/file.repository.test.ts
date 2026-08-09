@@ -345,6 +345,22 @@ describe('FileRepository', () => {
     });
   });
 
+  describe('markTrashedSystemStmt', () => {
+    it('returns a prepared is_trashed=1 UPDATE with updated_at (not run), scoped by id only', () => {
+      const stmt = repo.markTrashedSystemStmt('f-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toBe(
+        'UPDATE files SET is_trashed = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      );
+      expect(mockBind).toHaveBeenCalledWith('f-1');
+      // Stmt-returning methods MUST NOT call .run() — the statement is handed
+      // to db.batch() for atomic composition by the lifecycle cron.
+      expect(mockRun).not.toHaveBeenCalled();
+      expect(stmt).toEqual({ all: mockAll, first: mockFirst, run: mockRun });
+    });
+  });
+
   describe('updateMetadata', () => {
     it('UPDATEs metadata, two binds (metadata, fileId), no user scope', async () => {
       await repo.updateMetadata('f-1', '{"author":"alice"}');

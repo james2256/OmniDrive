@@ -15,6 +15,16 @@ database_id = "85427fa6-e0ce-4642-92e6-52b638643ef4"
 binding = "KV"
 id = "f15360e6e6564f0cbec9d5678142abea"
 
+[[queues.producers]]
+queue = "sync-jobs"
+binding = "SYNC_QUEUE"
+
+[[queues.consumers]]
+queue = "sync-jobs"
+max_batch_size = 1
+max_concurrency = 1
+max_retries = 3
+
 [vars]
 FRONTEND_URL = "https://omnidrive-7w1.pages.dev"
 WORKER_URL = "https://omnidrive.rvdrive.workers.dev"

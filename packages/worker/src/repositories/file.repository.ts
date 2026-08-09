@@ -311,7 +311,7 @@ export class FileRepository {
     googleCreatedAt: string | null;
     googleModifiedAt: string | null;
     metadata: string;
-  }): Promise<unknown> {
+  }): Promise<FileRow | null> {
     await this.db
       .prepare(
         `
@@ -359,6 +359,17 @@ export class FileRepository {
       .prepare('UPDATE files SET is_trashed = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
       .bind(fileId)
       .run();
+  }
+
+  /**
+   * Return a prepared mark-trashed statement (not run) for batch composition.
+   * Mirrors `markTrashedSystem` SQL (including `updated_at`) so lifecycle-trashed
+   * files sort correctly in the Trash page (which orders by `updated_at DESC`).
+   */
+  markTrashedSystemStmt(fileId: string): D1PreparedStatement {
+    return this.db
+      .prepare('UPDATE files SET is_trashed = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+      .bind(fileId);
   }
 
   markUntrashed(fileId: string, userId: string) {

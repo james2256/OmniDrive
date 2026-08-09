@@ -35,7 +35,7 @@ export interface DbFile extends AutomationFile {
  * evaluateCondition still recomputes if empty, so this is a hint, not a source
  * of truth.
  */
-function toDbFile(row: FileRow): DbFile {
+export function toDbFile(row: FileRow): DbFile {
   const parts = row.name.split('.');
   const extension = parts.length > 1 ? (parts.pop() ?? '').toLowerCase() : '';
   return { ...row, extension };
@@ -110,6 +110,7 @@ export class AutomationEngine {
   }
 
   async processCronTrigger(ctx: ExecutionContext) {
+    const MAX_AUTOMATION_ACTIONS_PER_CYCLE = 5;
     const automationRepo = new AutomationRepository(this.env.DB);
     const fileRepo = new FileRepository(this.env.DB);
     const { results } = await automationRepo.findActiveCronRules();
@@ -125,6 +126,7 @@ export class AutomationEngine {
       }
     }
 
+    let actionCount = 0;
     for (const [userId, rules] of rulesByUser.entries()) {
       let cursor: { name: string; id: string } | null = null;
       let hasMore = true;
@@ -145,18 +147,22 @@ export class AutomationEngine {
           const dbFile = toDbFile(file);
           for (const rule of rules) {
             if (evaluateCondition(dbFile, rule.conditions)) {
+              if (actionCount >= MAX_AUTOMATION_ACTIONS_PER_CYCLE) break;
+              actionCount++;
               ctx.waitUntil(this.executeActions(rule.id, dbFile, rule.actions));
             }
           }
+          if (actionCount >= MAX_AUTOMATION_ACTIONS_PER_CYCLE) break;
         }
 
-        if (files.length < BATCH_SIZE) {
+        if (actionCount >= MAX_AUTOMATION_ACTIONS_PER_CYCLE || files.length < BATCH_SIZE) {
           hasMore = false;
         } else {
           const last = files[files.length - 1] as { name: string; id: string };
           cursor = { name: last.name, id: last.id };
         }
       }
+      if (actionCount >= MAX_AUTOMATION_ACTIONS_PER_CYCLE) break;
     }
   }
 

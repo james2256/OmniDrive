@@ -1,4 +1,3 @@
-import type { DbFile } from '../services/automation.service';
 import type { ExecutionContext } from '@cloudflare/workers-types';
 import { Hono } from 'hono';
 import type { AppContext } from '../types/context';
@@ -9,10 +8,10 @@ import { AppError, ConflictError, NotFoundError, ForbiddenError } from '../lib/e
 import { DriveRepository } from '../repositories/drive.repository';
 import { resolveDrivesWithQuota } from '../services/drive-quota';
 import { UploadRouter } from '../services/upload-router';
-import { AutomationEngine } from '../services/automation.service';
+import { AutomationEngine, toDbFile } from '../services/automation.service';
 import { PolicyService } from '../services/policy.service';
 import { logError } from '../lib/logger';
-import { mapFileRow } from '../types/db';
+import { mapFileRow, type FileRow } from '../types/db';
 import { zValidator } from '@hono/zod-validator';
 import {
   renameFileSchema,
@@ -417,7 +416,7 @@ filesRouter.post(
     const wsFolder = workspaceFolderId || null;
     const googleParent = parentFolderId || null;
 
-    let created: unknown;
+    let created: FileRow | null;
     try {
       created = await c.get('fileService').finalizeUpload(userId, {
         id,
@@ -448,18 +447,23 @@ filesRouter.post(
       throw err;
     }
 
+    // finalizeUpload INSERTs then re-SELECTs the row — null indicates a
+    // database consistency failure (INSERT succeeded but SELECT found nothing).
+    // Throw rather than silently produce a FileEntry full of undefined fields.
+    if (!created) throw new Error('finalizeUpload returned null — database consistency error');
+
     // Invalidate quota cache
     await c.get('driveService').deleteQuotaCache(driveAccountId);
 
     const engine = new AutomationEngine(c.env, createDriveService(c.env));
     c.executionCtx.waitUntil(
       engine.processEventTrigger(
-        { ...(created as Record<string, unknown>), user_id: userId } as DbFile,
+        { ...toDbFile(created), user_id: userId },
         c.executionCtx as unknown as ExecutionContext,
       ),
     );
 
-    return c.json({ file: mapFileRow(created as Record<string, unknown>) }, 201);
+    return c.json({ file: mapFileRow(created) }, 201);
   },
 );
 

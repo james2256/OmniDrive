@@ -120,7 +120,7 @@ export async function syncDriveFolder(
   const row = await driveRepo.findFullByIdAndUser(driveId, userId);
   if (!row) throw new NotFoundError('Drive not found');
 
-  const drive = mapDriveRow(row as Record<string, unknown>);
+  const drive = mapDriveRow(row);
   const driveService = createDriveService(env);
   await syncDriveAccount(drive, env.DB, driveService);
 }

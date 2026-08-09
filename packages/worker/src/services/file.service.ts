@@ -413,7 +413,7 @@ export class FileService {
       googleModifiedAt: string | null;
       metadata: string;
     },
-  ): Promise<unknown> {
+  ): Promise<FileRow | null> {
     const created = await this.fileRepo.insertUploaded({
       ...params,
       userId,

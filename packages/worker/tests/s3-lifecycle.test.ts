@@ -153,4 +153,22 @@ describe('cleanupOrphanMultipartUploads', () => {
     expect(deletes).toEqual([OLD.upload_id]);
     errSpy.mockRestore();
   });
+
+  it('respects MAX_ORPHAN_CLEANUPS_PER_CYCLE limit (5)', async () => {
+    // 10 orphans, but only 5 should be processed per cycle.
+    const orphans = Array.from({ length: 10 }, (_, i) => ({
+      upload_id: `up-${i}`,
+      drive_account_id: 'drive-1',
+      temp_folder_id: `folder-${i}`,
+    }));
+    const deleteSpy = vi
+      .spyOn(GoogleDriveService.prototype, 'deleteFile')
+      .mockResolvedValue(undefined);
+    const { env, deletes } = makeEnv(orphans);
+
+    await cleanupOrphanMultipartUploads(env);
+
+    expect(deleteSpy).toHaveBeenCalledTimes(5);
+    expect(deletes).toHaveLength(5);
+  });
 });

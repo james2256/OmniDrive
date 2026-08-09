@@ -201,7 +201,7 @@ export class WorkspaceService {
       policyType: params.policyType,
       config: JSON.stringify(params.config),
     });
-    return row ? mapWorkspacePolicyRow(row as Record<string, unknown>) : null;
+    return row ? mapWorkspacePolicyRow(row) : null;
   }
 
   /**

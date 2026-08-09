@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
 import { env } from 'cloudflare:workers';
 import { ensureSchema, clearAllTables } from './helpers';
 import worker from '../../src/index';
+import type { SyncJobMessage } from '../../src/types/env';
 
 declare module 'cloudflare:workers' {
   interface ProvidedEnv {
@@ -19,26 +20,26 @@ declare module 'cloudflare:workers' {
 // ─── vi.hoisted keeps mock references available inside vi.mock factories ───
 // vi.mock is hoisted above imports, so plain consts aren't in scope yet.
 const mocks = vi.hoisted(() => ({
-  // runScheduledSync iterates drive_accounts and calls Google Drive API —
-  // stub it so the cron handler runs against real D1 with no network calls.
-  runScheduledSync: vi.fn().mockResolvedValue(undefined),
   // AutomationEngine.processCronTrigger walks automation_rules and calls
   // Google Drive (trashFile for DELETE actions) — stub the whole class.
   processCronTrigger: vi.fn().mockResolvedValue(undefined),
+  // runLifecycleExpiration + cleanupOrphanMultipartUploads hit Google Drive API —
+  // stub them so the queue consumer's maintenance branch runs against real D1
+  // with no network calls.
+  runLifecycleExpiration: vi.fn().mockResolvedValue(undefined),
+  cleanupOrphanMultipartUploads: vi.fn().mockResolvedValue(undefined),
+  // syncDriveAccount hits Google Drive API (full delta/tree walk) — stub it
+  // so the queue consumer's sync branch runs without network calls.
+  syncDriveAccount: vi.fn().mockResolvedValue(undefined),
+  // PolicyService.processAutoDeleteRetentionPolicies trashes files via Google
+  // Drive API — stub the class so the maintenance branch runs clean.
+  processAutoDeleteRetentionPolicies: vi.fn().mockResolvedValue(undefined),
 }));
 
-// Mock only the two Google-API-hitting paths, preserving every other export so
+// Mock only the Google-API-hitting paths, preserving every other export so
 // the rest of the module graph (drives.ts / folders.ts importing syncDriveAccount
 // / syncDriveFolder; automations.ts importing IS_ACTIVE / IS_INACTIVE) still
 // resolves at module-load time.
-vi.mock('../../src/services/sync', async (importOriginal) => {
-  // importOriginal is typed by vitest to resolve to the real module's
-  // namespace, so no `typeof import()` cast is needed (and that form is
-  // banned by @typescript-eslint/consistent-type-imports).
-  const actual = await importOriginal();
-  return { ...actual, runScheduledSync: mocks.runScheduledSync };
-});
-
 vi.mock('../../src/services/automation.service', async (importOriginal) => {
   const actual = await importOriginal();
   return {
@@ -53,10 +54,52 @@ vi.mock('../../src/services/automation.service', async (importOriginal) => {
   };
 });
 
-// `scheduled` is optional on ExportedHandler — assert it exists (index.ts
-// always exports it) so the call site stays type-safe.
-const { scheduled } = worker;
+vi.mock('../../src/services/s3-lifecycle', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    runLifecycleExpiration: mocks.runLifecycleExpiration,
+    cleanupOrphanMultipartUploads: mocks.cleanupOrphanMultipartUploads,
+  };
+});
+
+vi.mock('../../src/services/sync', async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, syncDriveAccount: mocks.syncDriveAccount };
+});
+
+vi.mock('../../src/services/policy.service', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    // `new PolicyService(env.DB, driveService)` constructs this. mockImplementation
+    // must be a regular function (not arrow) so `new` can invoke it as a
+    // constructor (matches the AutomationEngine mock pattern above).
+    PolicyService: vi.fn().mockImplementation(function () {
+      return { processAutoDeleteRetentionPolicies: mocks.processAutoDeleteRetentionPolicies };
+    }),
+  };
+});
+
+// `scheduled` and `queue` are optional on ExportedHandler — assert they exist.
+const { scheduled, queue } = worker;
 if (!scheduled) throw new Error('worker.scheduled is not exported');
+if (!queue) throw new Error('worker.queue is not exported');
+
+// Build mock env with SYNC_QUEUE — the cron handler dispatches all heavy work
+// to the queue, so the mock must be present. The queue consumer itself never
+// touches SYNC_QUEUE, but Env requires it; reusing the same factory keeps both
+// handler test suites consistent.
+function makeMockEnv() {
+  return {
+    ...env,
+    SYNC_QUEUE: {
+      send: vi.fn(async (_msg: unknown) => undefined),
+      sendBatch: vi.fn(async () => undefined),
+      metrics: vi.fn(async () => ({ backlogCount: 0, backlogBytes: 0 })),
+    },
+  } as any;
+}
 
 describe('Scheduled cron handler (integration)', () => {
   beforeAll(async () => {
@@ -65,8 +108,24 @@ describe('Scheduled cron handler (integration)', () => {
 
   beforeEach(async () => {
     await clearAllTables(env.DB);
-    mocks.runScheduledSync.mockClear();
     mocks.processCronTrigger.mockClear();
+    mocks.runLifecycleExpiration.mockClear();
+    mocks.cleanupOrphanMultipartUploads.mockClear();
+    mocks.syncDriveAccount.mockClear();
+    mocks.processAutoDeleteRetentionPolicies.mockClear();
+  });
+
+  // vitest-pool-workers runs inside a Cloudflare Worker and sends mock state
+  // back to the Node runner via structured clone. D1Database (stored as a call
+  // arg when the handler passes env.DB to mocked services) can't be cloned —
+  // clearing mock state in afterEach (not just beforeEach) ensures no
+  // non-serializable args remain when vitest serializes the test result.
+  afterEach(() => {
+    mocks.processCronTrigger.mockClear();
+    mocks.runLifecycleExpiration.mockClear();
+    mocks.cleanupOrphanMultipartUploads.mockClear();
+    mocks.syncDriveAccount.mockClear();
+    mocks.processAutoDeleteRetentionPolicies.mockClear();
   });
 
   // Minimal ScheduledController + ExecutionContext. The handler ignores
@@ -78,27 +137,30 @@ describe('Scheduled cron handler (integration)', () => {
   } as unknown as ScheduledController;
   const ctx = { waitUntil: vi.fn() } as unknown as ExecutionContext;
 
-  it('runs all heavy operations in sequence and returns', async () => {
+  it('dispatches drive sync + maintenance via sendBatch, then runs D1 cleanup', async () => {
     await env.DB.prepare(
       'INSERT INTO users (id, username, password_hash, is_super_admin) VALUES (?, ?, ?, ?)',
     )
       .bind('cron-user', 'cronuser', '$2a$10$dummy', 1)
       .run();
-    // type='other' keeps this row out of runScheduledSync's
-    // `WHERE type IN ('oauth','service_account')` filter — a belt-and-suspenders
-    // guard in case the mock is ever removed.
     await env.DB.prepare(
       'INSERT INTO drive_accounts (id, user_id, email, type) VALUES (?, ?, ?, ?)',
     )
-      .bind('cron-drive', 'cron-user', 'cron@example.com', 'other')
+      .bind('cron-drive', 'cron-user', 'cron@example.com', 'oauth')
       .run();
 
-    await scheduled(scheduledController, env, ctx);
+    const mockEnv = makeMockEnv();
 
-    expect(mocks.runScheduledSync).toHaveBeenCalledTimes(1);
-    expect(mocks.runScheduledSync).toHaveBeenCalledWith(env);
-    expect(mocks.processCronTrigger).toHaveBeenCalledTimes(1);
-    expect(mocks.processCronTrigger).toHaveBeenCalledWith(ctx);
+    await scheduled(scheduledController, mockEnv, ctx);
+
+    // 1 sendBatch call with 2 messages (1 sync + 1 maintenance) — a single
+    // Queues API subrequest regardless of drive count.
+    expect(mockEnv.SYNC_QUEUE.sendBatch).toHaveBeenCalledTimes(1);
+    expect(mockEnv.SYNC_QUEUE.sendBatch).toHaveBeenCalledWith([
+      { body: { type: 'sync', driveId: 'cron-drive' } },
+      { body: { type: 'maintenance' } },
+    ]);
+    expect(mockEnv.SYNC_QUEUE.send).not.toHaveBeenCalled();
   });
 
   it('deletes expired sessions and keeps valid ones', async () => {
@@ -120,7 +182,7 @@ describe('Scheduled cron handler (integration)', () => {
       .bind('sess-valid', 'cron-user-sess', '{}', now + 7 * 24 * 60 * 60 * 1000, now)
       .run();
 
-    await scheduled(scheduledController, env, ctx);
+    await scheduled(scheduledController, makeMockEnv(), ctx);
 
     const expired = await env.DB.prepare('SELECT id FROM sessions WHERE id = ?')
       .bind('sess-expired')
@@ -148,7 +210,7 @@ describe('Scheduled cron handler (integration)', () => {
       .bind('state-fresh', 'verifier', 'u1', now)
       .run();
 
-    await scheduled(scheduledController, env, ctx);
+    await scheduled(scheduledController, makeMockEnv(), ctx);
 
     const stale = await env.DB.prepare('SELECT state FROM oauth_states WHERE state = ?')
       .bind('state-stale')
@@ -191,7 +253,7 @@ describe('Scheduled cron handler (integration)', () => {
       .bind('cron-drive-fresh', '{"f":1}', now)
       .run();
 
-    await scheduled(scheduledController, env, ctx);
+    await scheduled(scheduledController, makeMockEnv(), ctx);
 
     const stale = await env.DB.prepare('SELECT payload FROM quota_cache WHERE drive_account_id = ?')
       .bind('cron-drive-stale')
@@ -232,7 +294,7 @@ describe('Scheduled cron handler (integration)', () => {
       .bind('audit-fresh', null, 'cron-user-a', 'test.action')
       .run();
 
-    await scheduled(scheduledController, env, ctx);
+    await scheduled(scheduledController, makeMockEnv(), ctx);
 
     const old = await env.DB.prepare('SELECT id FROM audit_logs WHERE id = ?')
       .bind('audit-old')
@@ -246,8 +308,130 @@ describe('Scheduled cron handler (integration)', () => {
   });
 
   it('does not throw when D1 tables are empty (no-op cleanups)', async () => {
-    await expect(scheduled(scheduledController, env, ctx)).resolves.toBeUndefined();
-    expect(mocks.runScheduledSync).toHaveBeenCalledTimes(1);
+    await expect(scheduled(scheduledController, makeMockEnv(), ctx)).resolves.toBeUndefined();
+  });
+});
+
+describe('Queue consumer (integration)', () => {
+  // The queue consumer reads env.DB directly and constructs a driveService
+  // via createDriveService — it never touches env.SYNC_QUEUE. All
+  // Google-API-hitting services are mocked at module level (syncDriveAccount,
+  // runLifecycleExpiration, cleanupOrphanMultipartUploads, AutomationEngine,
+  // PolicyService) so the consumer runs against real D1 with no network calls.
+
+  beforeAll(async () => {
+    await ensureSchema(env.DB);
+  });
+
+  beforeEach(async () => {
+    await clearAllTables(env.DB);
+    mocks.syncDriveAccount.mockClear();
+    mocks.runLifecycleExpiration.mockClear();
+    mocks.cleanupOrphanMultipartUploads.mockClear();
+    mocks.processCronTrigger.mockClear();
+    mocks.processAutoDeleteRetentionPolicies.mockClear();
+  });
+
+  // Same rationale as the scheduled describe: clear mock state before
+  // vitest-pool-workers serializes the test result across the Worker→Node
+  // boundary (env.DB / driveService in mock.calls can't be structured-cloned).
+  afterEach(() => {
+    mocks.syncDriveAccount.mockClear();
+    mocks.runLifecycleExpiration.mockClear();
+    mocks.cleanupOrphanMultipartUploads.mockClear();
+    mocks.processCronTrigger.mockClear();
+    mocks.processAutoDeleteRetentionPolicies.mockClear();
+  });
+
+  const ctx = { waitUntil: vi.fn() } as unknown as ExecutionContext;
+
+  // Minimal Message<SyncJobMessage> — only body/ack/retry are exercised by
+  // the handler; id/timestamp are required by the type but ignored.
+  function makeMessage(body: SyncJobMessage) {
+    return {
+      body,
+      id: `msg-${Math.random().toString(36).slice(2)}`,
+      timestamp: Date.now(),
+      ack: vi.fn(),
+      retry: vi.fn(),
+    } as unknown as Message<SyncJobMessage>;
+  }
+
+  function makeBatch(messages: Message<SyncJobMessage>[]) {
+    return {
+      messages,
+      queue: 'sync-jobs',
+      ackAll: vi.fn(),
+      retryAll: vi.fn(),
+    } as unknown as MessageBatch<SyncJobMessage>;
+  }
+
+  async function insertDrive(id: string, userId: string, email: string) {
+    await env.DB.prepare('INSERT INTO users (id, username, password_hash) VALUES (?, ?, ?)')
+      .bind(userId, userId.replace(/-/g, ''), '$2a$10$dummy')
+      .run();
+    await env.DB.prepare(
+      'INSERT INTO drive_accounts (id, user_id, email, type) VALUES (?, ?, ?, ?)',
+    )
+      .bind(id, userId, email, 'oauth')
+      .run();
+  }
+
+  it('sync message: looks up the drive, calls syncDriveAccount, and acks', async () => {
+    await insertDrive('queue-drive', 'queue-user', 'queue@example.com');
+
+    const msg = makeMessage({ type: 'sync', driveId: 'queue-drive' });
+
+    await queue(makeBatch([msg]), makeMockEnv(), ctx);
+
+    expect(mocks.syncDriveAccount).toHaveBeenCalledTimes(1);
+    // Args 2 (env.DB) and 3 (driveService) are non-serializable Cloudflare
+    // bindings — assert via anything() to avoid passing them as expected
+    // values (which would trigger chai.inspect on a D1Database).
+    expect(mocks.syncDriveAccount).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'queue-drive' }),
+      expect.anything(),
+      expect.anything(),
+    );
+    expect(msg.ack).toHaveBeenCalledTimes(1);
+    expect(msg.retry).not.toHaveBeenCalled();
+  });
+
+  it('sync message for a drive deleted between enqueue and consume: acks without calling syncDriveAccount', async () => {
+    // findById returns null → handler skips syncDriveAccount and still acks
+    // (the job is done; there is nothing left to sync).
+    const msg = makeMessage({ type: 'sync', driveId: 'gone' });
+
+    await queue(makeBatch([msg]), makeMockEnv(), ctx);
+
+    expect(mocks.syncDriveAccount).not.toHaveBeenCalled();
+    expect(msg.ack).toHaveBeenCalledTimes(1);
+    expect(msg.retry).not.toHaveBeenCalled();
+  });
+
+  it('maintenance message: runs lifecycle + orphans + automations + retention, then acks', async () => {
+    const msg = makeMessage({ type: 'maintenance' });
+
+    await queue(makeBatch([msg]), makeMockEnv(), ctx);
+
+    expect(mocks.runLifecycleExpiration).toHaveBeenCalledTimes(1);
+    expect(mocks.cleanupOrphanMultipartUploads).toHaveBeenCalledTimes(1);
     expect(mocks.processCronTrigger).toHaveBeenCalledTimes(1);
+    expect(mocks.processAutoDeleteRetentionPolicies).toHaveBeenCalledTimes(1);
+    expect(msg.ack).toHaveBeenCalledTimes(1);
+    expect(msg.retry).not.toHaveBeenCalled();
+  });
+
+  it('retries (does not ack) when syncDriveAccount throws', async () => {
+    await insertDrive('queue-drive-err', 'queue-user-err', 'queueerr@example.com');
+
+    mocks.syncDriveAccount.mockRejectedValueOnce(new Error('Google API down'));
+
+    const msg = makeMessage({ type: 'sync', driveId: 'queue-drive-err' });
+
+    await queue(makeBatch([msg]), makeMockEnv(), ctx);
+
+    expect(msg.retry).toHaveBeenCalledTimes(1);
+    expect(msg.ack).not.toHaveBeenCalled();
   });
 });

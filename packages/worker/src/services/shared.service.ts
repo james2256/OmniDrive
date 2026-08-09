@@ -92,7 +92,7 @@ export class SharedService {
   /** List all shared links for a user. */
   async listLinks(userId: string): Promise<SharedLink[]> {
     const { results } = await this.sharedRepo.findAllByUserWithTargetName(userId);
-    return results.map((r) => mapSharedLinkRow(r as Record<string, unknown>));
+    return results.map((r) => mapSharedLinkRow(r));
   }
 
   /**

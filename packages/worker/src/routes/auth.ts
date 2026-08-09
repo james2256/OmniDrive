@@ -297,7 +297,7 @@ authRouter.get('/callback', async (c) => {
     .bind(driveId)
     .first();
   if (driveRow) {
-    const driveObj = mapDriveRow(driveRow as Record<string, unknown>);
+    const driveObj = mapDriveRow(driveRow);
     const driveService = createDriveService(c.env);
     c.executionCtx.waitUntil(syncDriveAccount(driveObj, db, driveService));
   }

@@ -1,6 +1,12 @@
+export interface SyncJobMessage {
+  type: 'sync' | 'maintenance';
+  driveId?: string;
+}
+
 export interface Env {
   DB: D1Database;
   KV: KVNamespace;
+  SYNC_QUEUE: Queue<SyncJobMessage>;
   GOOGLE_CLIENT_ID: string;
   GOOGLE_CLIENT_SECRET: string;
   FRONTEND_URL: string;

@@ -349,7 +349,7 @@ export class WorkspaceRepository {
     targetId: string | null;
     policyType: string;
     config: string;
-  }): Promise<unknown> {
+  }): Promise<WorkspacePolicyRow | null> {
     const policyId = generateId();
     await this.db
       .prepare(
