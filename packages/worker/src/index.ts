@@ -11,7 +11,7 @@ import { requestId } from './middleware/request-id';
 import { sharedServices } from './middleware/shared-services';
 import { validateEnv } from './lib/env';
 import { xmlError } from './lib/s3-xml';
-import { logError, logErrorNoCtx } from './lib/logger';
+import { log, logError, logErrorNoCtx } from './lib/logger';
 import { syncDriveAccount } from './services/sync';
 import { runLifecycleExpiration, cleanupOrphanMultipartUploads } from './services/s3-lifecycle';
 import { AuditRepository } from './repositories/audit.repository';
@@ -48,7 +48,13 @@ app.onError((err, c) => {
   const message = isAppError ? err.message : 'Internal server error';
 
   if (status >= 500) {
-    logError(c, 'Unhandled server error', err, { errorClass: err.constructor.name });
+    logError(c, 'Unhandled server error', err);
+  } else if (status >= 400) {
+    // 4xx AppErrors are application-thrown (generic 404s don't reach onError —
+    // Hono returns them before this handler). Log at warn to distinguish from
+    // 5xx bugs while keeping them diagnosable. The stack trace identifies which
+    // of the 115 throw sites fired. errorClass is auto-extracted by log().
+    log(c, 'warn', 'Client error', { status }, err);
   }
 
   if (c.req.path.startsWith('/s3')) {

@@ -1,0 +1,22 @@
+-- Covering index for findDriveFoldersByParent (drive.repository.ts:554) and
+-- 3 sibling queries (findDriveFolderByParentAndName line 605,
+-- findDriveFoldersByParentAndNames line 628) that filter on
+-- (drive_account_id, is_trashed, google_parent_id) and sort by name.
+--
+-- Before this index, SQLite picked idx_drive_folders_drive_trashed_created
+-- (added in 0018) for these queries — it matches (drive_account_id, is_trashed)
+-- but not google_parent_id, so it scans ALL non-trashed folders per drive and
+-- filters google_parent_id in memory. Grafana showed 38.1k rows read to return
+-- ~168 (227:1 ratio) — 59% of D1 runtime.
+--
+-- The new index covers all 4 WHERE filters + the ORDER BY, so SQLite seeks
+-- directly to (drive, is_trashed=0, parent_id) and reads rows already sorted
+-- by name. Expected: ~10 rows read for root browse (was ~2,384).
+--
+-- Does NOT replace:
+-- - idx_drive_folders_parent (drive_account_id, google_parent_id) — still needed
+--   by findBreadcrumbPath CTE which has no is_trashed filter
+-- - idx_drive_folders_drive_trashed_created (drive_account_id, is_trashed,
+--   created_at DESC) — serves findTrashedDriveFolders which sorts by created_at
+CREATE INDEX IF NOT EXISTS idx_drive_folders_drive_trashed_parent_name
+  ON drive_folders(drive_account_id, is_trashed, google_parent_id, name);
