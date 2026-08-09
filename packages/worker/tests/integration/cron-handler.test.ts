@@ -29,8 +29,9 @@ const mocks = vi.hoisted(() => ({
   runLifecycleExpiration: vi.fn().mockResolvedValue(undefined),
   cleanupOrphanMultipartUploads: vi.fn().mockResolvedValue(undefined),
   // syncDriveAccount hits Google Drive API (full delta/tree walk) — stub it
-  // so the queue consumer's sync branch runs without network calls.
-  syncDriveAccount: vi.fn().mockResolvedValue(undefined),
+  // so the queue consumer's sync branch runs without network calls. Returns
+  // true (completed) by default — the queue consumer re-enqueues only on false.
+  syncDriveAccount: vi.fn().mockResolvedValue(true),
   // PolicyService.processAutoDeleteRetentionPolicies trashes files via Google
   // Drive API — stub the class so the maintenance branch runs clean.
   processAutoDeleteRetentionPolicies: vi.fn().mockResolvedValue(undefined),
@@ -382,7 +383,8 @@ describe('Queue consumer (integration)', () => {
 
     const msg = makeMessage({ type: 'sync', driveId: 'queue-drive' });
 
-    await queue(makeBatch([msg]), makeMockEnv(), ctx);
+    const mockEnv = makeMockEnv();
+    await queue(makeBatch([msg]), mockEnv, ctx);
 
     expect(mocks.syncDriveAccount).toHaveBeenCalledTimes(1);
     // Args 2 (env.DB) and 3 (driveService) are non-serializable Cloudflare
@@ -393,6 +395,27 @@ describe('Queue consumer (integration)', () => {
       expect.anything(),
       expect.anything(),
     );
+    expect(msg.ack).toHaveBeenCalledTimes(1);
+    expect(msg.retry).not.toHaveBeenCalled();
+    // syncDriveAccount returned true (completed) — no re-enqueue
+    expect(mockEnv.SYNC_QUEUE.send).not.toHaveBeenCalled();
+  });
+
+  it('re-enqueues sync message when syncDriveAccount pauses (returns false)', async () => {
+    await insertDrive('queue-drive-paused', 'queue-user-paused', 'paused@example.com');
+    mocks.syncDriveAccount.mockResolvedValueOnce(false); // paused
+
+    const msg = makeMessage({ type: 'sync', driveId: 'queue-drive-paused' });
+    const mockEnv = makeMockEnv();
+
+    await queue(makeBatch([msg]), mockEnv, ctx);
+
+    expect(mocks.syncDriveAccount).toHaveBeenCalledTimes(1);
+    expect(mockEnv.SYNC_QUEUE.send).toHaveBeenCalledTimes(1);
+    expect(mockEnv.SYNC_QUEUE.send).toHaveBeenCalledWith({
+      type: 'sync',
+      driveId: 'queue-drive-paused',
+    });
     expect(msg.ack).toHaveBeenCalledTimes(1);
     expect(msg.retry).not.toHaveBeenCalled();
   });

@@ -25,10 +25,12 @@ export class SyncStateRepository {
    * Uses `.first()` (not `.run()`) so the RETURNING result is readable.
    */
   acquireLock(driveId: string) {
-    // Re-acquire if the lock is stale (status='syncing' AND locked_at > 30min ago).
+    // Re-acquire if the lock is stale (status='syncing' AND locked_at > 20min ago).
     // This prevents permanently stuck syncs when a Worker is killed mid-sync
-    // (CPU limit, deploy, crash). 30min is generous — sync runs every 5min via cron.
-    const STALE_LOCK_MS = 30 * 60 * 1000;
+    // (CPU limit, deploy, crash). 20min is 5min over the 15-min wall-time limit
+    // for cron/queue consumers (verified from Cloudflare docs), so a legitimate
+    // sync can never have its lock stolen.
+    const STALE_LOCK_MS = 20 * 60 * 1000;
     return this.db
       .prepare(
         `INSERT INTO sync_state (drive_account_id, status, locked_at) VALUES (?, 'syncing', datetime('now'))

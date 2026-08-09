@@ -12,7 +12,6 @@ interface DriveAccountCardProps {
   onSync: (id: string) => Promise<void>;
   onDisconnect: (id: string) => Promise<void>;
   onReconnect?: () => void;
-  isSyncingOverride?: boolean;
 }
 
 export function DriveAccountCard({
@@ -21,15 +20,14 @@ export function DriveAccountCard({
   onSync,
   onDisconnect,
   onReconnect,
-  isSyncingOverride,
 }: DriveAccountCardProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const color = getDriveColor(index);
 
-  // Parent owns the syncing state (persists for the full sync duration).
-  // drive.syncStatus covers syncs started by the cron or reconnect flow.
-  const isSyncing = isSyncingOverride || drive.syncStatus === 'syncing';
+  // ADR-0004: drive.syncStatus (from D1 via the API) is the single source of
+  // truth. No optimistic isSyncingOverride — the UI reflects reality.
+  const isSyncing = drive.syncStatus === 'syncing';
   // Token-refresh failure is permanent — Google revoked the refresh token.
   // Sync will always fail until the user reconnects (new OAuth flow).
   const needsReconnect =
@@ -108,6 +106,14 @@ export function DriveAccountCard({
               )}
               {drive.syncStatus === 'syncing' && (
                 <span className="ml-1.5 text-primary font-medium">· syncing</span>
+              )}
+              {drive.syncStatus === 'idle' && drive.syncPaused && !drive.lastSyncedAt && (
+                <span
+                  className="ml-1.5 text-amber-600 font-medium"
+                  title="Initial sync in progress — will resume shortly"
+                >
+                  · syncing (paused)
+                </span>
               )}
             </div>
             {drive.lastSyncedAt && (

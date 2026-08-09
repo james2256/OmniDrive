@@ -216,18 +216,28 @@ describe('DriveAccountCard', () => {
     expect(screen.getByRole('button', { name: /Syncing/ }).hasAttribute('disabled')).toBe(true);
   });
 
-  it('disables the Sync button while isSyncingOverride is true', () => {
-    render(
-      <DriveAccountCard
-        drive={baseDrive}
-        index={0}
-        onSync={vi.fn()}
-        onDisconnect={vi.fn()}
-        isSyncingOverride
-      />,
-    );
+  it('renders "syncing (paused)" badge during paused initial sync', () => {
+    const drive: DriveAccount = {
+      ...baseDrive,
+      syncStatus: 'idle',
+      syncPaused: true,
+      lastSyncedAt: null,
+    };
+    render(<DriveAccountCard drive={drive} index={0} onSync={vi.fn()} onDisconnect={vi.fn()} />);
 
-    expect(screen.getByRole('button', { name: /Syncing/ }).hasAttribute('disabled')).toBe(true);
+    expect(screen.getByText(/syncing \(paused\)/)).toBeTruthy();
+  });
+
+  it('does NOT render "syncing (paused)" badge when initial sync completed (lastSyncedAt set)', () => {
+    const drive: DriveAccount = {
+      ...baseDrive,
+      syncStatus: 'idle',
+      syncPaused: true,
+      lastSyncedAt: '2026-08-09T16:05:00Z',
+    };
+    render(<DriveAccountCard drive={drive} index={0} onSync={vi.fn()} onDisconnect={vi.fn()} />);
+
+    expect(screen.queryByText(/syncing \(paused\)/)).toBeNull();
   });
 
   it('renders the "Reconnect" button instead of Sync when needsReconnect (auth_expired + Token refresh)', () => {

@@ -174,7 +174,15 @@ export default {
           const driveRow = await new DriveRepository(env.DB).findById(message.body.driveId);
           if (driveRow) {
             const drive = mapDriveRow(driveRow);
-            await syncDriveAccount(drive, env.DB, driveService);
+            const completed = await syncDriveAccount(drive, env.DB, driveService);
+            if (!completed) {
+              // Initial sync paused (45-page subrequest budget hit) with
+              // next_page_token saved. Re-enqueue to resume in a fresh
+              // invocation with a fresh 50-subrequest budget — lets a
+              // 200K-file drive complete in ~5 invocations (~15 min)
+              // instead of waiting 30 min/cycle between resumptions.
+              await env.SYNC_QUEUE.send({ type: 'sync' as const, driveId: drive.id });
+            }
           }
         } else if (message.body.type === 'maintenance') {
           await runLifecycleExpiration(env);

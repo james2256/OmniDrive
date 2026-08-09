@@ -21,43 +21,30 @@ export function SettingsDrivesTab() {
   const [saCredentials, setSaCredentials] = useState('');
   const [saFolderId, setSaFolderId] = useState('');
 
-  // Sync UX state (Proposals 2 + 3): parent owns the syncing state so it
-  // persists across re-renders (the card's local state reset instantly when
-  // the POST resolved). syncingDriveId keeps the button disabled + spinner
-  // visible for the full sync duration. recentlySynced triggers unconditional
-  // polling to close the race window before the backend sets status='syncing'.
-  const [syncingDriveId, setSyncingDriveId] = useState<string | null>(null);
-  const [recentlySynced, setRecentlySynced] = useState<string | null>(null);
+  // ADR-0004: pessimistic mutations — drive.syncStatus (from D1 via the API)
+  // is the single source of truth for the sync button state. No local
+  // syncingDriveId/recentlySynced override state (the previous optimistic UI
+  // got stuck when the component unmounted mid-sync).
 
-  // Poll while any drive is syncing OR a sync was recently clicked.
-  // The recentlySynced condition closes the race window where the backend
-  // hasn't set syncStatus='syncing' yet (~500ms after the POST resolves).
+  // Poll while any drive is actively syncing OR has a paused initial sync.
+  // syncPaused = next_page_token IS NOT NULL (initial sync in progress).
+  // !lastSyncedAt = initial sync hasn't completed yet.
   useEffect(() => {
-    const hasSyncing = drives.some((d) => d.syncStatus === 'syncing');
-    if (!hasSyncing && !recentlySynced) return;
+    const hasActiveSync = drives.some(
+      (d) => d.syncStatus === 'syncing' || (d.syncPaused && !d.lastSyncedAt),
+    );
+    if (!hasActiveSync) return;
 
     const interval = setInterval(() => {
       queryClient.invalidateQueries({ queryKey: qk.drives });
-    }, 3000);
+    }, 5000);
 
     return () => clearInterval(interval);
-  }, [drives, recentlySynced, queryClient]);
+  }, [drives, queryClient]);
 
-  // Timeout guard (separate effect so it fires exactly once, 60s after
-  // recentlySynced is set — not reset every 3s when `drives` changes).
-  // If the sync never starts (race/stuck), this clears the spinner.
-  useEffect(() => {
-    if (!recentlySynced) return;
-    const timeout = setTimeout(() => {
-      setRecentlySynced(null);
-      setSyncingDriveId(null);
-    }, 60000);
-    return () => clearTimeout(timeout);
-  }, [recentlySynced]);
-
-  // Transition tracker (Proposal 4): detect syncing → idle/error transitions
-  // to show completion/failure toasts. Closes the feedback loop — the user
-  // no longer has to notice the "Last synced" timestamp change.
+  // Transition tracker: detect syncing → idle/error transitions to show
+  // completion/failure toasts. Closes the feedback loop — the user no longer
+  // has to notice the "Last synced" timestamp change.
   const prevSyncStatus = useRef<Record<string, string>>({});
   useEffect(() => {
     for (const drive of drives) {
@@ -65,12 +52,8 @@ export function SettingsDrivesTab() {
       const current = drive.syncStatus ?? 'idle';
       if (prev === 'syncing' && current === 'idle') {
         addToast('success', `Sync complete: ${drive.email}`);
-        setSyncingDriveId(null);
-        setRecentlySynced(null);
       } else if (prev === 'syncing' && current === 'error') {
         addToast('error', `Sync failed: ${drive.email}`);
-        setSyncingDriveId(null);
-        setRecentlySynced(null);
       }
       prevSyncStatus.current[drive.id] = current;
     }
@@ -89,14 +72,16 @@ export function SettingsDrivesTab() {
   };
 
   const handleSync = async (id: string) => {
-    setSyncingDriveId(id);
-    setRecentlySynced(id);
     addToast('info', 'Syncing... this may take several cycles for large drives');
     try {
       await triggerSyncMutation.mutateAsync(id);
+      // Pessimistic (ADR-0004): POST returned 204 (sync started in background
+      // via waitUntil). Refetch to pick up syncStatus='syncing' — and again
+      // after 1s to catch the race where acquireLock hasn't run yet (~500ms
+      // after the POST resolves).
+      queryClient.invalidateQueries({ queryKey: qk.drives });
+      setTimeout(() => queryClient.invalidateQueries({ queryKey: qk.drives }), 1000);
     } catch {
-      setSyncingDriveId(null);
-      setRecentlySynced(null);
       addToast('error', 'Failed to start sync');
     }
   };
@@ -151,7 +136,6 @@ export function SettingsDrivesTab() {
               onSync={handleSync}
               onDisconnect={handleDisconnect}
               onReconnect={handleReconnect}
-              isSyncingOverride={syncingDriveId === drive.id}
             />
           ))}
           {drives.length === 0 && (

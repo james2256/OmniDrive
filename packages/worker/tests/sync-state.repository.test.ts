@@ -49,7 +49,7 @@ describe('SyncStateRepository', () => {
       expect(sql).toContain('WHERE sync_state.status !=');
       expect(sql).toContain('julianday'); // stale-lock TTL check
       expect(sql).toContain('RETURNING drive_account_id');
-      expect(mockBind).toHaveBeenCalledWith('d-1', 30 * 60 * 1000);
+      expect(mockBind).toHaveBeenCalledWith('d-1', 20 * 60 * 1000);
       // MUST use .first() so the RETURNING result is readable — .run() would
       // make the lock appear in sync.test.ts's runCalls (breaking assertions).
       expect(mockFirst).toHaveBeenCalledTimes(1);

@@ -129,12 +129,12 @@ export async function syncDriveAccount(
   drive: DriveAccount,
   db: D1Database,
   driveService: DriveProvider,
-): Promise<void> {
+): Promise<boolean> {
   const syncStateRepo = new SyncStateRepository(db);
   // Cross-isolate lock: INSERT if no row, UPDATE only if not already syncing.
   // If RETURNING returns null, another isolate (or direct caller) is syncing.
   const lockAcquired = await syncStateRepo.acquireLock(drive.id);
-  if (!lockAcquired) return; // already syncing — another isolate or direct caller
+  if (!lockAcquired) return true; // already syncing — treat as completed
 
   try {
     const syncState = await syncStateRepo.findSyncState(drive.id);
@@ -154,7 +154,7 @@ export async function syncDriveAccount(
         // saved per-page by performInitialSync, so the next cron cycle resumes from there.
         // Mark 'idle' (not 'error') so the UI doesn't show a false failure.
         await syncStateRepo.setIdle(drive.id);
-        return;
+        return false; // paused — caller (queue consumer) should re-enqueue to resume
       }
       changeToken = await driveService.getStartPageToken(drive.id);
     } else {
@@ -168,6 +168,7 @@ export async function syncDriveAccount(
     } catch {
       // Non-fatal
     }
+    return true; // completed — don't re-enqueue
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     logErrorNoCtx('Sync failed for drive', undefined, {
@@ -177,6 +178,7 @@ export async function syncDriveAccount(
     });
 
     await syncStateRepo.upsertError(drive.id, message);
+    return true; // error — treat as completed, don't re-enqueue (Queues max_retries handles retries)
   }
 }
 
