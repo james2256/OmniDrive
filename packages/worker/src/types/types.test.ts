@@ -28,6 +28,7 @@ describe('types/ sub-modules', () => {
         webContentLink: null,
         isTrashed: false,
         isStarred: false,
+        ownedByMe: true,
         metadata: '{}',
         googleCreatedAt: null,
         googleModifiedAt: null,

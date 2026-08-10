@@ -86,6 +86,7 @@ export function mapFileRow(row: Record<string, unknown>): FileEntry {
     webContentLink: (row.web_content_link as string) ?? null,
     isTrashed: row.is_trashed === 1,
     isStarred: row.is_starred === 1,
+    ownedByMe: row.owned_by_me === 1,
     metadata: (row.metadata as string) ?? '{}',
     googleCreatedAt: (row.google_created_at as string) ?? null,
     googleModifiedAt: (row.google_modified_at as string) ?? null,
@@ -108,6 +109,7 @@ export function mapDriveFolderRow(row: Record<string, unknown>): DriveFolder {
     createdAt: row.created_at as string,
     isTrashed: row.is_trashed === 1,
     isStarred: row.is_starred === 1,
+    ownedByMe: row.owned_by_me === 1,
   };
 }
 

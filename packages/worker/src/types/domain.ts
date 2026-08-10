@@ -57,6 +57,7 @@ export interface FileEntry {
   webContentLink: string | null;
   isTrashed: boolean;
   isStarred: boolean;
+  ownedByMe: boolean;
   metadata: string;
   googleCreatedAt: string | null;
   googleModifiedAt: string | null;
@@ -85,6 +86,7 @@ export interface DriveFolder {
   createdAt: string;
   isTrashed?: boolean;
   isStarred?: boolean;
+  ownedByMe?: boolean;
 }
 
 export interface SharedLink {

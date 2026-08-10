@@ -1,4 +1,4 @@
-import { Folder, Star, Share2 } from 'lucide-react';
+import { Folder, Star, Share2, User } from 'lucide-react';
 import { useSelectionStore } from '../../stores/useSelectionStore';
 import { formatFileSize, formatRelativeTime } from '../../lib/utils';
 import { FileThumbnail } from './FileThumbnail';
@@ -91,10 +91,17 @@ export function FileGridView(props: FileViewSharedProps) {
                   {shared && <Share2 size={12} className="text-blue-400 flex-shrink-0" />}
                 </div>
               </div>
-              {renderDriveBadge(
-                driveAccountId,
-                'driveEmail' in folder ? folder.driveEmail : undefined,
-              )}
+              <div className="flex items-center gap-1">
+                {folder.ownedByMe === false && (
+                  <span title="Owned by another user" aria-label="Owned by another user">
+                    <User size={12} className="text-slate-400 flex-shrink-0" />
+                  </span>
+                )}
+                {renderDriveBadge(
+                  driveAccountId,
+                  'driveEmail' in folder ? folder.driveEmail : undefined,
+                )}
+              </div>
             </div>
           </ItemContextMenu>
         );
@@ -157,7 +164,12 @@ export function FileGridView(props: FileViewSharedProps) {
                 >
                   {file.name}
                 </div>
-                <div className="mb-1.5">
+                <div className="mb-1.5 flex items-center gap-1">
+                  {file.ownedByMe === false && (
+                    <span title="Owned by another user" aria-label="Owned by another user">
+                      <User size={12} className="text-slate-400 flex-shrink-0" />
+                    </span>
+                  )}
                   {renderDriveBadge(file.driveAccountId, file.driveEmail)}
                 </div>
                 <div className="flex items-center text-xs text-slate-500 gap-1.5">

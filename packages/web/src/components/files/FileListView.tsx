@@ -1,4 +1,4 @@
-import { Folder, Star, Share2, ArrowUp, ArrowDown } from 'lucide-react';
+import { Folder, Star, Share2, ArrowUp, ArrowDown, User } from 'lucide-react';
 import { useUIStore } from '../../stores/useUIStore';
 import { useSelectionStore, type SelectedItem } from '../../stores/useSelectionStore';
 import { formatFileSize, formatRelativeTime } from '../../lib/utils';
@@ -158,7 +158,12 @@ export function FileListView(props: FileListViewProps) {
                 <MetadataBadges metadata={'metadata' in folder ? folder.metadata : undefined} />
               </div>
               {showDriveColumn && (
-                <div className="flex items-center min-w-0">
+                <div className="flex items-center gap-1 min-w-0">
+                  {folder.ownedByMe === false && (
+                    <span title="Owned by another user" aria-label="Owned by another user">
+                      <User size={12} className="text-slate-400 flex-shrink-0" />
+                    </span>
+                  )}
                   {renderDriveBadge(
                     driveAccountId,
                     'driveEmail' in folder ? folder.driveEmail : undefined,
@@ -223,7 +228,12 @@ export function FileListView(props: FileListViewProps) {
                 <MetadataBadges metadata={file.metadata} />
               </div>
               {showDriveColumn && (
-                <div className="flex items-center min-w-0">
+                <div className="flex items-center gap-1 min-w-0">
+                  {file.ownedByMe === false && (
+                    <span title="Owned by another user" aria-label="Owned by another user">
+                      <User size={12} className="text-slate-400 flex-shrink-0" />
+                    </span>
+                  )}
                   {renderDriveBadge(file.driveAccountId, file.driveEmail)}
                 </div>
               )}
