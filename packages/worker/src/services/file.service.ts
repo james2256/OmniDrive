@@ -60,9 +60,11 @@ export class FileService {
 
     await this.driveProvider.trashFile(file.drive_account_id, file.google_file_id);
     await this.fileRepo.markTrashed(fileId, file.user_id);
-    await this.fileRepo.applyStorageDeltas([
-      { userId: file.user_id, mimeType: file.mime_type ?? '', delta: -file.size },
-    ]);
+    if (file.owned_by_me === 1) {
+      await this.fileRepo.applyStorageDeltas([
+        { userId: file.user_id, mimeType: file.mime_type ?? '', delta: -file.size },
+      ]);
+    }
   }
 
   /** Restore a trashed file. RBAC: editor. */
@@ -72,9 +74,11 @@ export class FileService {
 
     await this.driveProvider.untrashFile(file.drive_account_id, file.google_file_id);
     await this.fileRepo.markUntrashed(fileId, file.user_id);
-    await this.fileRepo.applyStorageDeltas([
-      { userId: file.user_id, mimeType: file.mime_type ?? '', delta: file.size },
-    ]);
+    if (file.owned_by_me === 1) {
+      await this.fileRepo.applyStorageDeltas([
+        { userId: file.user_id, mimeType: file.mime_type ?? '', delta: file.size },
+      ]);
+    }
   }
 
   /** Permanently delete a trashed file. RBAC: editor + retention-policy check. */
@@ -100,7 +104,7 @@ export class FileService {
 
     await this.fileRepo.delete(fileId, file.user_id);
 
-    if (file.workspace_id && file.size) {
+    if (file.workspace_id && file.size && file.owned_by_me === 1) {
       await this.policyService.updateWorkspaceStorage(file.workspace_id, -file.size);
     }
   }

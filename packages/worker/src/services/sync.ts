@@ -67,37 +67,31 @@ export async function batchUpsertFolderContents(
 ): Promise<void> {
   const fileRepo = new FileRepository(db);
   const folderRepo = new FolderRepository(db);
-  // Only store items the user owns. Non-owned items (shared WITH you by others)
-  // are never shown in the app and would leak into search/recent/starred/trashed
-  // queries (which filter by user_id, not owned_by_me). The live Google API is
-  // used for folder drill-in, so non-owned children are still visible transiently.
-  const ownedFiles = files.filter((f) => isOwnedByMe(f.owners));
 
-  // Read existing file states before upsert so deltas are computed correctly.
-  // Must run BEFORE batchInChunks — the UPSERT overwrites the old row.
-  const oldStates = await fileRepo.findExistingForDelta(
-    drive.id,
-    ownedFiles.map((f) => f.id),
-  );
+  // Store ALL files (owned + non-owned). resolveParentId maps the correct
+  // location. owned_by_me is set per-file so queries can distinguish.
+  const allFileIds = [...files.map((f) => f.id), ...folders.map((f) => f.id)];
+  const oldStates = await fileRepo.findExistingForDelta(drive.id, allFileIds);
 
   const stmts: D1PreparedStatement[] = [
-    ...folders
-      .filter((f) => isOwnedByMe(f.owners))
-      .map((f) => folderRepo.buildDriveFolderUpsertStmt(drive, f, googleParentId, true)),
-    ...ownedFiles.map((f) => fileRepo.buildUpsertStmt(drive, f, googleParentId, true)),
+    ...folders.map((f) =>
+      folderRepo.buildDriveFolderUpsertStmt(drive, f, googleParentId, isOwnedByMe(f.owners)),
+    ),
+    ...files.map((f) => fileRepo.buildUpsertStmt(drive, f, googleParentId, isOwnedByMe(f.owners))),
   ];
   await batchInChunks(db, stmts);
 
-  // Apply storage stats deltas (replaces the old invalidateCategoryCache).
-  // computeStorageDelta handles insert (null→active), update (active→active),
-  // and UPSERT-untrashes (trashed→active) correctly.
+  // Apply storage stats deltas. computeStorageDelta is ownership-aware
+  // (Approach B) — handles both transfer directions internally.
   const deltas: { userId: string; mimeType: string; delta: number }[] = [];
-  for (const file of ownedFiles) {
+  for (const file of files) {
+    const ownedByMe = isOwnedByMe(file.owners);
     const old = oldStates.get(file.id) ?? null;
     const next: FileStateForStats = {
       size: parseInt(file.size ?? '0', 10),
       mimeType: file.mimeType ?? '',
       isTrashed: false,
+      ownedByMe,
     };
     for (const d of computeStorageDelta(old, next)) {
       deltas.push({ userId: drive.userId, mimeType: d.mimeType, delta: d.delta });
@@ -204,34 +198,35 @@ async function performInitialSync(
     const fileRepo = new FileRepository(db);
     const folderRepo = new FolderRepository(db);
     const stmts: D1PreparedStatement[] = [];
-    const ownedFiles = chunk.files.filter((f) => isOwnedByMe(f.owners));
 
-    // Read existing file states BEFORE upsert — the UPSERT overwrites old row.
-    const oldStates = await fileRepo.findExistingForDelta(
-      drive.id,
-      ownedFiles.map((f) => f.id),
-    );
+    // Store ALL files (owned + non-owned) — resolveParentId maps the correct
+    // location. owned_by_me is set per-file.
+    const allIds = [...chunk.files.map((f) => f.id), ...chunk.folders.map((f) => f.id)];
+    const oldStates = await fileRepo.findExistingForDelta(drive.id, allIds);
 
-    // Only store items the user owns — see batchUpsertFolderContents for rationale.
     for (const folder of chunk.folders) {
-      if (!isOwnedByMe(folder.owners)) continue;
       const parentId = resolveParentId(folder.parents, rootFolderId, true);
-      stmts.push(folderRepo.buildDriveFolderUpsertStmt(drive, folder, parentId, true));
+      stmts.push(
+        folderRepo.buildDriveFolderUpsertStmt(drive, folder, parentId, isOwnedByMe(folder.owners)),
+      );
     }
-    for (const file of ownedFiles) {
+    for (const file of chunk.files) {
       const parentId = resolveParentId(file.parents, rootFolderId, false);
-      stmts.push(fileRepo.buildUpsertStmt(drive, file, parentId, true));
+      stmts.push(fileRepo.buildUpsertStmt(drive, file, parentId, isOwnedByMe(file.owners)));
     }
     await batchInChunks(db, stmts);
 
-    // Apply storage stats deltas for this page.
+    // Apply storage stats deltas. computeStorageDelta is ownership-aware
+    // (Approach B) — handles both transfer directions internally.
     const deltas: { userId: string; mimeType: string; delta: number }[] = [];
-    for (const file of ownedFiles) {
+    for (const file of chunk.files) {
+      const ownedByMe = isOwnedByMe(file.owners);
       const old = oldStates.get(file.id) ?? null;
       const next: FileStateForStats = {
         size: parseInt(file.size ?? '0', 10),
         mimeType: file.mimeType ?? '',
         isTrashed: false,
+        ownedByMe,
       };
       for (const d of computeStorageDelta(old, next)) {
         deltas.push({ userId: drive.userId, mimeType: d.mimeType, delta: d.delta });
@@ -320,33 +315,20 @@ async function performIncrementalSync(
       if (!file) continue;
       if (file.mimeType === MIME_TYPE_SHORTCUT) continue;
 
-      // Don't store items you don't own — they're never shown in the app and
-      // leak into search/recent/starred/trashed queries. Delete any existing
-      // row so previously-written dead data is cleaned up on the next encounter.
-      if (!isOwnedByMe(file.owners)) {
-        if (isFolder) {
-          stmts.push(driveRepo.deleteDriveFolderStmt(drive.id, change.fileId));
-        } else {
-          stmts.push(fileRepo.deleteByDriveAndGoogleIdStmt(drive.id, change.fileId));
-          // Delta: old state → deleted (file transferred out / ownership lost)
-          for (const d of computeStorageDelta(oldState, null)) {
-            deltas.push({ userId: drive.userId, mimeType: d.mimeType, delta: d.delta });
-          }
-        }
-        continue;
-      }
+      const ownedByMe = isOwnedByMe(file.owners);
 
       if (file.trashed) {
-        // Owned + trashed → mark as trashed (recoverable via /trash → restore)
+        // Trashed → mark as trashed (recoverable via /trash → restore)
         if (isFolder) {
           stmts.push(driveRepo.markDriveFolderTrashedStmt(drive.id, change.fileId));
         } else {
           stmts.push(fileRepo.markTrashedByDriveAndGoogleIdStmt(drive.id, change.fileId));
-          // Delta: old state → trashed
+          // Delta: old state → trashed. computeStorageDelta is ownership-aware.
           const newState: FileStateForStats = {
             size: parseInt(file.size ?? '0', 10),
             mimeType: file.mimeType ?? '',
             isTrashed: true,
+            ownedByMe,
           };
           for (const d of computeStorageDelta(oldState, newState)) {
             deltas.push({ userId: drive.userId, mimeType: d.mimeType, delta: d.delta });
@@ -355,7 +337,8 @@ async function performIncrementalSync(
         continue;
       }
 
-      // Owned + not trashed → upsert
+      // Not trashed → upsert (owned + non-owned). computeStorageDelta handles
+      // ownership transitions (both directions) internally.
       if (isFolder) {
         const parentId = resolveParentId(file.parents, rootFolderId, true);
         stmts.push(
@@ -363,17 +346,18 @@ async function performIncrementalSync(
             drive,
             { id: file.id, name: file.name, parents: file.parents, owners: file.owners },
             parentId,
-            true,
+            ownedByMe,
           ),
         );
       } else {
         const parentId = resolveParentId(file.parents, rootFolderId, false);
-        stmts.push(fileRepo.buildUpsertStmt(drive, file, parentId, true));
-        // Delta: old state → active (handles insert, update, and UPSERT-untrashes)
+        stmts.push(fileRepo.buildUpsertStmt(drive, file, parentId, ownedByMe));
+        // Delta: old state → active. computeStorageDelta is ownership-aware.
         const newState: FileStateForStats = {
           size: parseInt(file.size ?? '0', 10),
           mimeType: file.mimeType ?? '',
           isTrashed: false,
+          ownedByMe,
         };
         for (const d of computeStorageDelta(oldState, newState)) {
           deltas.push({ userId: drive.userId, mimeType: d.mimeType, delta: d.delta });

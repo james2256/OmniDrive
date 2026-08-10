@@ -194,8 +194,8 @@ export class AdminRepository {
       this.db
         .prepare(
           `UPDATE workspaces SET used_bytes = MAX(0, COALESCE(used_bytes, 0) -
-            (SELECT COALESCE(SUM(size), 0) FROM files WHERE user_id = ? AND workspace_id IS NOT NULL))
-           WHERE id IN (SELECT DISTINCT workspace_id FROM files WHERE user_id = ? AND workspace_id IS NOT NULL)`,
+            (SELECT COALESCE(SUM(size), 0) FROM files WHERE user_id = ? AND workspace_id IS NOT NULL AND owned_by_me = 1))
+           WHERE id IN (SELECT DISTINCT workspace_id FROM files WHERE user_id = ? AND workspace_id IS NOT NULL AND owned_by_me = 1)`,
         )
         .bind(userId, userId),
       this.db.prepare('DELETE FROM s3_multipart_uploads WHERE user_id = ?').bind(userId),

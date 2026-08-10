@@ -286,6 +286,7 @@ export interface FileRow {
   web_content_link: string | null;
   is_trashed: number;
   is_starred: number;
+  owned_by_me: number;
   metadata: string;
   google_created_at: string | null;
   google_modified_at: string | null;
@@ -337,6 +338,7 @@ export interface DriveFolderRow {
   google_parent_id: string | null;
   name: string;
   is_synced: number;
+  owned_by_me: number;
   synced_at: string | null;
   created_at: string;
 }

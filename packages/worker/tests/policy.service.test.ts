@@ -45,6 +45,7 @@ function createDb(): Database.Database {
       mime_type TEXT,
       size INTEGER DEFAULT 0,
       is_trashed INTEGER NOT NULL DEFAULT 0,
+      owned_by_me INTEGER NOT NULL DEFAULT 1,
       created_at TEXT,
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );

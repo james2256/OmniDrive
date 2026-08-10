@@ -117,13 +117,14 @@ export class PolicyService {
           continue;
         }
 
-        await this.db.batch([
-          this.fileRepo.deleteByIdStmt(file.id),
-          this.workspaceRepo.updateUsedBytesStmt(file.workspace_id, -file.size),
-          // Keep file_storage_stats in sync with the deletion — same pattern
-          // as FileService.trashFile so the dashboard chart stays accurate.
-          this.fileRepo.applyStorageDeltaStmt(file.user_id, file.mime_type ?? '', -file.size),
-        ]);
+        const stmts: D1PreparedStatement[] = [this.fileRepo.deleteByIdStmt(file.id)];
+        if (file.owned_by_me === 1) {
+          stmts.push(this.workspaceRepo.updateUsedBytesStmt(file.workspace_id, -file.size));
+          stmts.push(
+            this.fileRepo.applyStorageDeltaStmt(file.user_id, file.mime_type ?? '', -file.size),
+          );
+        }
+        await this.db.batch(stmts);
         deleted++;
       }
     }

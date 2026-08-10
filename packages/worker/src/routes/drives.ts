@@ -721,10 +721,6 @@ drivesRouter.get('/:driveId/folders/:googleFolderId/download-tree', async (c) =>
     driveService,
     driveId,
     rootFolderId: googleFolderId,
-    // Exclude files not owned by the user — mirrors batchUpsertFolderContents's
-    // ownership filter so maxFiles counts only owned files (the pre-refactor
-    // handler iterated D1 rows already filtered to owned).
-    filterFile: (f) => f.owners?.some((o) => o.me) ?? false,
     onFolderListed: async (folderId, gFiles, gFolders) => {
       await batchUpsertFolderContents(db, drive, gFolders, gFiles, folderId);
       const fileRows = await driveRepo.findFilesByParent(driveId, folderId);

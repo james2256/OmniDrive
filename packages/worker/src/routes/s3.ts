@@ -511,14 +511,17 @@ s3Router.delete('/:bucket/:key{.+}', async (c) => {
 
   if (!file) return xmlError(c, 'NoSuchKey', `The specified key does not exist.`, 404);
 
+  // Gate: don't allow S3 DELETE of files owned by another user.
+  if (file.owned_by_me !== 1) {
+    return xmlError(c, 'AccessDenied', 'Cannot delete file owned by another user', 403);
+  }
+
   const driveService = createDriveService(c.env);
 
   // Trash file in Google Drive (recoverable ~30 days) and mark as trashed in D1.
   // Matches s3-lifecycle.ts pattern — S3 DELETE trashes, not hard-deletes.
   await driveService.trashFile(file.drive_account_id, file.google_file_id);
   await fileRepo.markTrashedSystem(file.id);
-  // Decrement file_storage_stats — mirrors FileService.trashFile so the
-  // dashboard "Storage by type" chart stays accurate after S3 deletions.
   await fileRepo.applyStorageDeltas([
     { userId: file.user_id, mimeType: file.mime_type ?? '', delta: -file.size },
   ]);
@@ -617,6 +620,12 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
     fileName,
     folderId || null,
   );
+
+  // Gate: don't allow overwriting files owned by another user via S3.
+  // Checked BEFORE the upload so no orphan Google Drive files are created.
+  if (existingFile && existingFile.owned_by_me !== 1) {
+    return xmlError(c, 'AccessDenied', 'Cannot overwrite file owned by another user', 403);
+  }
 
   // Initiate resumable session + upload. Wrapped in try/catch to release
   // the pre-reserved quota on any failure (prevents quota leak).
@@ -735,7 +744,9 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
         if (raceFile) {
           await db.batch([fileRepo.deleteByIdStmt(raceFile.id), insertStmt]);
           try {
-            await driveService.deleteFile(raceFile.drive_account_id, raceFile.google_file_id);
+            if (raceFile.owned_by_me === 1) {
+              await driveService.deleteFile(raceFile.drive_account_id, raceFile.google_file_id);
+            }
           } catch (e) {
             logError(c, 'Failed to delete race-loser Google file (orphaned — not data loss)', e);
           }
@@ -1132,6 +1143,11 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
       folderId || null,
     );
 
+    // Gate: don't allow overwriting files owned by another user via S3.
+    if (existingFile && existingFile.owned_by_me !== 1) {
+      return xmlError(c, 'AccessDenied', 'Cannot overwrite file owned by another user', 403);
+    }
+
     // Calculate S3-compliant ETag
     const concatenatedMd5s = Buffer.concat(
       parts.map((p) => Buffer.from(p.etag.replace(/"/g, ''), 'hex')),
@@ -1185,7 +1201,9 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
           if (raceFile) {
             await db.batch([fileRepo.deleteByIdStmt(raceFile.id), insertStmt]);
             try {
-              await driveService.deleteFile(raceFile.drive_account_id, raceFile.google_file_id);
+              if (raceFile.owned_by_me === 1) {
+                await driveService.deleteFile(raceFile.drive_account_id, raceFile.google_file_id);
+              }
             } catch (e) {
               logError(c, 'Failed to delete race-loser Google file (orphaned — not data loss)', e);
             }

@@ -668,6 +668,7 @@ describe('S3 API compatibility endpoints', () => {
         mime_type: 'image/jpeg',
         size: 12,
         is_trashed: 0,
+        owned_by_me: 1,
       };
 
       const sqlQueries: any[] = [];
@@ -739,6 +740,7 @@ describe('S3 API compatibility endpoints', () => {
         mime_type: 'image/jpeg',
         size: 12,
         is_trashed: 0,
+        owned_by_me: 1,
       };
 
       const env = await getMockEnv({
@@ -796,6 +798,7 @@ describe('S3 API compatibility endpoints', () => {
         mime_type: 'image/jpeg',
         size: 12,
         is_trashed: 0,
+        owned_by_me: 1,
       };
 
       const sqlQueries: any[] = [];
@@ -1010,6 +1013,7 @@ describe('S3 API compatibility endpoints', () => {
         mime_type: 'image/jpeg',
         size: 12,
         is_trashed: 0,
+        owned_by_me: 1,
       };
 
       const sqlQueries: any[] = [];

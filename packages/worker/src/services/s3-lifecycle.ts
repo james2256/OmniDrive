@@ -79,12 +79,14 @@ export async function runLifecycleExpiration(env: Env): Promise<void> {
       try {
         await driveService.trashFile(file.drive_account_id, file.google_file_id);
         // Atomic: mark trashed + apply storage delta in a single D1 batch.
-        // If the batch fails, is_trashed stays 0 → findExpiredFiles returns
-        // the file again on retry. Matches policy.service.ts:120 pattern.
-        await env.DB.batch([
-          fileRepo.markTrashedSystemStmt(file.id),
-          fileRepo.applyStorageDeltaStmt(file.user_id, file.mime_type ?? '', -file.size),
-        ]);
+        // Gate delta on ownership — non-owned files don't count against quota.
+        const stmts: D1PreparedStatement[] = [fileRepo.markTrashedSystemStmt(file.id)];
+        if (file.owned_by_me === 1) {
+          stmts.push(
+            fileRepo.applyStorageDeltaStmt(file.user_id, file.mime_type ?? '', -file.size),
+          );
+        }
+        await env.DB.batch(stmts);
         expiredCount++;
       } catch (e) {
         // Best-effort: skip this file, keep processing the rest.

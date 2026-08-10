@@ -36,10 +36,10 @@ export class S3LifecycleRepository {
           JOIN folder_path fp ON f.parent_id = fp.id
           WHERE f.workspace_id = ?
       )
-      SELECT f.id, f.drive_account_id, f.google_file_id, f.user_id, f.mime_type, f.size
+      SELECT f.id, f.drive_account_id, f.google_file_id, f.user_id, f.mime_type, f.size, f.owned_by_me
       FROM files f
       LEFT JOIN folder_path fp ON f.workspace_folder_id = fp.id
-      WHERE f.workspace_id = ? AND f.is_trashed = 0
+      WHERE f.workspace_id = ? AND f.is_trashed = 0 AND f.owned_by_me = 1
         AND COALESCE(fp.path, '') || f.name LIKE ? ESCAPE '^'
         AND f.created_at <= datetime('now', ?)
     `,
@@ -52,6 +52,7 @@ export class S3LifecycleRepository {
         user_id: string;
         mime_type: string | null;
         size: number;
+        owned_by_me: number;
       }>();
   }
 

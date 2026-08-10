@@ -196,6 +196,8 @@ export class AutomationEngine {
           }
           stmts.push(fileRepo.updateWorkspaceFolderStmt(file.id, targetFolderId as string));
         } else if (action.type === ACTION_DELETE) {
+          // Skip non-owned files — automation rules shouldn't trash teammate files.
+          if (file.owned_by_me !== 1) continue;
           // Call Google Drive API to trash the file so sync doesn't revert it.
           // If the API call fails, skip the D1 update — the file would reappear
           // on next sync anyway (Google says not trashed → UPSERT resets is_trashed=0).

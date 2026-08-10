@@ -149,8 +149,13 @@ export class FileRepository {
   async findExistingForDelta(
     driveAccountId: string,
     googleFileIds: string[],
-  ): Promise<Map<string, { size: number; mimeType: string; isTrashed: boolean }>> {
-    const out = new Map<string, { size: number; mimeType: string; isTrashed: boolean }>();
+  ): Promise<
+    Map<string, { size: number; mimeType: string; isTrashed: boolean; ownedByMe: boolean }>
+  > {
+    const out = new Map<
+      string,
+      { size: number; mimeType: string; isTrashed: boolean; ownedByMe: boolean }
+    >();
     if (googleFileIds.length === 0) return out;
 
     // 99 file IDs + 1 driveAccountId = 100 = D1's max bind variables per query
@@ -161,7 +166,7 @@ export class FileRepository {
       assertWithinD1Limit(1 + chunk.length, 'findExistingForDelta');
       const { results } = await this.db
         .prepare(
-          `SELECT google_file_id, size, mime_type, is_trashed
+          `SELECT google_file_id, size, mime_type, is_trashed, owned_by_me
            FROM files WHERE drive_account_id = ? AND google_file_id IN (${placeholders})`,
         )
         .bind(driveAccountId, ...chunk)
@@ -170,12 +175,14 @@ export class FileRepository {
           size: number;
           mime_type: string | null;
           is_trashed: number;
+          owned_by_me: number;
         }>();
       for (const r of results) {
         out.set(r.google_file_id, {
           size: r.size ?? 0,
           mimeType: r.mime_type ?? '',
           isTrashed: r.is_trashed === 1,
+          ownedByMe: r.owned_by_me === 1,
         });
       }
     }
@@ -193,7 +200,7 @@ export class FileRepository {
         .prepare(
           `INSERT INTO file_storage_stats (user_id, mime_type, total_size)
            SELECT ?, COALESCE(mime_type, ''), SUM(size) FROM files
-           WHERE user_id = ? AND is_trashed = 0 GROUP BY COALESCE(mime_type, '')`,
+           WHERE user_id = ? AND is_trashed = 0 AND owned_by_me = 1 GROUP BY COALESCE(mime_type, '')`,
         )
         .bind(userId, userId),
     ]);
@@ -607,9 +614,9 @@ export class FileRepository {
       | { kind: 'workspace'; workspaceId: string; cutoffStr: string }
       | { kind: 'folder'; workspaceId: string; folderId: string; cutoffStr: string },
   ) {
-    const base = `SELECT f.id, f.user_id, f.google_file_id, f.size, f.mime_type, f.workspace_id, d.id as driveId
+    const base = `SELECT f.id, f.user_id, f.google_file_id, f.size, f.mime_type, f.workspace_id, f.owned_by_me, d.id as driveId
                  FROM files f JOIN drive_accounts d ON f.drive_account_id = d.id
-                 WHERE f.workspace_id = ? AND f.created_at < ? AND f.is_trashed = 0`;
+                 WHERE f.workspace_id = ? AND f.created_at < ? AND f.is_trashed = 0 AND f.owned_by_me = 1`;
     if (target.kind === 'workspace') {
       return this.db.prepare(base).bind(target.workspaceId, target.cutoffStr).all<{
         id: string;
@@ -618,6 +625,7 @@ export class FileRepository {
         size: number;
         mime_type: string | null;
         workspace_id: string;
+        owned_by_me: number;
         driveId: string;
       }>();
     }
@@ -631,6 +639,7 @@ export class FileRepository {
         size: number;
         mime_type: string | null;
         workspace_id: string;
+        owned_by_me: number;
         driveId: string;
       }>();
   }
@@ -708,7 +717,7 @@ export class FileRepository {
     return this.db
       .prepare(
         `UPDATE files
-       SET drive_account_id = ?, google_file_id = ?, google_parent_id = 'root', updated_at = CURRENT_TIMESTAMP
+       SET drive_account_id = ?, google_file_id = ?, google_parent_id = 'root', owned_by_me = 1, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
       )
       .bind(driveAccountId, googleFileId, fileId)
@@ -798,7 +807,7 @@ export class FileRepository {
   findByWorkspaceKeyMinimal(workspaceId: string, name: string, folderId: string | null) {
     return this.db
       .prepare(
-        `SELECT id, drive_account_id, google_file_id FROM files
+        `SELECT id, drive_account_id, google_file_id, owned_by_me FROM files
          WHERE workspace_id = ? AND name = ? AND (workspace_folder_id = ? OR (workspace_folder_id IS NULL AND ? IS NULL))
            AND is_trashed = 0`,
       )

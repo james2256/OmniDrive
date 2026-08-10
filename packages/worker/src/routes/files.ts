@@ -6,6 +6,7 @@ import { authGuard } from '../middleware/auth-guard';
 import { createDriveService } from '../lib/drive-factory';
 import { AppError, ConflictError, NotFoundError, ForbiddenError } from '../lib/errors';
 import { DriveRepository } from '../repositories/drive.repository';
+import { FileRepository } from '../repositories/file.repository';
 import { resolveDrivesWithQuota } from '../services/drive-quota';
 import { UploadRouter } from '../services/upload-router';
 import { AutomationEngine, toDbFile } from '../services/automation.service';
@@ -128,6 +129,7 @@ filesRouter.post(
       sourceDriveId: string;
       google_file_id: string;
       name: string;
+      owned_by_me: number;
     };
 
     if (file.sourceDriveId === targetDriveId) {
@@ -176,8 +178,22 @@ filesRouter.post(
       // Trash is best-effort (happens last, after D1 succeeds).
       await c.get('fileService').updateDriveAssignment(fileId, targetDriveId, copiedFile.id);
 
+      // Fire +X delta if source was non-owned (Bob now owns the copy via files.copy API).
+      // Uses findById for size/mime — avoids adding them to the type assertion.
+      if (file.owned_by_me !== 1) {
+        const updatedFile = await c.get('fileService').findById(fileId);
+        if (updatedFile) {
+          const fileRepo = new FileRepository(c.env.DB);
+          await fileRepo.applyStorageDeltas([
+            { userId, mimeType: updatedFile.mime_type ?? '', delta: updatedFile.size },
+          ]);
+        }
+      }
+
       try {
-        await driveService.trashFile(file.sourceDriveId, file.google_file_id);
+        if (file.owned_by_me === 1) {
+          await driveService.trashFile(file.sourceDriveId, file.google_file_id);
+        }
       } catch (trashError) {
         logError(c, 'Failed to trash original file', trashError);
       }
