@@ -1,0 +1,22 @@
+-- Store the actual file/folder owner's email so the UI can show
+-- "🟢 alice 👤" instead of just "🟢 boris 👤" (the connected drive's email).
+--
+-- Source: Google Drive API files.owners[0].emailAddress. NULL when:
+--   - User hasn't made their email visible to the requester (Google caveat,
+--     per https://developers.google.com/workspace/drive/api/reference/rest/v3/User)
+--   - Item is in a shared drive (Google doesn't populate owners[] there)
+--   - User-uploaded files (owned_by_me=1; owner IS the connected account)
+--
+-- BACKFILL STRATEGY (gradual rollout — no forced re-sync):
+--   - Files in folders the user navigates into → backfilled on first drill-in
+--     (drives.ts:106-114 calls listFolderContents + batchUpsertFolderContents)
+--   - Files modified after deploy → backfilled on next incremental sync
+--     (sync.ts:278 listChanges returns modified files; UPSERT fires)
+--   - Files in unbrowsed, unmodified folders → stay NULL until modified
+--     (UI falls back to drive.email + 👤 — identical to current behavior)
+--   This matches the lazy-population pattern of migrations 0012 and 0017.
+--   No forced re-sync needed; no backfill job needed.
+--
+-- Additive, nullable, no FK — owner is not a registered OmniDrive user.
+ALTER TABLE files ADD COLUMN owner_email TEXT;
+ALTER TABLE drive_folders ADD COLUMN owner_email TEXT;

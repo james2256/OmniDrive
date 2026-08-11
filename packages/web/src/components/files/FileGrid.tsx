@@ -53,12 +53,19 @@ export function FileGrid(props: FileGridProps) {
   // Pages can still opt out via `showDriveColumn={false}`.
   const showDriveColumn = showDriveColumnProp ?? true;
 
-  const renderDriveBadge = (driveAccountId?: string, fallbackEmail?: string) => {
+  const renderDriveBadge = (
+    driveAccountId?: string,
+    fallbackEmail?: string,
+    ownerEmail?: string | null,
+  ) => {
     if (!driveAccountId) return null;
     const { drive, index } = getDriveInfo(driveAccountId);
-    if (drive?.email) return <DriveBadge email={drive.email} colorIndex={index} />;
-    if (fallbackEmail) return <DriveBadge email={fallbackEmail} colorIndex={-1} />;
-    return null;
+    // Prefer owner email (shows who actually owns the file), fall back to
+    // drive account email (for owned files or when Google omitted owner email).
+    // colorIndex stays tied to the connected drive — multi-drive color ID preserved.
+    const email = ownerEmail ?? drive?.email ?? fallbackEmail;
+    if (!email) return null;
+    return <DriveBadge email={email} colorIndex={index} />;
   };
 
   if (files.length === 0 && subfolders.length === 0) {

@@ -92,14 +92,26 @@ export function FileGridView(props: FileViewSharedProps) {
                 </div>
               </div>
               <div className="flex items-center gap-1">
-                {folder.ownedByMe === false && (
-                  <span title="Owned by another user" aria-label="Owned by another user">
-                    <User size={12} className="text-slate-400 flex-shrink-0" />
-                  </span>
-                )}
                 {renderDriveBadge(
                   driveAccountId,
                   'driveEmail' in folder ? folder.driveEmail : undefined,
+                  'ownerEmail' in folder ? folder.ownerEmail : undefined,
+                )}
+                {folder.ownedByMe === false && (
+                  <span
+                    title={
+                      'ownerEmail' in folder && folder.ownerEmail
+                        ? `Owned by ${folder.ownerEmail}`
+                        : 'Owned by another user'
+                    }
+                    aria-label={
+                      'ownerEmail' in folder && folder.ownerEmail
+                        ? `Owned by ${folder.ownerEmail}`
+                        : 'Owned by another user'
+                    }
+                  >
+                    <User size={12} className="text-slate-400 flex-shrink-0" />
+                  </span>
                 )}
               </div>
             </div>
@@ -165,12 +177,19 @@ export function FileGridView(props: FileViewSharedProps) {
                   {file.name}
                 </div>
                 <div className="mb-1.5 flex items-center gap-1">
+                  {renderDriveBadge(file.driveAccountId, file.driveEmail, file.ownerEmail)}
                   {file.ownedByMe === false && (
-                    <span title="Owned by another user" aria-label="Owned by another user">
+                    <span
+                      title={
+                        file.ownerEmail ? `Owned by ${file.ownerEmail}` : 'Owned by another user'
+                      }
+                      aria-label={
+                        file.ownerEmail ? `Owned by ${file.ownerEmail}` : 'Owned by another user'
+                      }
+                    >
                       <User size={12} className="text-slate-400 flex-shrink-0" />
                     </span>
                   )}
-                  {renderDriveBadge(file.driveAccountId, file.driveEmail)}
                 </div>
                 <div className="flex items-center text-xs text-slate-500 gap-1.5">
                   {!native && <span className="truncate">{formatFileSize(file.size)}</span>}

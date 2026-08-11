@@ -694,7 +694,7 @@ export class GoogleDriveService implements DriveProvider {
   }> {
     const token = await this.getValidToken(driveAccountId);
     const fields =
-      'nextPageToken,newStartPageToken,changes(fileId,removed,file(id,name,mimeType,size,parents,owners(me,displayName),trashed,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum))';
+      'nextPageToken,newStartPageToken,changes(fileId,removed,file(id,name,mimeType,size,parents,owners(me,displayName,emailAddress),trashed,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum))';
 
     const response = await this.driveFetch(
       `${DRIVE_API}/changes?pageToken=${encodeURIComponent(pageToken)}&fields=${fields}&spaces=drive&includeRemoved=true`,
@@ -722,7 +722,7 @@ export class GoogleDriveService implements DriveProvider {
     }>
   > {
     const fields =
-      'files(id,name,mimeType,size,owners(me,displayName),thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum)';
+      'files(id,name,mimeType,size,owners(me,displayName,emailAddress),thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum)';
     const q = encodeURIComponent(`'${folderId}' in parents and trashed = false`);
 
     const allFiles: Array<GDriveFile> = [];
@@ -754,7 +754,7 @@ export class GoogleDriveService implements DriveProvider {
     folderId: string,
   ): Promise<{ files: GDriveFile[]; folders: GDriveFolder[] }> {
     const fields =
-      'nextPageToken,files(id,name,mimeType,size,parents,owners(me,displayName),trashed,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum)';
+      'nextPageToken,files(id,name,mimeType,size,parents,owners(me,displayName,emailAddress),trashed,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum)';
     const q = encodeURIComponent(`'${folderId}' in parents and trashed = false`);
 
     const allFiles: GDriveFile[] = [];
@@ -798,7 +798,7 @@ export class GoogleDriveService implements DriveProvider {
     unknown
   > {
     const fields =
-      'nextPageToken,files(id,name,mimeType,size,parents,owners(me,displayName),trashed,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum)';
+      'nextPageToken,files(id,name,mimeType,size,parents,owners(me,displayName,emailAddress),trashed,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum)';
     const q = encodeURIComponent(`trashed = false`);
 
     let pageToken: string | undefined = startPageToken;

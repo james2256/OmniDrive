@@ -51,9 +51,31 @@ function resolveParentId(
   return parentId === rootFolderId ? defaultParent : parentId;
 }
 
-/** Returns true if the current user is in the file/folder's owners array. */
-function isOwnedByMe(owners: GDriveOwner[] | undefined): boolean {
-  return owners?.some((o) => o.me === true) ?? false;
+/**
+ * Resolve ownership from a Google Drive owners[] array.
+ * - ownedByMe: true if the requesting user is in owners[] (me === true)
+ * - ownerEmail: the email of the first non-me owner, or null if the user
+ *   owns it themselves or Google didn't return an emailAddress.
+ *
+ * Per Google's User resource docs, emailAddress may be absent "if the user
+ * has not made their email address visible to the requester" — callers must
+ * tolerate null (UI falls back to the connected drive's email + 👤 icon).
+ */
+function resolveOwnership(owners: GDriveOwner[] | undefined): {
+  ownedByMe: boolean;
+  ownerEmail: string | null;
+} {
+  if (!owners || owners.length === 0) {
+    return { ownedByMe: false, ownerEmail: null };
+  }
+  const me = owners.find((o) => o.me === true);
+  if (me) {
+    return { ownedByMe: true, ownerEmail: null };
+  }
+  // Not owned by me — pick the first non-me owner's email (may be undefined
+  // when the owner has hidden their email address from the requester).
+  const other = owners[0];
+  return { ownedByMe: false, ownerEmail: other?.emailAddress ?? null };
 }
 
 /** Batch-upsert lazy-loaded folder contents (used by drives route).
@@ -74,10 +96,14 @@ export async function batchUpsertFolderContents(
   const oldStates = await fileRepo.findExistingForDelta(drive.id, allFileIds);
 
   const stmts: D1PreparedStatement[] = [
-    ...folders.map((f) =>
-      folderRepo.buildDriveFolderUpsertStmt(drive, f, googleParentId, isOwnedByMe(f.owners)),
-    ),
-    ...files.map((f) => fileRepo.buildUpsertStmt(drive, f, googleParentId, isOwnedByMe(f.owners))),
+    ...folders.map((f) => {
+      const { ownedByMe, ownerEmail } = resolveOwnership(f.owners);
+      return folderRepo.buildDriveFolderUpsertStmt(drive, f, googleParentId, ownedByMe, ownerEmail);
+    }),
+    ...files.map((f) => {
+      const { ownedByMe, ownerEmail } = resolveOwnership(f.owners);
+      return fileRepo.buildUpsertStmt(drive, f, googleParentId, ownedByMe, ownerEmail);
+    }),
   ];
   await batchInChunks(db, stmts);
 
@@ -85,7 +111,7 @@ export async function batchUpsertFolderContents(
   // (Approach B) — handles both transfer directions internally.
   const deltas: { userId: string; mimeType: string; delta: number }[] = [];
   for (const file of files) {
-    const ownedByMe = isOwnedByMe(file.owners);
+    const { ownedByMe } = resolveOwnership(file.owners);
     const old = oldStates.get(file.id) ?? null;
     const next: FileStateForStats = {
       size: parseInt(file.size ?? '0', 10),
@@ -206,13 +232,15 @@ async function performInitialSync(
 
     for (const folder of chunk.folders) {
       const parentId = resolveParentId(folder.parents, rootFolderId, true);
+      const { ownedByMe, ownerEmail } = resolveOwnership(folder.owners);
       stmts.push(
-        folderRepo.buildDriveFolderUpsertStmt(drive, folder, parentId, isOwnedByMe(folder.owners)),
+        folderRepo.buildDriveFolderUpsertStmt(drive, folder, parentId, ownedByMe, ownerEmail),
       );
     }
     for (const file of chunk.files) {
       const parentId = resolveParentId(file.parents, rootFolderId, false);
-      stmts.push(fileRepo.buildUpsertStmt(drive, file, parentId, isOwnedByMe(file.owners)));
+      const { ownedByMe, ownerEmail } = resolveOwnership(file.owners);
+      stmts.push(fileRepo.buildUpsertStmt(drive, file, parentId, ownedByMe, ownerEmail));
     }
     await batchInChunks(db, stmts);
 
@@ -220,7 +248,7 @@ async function performInitialSync(
     // (Approach B) — handles both transfer directions internally.
     const deltas: { userId: string; mimeType: string; delta: number }[] = [];
     for (const file of chunk.files) {
-      const ownedByMe = isOwnedByMe(file.owners);
+      const { ownedByMe } = resolveOwnership(file.owners);
       const old = oldStates.get(file.id) ?? null;
       const next: FileStateForStats = {
         size: parseInt(file.size ?? '0', 10),
@@ -315,7 +343,7 @@ async function performIncrementalSync(
       if (!file) continue;
       if (file.mimeType === MIME_TYPE_SHORTCUT) continue;
 
-      const ownedByMe = isOwnedByMe(file.owners);
+      const { ownedByMe, ownerEmail } = resolveOwnership(file.owners);
 
       if (file.trashed) {
         // Trashed → mark as trashed (recoverable via /trash → restore)
@@ -347,11 +375,12 @@ async function performIncrementalSync(
             { id: file.id, name: file.name, parents: file.parents, owners: file.owners },
             parentId,
             ownedByMe,
+            ownerEmail,
           ),
         );
       } else {
         const parentId = resolveParentId(file.parents, rootFolderId, false);
-        stmts.push(fileRepo.buildUpsertStmt(drive, file, parentId, ownedByMe));
+        stmts.push(fileRepo.buildUpsertStmt(drive, file, parentId, ownedByMe, ownerEmail));
         // Delta: old state → active. computeStorageDelta is ownership-aware.
         const newState: FileStateForStats = {
           size: parseInt(file.size ?? '0', 10),

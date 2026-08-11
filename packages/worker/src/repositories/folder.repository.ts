@@ -307,16 +307,18 @@ export class FolderRepository {
 
   // ─── drive_folders UPSERT (sync engine) ───
 
-  static readonly UPSERT_FOLDER_SQL = `INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name, is_synced, owned_by_me)
-    VALUES (?, ?, ?, ?, ?, 0, ?)
+  static readonly UPSERT_FOLDER_SQL = `INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name, is_synced, owned_by_me, owner_email)
+    VALUES (?, ?, ?, ?, ?, 0, ?, ?)
     ON CONFLICT(drive_account_id, google_folder_id) DO UPDATE SET
       name = excluded.name,
       google_parent_id = excluded.google_parent_id,
       owned_by_me = excluded.owned_by_me,
+      owner_email = excluded.owner_email,
       is_trashed = 0
     WHERE excluded.name IS NOT drive_folders.name
        OR excluded.google_parent_id IS NOT drive_folders.google_parent_id
        OR excluded.owned_by_me IS NOT drive_folders.owned_by_me
+       OR excluded.owner_email IS NOT drive_folders.owner_email
        OR drive_folders.is_trashed = 1`;
 
   buildDriveFolderUpsertStmt(
@@ -324,10 +326,19 @@ export class FolderRepository {
     folder: GDriveFolder,
     googleParentId: string | null,
     ownedByMe: boolean,
+    ownerEmail: string | null,
   ): D1PreparedStatement {
     return this.db
       .prepare(FolderRepository.UPSERT_FOLDER_SQL)
-      .bind(generateId(), drive.id, folder.id, googleParentId, folder.name, ownedByMe ? 1 : 0);
+      .bind(
+        generateId(),
+        drive.id,
+        folder.id,
+        googleParentId,
+        folder.name,
+        ownedByMe ? 1 : 0,
+        ownerEmail,
+      );
   }
 
   async upsertMany(stmts: D1PreparedStatement[]): Promise<void> {

@@ -712,12 +712,14 @@ export class FileRepository {
   /**
    * Update a file's drive assignment after a move-drive operation.
    * Sets the new drive_account_id, google_file_id, and resets parent to 'root'.
+   * Clears owner_email to maintain the invariant "owned files have
+   * owner_email = NULL" — the user owns the new copy after move-drive.
    */
   updateDriveAssignment(fileId: string, driveAccountId: string, googleFileId: string) {
     return this.db
       .prepare(
         `UPDATE files
-       SET drive_account_id = ?, google_file_id = ?, google_parent_id = 'root', owned_by_me = 1, updated_at = CURRENT_TIMESTAMP
+       SET drive_account_id = ?, google_file_id = ?, google_parent_id = 'root', owned_by_me = 1, owner_email = NULL, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
       )
       .bind(driveAccountId, googleFileId, fileId)
@@ -726,8 +728,8 @@ export class FileRepository {
 
   static readonly UPSERT_FILE_SQL = `INSERT INTO files
     (id, user_id, drive_account_id, google_file_id, google_parent_id, name, mime_type, size,
-     thumbnail_url, web_view_link, web_content_link, google_created_at, google_modified_at, synced_at, owned_by_me)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)
+     thumbnail_url, web_view_link, web_content_link, google_created_at, google_modified_at, synced_at, owned_by_me, owner_email)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?)
     ON CONFLICT(drive_account_id, google_file_id) DO UPDATE SET
       name = excluded.name,
       mime_type = excluded.mime_type,
@@ -739,6 +741,7 @@ export class FileRepository {
       google_parent_id = excluded.google_parent_id,
       synced_at = excluded.synced_at,
       owned_by_me = excluded.owned_by_me,
+      owner_email = excluded.owner_email,
       is_trashed = 0
     WHERE excluded.name IS NOT files.name
        OR excluded.mime_type IS NOT files.mime_type
@@ -749,6 +752,7 @@ export class FileRepository {
        OR excluded.google_modified_at IS NOT files.google_modified_at
        OR excluded.google_parent_id IS NOT files.google_parent_id
        OR excluded.owned_by_me IS NOT files.owned_by_me
+       OR excluded.owner_email IS NOT files.owner_email
        OR files.is_trashed = 1`;
 
   buildUpsertStmt(
@@ -756,6 +760,7 @@ export class FileRepository {
     file: GDriveFile,
     googleParentId: string | null,
     ownedByMe: boolean,
+    ownerEmail: string | null,
   ): D1PreparedStatement {
     return this.db
       .prepare(FileRepository.UPSERT_FILE_SQL)
@@ -774,6 +779,7 @@ export class FileRepository {
         file.createdTime,
         file.modifiedTime,
         ownedByMe ? 1 : 0,
+        ownerEmail,
       );
   }
 

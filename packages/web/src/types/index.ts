@@ -83,6 +83,7 @@ export interface WorkspaceFolder {
   metadata?: string | Record<string, string>;
   isStarred: boolean;
   ownedByMe?: boolean;
+  ownerEmail?: string | null;
   lastSyncedAt: string | null;
   syncStatus: SyncStatus;
   createdAt: string;
@@ -114,6 +115,7 @@ export interface FileEntry {
   driveEmail?: string; // optional — not present in folder-browse responses
   isStarred?: boolean;
   ownedByMe?: boolean;
+  ownerEmail?: string | null;
 }
 
 export interface BreadcrumbItem {
@@ -145,6 +147,7 @@ export interface DriveFolder {
   isStarred?: boolean;
   isTrashed?: boolean;
   ownedByMe?: boolean;
+  ownerEmail?: string | null;
   driveId?: string;
   driveEmail?: string;
 }

@@ -74,5 +74,9 @@ export interface FileViewSharedProps {
   errorDrives?: Set<string>;
   isTrashView?: boolean;
   actions: ItemActions;
-  renderDriveBadge: (driveAccountId?: string, fallbackEmail?: string) => React.ReactNode;
+  renderDriveBadge: (
+    driveAccountId?: string,
+    fallbackEmail?: string,
+    ownerEmail?: string | null,
+  ) => React.ReactNode;
 }

@@ -10,6 +10,7 @@
 export interface GDriveOwner {
   me: boolean;
   displayName?: string;
+  emailAddress?: string;
 }
 
 export interface GDriveFile {

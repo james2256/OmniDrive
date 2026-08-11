@@ -87,6 +87,7 @@ export function mapFileRow(row: Record<string, unknown>): FileEntry {
     isTrashed: row.is_trashed === 1,
     isStarred: row.is_starred === 1,
     ownedByMe: row.owned_by_me === 1,
+    ownerEmail: (row.owner_email as string | null) ?? null,
     metadata: (row.metadata as string) ?? '{}',
     googleCreatedAt: (row.google_created_at as string) ?? null,
     googleModifiedAt: (row.google_modified_at as string) ?? null,
@@ -110,6 +111,7 @@ export function mapDriveFolderRow(row: Record<string, unknown>): DriveFolder {
     isTrashed: row.is_trashed === 1,
     isStarred: row.is_starred === 1,
     ownedByMe: row.owned_by_me === 1,
+    ownerEmail: (row.owner_email as string | null) ?? null,
   };
 }
 
@@ -289,6 +291,7 @@ export interface FileRow {
   is_trashed: number;
   is_starred: number;
   owned_by_me: number;
+  owner_email: string | null;
   metadata: string;
   google_created_at: string | null;
   google_modified_at: string | null;
@@ -341,6 +344,7 @@ export interface DriveFolderRow {
   name: string;
   is_synced: number;
   owned_by_me: number;
+  owner_email: string | null;
   synced_at: string | null;
   created_at: string;
 }

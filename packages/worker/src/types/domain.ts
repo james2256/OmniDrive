@@ -58,6 +58,7 @@ export interface FileEntry {
   isTrashed: boolean;
   isStarred: boolean;
   ownedByMe: boolean;
+  ownerEmail: string | null;
   metadata: string;
   googleCreatedAt: string | null;
   googleModifiedAt: string | null;
@@ -87,6 +88,7 @@ export interface DriveFolder {
   isTrashed?: boolean;
   isStarred?: boolean;
   ownedByMe?: boolean;
+  ownerEmail?: string | null;
 }
 
 export interface SharedLink {

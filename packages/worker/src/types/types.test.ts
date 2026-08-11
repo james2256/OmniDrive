@@ -29,6 +29,7 @@ describe('types/ sub-modules', () => {
         isTrashed: false,
         isStarred: false,
         ownedByMe: true,
+        ownerEmail: null,
         metadata: '{}',
         googleCreatedAt: null,
         googleModifiedAt: null,
@@ -68,6 +69,72 @@ describe('types/ sub-modules', () => {
       expect(drive.id).toBe('d1');
       expect(drive.isPrimary).toBe(true);
       expect(drive.totalQuota).toBe(15_000_000_000);
+    });
+
+    it('mapFileRow maps owner_email → ownerEmail (null when column is null)', () => {
+      const row = {
+        id: 'f1',
+        user_id: 'u1',
+        drive_account_id: 'd1',
+        google_file_id: 'g1',
+        workspace_id: null,
+        workspace_folder_id: null,
+        google_parent_id: 'root',
+        name: 'spec.pdf',
+        mime_type: 'application/pdf',
+        size: 100,
+        thumbnail_url: null,
+        web_view_link: null,
+        web_content_link: null,
+        is_trashed: 0,
+        is_starred: 0,
+        owned_by_me: 0,
+        owner_email: null,
+        metadata: '{}',
+        google_created_at: null,
+        google_modified_at: null,
+        synced_at: '2026-01-01',
+        last_synced_at: null,
+        sync_status: 'idle',
+        created_at: '2026-01-01',
+        updated_at: '2026-01-01',
+      };
+      const file = mapFileRow(row);
+      expect(file.ownedByMe).toBe(false);
+      expect(file.ownerEmail).toBeNull();
+    });
+
+    it('mapFileRow maps owner_email → ownerEmail (string when column is populated)', () => {
+      const row = {
+        id: 'f1',
+        user_id: 'u1',
+        drive_account_id: 'd1',
+        google_file_id: 'g1',
+        workspace_id: null,
+        workspace_folder_id: null,
+        google_parent_id: 'root',
+        name: 'spec.pdf',
+        mime_type: 'application/pdf',
+        size: 100,
+        thumbnail_url: null,
+        web_view_link: null,
+        web_content_link: null,
+        is_trashed: 0,
+        is_starred: 0,
+        owned_by_me: 0,
+        owner_email: 'alice@example.com',
+        metadata: '{}',
+        google_created_at: null,
+        google_modified_at: null,
+        synced_at: '2026-01-01',
+        last_synced_at: null,
+        sync_status: 'idle',
+        created_at: '2026-01-01',
+        updated_at: '2026-01-01',
+      };
+      const file = mapFileRow(row);
+      expect(file.ownedByMe).toBe(false);
+      expect(file.ownerEmail).toBe('alice@example.com');
     });
   });
 

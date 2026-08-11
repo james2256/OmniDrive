@@ -141,4 +141,51 @@ describe('FileListView — owner badge', () => {
     );
     expect(screen.queryByTitle('Owned by another user')).toBeNull();
   });
+
+  it('shows 👤 tooltip with owner email when ownerEmail is present (file)', () => {
+    render(
+      <FileListView
+        sortedSubfolders={[]}
+        sortedFiles={[makeFile({ ownedByMe: false, ownerEmail: 'alice@example.com' })]}
+        getDriveInfo={getDriveInfo}
+        actions={noopActions}
+        renderDriveBadge={renderDriveBadge}
+        showDriveColumn={true}
+      />,
+    );
+    expect(screen.getByTitle('Owned by alice@example.com')).toBeTruthy();
+    // Falls back to bare "Owned by another user" should NOT also be present.
+    expect(screen.queryByTitle('Owned by another user')).toBeNull();
+  });
+
+  it('shows 👤 tooltip with owner email when ownerEmail is present (folder)', () => {
+    render(
+      <FileListView
+        sortedSubfolders={[makeFolder({ ownedByMe: false, ownerEmail: 'carol@example.com' })]}
+        sortedFiles={[]}
+        getDriveInfo={getDriveInfo}
+        actions={noopActions}
+        renderDriveBadge={renderDriveBadge}
+        showDriveColumn={true}
+      />,
+    );
+    expect(screen.getByTitle('Owned by carol@example.com')).toBeTruthy();
+    expect(screen.queryByTitle('Owned by another user')).toBeNull();
+  });
+
+  it('passes ownerEmail as 3rd arg to renderDriveBadge', () => {
+    render(
+      <FileListView
+        sortedSubfolders={[]}
+        sortedFiles={[makeFile({ ownedByMe: false, ownerEmail: 'alice@example.com' })]}
+        getDriveInfo={getDriveInfo}
+        actions={noopActions}
+        renderDriveBadge={renderDriveBadge}
+        showDriveColumn={true}
+      />,
+    );
+    // The 3rd positional arg to renderDriveBadge is ownerEmail.
+    const lastCall = renderDriveBadge.mock.calls.at(-1);
+    expect(lastCall?.[2]).toBe('alice@example.com');
+  });
 });

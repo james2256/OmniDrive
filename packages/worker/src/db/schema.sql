@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS drive_folders (
     owned_by_me       INTEGER NOT NULL DEFAULT 1,
     is_trashed        INTEGER NOT NULL DEFAULT 0,
     is_starred        INTEGER NOT NULL DEFAULT 0,
+    owner_email       TEXT,
     UNIQUE(drive_account_id, google_folder_id)
 );
 
@@ -137,6 +138,7 @@ CREATE TABLE IF NOT EXISTS files (
     created_at      TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
     owned_by_me     INTEGER NOT NULL DEFAULT 1,
+    owner_email     TEXT,
     UNIQUE(drive_account_id, google_file_id)
 );
 
