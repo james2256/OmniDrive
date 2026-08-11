@@ -25,12 +25,11 @@ export class SyncStateRepository {
    * Uses `.first()` (not `.run()`) so the RETURNING result is readable.
    */
   acquireLock(driveId: string) {
-    // Re-acquire if the lock is stale (status='syncing' AND locked_at > 20min ago).
-    // This prevents permanently stuck syncs when a Worker is killed mid-sync
-    // (CPU limit, deploy, crash). 20min is 5min over the 15-min wall-time limit
-    // for cron/queue consumers (verified from Cloudflare docs), so a legitimate
-    // sync can never have its lock stolen.
-    const STALE_LOCK_MS = 20 * 60 * 1000;
+    // Re-acquire if the lock is stale (status='syncing' AND locked_at > 5min ago).
+    // The heartbeat() method refreshes locked_at every page during sync, so a
+    // live sync never hits this threshold. A crashed sync (Worker killed,
+    // deploy, OOM) stops heartbeating → lock is re-acquirable after 5min.
+    const STALE_LOCK_MS = 5 * 60 * 1000;
     return this.db
       .prepare(
         `INSERT INTO sync_state (drive_account_id, status, locked_at) VALUES (?, 'syncing', datetime('now'))
@@ -133,6 +132,26 @@ export class SyncStateRepository {
          SET change_token = NULL, next_page_token = NULL,
              status = 'idle', error_message = NULL
          WHERE drive_account_id = ?`,
+      )
+      .bind(driveId)
+      .run();
+  }
+
+  /**
+   * Refresh the sync lock timestamp during a long-running sync.
+   *
+   * Called per page during initial + incremental sync so acquireLock's
+   * stale-lock check sees a recent locked_at. Reduces the stale-lock
+   * timeout from 20min to 5min — without a heartbeat, a crashed sync
+   * blocks the next sync for 20min; with a heartbeat, it's 5min.
+   *
+   * Only updates when status='syncing' (prevents accidental heartbeat
+   * on a drive that already completed/errored).
+   */
+  heartbeat(driveId: string) {
+    return this.db
+      .prepare(
+        "UPDATE sync_state SET locked_at = datetime('now') WHERE drive_account_id = ? AND status = 'syncing'",
       )
       .bind(driveId)
       .run();

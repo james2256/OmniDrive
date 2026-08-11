@@ -304,37 +304,6 @@ describe('GoogleDriveService methods', () => {
     });
   });
 
-  // ─── listFilesInFolder (listFiles) ───
-
-  describe('listFilesInFolder', () => {
-    it('GETs /files with q filter and follows pageToken across pages', async () => {
-      fetchMock
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ files: [{ id: '1' }], nextPageToken: 'page2' }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ files: [{ id: '2' }], nextPageToken: undefined }),
-        });
-
-      const files = await service.listFilesInFolder('drive1', 'folder-1');
-
-      expect(files).toHaveLength(2);
-      expect(files[0].id).toBe('1');
-      expect(files[1].id).toBe('2');
-
-      // First call: encoded q filter, no pageToken
-      const firstUrl = fetchMock.mock.calls[0][0] as string;
-      expect(firstUrl).toContain(encodeURIComponent(`'folder-1' in parents and trashed = false`));
-      expect(firstUrl).not.toContain('pageToken=');
-
-      // Second call: has pageToken=page2
-      const secondUrl = fetchMock.mock.calls[1][0] as string;
-      expect(secondUrl).toContain(`pageToken=${encodeURIComponent('page2')}`);
-    });
-  });
-
   // ─── getFile (getFileMetadata) ───
 
   describe('getFile', () => {

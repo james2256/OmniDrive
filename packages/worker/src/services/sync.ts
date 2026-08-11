@@ -218,6 +218,8 @@ async function performInitialSync(
     if (getIsShuttingDown()) {
       return false;
     }
+    // Heartbeat — refresh locked_at so acquireLock's stale check sees a live sync.
+    await new SyncStateRepository(db).heartbeat(drive.id);
 
     const fileRepo = new FileRepository(db);
     const folderRepo = new FolderRepository(db);
@@ -293,6 +295,8 @@ async function performIncrementalSync(
 
   while (true) {
     if (getIsShuttingDown()) return currentToken;
+    // Heartbeat — refresh locked_at so acquireLock's stale check sees a live sync.
+    await new SyncStateRepository(db).heartbeat(drive.id);
     // Pause before hitting the 50-subrequest wall. currentToken is saved by
     // the caller so the next cron cycle resumes from here.
     if (externalCount >= EXTERNAL_SUBREQUEST_BUDGET) {

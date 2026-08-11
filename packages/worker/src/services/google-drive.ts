@@ -705,48 +705,6 @@ export class GoogleDriveService implements DriveProvider {
     return response.json();
   }
 
-  async listFilesInFolder(
-    driveAccountId: string,
-    folderId: string,
-  ): Promise<
-    Array<{
-      id: string;
-      name: string;
-      mimeType: string;
-      size?: string;
-      thumbnailLink?: string;
-      webViewLink?: string;
-      webContentLink?: string;
-      createdTime: string;
-      modifiedTime: string;
-    }>
-  > {
-    const fields =
-      'files(id,name,mimeType,size,owners(me,displayName,emailAddress),thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum)';
-    const q = encodeURIComponent(`'${folderId}' in parents and trashed = false`);
-
-    const allFiles: Array<GDriveFile> = [];
-    let pageToken: string | undefined;
-
-    do {
-      const token = await this.getValidToken(driveAccountId);
-      const url = `${DRIVE_API}/files?q=${q}&fields=nextPageToken,${fields}${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
-      const response = await this.driveFetch(
-        url,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
-        { context: 'Failed to list files' },
-      );
-
-      const data: { files: GDriveFile[]; nextPageToken?: string } = await response.json();
-      allFiles.push(...data.files);
-      pageToken = data.nextPageToken;
-    } while (pageToken);
-
-    return allFiles;
-  }
-
   // ─── Full Folder Contents (files + subfolders) ───
 
   async listFolderContents(

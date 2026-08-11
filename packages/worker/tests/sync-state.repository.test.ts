@@ -49,7 +49,7 @@ describe('SyncStateRepository', () => {
       expect(sql).toContain('WHERE sync_state.status !=');
       expect(sql).toContain('julianday'); // stale-lock TTL check
       expect(sql).toContain('RETURNING drive_account_id');
-      expect(mockBind).toHaveBeenCalledWith('d-1', 20 * 60 * 1000);
+      expect(mockBind).toHaveBeenCalledWith('d-1', 5 * 60 * 1000);
       // MUST use .first() so the RETURNING result is readable — .run() would
       // make the lock appear in sync.test.ts's runCalls (breaking assertions).
       expect(mockFirst).toHaveBeenCalledTimes(1);
@@ -177,6 +177,29 @@ describe('SyncStateRepository', () => {
       // If no sync is in flight, status='idle' is the right pre-sync state.
       // We do NOT set status='syncing' here — that's acquireLock's job.
       expect(sql).not.toContain("status = 'syncing'");
+    });
+  });
+
+  describe('heartbeat', () => {
+    it('UPDATEs locked_at via .run(), binds driveId', async () => {
+      await repo.heartbeat('d-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain('UPDATE sync_state');
+      expect(sql).toContain("locked_at = datetime('now')");
+      expect(sql).toContain("status = 'syncing'");
+      expect(sql).toContain('WHERE drive_account_id = ?');
+      expect(mockBind).toHaveBeenCalledWith('d-1');
+      expect(mockRun).toHaveBeenCalledTimes(1);
+    });
+
+    it('does NOT touch change_token or next_page_token (only refreshes the lock)', async () => {
+      await repo.heartbeat('d-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).not.toContain('change_token');
+      expect(sql).not.toContain('next_page_token');
+      expect(sql).not.toContain('error_message');
     });
   });
 });

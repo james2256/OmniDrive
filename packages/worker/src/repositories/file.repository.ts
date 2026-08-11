@@ -712,14 +712,14 @@ export class FileRepository {
   /**
    * Update a file's drive assignment after a move-drive operation.
    * Sets the new drive_account_id, google_file_id, and resets parent to 'root'.
-   * Clears owner_email to maintain the invariant "owned files have
-   * owner_email = NULL" — the user owns the new copy after move-drive.
+   * Clears owner_email + is_trashed to maintain invariants: "owned files have
+   * owner_email = NULL" and "moved files are not trashed" (the copy is fresh).
    */
   updateDriveAssignment(fileId: string, driveAccountId: string, googleFileId: string) {
     return this.db
       .prepare(
         `UPDATE files
-       SET drive_account_id = ?, google_file_id = ?, google_parent_id = 'root', owned_by_me = 1, owner_email = NULL, updated_at = CURRENT_TIMESTAMP
+       SET drive_account_id = ?, google_file_id = ?, google_parent_id = 'root', owned_by_me = 1, owner_email = NULL, is_trashed = 0, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
       )
       .bind(driveAccountId, googleFileId, fileId)
