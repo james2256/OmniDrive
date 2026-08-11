@@ -56,6 +56,23 @@ export function useTriggerSync() {
 }
 
 /**
+ * Force a full re-sync of a drive.
+ *
+ * Resets the sync cursor (change_token = NULL) so the next sync cycle
+ * runs performInitialSync (iterates ALL files, not just changes). Used
+ * when a new column is added (e.g., owner_email) and existing files
+ * need to be re-fetched to populate it.
+ *
+ * Like useTriggerSync, this is a pure API passthrough — the caller
+ * invalidates the drives cache to pick up the syncStatus change.
+ */
+export function useForceResync() {
+  return useMutation({
+    mutationFn: (driveId: string) => drivesApi.forceResync(driveId),
+  });
+}
+
+/**
  * Resolve a drive account by ID, with its index for color-badging.
  * Standardized fallback: returns { drive: null, index: -1 } when the ID
  * is absent OR not found — fixes the ExternalPage divergence (M-11) that

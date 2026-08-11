@@ -4,6 +4,7 @@ import type { AppContext } from '../types/context';
 import { authGuard } from '../middleware/auth-guard';
 import { createDriveService } from '../lib/drive-factory';
 import { DriveRepository } from '../repositories/drive.repository';
+import { SyncStateRepository } from '../repositories/sync-state.repository';
 import { syncDriveAccount, batchUpsertFolderContents } from '../services/sync';
 import { mapDriveRow, mapDriveFolderRow, mapFileRow } from '../types/db';
 import type { FileEntry } from '../types/domain';
@@ -355,6 +356,28 @@ drivesRouter.post('/:id/sync', async (c) => {
   // Run the sync process in the background via c.executionCtx.waitUntil
   // so the user doesn't have to wait for the entire sync to complete
   c.executionCtx.waitUntil(syncDriveAccount(drive, c.env.DB, driveService));
+
+  return c.body(null, 204);
+});
+
+// ─── Force full re-sync endpoint ───
+
+drivesRouter.post('/:id/resync', async (c) => {
+  const userId = c.get('userId');
+  const driveId = c.req.param('id');
+
+  const driveRepo = new DriveRepository(c.env.DB);
+  const row = await driveRepo.findFullByIdAndUser(driveId, userId);
+  if (!row) return c.json({ error: 'Drive not found' }, 404);
+
+  // Reset the sync cursor so the next syncDriveAccount() call runs
+  // performInitialSync (full re-fetch of ALL files, not just changes).
+  const syncStateRepo = new SyncStateRepository(c.env.DB);
+  await syncStateRepo.resetChangeToken(driveId);
+
+  // Enqueue via queue (not waitUntil) — gets 15min + auto-re-enqueue
+  // for large drives. Same path as cron-triggered sync.
+  await c.env.SYNC_QUEUE.send({ type: 'sync' as const, driveId });
 
   return c.body(null, 204);
 });

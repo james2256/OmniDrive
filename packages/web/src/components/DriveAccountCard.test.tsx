@@ -87,7 +87,13 @@ describe('DriveAccountCard', () => {
 
   it('renders the drive email in the card body', () => {
     render(
-      <DriveAccountCard drive={baseDrive} index={0} onSync={vi.fn()} onDisconnect={vi.fn()} />,
+      <DriveAccountCard
+        drive={baseDrive}
+        index={0}
+        onSync={vi.fn()}
+        onForceResync={vi.fn()}
+        onDisconnect={vi.fn()}
+      />,
     );
 
     expect(screen.getByText('user@example.com')).toBeTruthy();
@@ -95,7 +101,13 @@ describe('DriveAccountCard', () => {
 
   it('renders the OAuth type label when drive.type is "oauth"', () => {
     render(
-      <DriveAccountCard drive={baseDrive} index={0} onSync={vi.fn()} onDisconnect={vi.fn()} />,
+      <DriveAccountCard
+        drive={baseDrive}
+        index={0}
+        onSync={vi.fn()}
+        onForceResync={vi.fn()}
+        onDisconnect={vi.fn()}
+      />,
     );
 
     expect(screen.getByText('OAuth')).toBeTruthy();
@@ -103,21 +115,43 @@ describe('DriveAccountCard', () => {
 
   it('renders the Service Account type label when drive.type is "service_account"', () => {
     const drive: DriveAccount = { ...baseDrive, type: 'service_account' };
-    render(<DriveAccountCard drive={drive} index={0} onSync={vi.fn()} onDisconnect={vi.fn()} />);
+    render(
+      <DriveAccountCard
+        drive={drive}
+        index={0}
+        onSync={vi.fn()}
+        onForceResync={vi.fn()}
+        onDisconnect={vi.fn()}
+      />,
+    );
 
     expect(screen.getByText('Service Account')).toBeTruthy();
   });
 
   it('renders the "Primary" label when drive.isPrimary is true', () => {
     const drive: DriveAccount = { ...baseDrive, isPrimary: true };
-    render(<DriveAccountCard drive={drive} index={0} onSync={vi.fn()} onDisconnect={vi.fn()} />);
+    render(
+      <DriveAccountCard
+        drive={drive}
+        index={0}
+        onSync={vi.fn()}
+        onForceResync={vi.fn()}
+        onDisconnect={vi.fn()}
+      />,
+    );
 
     expect(screen.getByText('· Primary')).toBeTruthy();
   });
 
   it('does NOT render the "Primary" label when drive.isPrimary is false', () => {
     render(
-      <DriveAccountCard drive={baseDrive} index={0} onSync={vi.fn()} onDisconnect={vi.fn()} />,
+      <DriveAccountCard
+        drive={baseDrive}
+        index={0}
+        onSync={vi.fn()}
+        onForceResync={vi.fn()}
+        onDisconnect={vi.fn()}
+      />,
     );
 
     expect(screen.queryByText('· Primary')).toBeNull();
@@ -125,7 +159,13 @@ describe('DriveAccountCard', () => {
 
   it('renders the Sync and Disconnect buttons', () => {
     render(
-      <DriveAccountCard drive={baseDrive} index={0} onSync={vi.fn()} onDisconnect={vi.fn()} />,
+      <DriveAccountCard
+        drive={baseDrive}
+        index={0}
+        onSync={vi.fn()}
+        onForceResync={vi.fn()}
+        onDisconnect={vi.fn()}
+      />,
     );
 
     expect(screen.getByRole('button', { name: /Sync/ })).toBeTruthy();
@@ -134,7 +174,13 @@ describe('DriveAccountCard', () => {
 
   it('renders the quota bar (with used / total formatting) when hasLimit !== false', () => {
     render(
-      <DriveAccountCard drive={baseDrive} index={0} onSync={vi.fn()} onDisconnect={vi.fn()} />,
+      <DriveAccountCard
+        drive={baseDrive}
+        index={0}
+        onSync={vi.fn()}
+        onForceResync={vi.fn()}
+        onDisconnect={vi.fn()}
+      />,
     );
 
     // The "X free of Y" label is rendered below the QuotaBar (always for
@@ -146,7 +192,15 @@ describe('DriveAccountCard', () => {
 
   it('renders the "Pooled storage" indicator (not a quota bar) when hasLimit is false', () => {
     const drive: DriveAccount = { ...baseDrive, hasLimit: false };
-    render(<DriveAccountCard drive={drive} index={0} onSync={vi.fn()} onDisconnect={vi.fn()} />);
+    render(
+      <DriveAccountCard
+        drive={drive}
+        index={0}
+        onSync={vi.fn()}
+        onForceResync={vi.fn()}
+        onDisconnect={vi.fn()}
+      />,
+    );
 
     expect(screen.getByText('Pooled storage')).toBeTruthy();
     expect(screen.queryByText(/free of/)).toBeNull();
@@ -154,7 +208,15 @@ describe('DriveAccountCard', () => {
 
   it('clicking the Sync button calls onSync with drive.id', async () => {
     const onSync = vi.fn().mockResolvedValue(undefined);
-    render(<DriveAccountCard drive={baseDrive} index={0} onSync={onSync} onDisconnect={vi.fn()} />);
+    render(
+      <DriveAccountCard
+        drive={baseDrive}
+        index={0}
+        onSync={onSync}
+        onForceResync={vi.fn()}
+        onDisconnect={vi.fn()}
+      />,
+    );
 
     fireEvent.click(screen.getByRole('button', { name: /Sync/ }));
     await waitFor(() => {
@@ -164,7 +226,13 @@ describe('DriveAccountCard', () => {
 
   it('clicking the Disconnect button opens the ConfirmDialog (calls setConfirmOpen(true))', () => {
     render(
-      <DriveAccountCard drive={baseDrive} index={0} onSync={vi.fn()} onDisconnect={vi.fn()} />,
+      <DriveAccountCard
+        drive={baseDrive}
+        index={0}
+        onSync={vi.fn()}
+        onForceResync={vi.fn()}
+        onDisconnect={vi.fn()}
+      />,
     );
 
     expect(screen.queryByTestId('confirm-dialog')).toBeNull();
@@ -176,7 +244,13 @@ describe('DriveAccountCard', () => {
   it('confirming the disconnect dialog calls onDisconnect with drive.id', async () => {
     const onDisconnect = vi.fn().mockResolvedValue(undefined);
     render(
-      <DriveAccountCard drive={baseDrive} index={0} onSync={vi.fn()} onDisconnect={onDisconnect} />,
+      <DriveAccountCard
+        drive={baseDrive}
+        index={0}
+        onSync={vi.fn()}
+        onForceResync={vi.fn()}
+        onDisconnect={onDisconnect}
+      />,
     );
 
     fireEvent.click(screen.getByRole('button', { name: /Disconnect/ }));
@@ -190,7 +264,15 @@ describe('DriveAccountCard', () => {
 
   it('shows the disconnect message with email + the primary-drive warning when isPrimary', () => {
     const drive: DriveAccount = { ...baseDrive, isPrimary: true };
-    render(<DriveAccountCard drive={drive} index={0} onSync={vi.fn()} onDisconnect={vi.fn()} />);
+    render(
+      <DriveAccountCard
+        drive={drive}
+        index={0}
+        onSync={vi.fn()}
+        onForceResync={vi.fn()}
+        onDisconnect={vi.fn()}
+      />,
+    );
 
     fireEvent.click(screen.getByRole('button', { name: /Disconnect/ }));
     const message = screen.getByTestId('confirm-message').textContent ?? '';
@@ -200,7 +282,13 @@ describe('DriveAccountCard', () => {
 
   it('shows the disconnect message without the primary-drive warning when not primary', () => {
     render(
-      <DriveAccountCard drive={baseDrive} index={0} onSync={vi.fn()} onDisconnect={vi.fn()} />,
+      <DriveAccountCard
+        drive={baseDrive}
+        index={0}
+        onSync={vi.fn()}
+        onForceResync={vi.fn()}
+        onDisconnect={vi.fn()}
+      />,
     );
 
     fireEvent.click(screen.getByRole('button', { name: /Disconnect/ }));
@@ -211,7 +299,15 @@ describe('DriveAccountCard', () => {
 
   it('disables the Sync button while drive.syncStatus is "syncing"', () => {
     const drive: DriveAccount = { ...baseDrive, syncStatus: 'syncing' };
-    render(<DriveAccountCard drive={drive} index={0} onSync={vi.fn()} onDisconnect={vi.fn()} />);
+    render(
+      <DriveAccountCard
+        drive={drive}
+        index={0}
+        onSync={vi.fn()}
+        onForceResync={vi.fn()}
+        onDisconnect={vi.fn()}
+      />,
+    );
 
     expect(screen.getByRole('button', { name: /Syncing/ }).hasAttribute('disabled')).toBe(true);
   });
@@ -223,7 +319,15 @@ describe('DriveAccountCard', () => {
       syncPaused: true,
       lastSyncedAt: null,
     };
-    render(<DriveAccountCard drive={drive} index={0} onSync={vi.fn()} onDisconnect={vi.fn()} />);
+    render(
+      <DriveAccountCard
+        drive={drive}
+        index={0}
+        onSync={vi.fn()}
+        onForceResync={vi.fn()}
+        onDisconnect={vi.fn()}
+      />,
+    );
 
     expect(screen.getByText(/syncing \(paused\)/)).toBeTruthy();
   });
@@ -235,7 +339,15 @@ describe('DriveAccountCard', () => {
       syncPaused: true,
       lastSyncedAt: '2026-08-09T16:05:00Z',
     };
-    render(<DriveAccountCard drive={drive} index={0} onSync={vi.fn()} onDisconnect={vi.fn()} />);
+    render(
+      <DriveAccountCard
+        drive={drive}
+        index={0}
+        onSync={vi.fn()}
+        onForceResync={vi.fn()}
+        onDisconnect={vi.fn()}
+      />,
+    );
 
     expect(screen.queryByText(/syncing \(paused\)/)).toBeNull();
   });
@@ -286,7 +398,13 @@ describe('DriveAccountCard', () => {
 
   it('renders the "Last synced" date when drive.lastSyncedAt is set', () => {
     render(
-      <DriveAccountCard drive={baseDrive} index={0} onSync={vi.fn()} onDisconnect={vi.fn()} />,
+      <DriveAccountCard
+        drive={baseDrive}
+        index={0}
+        onSync={vi.fn()}
+        onForceResync={vi.fn()}
+        onDisconnect={vi.fn()}
+      />,
     );
 
     expect(screen.getByText(/Last synced:/)).toBeTruthy();
@@ -294,8 +412,99 @@ describe('DriveAccountCard', () => {
 
   it('does NOT render the "Last synced" date when drive.lastSyncedAt is null', () => {
     const drive: DriveAccount = { ...baseDrive, lastSyncedAt: null };
-    render(<DriveAccountCard drive={drive} index={0} onSync={vi.fn()} onDisconnect={vi.fn()} />);
+    render(
+      <DriveAccountCard
+        drive={drive}
+        index={0}
+        onSync={vi.fn()}
+        onForceResync={vi.fn()}
+        onDisconnect={vi.fn()}
+      />,
+    );
 
     expect(screen.queryByText(/Last synced:/)).toBeNull();
+  });
+
+  // ─── Force Re-sync button ───
+
+  it('renders the Force Re-sync button', () => {
+    render(
+      <DriveAccountCard
+        drive={baseDrive}
+        index={0}
+        onSync={vi.fn()}
+        onForceResync={vi.fn()}
+        onDisconnect={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /Force Re-sync/ })).toBeTruthy();
+  });
+
+  it('clicking Force Re-sync opens the confirmation dialog', () => {
+    render(
+      <DriveAccountCard
+        drive={baseDrive}
+        index={0}
+        onSync={vi.fn()}
+        onForceResync={vi.fn()}
+        onDisconnect={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Force Re-sync/ }));
+    expect(screen.getByTestId('confirm-dialog')).toBeTruthy();
+    expect(screen.getByTestId('confirm-title').textContent).toBe('Force Full Re-Sync');
+  });
+
+  it('confirming the Force Re-sync dialog calls onForceResync with drive.id', async () => {
+    const onForceResync = vi.fn().mockResolvedValue(undefined);
+    render(
+      <DriveAccountCard
+        drive={baseDrive}
+        index={0}
+        onSync={vi.fn()}
+        onForceResync={onForceResync}
+        onDisconnect={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Force Re-sync/ }));
+    fireEvent.click(screen.getByTestId('confirm-confirm'));
+    await waitFor(() => {
+      expect(onForceResync).toHaveBeenCalledWith('drive-1');
+    });
+  });
+
+  it('disables Force Re-sync button while syncing', () => {
+    const drive: DriveAccount = { ...baseDrive, syncStatus: 'syncing' };
+    render(
+      <DriveAccountCard
+        drive={drive}
+        index={0}
+        onSync={vi.fn()}
+        onForceResync={vi.fn()}
+        onDisconnect={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /Force Re-sync/ })).toHaveProperty('disabled', true);
+  });
+
+  it('canceling the Force Re-sync dialog does not call onForceResync', () => {
+    const onForceResync = vi.fn().mockResolvedValue(undefined);
+    render(
+      <DriveAccountCard
+        drive={baseDrive}
+        index={0}
+        onSync={vi.fn()}
+        onForceResync={onForceResync}
+        onDisconnect={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Force Re-sync/ }));
+    fireEvent.click(screen.getByTestId('confirm-cancel'));
+    expect(onForceResync).not.toHaveBeenCalled();
   });
 });

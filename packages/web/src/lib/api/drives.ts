@@ -18,6 +18,7 @@ export const drivesApi = {
       body: JSON.stringify({ credentials, folderId }),
     }),
   triggerSync: (id: string) => request<void>(`/api/drives/${id}/sync`, { method: 'POST' }),
+  forceResync: (id: string) => request<void>(`/api/drives/${id}/resync`, { method: 'POST' }),
   getDriveFolderContents: (driveId: string, googleFolderId: string) =>
     request<DriveFolderContents>(`/api/drives/${driveId}/folders/${googleFolderId}`),
   deleteDriveFolder: (driveId: string, googleFolderId: string) =>

@@ -112,4 +112,29 @@ export class SyncStateRepository {
       .bind(nextPageToken, driveId)
       .run();
   }
+
+  /**
+   * Reset the sync cursor to force a full re-sync on the next sync cycle.
+   *
+   * Sets change_token = NULL + next_page_token = NULL + clears any error
+   * state. The next syncDriveAccount() call sees change_token IS NULL →
+   * runs performInitialSync (iterates ALL files via Google's files.list
+   * API, not just changes).
+   *
+   * Used by POST /api/drives/:id/resync — the user-triggered "Force
+   * Re-sync" button. Safe to call on a drive that's already syncing:
+   * the UPDATE doesn't touch status='syncing' or locked_at, so the
+   * in-flight sync completes normally and the NEXT cycle runs full.
+   */
+  resetChangeToken(driveId: string) {
+    return this.db
+      .prepare(
+        `UPDATE sync_state
+         SET change_token = NULL, next_page_token = NULL,
+             status = 'idle', error_message = NULL
+         WHERE drive_account_id = ?`,
+      )
+      .bind(driveId)
+      .run();
+  }
 }

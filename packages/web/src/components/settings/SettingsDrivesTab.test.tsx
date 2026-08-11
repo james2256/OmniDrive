@@ -3,7 +3,7 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { SettingsDrivesTab } from './SettingsDrivesTab';
-import { useDrives, useRemoveDrive, useTriggerSync } from '../../hooks/useDrives';
+import { useDrives, useRemoveDrive, useTriggerSync, useForceResync } from '../../hooks/useDrives';
 import { useToastStore } from '../../stores/useToastStore';
 import { authApi } from '../../lib/api/auth';
 
@@ -11,6 +11,7 @@ vi.mock('../../hooks/useDrives', () => ({
   useDrives: vi.fn(),
   useRemoveDrive: vi.fn(),
   useTriggerSync: vi.fn(),
+  useForceResync: vi.fn(),
   useGetDriveInfo: () => vi.fn(),
 }));
 
@@ -67,6 +68,7 @@ describe('SettingsDrivesTab', () => {
     (useToastStore as unknown as Mock).mockReturnValue({ addToast });
     (useRemoveDrive as Mock).mockReturnValue({ mutateAsync: vi.fn() });
     (useTriggerSync as Mock).mockReturnValue({ mutateAsync: vi.fn() });
+    (useForceResync as Mock).mockReturnValue({ mutateAsync: vi.fn() });
   });
 
   afterEach(() => cleanup());

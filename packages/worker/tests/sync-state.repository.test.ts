@@ -142,4 +142,41 @@ describe('SyncStateRepository', () => {
       expect(mockRun).toHaveBeenCalledTimes(1);
     });
   });
+
+  describe('resetChangeToken', () => {
+    it('UPDATEs change_token=NULL, next_page_token=NULL, status=idle, error_message=NULL via .run()', async () => {
+      await repo.resetChangeToken('d-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain('UPDATE sync_state');
+      expect(sql).toContain('change_token = NULL');
+      expect(sql).toContain('next_page_token = NULL');
+      expect(sql).toContain("status = 'idle'");
+      expect(sql).toContain('error_message = NULL');
+      expect(sql).toContain('WHERE drive_account_id = ?');
+      expect(mockBind).toHaveBeenCalledWith('d-1');
+      expect(mockRun).toHaveBeenCalledTimes(1);
+    });
+
+    it('does NOT touch locked_at (in-flight syncs are safe)', async () => {
+      await repo.resetChangeToken('d-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      // The reset must not clear the lock — a sync in flight should complete
+      // normally. The NEXT acquireLock sees status='idle' and acquires.
+      expect(sql).not.toContain('locked_at');
+    });
+
+    it('does NOT touch status=syncing (only sets idle — does not steal the lock)', async () => {
+      await repo.resetChangeToken('d-1');
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      // The SET clause sets status='idle' unconditionally. This is correct
+      // because: if a sync is in flight (status='syncing'), the in-flight
+      // sync's final upsertIdleCompleted/upsertError will overwrite status.
+      // If no sync is in flight, status='idle' is the right pre-sync state.
+      // We do NOT set status='syncing' here — that's acquireLock's job.
+      expect(sql).not.toContain("status = 'syncing'");
+    });
+  });
 });

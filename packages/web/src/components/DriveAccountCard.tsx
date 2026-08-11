@@ -10,6 +10,7 @@ interface DriveAccountCardProps {
   drive: DriveAccount;
   index: number;
   onSync: (id: string) => Promise<void>;
+  onForceResync: (id: string) => Promise<void>;
   onDisconnect: (id: string) => Promise<void>;
   onReconnect?: () => void;
 }
@@ -18,10 +19,12 @@ export function DriveAccountCard({
   drive,
   index,
   onSync,
+  onForceResync,
   onDisconnect,
   onReconnect,
 }: DriveAccountCardProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [resyncConfirmOpen, setResyncConfirmOpen] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const color = getDriveColor(index);
 
@@ -37,6 +40,18 @@ export function DriveAccountCard({
 
   const handleSync = async () => {
     await onSync(drive.id);
+  };
+
+  const handleForceResync = () => {
+    setResyncConfirmOpen(true);
+  };
+
+  const confirmForceResync = async () => {
+    try {
+      await onForceResync(drive.id);
+    } finally {
+      setResyncConfirmOpen(false);
+    }
   };
 
   const handleDisconnect = () => {
@@ -147,6 +162,16 @@ export function DriveAccountCard({
             </Button>
           )}
           <Button
+            variant="secondary"
+            className="gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs bg-slate-50 border-slate-200 rounded-lg disabled:opacity-50"
+            onClick={handleForceResync}
+            disabled={isSyncing}
+            title="Re-fetch ALL files from Google Drive (resets sync cursor)"
+          >
+            <RefreshCw size={12} className={isSyncing ? 'animate-spin' : ''} />
+            <span className="hidden sm:inline">Force Re-sync</span>
+          </Button>
+          <Button
             variant="ghost"
             className="gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100"
             onClick={handleDisconnect}
@@ -201,6 +226,16 @@ export function DriveAccountCard({
         loading={isDisconnecting}
         onConfirm={confirmDisconnect}
         onClose={() => !isDisconnecting && setConfirmOpen(false)}
+      />
+      <ConfirmDialog
+        open={resyncConfirmOpen}
+        title="Force Full Re-Sync"
+        message={`This will re-fetch ALL files from Google Drive for ${drive.email}, resetting the sync cursor. This is useful when new fields (like owner email) need to be populated for existing files. It may take 5-15 minutes for large drives and uses Google API quota. Continue?`}
+        confirmText="Force Re-sync"
+        cancelText="Cancel"
+        variant="warning"
+        onConfirm={confirmForceResync}
+        onClose={() => setResyncConfirmOpen(false)}
       />
     </div>
   );

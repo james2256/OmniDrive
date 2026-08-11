@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useDrives, useRemoveDrive, useTriggerSync } from '../../hooks/useDrives';
+import { useDrives, useRemoveDrive, useTriggerSync, useForceResync } from '../../hooks/useDrives';
 import { qk } from '../../lib/queryKeys';
 import { DriveAccountCard } from '../DriveAccountCard';
 import { useToastStore } from '../../stores/useToastStore';
@@ -14,6 +14,7 @@ export function SettingsDrivesTab() {
   const drives = useMemo(() => drivesData?.drives ?? [], [drivesData]);
   const removeDriveMutation = useRemoveDrive();
   const triggerSyncMutation = useTriggerSync();
+  const forceResyncMutation = useForceResync();
   const queryClient = useQueryClient();
   const { addToast } = useToastStore();
   const [showSaForm, setShowSaForm] = useState(false);
@@ -86,6 +87,23 @@ export function SettingsDrivesTab() {
     }
   };
 
+  const handleForceResync = async (id: string) => {
+    addToast(
+      'info',
+      'Force re-syncing... this will re-fetch ALL files and may take 5-15 minutes for large drives',
+    );
+    try {
+      await forceResyncMutation.mutateAsync(id);
+      // Pessimistic: POST returned 204 (sync enqueued via queue). Refetch to
+      // pick up syncStatus='syncing' — and again after 1s to catch the race
+      // where the queue consumer hasn't picked up the message yet.
+      queryClient.invalidateQueries({ queryKey: qk.drives });
+      setTimeout(() => queryClient.invalidateQueries({ queryKey: qk.drives }), 1000);
+    } catch {
+      addToast('error', 'Failed to start force re-sync');
+    }
+  };
+
   const handleDisconnect = async (id: string) => {
     try {
       await removeDriveMutation.mutateAsync(id);
@@ -134,6 +152,7 @@ export function SettingsDrivesTab() {
               drive={drive}
               index={i}
               onSync={handleSync}
+              onForceResync={handleForceResync}
               onDisconnect={handleDisconnect}
               onReconnect={handleReconnect}
             />
