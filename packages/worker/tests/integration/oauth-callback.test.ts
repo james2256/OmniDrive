@@ -19,10 +19,10 @@ declare module 'cloudflare:workers' {
 }
 
 const ORIGIN = 'http://localhost:5173';
-// app.request() in tests has no ExecutionContext — the callback route uses
-// c.executionCtx.waitUntil for background sync. The stub swallows the promise
-// so background sync (which needs a sync_state table not in the test schema)
-// never executes.
+// app.request() in tests has no ExecutionContext — the stub is passed for
+// parity with routes that use c.executionCtx.waitUntil. The OAuth callback
+// now enqueues sync via SYNC_QUEUE.send() (not waitUntil), so the stub is
+// only here for compatibility with app.request()'s 4th arg signature.
 const executionCtx = { waitUntil: (_promise: Promise<unknown>) => {} };
 
 async function insertUserAndSession(username: string): Promise<{ userId: string; cookie: string }> {

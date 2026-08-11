@@ -5,7 +5,7 @@ import { authGuard } from '../middleware/auth-guard';
 import { createDriveService } from '../lib/drive-factory';
 import { DriveRepository } from '../repositories/drive.repository';
 import { SyncStateRepository } from '../repositories/sync-state.repository';
-import { syncDriveAccount, batchUpsertFolderContents } from '../services/sync';
+import { batchUpsertFolderContents } from '../services/sync';
 import { mapDriveRow, mapDriveFolderRow, mapFileRow } from '../types/db';
 import type { FileEntry } from '../types/domain';
 import { generateId } from '../lib/id';
@@ -296,9 +296,9 @@ drivesRouter.post(
 
     const driveRow = await c.get('driveService').findById(driveId);
     if (driveRow) {
-      const driveObj = mapDriveRow(driveRow);
-      const driveService = createDriveService(c.env);
-      c.executionCtx.waitUntil(syncDriveAccount(driveObj, db, driveService));
+      // Enqueue via queue (not waitUntil) — gets 15min wall-clock + auto-re-enqueue
+      // for large drives. Same path as cron-triggered sync and /:id/resync.
+      await c.env.SYNC_QUEUE.send({ type: 'sync' as const, driveId });
     }
 
     return c.json({ driveId });
@@ -350,12 +350,9 @@ drivesRouter.post('/:id/sync', async (c) => {
 
   if (!row) return c.json({ error: 'Drive not found' }, 404);
 
-  const drive = mapDriveRow(row);
-  const driveService = createDriveService(c.env);
-
-  // Run the sync process in the background via c.executionCtx.waitUntil
-  // so the user doesn't have to wait for the entire sync to complete
-  c.executionCtx.waitUntil(syncDriveAccount(drive, c.env.DB, driveService));
+  // Enqueue via queue (not waitUntil) — gets 15min wall-clock + auto-re-enqueue
+  // for large drives. Same path as cron-triggered sync and /:id/resync.
+  await c.env.SYNC_QUEUE.send({ type: 'sync' as const, driveId });
 
   return c.body(null, 204);
 });

@@ -8,13 +8,10 @@ import { AuthService } from '../services/auth.service';
 import { AppError, ConflictError, NotFoundError } from '../lib/errors';
 import { generateId } from '../lib/id';
 import { authGuard } from '../middleware/auth-guard';
-import { createDriveService } from '../lib/drive-factory';
 import { zValidator } from '@hono/zod-validator';
 import { registerSchema, loginSchema, changePasswordSchema, zodErrorHook } from '../lib/schemas';
 import { encrypt } from '../lib/crypto';
-import { syncDriveAccount } from '../services/sync';
 import { buildDriveOAuthUrl } from '../lib/oauth';
-import { mapDriveRow } from '../types/db';
 import {
   SESSION_TTL_MS,
   sessionCookieOptions,
@@ -297,9 +294,9 @@ authRouter.get('/callback', async (c) => {
     .bind(driveId)
     .first();
   if (driveRow) {
-    const driveObj = mapDriveRow(driveRow);
-    const driveService = createDriveService(c.env);
-    c.executionCtx.waitUntil(syncDriveAccount(driveObj, db, driveService));
+    // Enqueue via queue (not waitUntil) — gets 15min wall-clock + auto-re-enqueue
+    // for large drives. Same path as cron-triggered sync and /:id/resync.
+    await c.env.SYNC_QUEUE.send({ type: 'sync' as const, driveId });
   }
 
   return c.redirect(c.env.FRONTEND_URL);

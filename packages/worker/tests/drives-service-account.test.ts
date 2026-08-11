@@ -22,7 +22,7 @@ vi.mock('../src/lib/crypto', () => ({
 }));
 
 vi.mock('../src/services/sync', () => ({
-  syncDriveAccount: vi.fn(async () => undefined),
+  batchUpsertFolderContents: vi.fn(async () => undefined),
 }));
 
 const USER_ID = 'user-1';
@@ -91,6 +91,7 @@ describe('POST /api/drives/service-account', () => {
       env: {
         DB: wrappedDb,
         KV: { get: kvGet, put: kvPut, delete: vi.fn() },
+        SYNC_QUEUE: { send: vi.fn(async () => undefined), sendBatch: vi.fn(async () => undefined) },
         GOOGLE_CLIENT_ID: 'client-id',
         GOOGLE_CLIENT_SECRET: 'client-secret',
         TOKEN_ENCRYPTION_KEY: 'test-key',
