@@ -95,23 +95,20 @@ export async function batchUpsertFolderContents(
   const allFileIds = [...files.map((f) => f.id), ...folders.map((f) => f.id)];
   const oldStates = await fileRepo.findExistingForDelta(drive.id, allFileIds);
 
-  const stmts: D1PreparedStatement[] = [
-    ...folders.map((f) => {
-      const { ownedByMe, ownerEmail } = resolveOwnership(f.owners);
-      return folderRepo.buildDriveFolderUpsertStmt(drive, f, googleParentId, ownedByMe, ownerEmail);
-    }),
-    ...files.map((f) => {
-      const { ownedByMe, ownerEmail } = resolveOwnership(f.owners);
-      return fileRepo.buildUpsertStmt(drive, f, googleParentId, ownedByMe, ownerEmail);
-    }),
-  ];
-  await batchInChunks(db, stmts);
+  // Build folder UPSERTs (no storage delta for folders — only files count).
+  const stmts: D1PreparedStatement[] = folders.map((f) => {
+    const { ownedByMe, ownerEmail } = resolveOwnership(f.owners);
+    return folderRepo.buildDriveFolderUpsertStmt(drive, f, googleParentId, ownedByMe, ownerEmail);
+  });
 
-  // Apply storage stats deltas. computeStorageDelta is ownership-aware
-  // (Approach B) — handles both transfer directions internally.
+  // Build file UPSERTs + storage deltas in a single pass — resolveOwnership
+  // is called once per file (was called twice: once for UPSERT, once for delta).
   const deltas: { userId: string; mimeType: string; delta: number }[] = [];
   for (const file of files) {
-    const { ownedByMe } = resolveOwnership(file.owners);
+    const { ownedByMe, ownerEmail } = resolveOwnership(file.owners);
+    stmts.push(fileRepo.buildUpsertStmt(drive, file, googleParentId, ownedByMe, ownerEmail));
+
+    // Storage delta — reuse ownedByMe from the same resolveOwnership call.
     const old = oldStates.get(file.id) ?? null;
     const next: FileStateForStats = {
       size: parseInt(file.size ?? '0', 10),
@@ -123,6 +120,7 @@ export async function batchUpsertFolderContents(
       deltas.push({ userId: drive.userId, mimeType: d.mimeType, delta: d.delta });
     }
   }
+  await batchInChunks(db, stmts);
   await fileRepo.applyStorageDeltas(deltas);
 }
 
@@ -237,18 +235,15 @@ async function performInitialSync(
         folderRepo.buildDriveFolderUpsertStmt(drive, folder, parentId, ownedByMe, ownerEmail),
       );
     }
+    // Build file UPSERTs + storage deltas in a single pass — resolveOwnership
+    // is called once per file (was called twice: once for UPSERT, once for delta).
+    const deltas: { userId: string; mimeType: string; delta: number }[] = [];
     for (const file of chunk.files) {
       const parentId = resolveParentId(file.parents, rootFolderId, false);
       const { ownedByMe, ownerEmail } = resolveOwnership(file.owners);
       stmts.push(fileRepo.buildUpsertStmt(drive, file, parentId, ownedByMe, ownerEmail));
-    }
-    await batchInChunks(db, stmts);
 
-    // Apply storage stats deltas. computeStorageDelta is ownership-aware
-    // (Approach B) — handles both transfer directions internally.
-    const deltas: { userId: string; mimeType: string; delta: number }[] = [];
-    for (const file of chunk.files) {
-      const { ownedByMe } = resolveOwnership(file.owners);
+      // Storage delta — reuse ownedByMe from the same resolveOwnership call.
       const old = oldStates.get(file.id) ?? null;
       const next: FileStateForStats = {
         size: parseInt(file.size ?? '0', 10),
@@ -260,6 +255,7 @@ async function performInitialSync(
         deltas.push({ userId: drive.userId, mimeType: d.mimeType, delta: d.delta });
       }
     }
+    await batchInChunks(db, stmts);
     await fileRepo.applyStorageDeltas(deltas);
 
     // Save checkpoint every page — bulletproof crash resilience. D1 has 1,000 subrequest
@@ -403,13 +399,19 @@ async function performIncrementalSync(
     if (response.nextPageToken) {
       currentToken = response.nextPageToken;
     } else {
-      // Google returned no newStartPageToken and no nextPageToken.
-      // This is an API anomaly — returning currentToken would cause an infinite
-      // re-fetch loop (same token → same changes → same token). Throw so
-      // upsertError fires and the token is NOT updated.
-      throw new Error(
-        'Google Drive Changes API returned no newStartPageToken and no nextPageToken — cannot advance sync cursor',
+      // Google API anomaly — neither newStartPageToken nor nextPageToken returned.
+      // Returning '' (falsy) makes syncDriveAccount save change_token='' via
+      // upsertIdleCompleted. The next sync cycle sees !changeToken → runs
+      // performInitialSync (full re-fetch). Self-heals without error state.
+      logErrorNoCtx(
+        'Google Drive API anomaly — no tokens returned, forcing full re-sync on next cycle',
+        undefined,
+        {
+          driveId: drive.id,
+          driveEmail: drive.email,
+        },
       );
+      return '';
     }
   }
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { runScheduledSync } from '../src/services/sync';
+import { runScheduledSync, syncDriveAccount } from '../src/services/sync';
 
 // Mock the createDriveService factory so sync.ts uses our mock GoogleDriveService
 // instead of constructing a real one (which would hit the network).
@@ -434,5 +434,30 @@ describe('runScheduledSync', () => {
     expect(driveService.iterateAllFilesAndFolders).not.toHaveBeenCalled();
     expect(driveService.getStartPageToken).not.toHaveBeenCalled();
     expect(findCall(runCalls, "VALUES (?, 'syncing')")).toBeFalsy();
+  });
+
+  it('anomaly recovery: returns empty string when Google returns no tokens (forces full re-sync)', async () => {
+    // Google API anomaly — listChanges returns neither newStartPageToken
+    // nor nextPageToken. The old code threw (stuck forever); the new code
+    // returns '' (falsy) → upsertIdleCompleted saves change_token='' →
+    // next sync cycle runs performInitialSync (full re-fetch).
+    const driveService = makeDriveServiceMock({
+      listChangesResponses: [{ changes: [] }], // no newStartPageToken, no nextPageToken
+    });
+    vi.mocked(createDriveService).mockReturnValue(driveService as any);
+
+    const { db, runCalls } = makeMockDb({
+      driveAccounts: [makeDriveAccountRow()],
+      syncStateRow: { change_token: 'stuck-token', next_page_token: null },
+    });
+
+    await syncDriveAccount(makeDriveAccountRow() as any, db, driveService as any);
+
+    // The final idle INSERT saves change_token='' (empty string, falsy).
+    const finalIdle = findCall(runCalls, 'status, last_synced_at, change_token, next_page_token)');
+    expect(finalIdle).toBeTruthy();
+    expect(finalIdle!.binds).toEqual(['drive-1', '']);
+    // No error row inserted — the anomaly is handled gracefully (self-heals).
+    expect(findCall(runCalls, "VALUES (?, 'error', ?)")).toBeFalsy();
   });
 });
