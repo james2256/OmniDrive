@@ -419,27 +419,3 @@ async function performIncrementalSync(
     }
   }
 }
-
-export async function runScheduledSync(env: {
-  DB: D1Database;
-  GOOGLE_CLIENT_ID: string;
-  GOOGLE_CLIENT_SECRET: string;
-  TOKEN_ENCRYPTION_KEY: string;
-}): Promise<void> {
-  if (getIsShuttingDown()) return;
-
-  const driveService = createDriveService(env);
-
-  const driveRepo = new DriveRepository(env.DB);
-  const { results: driveRows } = await driveRepo.findAllByType(['oauth', 'service_account']);
-  const driveAccounts = (driveRows ?? []).map(mapDriveRow);
-
-  for (const drive of driveAccounts) {
-    if (getIsShuttingDown()) break;
-    try {
-      await syncDriveAccount(drive, env.DB, driveService);
-    } catch (err) {
-      logErrorNoCtx('Sync error for drive', err, { driveId: drive.id, driveEmail: drive.email });
-    }
-  }
-}

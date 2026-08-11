@@ -6,7 +6,7 @@ import type { Env } from '../types/env';
  * Subset of {@link Env} needed to construct a {@link GoogleDriveService}.
  *
  * Accepted by {@link createDriveService} so callers that only have a partial
- * env (e.g. `runScheduledSync`'s narrowed param) can use the factory without
+ * env (e.g. the queue consumer's narrowed param) can use the factory without
  * having to satisfy every field on the full `Env` interface.
  */
 export type DriveServiceEnv = Pick<

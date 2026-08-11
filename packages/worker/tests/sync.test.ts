@@ -1,13 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { runScheduledSync, syncDriveAccount } from '../src/services/sync';
-
-// Mock the createDriveService factory so sync.ts uses our mock GoogleDriveService
-// instead of constructing a real one (which would hit the network).
-vi.mock('../src/lib/drive-factory', () => ({
-  createDriveService: vi.fn(),
-}));
-
-import { createDriveService } from '../src/lib/drive-factory';
+import { syncDriveAccount } from '../src/services/sync';
+import { mapDriveRow } from '../src/types/db';
+import type { DriveAccount } from '../src/types/domain';
+import type { D1Database } from '@cloudflare/workers-types';
 
 // ─── Mock factories ────────────────────────────────────────────
 
@@ -67,7 +62,6 @@ function makeDriveServiceMock(
  */
 function makeMockDb(
   opts: {
-    driveAccounts?: Record<string, unknown>[];
     syncStateRow?: Record<string, unknown> | null;
     alreadySyncing?: boolean;
   } = {},
@@ -85,6 +79,8 @@ function makeMockDb(
   const db: any = {
     prepare: vi.fn((sql: string) => {
       const makeBound = (binds: any[]) => ({
+        __sql: sql,
+        __binds: binds,
         run: vi.fn(async () => {
           runCalls.push({ sql, binds });
           return { success: true, meta: { changes: 1 } };
@@ -106,9 +102,6 @@ function makeMockDb(
           return null;
         }),
         all: vi.fn(async () => {
-          if (sql.includes('FROM drive_accounts')) {
-            return { results: opts.driveAccounts ?? [] };
-          }
           return { results: [] };
         }),
       });
@@ -117,10 +110,17 @@ function makeMockDb(
         ...makeBound([]),
       };
     }),
-    batch: vi.fn(async (stmts: any[]) =>
-      stmts.map(() => ({ success: true, meta: { changes: 1 } })),
-    ),
-  };
+    batch: vi.fn(async (stmts: any[]) => {
+      // batchInChunks calls db.batch(stmts). Each stmt carries __sql + __binds
+      // from prepare().bind(). Record them so tests can assert on the binds.
+      for (const stmt of stmts) {
+        if (stmt?.__sql) {
+          runCalls.push({ sql: stmt.__sql, binds: stmt.__binds ?? [] });
+        }
+      }
+      return stmts.map(() => ({ success: true, meta: { changes: 1 } }));
+    }),
+  } as unknown as D1Database;
 
   return { db, runCalls };
 }
@@ -148,22 +148,18 @@ function makeDriveAccountRow(id = 'drive-1'): Record<string, unknown> {
   };
 }
 
+/** Convert a raw drive_accounts row to a DriveAccount (what syncDriveAccount expects). */
+function makeDrive(id = 'drive-1'): DriveAccount {
+  return mapDriveRow(makeDriveAccountRow(id));
+}
+
 function findCall(calls: { sql: string; binds: any[] }[], fragment: string) {
   return calls.find((c) => c.sql.includes(fragment));
 }
 
-function makeEnv(db: any) {
-  return {
-    DB: db,
-    GOOGLE_CLIENT_ID: 'cid',
-    GOOGLE_CLIENT_SECRET: 'secret',
-    TOKEN_ENCRYPTION_KEY: 'key',
-  } as any;
-}
-
 // ─── Tests ─────────────────────────────────────────────────────
 
-describe('runScheduledSync', () => {
+describe('syncDriveAccount', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -173,14 +169,12 @@ describe('runScheduledSync', () => {
       iterate: [{ files: [], folders: [] }],
       startPageToken: 'fresh-token-1',
     });
-    vi.mocked(createDriveService).mockReturnValue(driveService as any);
 
     const { db, runCalls } = makeMockDb({
-      driveAccounts: [makeDriveAccountRow()],
       syncStateRow: null, // no existing sync_state → first sync
     });
 
-    await runScheduledSync(makeEnv(db));
+    await syncDriveAccount(makeDrive(), db, driveService as any);
 
     // Lock acquired via UPSERT+RETURNING (.first() path) — sync proceeds.
     // (If the lock was denied, iterateAllFilesAndFolders would not be called.)
@@ -199,14 +193,12 @@ describe('runScheduledSync', () => {
     const driveService = makeDriveServiceMock({
       listChangesResponses: [{ changes: [], newStartPageToken: 'new-token-2' }],
     });
-    vi.mocked(createDriveService).mockReturnValue(driveService as any);
 
     const { db, runCalls } = makeMockDb({
-      driveAccounts: [makeDriveAccountRow()],
       syncStateRow: { change_token: 'old-token', next_page_token: null },
     });
 
-    await runScheduledSync(makeEnv(db));
+    await syncDriveAccount(makeDrive(), db, driveService as any);
 
     // Initial sync NOT called because change_token exists.
     expect(driveService.iterateAllFilesAndFolders).not.toHaveBeenCalled();
@@ -225,14 +217,12 @@ describe('runScheduledSync', () => {
         { changes: [], newStartPageToken: 'final-token' },
       ],
     });
-    vi.mocked(createDriveService).mockReturnValue(driveService as any);
 
     const { db, runCalls } = makeMockDb({
-      driveAccounts: [makeDriveAccountRow()],
       syncStateRow: { change_token: 'start', next_page_token: null },
     });
 
-    await runScheduledSync(makeEnv(db));
+    await syncDriveAccount(makeDrive(), db, driveService as any);
 
     expect(driveService.listChanges).toHaveBeenCalledTimes(2);
     expect(driveService.listChanges).toHaveBeenNthCalledWith(1, 'drive-1', 'start');
@@ -248,14 +238,12 @@ describe('runScheduledSync', () => {
     });
     // Simulate a rate-limit error that withBackoff already exhausted (so it propagates).
     driveService.getStartPageToken = vi.fn().mockRejectedValue(new Error('rate limit exceeded'));
-    vi.mocked(createDriveService).mockReturnValue(driveService as any);
 
     const { db, runCalls } = makeMockDb({
-      driveAccounts: [makeDriveAccountRow()],
       syncStateRow: null,
     });
 
-    await runScheduledSync(makeEnv(db));
+    await syncDriveAccount(makeDrive(), db, driveService as any);
 
     // sync_state error row inserted with the error_message.
     const errorRow = findCall(runCalls, "VALUES (?, 'error', ?)");
@@ -278,14 +266,12 @@ describe('runScheduledSync', () => {
       nextPageToken: `page-${i + 2}`,
     }));
     const driveService = makeDriveServiceMock({ iterate: chunks });
-    vi.mocked(createDriveService).mockReturnValue(driveService as any);
 
     const { db, runCalls } = makeMockDb({
-      driveAccounts: [makeDriveAccountRow()],
       syncStateRow: null,
     });
 
-    await runScheduledSync(makeEnv(db));
+    await syncDriveAccount(makeDrive(), db, driveService as any);
 
     // getStartPageToken NOT called — paused before completion.
     expect(driveService.getStartPageToken).not.toHaveBeenCalled();
@@ -317,14 +303,12 @@ describe('runScheduledSync', () => {
       nextPageToken: `page-${i + 2}`,
     }));
     const driveService = makeDriveServiceMock({ listChangesResponses: responses });
-    vi.mocked(createDriveService).mockReturnValue(driveService as any);
 
     const { db, runCalls } = makeMockDb({
-      driveAccounts: [makeDriveAccountRow()],
       syncStateRow: { change_token: 'start-token', next_page_token: null },
     });
 
-    await runScheduledSync(makeEnv(db));
+    await syncDriveAccount(makeDrive(), db, driveService as any);
 
     // 44 external listChanges calls — the 45th iteration returns early.
     expect(driveService.listChanges).toHaveBeenCalledTimes(44);
@@ -340,15 +324,13 @@ describe('runScheduledSync', () => {
       iterate: [{ files: [], folders: [] }], // 1 chunk, no nextPageToken → completes
       startPageToken: 'final-token',
     });
-    vi.mocked(createDriveService).mockReturnValue(driveService as any);
 
     const { db, runCalls } = makeMockDb({
-      driveAccounts: [makeDriveAccountRow()],
       // change_token null BUT next_page_token present → resume initial sync.
       syncStateRow: { change_token: null, next_page_token: 'resume-page' },
     });
 
-    await runScheduledSync(makeEnv(db));
+    await syncDriveAccount(makeDrive(), db, driveService as any);
 
     // iterateAllFilesAndFolders receives the saved next_page_token as startPageToken.
     expect(driveService.iterateAllFilesAndFolders).toHaveBeenCalledWith('drive-1', 'resume-page');
@@ -361,20 +343,16 @@ describe('runScheduledSync', () => {
     const driveService = makeDriveServiceMock({
       iterate: [{ files: [], folders: [] }],
     });
-    vi.mocked(createDriveService).mockReturnValue(driveService as any);
 
-    const { db, runCalls } = makeMockDb({
-      driveAccounts: [makeDriveAccountRow()],
+    const { db } = makeMockDb({
       syncStateRow: null,
       alreadySyncing: true, // sync_state.status = 'syncing' → lock denied
     });
 
-    await runScheduledSync(makeEnv(db));
+    await syncDriveAccount(makeDrive(), db, driveService as any);
 
     expect(driveService.iterateAllFilesAndFolders).not.toHaveBeenCalled();
     expect(driveService.getStartPageToken).not.toHaveBeenCalled();
-    // The UPSERT+RETURNING lock was attempted (INSERT INTO sync_state with RETURNING).
-    expect(findCall(runCalls, 'RETURNING')).toBeFalsy(); // .first() path, not .run()
   });
 
   it('getQuota failure is non-fatal — sync still completes', async () => {
@@ -383,14 +361,12 @@ describe('runScheduledSync', () => {
       startPageToken: 'token-1',
       quotaThrows: new Error('quota fetch failed'),
     });
-    vi.mocked(createDriveService).mockReturnValue(driveService as any);
 
     const { db, runCalls } = makeMockDb({
-      driveAccounts: [makeDriveAccountRow()],
       syncStateRow: null,
     });
 
-    await runScheduledSync(makeEnv(db));
+    await syncDriveAccount(makeDrive(), db, driveService as any);
 
     expect(driveService.getQuota).toHaveBeenCalledWith('drive-1');
     // Sync completed normally — final idle INSERT is present.
@@ -402,38 +378,24 @@ describe('runScheduledSync', () => {
   });
 
   it('handles multiple drive accounts in sequence', async () => {
+    // syncDriveAccount takes one drive — call it twice to verify sequential
+    // processing works (the queue consumer calls it once per message, but
+    // the function itself must work correctly across multiple invocations).
     const driveService = makeDriveServiceMock({
       iterate: [{ files: [], folders: [] }],
       startPageToken: 'token-multi',
     });
-    vi.mocked(createDriveService).mockReturnValue(driveService as any);
 
     const { db } = makeMockDb({
-      driveAccounts: [makeDriveAccountRow('drive-1'), makeDriveAccountRow('drive-2')],
       syncStateRow: null, // both go through initial sync path
     });
 
-    await runScheduledSync(makeEnv(db));
+    await syncDriveAccount(makeDrive('drive-1'), db, driveService as any);
+    await syncDriveAccount(makeDrive('drive-2'), db, driveService as any);
 
     // Fresh generator per call → initial sync runs once per drive.
     expect(driveService.iterateAllFilesAndFolders).toHaveBeenCalledTimes(2);
     expect(driveService.getStartPageToken).toHaveBeenCalledTimes(2);
-  });
-
-  it('does nothing when no drive accounts exist', async () => {
-    const driveService = makeDriveServiceMock();
-    vi.mocked(createDriveService).mockReturnValue(driveService as any);
-
-    const { db, runCalls } = makeMockDb({
-      driveAccounts: [],
-      syncStateRow: null,
-    });
-
-    await runScheduledSync(makeEnv(db));
-
-    expect(driveService.iterateAllFilesAndFolders).not.toHaveBeenCalled();
-    expect(driveService.getStartPageToken).not.toHaveBeenCalled();
-    expect(findCall(runCalls, "VALUES (?, 'syncing')")).toBeFalsy();
   });
 
   it('anomaly recovery: returns empty string when Google returns no tokens (forces full re-sync)', async () => {
@@ -444,14 +406,12 @@ describe('runScheduledSync', () => {
     const driveService = makeDriveServiceMock({
       listChangesResponses: [{ changes: [] }], // no newStartPageToken, no nextPageToken
     });
-    vi.mocked(createDriveService).mockReturnValue(driveService as any);
 
     const { db, runCalls } = makeMockDb({
-      driveAccounts: [makeDriveAccountRow()],
       syncStateRow: { change_token: 'stuck-token', next_page_token: null },
     });
 
-    await syncDriveAccount(makeDriveAccountRow() as any, db, driveService as any);
+    await syncDriveAccount(makeDrive(), db, driveService as any);
 
     // The final idle INSERT saves change_token='' (empty string, falsy).
     const finalIdle = findCall(runCalls, 'status, last_synced_at, change_token, next_page_token)');
