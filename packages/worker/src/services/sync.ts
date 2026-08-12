@@ -360,6 +360,7 @@ async function performIncrementalSync(
       // For delta computation: look up old state (may be null if file is new)
       const oldState = oldStates.get(change.fileId) ?? null;
 
+      // ─── 1. Removed: permanently deleted from Google Drive → delete from D1 + delta ───
       if (change.removed) {
         // Permanently deleted from Google Drive — remove from D1
         if (isFolder) {
@@ -374,10 +375,12 @@ async function performIncrementalSync(
         continue;
       }
 
+      // ─── 2. Skip: no file metadata (anomaly) or shortcut ───
       const file = change.file;
       if (!file) continue;
       if (file.mimeType === MIME_TYPE_SHORTCUT) continue;
 
+      // ─── 3. Trashed: mark as trashed (recoverable via /trash → restore) + delta ───
       const { ownedByMe, ownerEmail } = resolveOwnership(
         file.owners,
         drive.type === 'service_account',
@@ -403,8 +406,7 @@ async function performIncrementalSync(
         continue;
       }
 
-      // Not trashed → upsert (owned + non-owned). computeStorageDelta handles
-      // ownership transitions (both directions) internally.
+      // ─── 4. Active: upsert (owned + non-owned) + delta ───
       if (isFolder) {
         const parentId = resolveParentId(file.parents, rootFolderId, true);
         stmts.push(
