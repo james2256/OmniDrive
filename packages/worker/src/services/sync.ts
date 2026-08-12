@@ -15,6 +15,15 @@ import { batchInChunks } from '../lib/d1-batch';
 import { logErrorNoCtx } from '../lib/logger';
 import { computeStorageDelta, type FileStateForStats } from '../lib/storage-stats';
 
+/**
+ * Graceful shutdown flag — set by the Node.js self-host server (node-server.ts)
+ * on SIGTERM/SIGINT. Checked per page during sync to stop processing early.
+ *
+ * LIMITATION: This does NOT work on Cloudflare Workers — there is no signal
+ * handler in the Workers runtime. When a Worker is killed (CPU limit, deploy,
+ * OOM), the flag stays false and the sync is interrupted mid-page without
+ * cleanup. The 5-minute stale-lock timeout (acquireLock) is the fallback.
+ */
 let isShuttingDown = false;
 
 export function getIsShuttingDown() {
@@ -228,15 +237,18 @@ async function performInitialSync(
   // count toward the 50 external limit — they have their own 1,000 limit.
   let externalCount = 1;
 
+  // Repositories are stateless — instantiate once before the loop, not per page.
+  const syncStateRepo = new SyncStateRepository(db);
+  const fileRepo = new FileRepository(db);
+  const folderRepo = new FolderRepository(db);
+
   for await (const chunk of iterator) {
     if (getIsShuttingDown()) {
       return false;
     }
     // Heartbeat — refresh locked_at so acquireLock's stale check sees a live sync.
-    await new SyncStateRepository(db).heartbeat(drive.id);
+    await syncStateRepo.heartbeat(drive.id);
 
-    const fileRepo = new FileRepository(db);
-    const folderRepo = new FolderRepository(db);
     const stmts: D1PreparedStatement[] = [];
 
     // Store ALL files (owned + non-owned) — resolveParentId maps the correct
@@ -283,7 +295,7 @@ async function performInitialSync(
     // Save checkpoint every page — bulletproof crash resilience. D1 has 1,000 subrequest
     // limit, so the extra save per page (44 max) is well within budget.
     if (chunk.nextPageToken) {
-      await new SyncStateRepository(db).updateNextPageToken(drive.id, chunk.nextPageToken);
+      await syncStateRepo.updateNextPageToken(drive.id, chunk.nextPageToken);
     }
 
     // 1 external call per page: Google API fetch for the next page.
@@ -313,10 +325,16 @@ async function performIncrementalSync(
 
   let currentToken = pageToken;
 
+  // Repositories are stateless — instantiate once before the loop, not per page.
+  const syncStateRepo = new SyncStateRepository(db);
+  const driveRepo = new DriveRepository(db);
+  const fileRepo = new FileRepository(db);
+  const folderRepo = new FolderRepository(db);
+
   while (true) {
     if (getIsShuttingDown()) return currentToken;
     // Heartbeat — refresh locked_at so acquireLock's stale check sees a live sync.
-    await new SyncStateRepository(db).heartbeat(drive.id);
+    await syncStateRepo.heartbeat(drive.id);
     // Pause before hitting the 50-subrequest wall. currentToken is saved by
     // the caller so the next cron cycle resumes from here.
     if (externalCount >= EXTERNAL_SUBREQUEST_BUDGET) {
@@ -327,9 +345,6 @@ async function performIncrementalSync(
     externalCount++;
 
     const stmts: D1PreparedStatement[] = [];
-    const driveRepo = new DriveRepository(db);
-    const fileRepo = new FileRepository(db);
-    const folderRepo = new FolderRepository(db);
     const deltas: { userId: string; mimeType: string; delta: number }[] = [];
 
     // Read existing file states BEFORE processing changes — needed for delta

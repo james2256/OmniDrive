@@ -80,7 +80,13 @@ export class DriveRepository {
       .first<{ id: string }>();
   }
 
-  /** Find a drive by ID (no user check — used after creation when user is implied). */
+  /**
+   * Find a drive by ID (NO user check — RBAC bypass).
+   *
+   * Only safe when the driveId is trusted (server-generated, from an
+   * already-authorized file, or from the queue consumer's internal message).
+   * NEVER call with a user-supplied driveId — use findFullByIdAndUser instead.
+   */
   findById(driveId: string) {
     return this.db
       .prepare('SELECT * FROM drive_accounts WHERE id = ?')
