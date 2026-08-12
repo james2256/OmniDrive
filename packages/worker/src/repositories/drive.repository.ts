@@ -349,19 +349,39 @@ export class DriveRepository {
   }
 
   /**
-   * Find files visible at the top level of the External page: only files you
-   * OWN whose immediate parent is the '__shared__' sentinel (loose files at
-   * the shared root). Files shared WITH you by others (owned_by_me = 0) are
-   * excluded. Files inside folders are reached by navigating into the folder.
-   * Cursor pagination mirrors findFilesInFolder — (name, id) > (?, ?).
+   * Find files visible at the top level of the External page: files you OWN
+   * that are not in My Drive. Two cases:
+   *   1. Loose files at the '__shared__' sentinel (direct shared-root files).
+   *   2. Files inside non-owned shared folders (your files nested in someone
+   *      else's shared folder — reachable because you own the file, even
+   *      though the parent folder is filtered out of findExternalFolders).
+   *
+   * Files shared WITH you by others (owned_by_me = 0) are excluded. Files
+   * inside OWNED folders (e.g., inside "My Laptop" backup root) are reached
+   * by navigating into the folder via findExternalFolders + drill-in.
+   *
+   * The IN subquery is non-correlated (materialized once per call).
+   * Index coverage (EXPLAIN-verified):
+   *   - Outer: idx_files_external_cursor (user_id, google_parent_id, is_trashed, owned_by_me, name, id)
+   *   - Inner: idx_drive_folders_drive_trashed_parent_name (drive_account_id, is_trashed, google_parent_id, name)
+   * Cursor pagination (name, id) > (?, ?) is preserved via the covering index.
    */
   findExternalFiles(userId: string, cursor: { name: string; id: string } | null, limit: number) {
     let sql = `
       SELECT f.*, d.email as driveEmail FROM files f
       JOIN drive_accounts d ON f.drive_account_id = d.id
-      WHERE f.user_id = ? AND f.google_parent_id = '__shared__' AND f.owned_by_me = 1 AND f.is_trashed = 0
+      WHERE f.user_id = ? AND f.owned_by_me = 1 AND f.is_trashed = 0
+        AND (
+          f.google_parent_id = '__shared__'
+          OR f.google_parent_id IN (
+            SELECT df.google_folder_id FROM drive_folders df
+            JOIN drive_accounts d2 ON df.drive_account_id = d2.id
+            WHERE d2.user_id = ? AND df.google_parent_id = '__shared__'
+              AND df.owned_by_me = 0 AND df.is_trashed = 0
+          )
+        )
     `;
-    const binds: (string | number)[] = [userId];
+    const binds: (string | number)[] = [userId, userId];
     if (cursor && cursor.name !== undefined && cursor.id !== undefined) {
       sql += ` AND (f.name, f.id) > (?, ?)`;
       binds.push(cursor.name, cursor.id);

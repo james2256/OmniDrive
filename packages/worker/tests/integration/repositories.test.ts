@@ -380,6 +380,67 @@ describe('Repositories (integration)', () => {
       expect(files.length).toBe(1);
       expect((files[0] as any).name).toBe('loose-shared.pdf');
     });
+
+    it('findExternalFiles surfaces owned files inside non-owned shared folders', async () => {
+      await insertUser('u1', 'alice', 1);
+      await insertDrive('d1', 'u1', 'alice@gmail.com', 1);
+
+      // Bob's shared folder at __shared__ (non-owned) — parent of Alice's file
+      await env.DB.prepare(
+        'INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      )
+        .bind('df-bob', 'd1', 'gfolder-bob', '__shared__', 'ProjectX', 0, 0)
+        .run();
+
+      // Alice's owned file inside Bob's folder — should surface
+      await env.DB.prepare(
+        'INSERT INTO files (id, user_id, drive_account_id, google_file_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      )
+        .bind('f-alice', 'u1', 'd1', 'gfile-alice', 'gfolder-bob', 'notes.docx', 1, 0)
+        .run();
+
+      // Bob's non-owned file inside his own folder — should NOT surface
+      await env.DB.prepare(
+        'INSERT INTO files (id, user_id, drive_account_id, google_file_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      )
+        .bind('f-bob', 'u1', 'd1', 'gfile-bob', 'gfolder-bob', 'budget.xlsx', 0, 0)
+        .run();
+
+      const repo = new DriveRepository(env.DB);
+      const { results: files } = await repo.findExternalFiles('u1', null, 50);
+
+      // Only notes.docx (owned file inside non-owned shared folder)
+      // NOT budget.xlsx (owned_by_me=0)
+      expect(files.length).toBe(1);
+      expect((files[0] as any).name).toBe('notes.docx');
+    });
+
+    it('findExternalFiles does NOT surface owned files inside OWNED shared folders', async () => {
+      await insertUser('u1', 'alice', 1);
+      await insertDrive('d1', 'u1', 'alice@gmail.com', 1);
+
+      // Alice's owned folder at __shared__ (e.g., "My Laptop" backup root)
+      await env.DB.prepare(
+        'INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      )
+        .bind('df-alice', 'd1', 'gfolder-alice', '__shared__', 'My Laptop', 1, 0)
+        .run();
+
+      // Alice's owned file inside her own folder — should NOT surface at top level
+      // (reachable via findExternalFolders + drill-in, not the flat file list)
+      await env.DB.prepare(
+        'INSERT INTO files (id, user_id, drive_account_id, google_file_id, google_parent_id, name, owned_by_me, is_trashed) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      )
+        .bind('f-inside', 'u1', 'd1', 'gfile-inside', 'gfolder-alice', 'backup-config.txt', 1, 0)
+        .run();
+
+      const repo = new DriveRepository(env.DB);
+      const { results: files } = await repo.findExternalFiles('u1', null, 50);
+
+      // backup-config.txt is NOT surfaced — parent folder is owned (owned_by_me=1),
+      // so it's excluded from the IN subquery. Reachable via drill-in instead.
+      expect(files.length).toBe(0);
+    });
   });
 
   // ─── SyncStateRepository: cross-isolate lock + cursor persistence ───
