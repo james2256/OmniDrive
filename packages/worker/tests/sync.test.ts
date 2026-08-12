@@ -420,4 +420,129 @@ describe('syncDriveAccount', () => {
     // No error row inserted — the anomaly is handled gracefully (self-heals).
     expect(findCall(runCalls, "VALUES (?, 'error', ?)")).toBeFalsy();
   });
+
+  // ─── change.removed=true branch (Bug #1: isFolder ghost-row fix) ───
+
+  it('removed branch: folder removal pushes BOTH deletes (no ghost row)', async () => {
+    // Google omits `file` when removed=true → isFolder is unreliable.
+    // The fix pushes both delete statements unconditionally so the
+    // drive_folders row is actually deleted (was previously skipped).
+    const driveService = makeDriveServiceMock({
+      listChangesResponses: [
+        {
+          changes: [{ fileId: 'folder-1', removed: true, file: undefined }],
+          newStartPageToken: 'next-token',
+        },
+      ],
+    });
+
+    const { db, runCalls } = makeMockDb({
+      syncStateRow: { change_token: 'curr-token', next_page_token: null },
+    });
+
+    await syncDriveAccount(makeDrive(), db, driveService as any);
+
+    // Both DELETE statements must be pushed (one is a 0-row no-op, idempotent).
+    const folderDelete = findCall(runCalls, 'DELETE FROM drive_folders');
+    const fileDelete = findCall(runCalls, 'DELETE FROM files');
+    expect(folderDelete).toBeTruthy();
+    expect(fileDelete).toBeTruthy();
+    expect(folderDelete!.binds).toEqual(['drive-1', 'folder-1']);
+    expect(fileDelete!.binds).toEqual(['drive-1', 'folder-1']);
+    // No storage delta for folder removals (oldState is null → computeStorageDelta returns []).
+    expect(findCall(runCalls, 'file_storage_stats')).toBeFalsy();
+  });
+
+  it('removed branch: file removal pushes BOTH deletes (drive_folders no-op)', async () => {
+    // For a file removal, both DELETE statements are pushed. The drive_folders
+    // DELETE is a 0-row no-op (the ID isn't in drive_folders). The storage delta
+    // mechanism is unit-tested in storage-stats.test.ts — here we verify the
+    // fix's core behavior: both DELETEs fire unconditionally on removed=true.
+    const driveService = makeDriveServiceMock({
+      listChangesResponses: [
+        {
+          changes: [{ fileId: 'file-1', removed: true, file: undefined }],
+          newStartPageToken: 'next-token',
+        },
+      ],
+    });
+
+    const { db, runCalls } = makeMockDb({
+      syncStateRow: { change_token: 'curr-token', next_page_token: null },
+    });
+
+    await syncDriveAccount(makeDrive(), db, driveService as any);
+
+    // Both DELETE statements pushed (drive_folders DELETE is a 0-row no-op here).
+    const fileDelete = findCall(runCalls, 'DELETE FROM files');
+    expect(fileDelete).toBeTruthy();
+    expect(fileDelete!.binds).toEqual(['drive-1', 'file-1']);
+    expect(findCall(runCalls, 'DELETE FROM drive_folders')).toBeTruthy();
+  });
+
+  it('removed branch: unknown ID is a no-op (both DELETEs match 0 rows, no error)', async () => {
+    // A removed=true change for a fileId that doesn't exist in D1 (e.g., already
+    // deleted in a prior sync) must not throw. Both DELETEs are idempotent.
+    const driveService = makeDriveServiceMock({
+      listChangesResponses: [
+        {
+          changes: [{ fileId: 'nonexistent-id', removed: true, file: undefined }],
+          newStartPageToken: 'next-token',
+        },
+      ],
+    });
+
+    const { db, runCalls } = makeMockDb({
+      syncStateRow: { change_token: 'curr-token', next_page_token: null },
+    });
+
+    // Must not throw — syncDriveAccount returns true on successful completion.
+    await expect(syncDriveAccount(makeDrive(), db, driveService as any)).resolves.toBe(true);
+
+    // Both DELETEs pushed (0-row no-ops, no error).
+    expect(findCall(runCalls, 'DELETE FROM drive_folders')).toBeTruthy();
+    expect(findCall(runCalls, 'DELETE FROM files')).toBeTruthy();
+    // No error row.
+    expect(findCall(runCalls, "VALUES (?, 'error', ?)")).toBeFalsy();
+  });
+
+  it('removed branch fix does not affect trashed/active branches (regression guard)', async () => {
+    // A trashed change (removed=false, file.trashed=true) must still go through
+    // the trashed branch — markTrashed, NOT delete. Confirms the removed-branch
+    // fix didn't accidentally alter the trashed/active paths.
+    const driveService = makeDriveServiceMock({
+      listChangesResponses: [
+        {
+          changes: [
+            {
+              fileId: 'file-1',
+              removed: false,
+              file: {
+                id: 'file-1',
+                name: 'doc.pdf',
+                mimeType: 'application/pdf',
+                size: '1024',
+                trashed: true,
+                parents: ['root-id'],
+                owners: [{ me: true, displayName: 'me', emailAddress: 'me@example.com' }],
+              },
+            },
+          ],
+          newStartPageToken: 'next-token',
+        },
+      ],
+    });
+
+    const { db, runCalls } = makeMockDb({
+      syncStateRow: { change_token: 'curr-token', next_page_token: null },
+    });
+
+    await syncDriveAccount(makeDrive(), db, driveService as any);
+
+    // Trashed branch → markTrashedByDriveAndGoogleIdStmt (UPDATE, not DELETE).
+    expect(findCall(runCalls, 'is_trashed = 1')).toBeTruthy();
+    // Must NOT have pushed a DELETE (trashed != removed).
+    expect(findCall(runCalls, 'DELETE FROM files')).toBeFalsy();
+    expect(findCall(runCalls, 'DELETE FROM drive_folders')).toBeFalsy();
+  });
 });

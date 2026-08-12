@@ -128,7 +128,7 @@ export function ExternalPage() {
           folderId ? (breadcrumb[breadcrumb.length - 1]?.name ?? 'Folder') : 'My External Items'
         }
         icon={FolderInput}
-        description={folderId ? undefined : 'Files and folders shared with you or in other drives'}
+        description={folderId ? undefined : 'Items you own that live outside My Drive'}
       />
       <FilesToolbar
         searchQuery={searchQuery}
@@ -205,7 +205,7 @@ export function ExternalPage() {
         <EmptyState
           icon={FolderInput}
           title="No external items"
-          description="Files and folders shared with you will appear here"
+          description="Items you own outside My Drive will appear here"
         />
       )}
 

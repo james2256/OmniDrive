@@ -360,17 +360,16 @@ async function performIncrementalSync(
       // For delta computation: look up old state (may be null if file is new)
       const oldState = oldStates.get(change.fileId) ?? null;
 
-      // ─── 1. Removed: permanently deleted from Google Drive → delete from D1 + delta ───
+      // ─── 1. Removed: deleted or access lost (unshared) → delete from D1 + delta ───
       if (change.removed) {
-        // Permanently deleted from Google Drive — remove from D1
-        if (isFolder) {
-          stmts.push(driveRepo.deleteDriveFolderStmt(drive.id, change.fileId));
-        } else {
-          stmts.push(fileRepo.deleteByDriveAndGoogleIdStmt(drive.id, change.fileId));
-          // Delta: old state (active or trashed) → deleted
-          for (const d of computeStorageDelta(oldState, null)) {
-            deltas.push({ userId: drive.userId, mimeType: d.mimeType, delta: d.delta });
-          }
+        // Google omits `file` when removed=true, so isFolder is unreliable here.
+        // Push BOTH deletes — one is always a 0-row no-op (idempotent). The delta
+        // only fires for files (oldState is null for folders — findExistingForDelta
+        // queries the files table only).
+        stmts.push(driveRepo.deleteDriveFolderStmt(drive.id, change.fileId));
+        stmts.push(fileRepo.deleteByDriveAndGoogleIdStmt(drive.id, change.fileId));
+        for (const d of computeStorageDelta(oldState, null)) {
+          deltas.push({ userId: drive.userId, mimeType: d.mimeType, delta: d.delta });
         }
         continue;
       }

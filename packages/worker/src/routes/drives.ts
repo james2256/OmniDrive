@@ -1,5 +1,11 @@
 import { Hono } from 'hono';
-import { AppError, ConflictError, ValidationError, NotFoundError } from '../lib/errors';
+import {
+  AppError,
+  ConflictError,
+  ValidationError,
+  NotFoundError,
+  UpstreamError,
+} from '../lib/errors';
 import type { AppContext } from '../types/context';
 import { authGuard } from '../middleware/auth-guard';
 import { createDriveService } from '../lib/drive-factory';
@@ -8,6 +14,7 @@ import { SyncStateRepository } from '../repositories/sync-state.repository';
 import { batchUpsertFolderContents } from '../services/sync';
 import { mapDriveRow, mapDriveFolderRow, mapFileRow } from '../types/db';
 import type { FileEntry } from '../types/domain';
+import type { GDriveFile, GDriveFolder } from '../types/google';
 import { generateId } from '../lib/id';
 import type { BreadcrumbItem } from '../types/api';
 import { buildDownloadTree } from '../services/download-tree';
@@ -104,10 +111,19 @@ drivesRouter.get('/:driveId/external-folders/:googleFolderId', async (c) => {
 
   const drive = mapDriveRow(driveRow);
   const driveService = createDriveService(c.env);
-  const { files: gFiles, folders: gFolders } = await driveService.listFolderContents(
-    driveId,
-    googleFolderId,
-  );
+  let gFiles: GDriveFile[] = [];
+  let gFolders: GDriveFolder[] = [];
+  try {
+    ({ files: gFiles, folders: gFolders } = await driveService.listFolderContents(
+      driveId,
+      googleFolderId,
+    ));
+  } catch (e) {
+    // Folder no longer accessible (unshared, deleted, or permission revoked).
+    // Fall through with empty arrays — the D1 read below returns cached rows
+    // (e.g., owned files orphaned inside the now-inaccessible folder).
+    if (!(e instanceof UpstreamError)) throw e;
+  }
 
   // Persist live Google data to D1 so file actions (star/rename/share/delete/move)
   // work — they query D1 primary key (files.id), not Google IDs. Same pattern as
@@ -407,10 +423,18 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/sync', async (c) => {
   const drive = mapDriveRow(driveRow);
   const driveService = createDriveService(c.env);
   const effectiveFolderId = resolveGoogleFolderId(drive, googleFolderId);
-  const { files: gFiles, folders: gFolders } = await driveService.listFolderContents(
-    driveId,
-    effectiveFolderId,
-  );
+  let gFiles: GDriveFile[] = [];
+  let gFolders: GDriveFolder[] = [];
+  try {
+    ({ files: gFiles, folders: gFolders } = await driveService.listFolderContents(
+      driveId,
+      effectiveFolderId,
+    ));
+  } catch (e) {
+    // Folder no longer accessible (unshared, deleted, or permission revoked).
+    // Fall through with empty arrays — the D1 read below returns cached rows.
+    if (!(e instanceof UpstreamError)) throw e;
+  }
 
   await batchUpsertFolderContents(c.env.DB, drive, gFolders, gFiles, googleFolderId);
 
