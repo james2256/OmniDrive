@@ -124,7 +124,7 @@ for (let i = 0; i < stmts.length; i += D1_BATCH_SIZE) {
 }
 ```
 
-**✅ Correct.** D1's `batch()` has a statement-count limit. Chunking at 100 statements per batch minimizes D1 subrequest count (1 batch = 1 subrequest, likely). Shared across `FileRepository.upsertMany`, `FolderRepository.upsertMany`, and `sync.ts`.
+**✅ Correct.** D1's `batch()` has a statement-count limit. Chunking at 100 statements per batch minimizes D1 subrequest count (1 batch = 1 subrequest, likely). Shared by `sync.ts`'s `batchUpsertFolderContents` via `lib/d1-batch.ts`.
 
 ### 1.10 Correct OAuth scope
 
@@ -294,36 +294,16 @@ Critical reasons OmniDrive cannot distinguish:
 
 ### 2.5 🟡 Missing `supportsAllDrives` on `listChanges` and `listFilesInFolder`
 
-> **🔴 STILL OPEN (2026 re-audit).** `google-drive.ts:592` (`listChanges`) STILL has no `supportsAllDrives=true` / `includeItemsFromAllDrives=true`. `google-drive.ts:624` (`listFilesInFolder`) STILL has no `supportsAllDrives=true` / `includeItemsFromAllDrives=true`. The contrast with `listFolderContents` (line 653) and `iterateAllFilesAndFolders` (line 687) — both of which now set both params — remains. Shared-drive items may still be missing from these two specific call sites. Line numbers below are from the original audit; they have shifted by ~45 lines in the current HEAD.
+> **✅ RESOLVED.** `listChanges` (`google-drive.ts:706`) now sets `supportsAllDrives=true&includeItemsFromAllDrives=true` (fixed in commit 29c7216). `listFilesInFolder` was deleted in a prior refactor (its call sites now use `listFolderContents` and `iterateAllFilesAndFolders`, both of which already set both params). No action needed.
 
-**`google-drive.ts:637` (`listChanges` — original audit line, current line is 592):**
-```ts
-const response = await fetch(
-  `${DRIVE_API}/changes?pageToken=${...}&fields=${fields}&spaces=drive&includeRemoved=true`,
-  // ❌ no supportsAllDrives=true, no includeItemsFromAllDrives=true
-);
-```
-
-**`google-drive.ts:672` (`listFilesInFolder`):**
-```ts
-const url = `${DRIVE_API}/files?q=${q}&fields=nextPageToken,${fields}${pageToken ? ...}`;
-// ❌ no supportsAllDrives=true, no includeItemsFromAllDrives=true
-```
-
-**Contrast with `listFolderContents` (line 705)** which correctly includes both params.
-
-**Impact:** Shared-drive items may be missing from delta sync (`listChanges`) and folder listing (`listFilesInFolder`). Users with shared drives will see incomplete data.
-
-**Fix:** Add `&supportsAllDrives=true&includeItemsFromAllDrives=true` to both URLs.
+**Original audit finding (historical):** `listChanges` at `google-drive.ts:592` had no `supportsAllDrives=true` / `includeItemsFromAllDrives=true`. `listFilesInFolder` at `google-drive.ts:624` had the same gap. Both were fixed/deleted.
 
 ### 2.6 🟡 NO `pageSize=1000` on list calls
 
-> **🟡 PARTIALLY RESOLVED (2026 re-audit).** `iterateAllFilesAndFolders` (the sync full-listing path, `google-drive.ts:687`) now sets `&pageSize=1000`. `listFolderContents` (line 653) and `listFilesInFolder` (line 624) still do NOT set `pageSize` → Google defaults to 100 → 10× more round-trips for large folders. Recommend adding `&pageSize=1000` to both remaining call sites.
+> **✅ RESOLVED.** `iterateAllFilesAndFolders` (`google-drive.ts:770`) and `listFolderContents` (`google-drive.ts:729`) now both set `&pageSize=1000`. `listFilesInFolder` was deleted in a prior refactor. All list calls use `pageSize=1000` now.
 
 **Google's max ([files.list](https://developers.google.com/drive/api/reference/rest/v3/files/list)):**
 > "The maximum value is 1000; values above 1000 will be coerced to 1000."
-
-OmniDrive's `listFilesInFolder` and `listFolderContents` do NOT set `pageSize` → Google defaults to 100. For a folder with 1,000 items, this means 10 round-trips instead of 1.
 
 **Impact:** 10× more external subrequests than necessary for large folders. On Free tier (50 subrequests/invocation), this could exhaust the budget before syncing a single large folder.
 
@@ -490,8 +470,8 @@ This makes it easy to spot when a sync is approaching the 50-subrequest or 50-D1
 |---|---|---|---|---|
 | 1 | 🔴 | Implement exponential backoff + `reason` parsing in `google-drive.ts` | 4-6h | Prevents sync failures on transient 429/5xx |
 | 2 | 🔴 | Update sync.ts D1 comment; empirically verify D1 call count | 1-2h | Correct understanding of Free-tier constraints |
-| 3 | 🔴 | Add `supportsAllDrives=true&includeItemsFromAllDrives=true` to `listChanges` + `listFilesInFolder` | 30min | Shared-drive items sync correctly |
-| 4 | 🔴 | Add `pageSize=1000` to all list calls | 30min | 10× fewer round-trips for large folders |
+| 3 | ✅ | ~~Add `supportsAllDrives=true&includeItemsFromAllDrives=true` to `listChanges` + `listFilesInFolder`~~ | 30min | ✅ Resolved (listChanges fixed in 29c7216; listFilesInFolder deleted) |
+| 4 | ✅ | ~~Add `pageSize=1000` to all list calls~~ | 30min | ✅ Resolved (iterateAllFilesAndFolders + listFolderContents both set pageSize=1000) |
 | 5 | 🔴 | Move OAuth consent screen to "In production" | 1h + several months | Refresh tokens don't expire in 7 days |
 | 6 | 🟡 | Add `quotaUser` for service-account flows | 2h | SA traffic bucketed per-user, not collapsed |
 | 7 | 🟡 | Handle 10MB export limit | 1h | Friendly error for large Google Docs |

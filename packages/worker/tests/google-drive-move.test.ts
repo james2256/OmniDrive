@@ -38,7 +38,7 @@ describe('GoogleDriveService Move Operations', () => {
 
       expect(permId).toBe('permission-id');
       expect(globalThis.fetch).toHaveBeenCalledWith(
-        'https://www.googleapis.com/drive/v3/files/fileId/permissions?sendNotificationEmail=false',
+        'https://www.googleapis.com/drive/v3/files/fileId/permissions?sendNotificationEmail=false&supportsAllDrives=true',
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
@@ -75,7 +75,7 @@ describe('GoogleDriveService Move Operations', () => {
       await service.revokeShare('driveAccountId', 'fileId', 'permissionId');
 
       expect(globalThis.fetch).toHaveBeenCalledWith(
-        'https://www.googleapis.com/drive/v3/files/fileId/permissions/permissionId',
+        'https://www.googleapis.com/drive/v3/files/fileId/permissions/permissionId?supportsAllDrives=true',
         expect.objectContaining({
           method: 'DELETE',
           headers: expect.objectContaining({
@@ -119,7 +119,7 @@ describe('GoogleDriveService Move Operations', () => {
       await service.trashFile('driveAccountId', 'fileId');
 
       expect(globalThis.fetch).toHaveBeenCalledWith(
-        'https://www.googleapis.com/drive/v3/files/fileId',
+        'https://www.googleapis.com/drive/v3/files/fileId?supportsAllDrives=true',
         expect.objectContaining({
           method: 'PATCH',
           headers: expect.objectContaining({

@@ -783,10 +783,6 @@ export class FileRepository {
       );
   }
 
-  async upsertMany(stmts: D1PreparedStatement[]): Promise<void> {
-    await batchInChunks(this.db, stmts);
-  }
-
   // ─── S3 protocol support ───
 
   /**

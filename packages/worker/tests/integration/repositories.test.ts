@@ -402,7 +402,26 @@ describe('Repositories (integration)', () => {
     it('acquireLock returns null when the drive is already syncing (lock denied)', async () => {
       await insertUser('u1', 'alice');
       await insertDrive('d1', 'u1', 'alice@gmail.com', 1);
-      // Seed an existing 'syncing' row — simulates another isolate mid-sync.
+      // Seed an existing 'syncing' row with a recent locked_at — simulates
+      // another isolate actively mid-sync (heartbeat refreshed recently).
+      await env.DB.prepare(
+        "INSERT INTO sync_state (drive_account_id, status, locked_at) VALUES (?, 'syncing', datetime('now'))",
+      )
+        .bind('d1')
+        .run();
+
+      const repo = new SyncStateRepository(env.DB);
+      const acquired = await repo.acquireLock('d1');
+
+      expect(acquired).toBeNull();
+    });
+
+    it('acquireLock re-acquires when locked_at IS NULL (pre-migration stuck row)', async () => {
+      await insertUser('u1', 'alice');
+      await insertDrive('d1', 'u1', 'alice@gmail.com', 1);
+      // Seed a 'syncing' row WITHOUT locked_at — simulates a pre-migration-0013
+      // row (locked_at column didn't exist) or any row where locked_at is NULL.
+      // Before the COALESCE fix, this row was permanently stuck (lock denied forever).
       await env.DB.prepare(
         "INSERT INTO sync_state (drive_account_id, status) VALUES (?, 'syncing')",
       )
@@ -412,7 +431,25 @@ describe('Repositories (integration)', () => {
       const repo = new SyncStateRepository(env.DB);
       const acquired = await repo.acquireLock('d1');
 
-      expect(acquired).toBeNull();
+      // COALESCE falls back to last_synced_at (NULL) → epoch (1970) → stale → re-acquire.
+      expect(acquired).toEqual({ drive_account_id: 'd1' });
+    });
+
+    it('acquireLock re-acquires when the lock is stale (locked_at > 5min ago)', async () => {
+      await insertUser('u1', 'alice');
+      await insertDrive('d1', 'u1', 'alice@gmail.com', 1);
+      // Seed a 'syncing' row with locked_at 10 minutes ago — stale lock.
+      await env.DB.prepare(
+        "INSERT INTO sync_state (drive_account_id, status, locked_at) VALUES (?, 'syncing', datetime('now', '-10 minutes'))",
+      )
+        .bind('d1')
+        .run();
+
+      const repo = new SyncStateRepository(env.DB);
+      const acquired = await repo.acquireLock('d1');
+
+      // 10min > 5min threshold → re-acquire.
+      expect(acquired).toEqual({ drive_account_id: 'd1' });
     });
 
     it('acquireLock re-acquires when status is idle (clears a prior error_message)', async () => {

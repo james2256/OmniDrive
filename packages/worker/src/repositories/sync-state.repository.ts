@@ -29,14 +29,16 @@ export class SyncStateRepository {
     // The heartbeat() method refreshes locked_at every page during sync, so a
     // live sync never hits this threshold. A crashed sync (Worker killed,
     // deploy, OOM) stops heartbeating → lock is re-acquirable after 5min.
+    // COALESCE handles pre-migration rows where locked_at is NULL: falls back
+    // to last_synced_at, then to epoch (definitely stale → re-acquire).
     const STALE_LOCK_MS = 5 * 60 * 1000;
     return this.db
       .prepare(
         `INSERT INTO sync_state (drive_account_id, status, locked_at) VALUES (?, 'syncing', datetime('now'))
          ON CONFLICT(drive_account_id) DO UPDATE SET status = 'syncing', error_message = NULL, locked_at = datetime('now')
          WHERE sync_state.status != 'syncing'
-            OR (sync_state.status = 'syncing' AND sync_state.locked_at IS NOT NULL
-                AND (julianday('now') - julianday(sync_state.locked_at)) * 86400000 > ?)
+            OR (sync_state.status = 'syncing'
+                AND (julianday('now') - julianday(COALESCE(sync_state.locked_at, sync_state.last_synced_at, '1970-01-01'))) * 86400000 > ?)
          RETURNING drive_account_id`,
       )
       .bind(driveId, STALE_LOCK_MS)

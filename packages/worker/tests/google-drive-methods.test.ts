@@ -90,7 +90,7 @@ describe('GoogleDriveService methods', () => {
 
       expect(permId).toBe('perm-1');
       expect(fetchMock).toHaveBeenCalledWith(
-        `${DRIVE_API}/files/file1/permissions?sendNotificationEmail=false`,
+        `${DRIVE_API}/files/file1/permissions?sendNotificationEmail=false&supportsAllDrives=true`,
         expect.objectContaining({
           method: 'POST',
           body: JSON.stringify({ role: 'writer', type: 'user', emailAddress: 'alice@example.com' }),
@@ -121,7 +121,7 @@ describe('GoogleDriveService methods', () => {
       await service.revokeShare('drive1', 'file1', 'perm-1');
 
       expect(fetchMock).toHaveBeenCalledWith(
-        `${DRIVE_API}/files/file1/permissions/perm-1`,
+        `${DRIVE_API}/files/file1/permissions/perm-1?supportsAllDrives=true`,
         expect.objectContaining({
           method: 'DELETE',
           headers: { Authorization: 'Bearer fake-access-token' },
@@ -139,7 +139,7 @@ describe('GoogleDriveService methods', () => {
       await service.trashFile('drive1', 'file1');
 
       expect(fetchMock).toHaveBeenCalledWith(
-        `${DRIVE_API}/files/file1`,
+        `${DRIVE_API}/files/file1?supportsAllDrives=true`,
         expect.objectContaining({
           method: 'PATCH',
           body: JSON.stringify({ trashed: true }),
@@ -174,7 +174,7 @@ describe('GoogleDriveService methods', () => {
       await service.untrashFile('drive1', 'file1');
 
       expect(fetchMock).toHaveBeenCalledWith(
-        `${DRIVE_API}/files/file1`,
+        `${DRIVE_API}/files/file1?supportsAllDrives=true`,
         expect.objectContaining({
           method: 'PATCH',
           body: JSON.stringify({ trashed: false }),
@@ -208,7 +208,7 @@ describe('GoogleDriveService methods', () => {
       await service.deleteFile('drive1', 'file1');
 
       expect(fetchMock).toHaveBeenCalledWith(
-        `${DRIVE_API}/files/file1`,
+        `${DRIVE_API}/files/file1?supportsAllDrives=true`,
         expect.objectContaining({
           method: 'DELETE',
           headers: { Authorization: 'Bearer fake-access-token' },
@@ -235,7 +235,7 @@ describe('GoogleDriveService methods', () => {
 
       expect(folderId).toBe('folder-1');
       expect(fetchMock).toHaveBeenCalledWith(
-        `${DRIVE_API}/files`,
+        `${DRIVE_API}/files?supportsAllDrives=true`,
         expect.objectContaining({
           method: 'POST',
           body: JSON.stringify({
@@ -252,7 +252,7 @@ describe('GoogleDriveService methods', () => {
       await service.createFolder('drive1', 'Subfolder', 'parent-1');
 
       expect(fetchMock).toHaveBeenCalledWith(
-        `${DRIVE_API}/files`,
+        `${DRIVE_API}/files?supportsAllDrives=true`,
         expect.objectContaining({
           body: JSON.stringify({
             name: 'Subfolder',
@@ -389,7 +389,7 @@ describe('GoogleDriveService methods', () => {
       expect(result.exportedMimeType).toBeUndefined();
       expect(result.exportedExtension).toBeUndefined();
       expect(fetchMock).toHaveBeenCalledWith(
-        `${DRIVE_API}/files/file1?alt=media`,
+        `${DRIVE_API}/files/file1?alt=media&supportsAllDrives=true`,
         expect.objectContaining({
           headers: { Authorization: 'Bearer fake-access-token' },
         }),
@@ -413,7 +413,7 @@ describe('GoogleDriveService methods', () => {
       expect(result.exportedMimeType).toBe('application/pdf');
       expect(result.exportedExtension).toBe('.pdf');
       expect(fetchMock).toHaveBeenCalledWith(
-        `${DRIVE_API}/files/file1/export?mimeType=application/pdf`,
+        `${DRIVE_API}/files/file1/export?mimeType=application/pdf&supportsAllDrives=true`,
         expect.objectContaining({
           headers: { Authorization: 'Bearer fake-access-token' },
         }),

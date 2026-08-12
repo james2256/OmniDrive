@@ -6,8 +6,8 @@ const D1_BATCH_SIZE = 100;
 /**
  * Batch-execute prepared statements in chunks of 100.
  *
- * Shared by FileRepository.upsertMany, FolderRepository.upsertMany, and
- * sync.ts's batchUpsertFolderContents. Previously triplicated.
+ * Used by sync.ts's batchUpsertFolderContents to stay under D1's batch()
+ * statement-count limit.
  */
 export async function batchInChunks(db: D1Database, stmts: D1PreparedStatement[]): Promise<void> {
   if (stmts.length === 0) return;

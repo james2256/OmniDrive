@@ -302,7 +302,7 @@ export class GoogleDriveService implements DriveProvider {
     }
 
     const response = await this.driveFetch(
-      `${DRIVE_API}/files`,
+      `${DRIVE_API}/files?supportsAllDrives=true`,
       {
         method: 'POST',
         headers: {
@@ -426,7 +426,7 @@ export class GoogleDriveService implements DriveProvider {
   }> {
     const token = await this.getValidToken(driveAccountId);
 
-    let url = `${DRIVE_API}/files/${googleFileId}?alt=media`;
+    let url = `${DRIVE_API}/files/${googleFileId}?alt=media&supportsAllDrives=true`;
     let exportedMimeType = undefined;
     let exportedExtension = undefined;
 
@@ -453,7 +453,7 @@ export class GoogleDriveService implements DriveProvider {
         exportedMimeType = 'application/pdf';
         exportedExtension = '.pdf';
       }
-      url = `${DRIVE_API}/files/${googleFileId}/export?mimeType=${exportedMimeType}`;
+      url = `${DRIVE_API}/files/${googleFileId}/export?mimeType=${exportedMimeType}&supportsAllDrives=true`;
     }
 
     const response = await this.driveFetch(
@@ -479,7 +479,7 @@ export class GoogleDriveService implements DriveProvider {
 
     // 404 = already deleted; treat as success (idempotent delete)
     await this.driveFetch(
-      `${DRIVE_API}/files/${googleFileId}`,
+      `${DRIVE_API}/files/${googleFileId}?supportsAllDrives=true`,
       {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
@@ -492,7 +492,7 @@ export class GoogleDriveService implements DriveProvider {
     const token = await this.getValidToken(driveAccountId);
 
     await this.driveFetch(
-      `${DRIVE_API}/files/${googleFileId}`,
+      `${DRIVE_API}/files/${googleFileId}?supportsAllDrives=true`,
       {
         method: 'PATCH',
         headers: {
@@ -517,7 +517,7 @@ export class GoogleDriveService implements DriveProvider {
     const token = await this.getValidToken(driveAccountId);
 
     const response = await this.driveFetch(
-      `${DRIVE_API}/files/${fileId}/permissions?sendNotificationEmail=false`,
+      `${DRIVE_API}/files/${fileId}/permissions?sendNotificationEmail=false&supportsAllDrives=true`,
       {
         method: 'POST',
         headers: {
@@ -537,7 +537,7 @@ export class GoogleDriveService implements DriveProvider {
     const token = await this.getValidToken(driveAccountId);
 
     await this.driveFetch(
-      `${DRIVE_API}/files/${fileId}/permissions/${permissionId}`,
+      `${DRIVE_API}/files/${fileId}/permissions/${permissionId}?supportsAllDrives=true`,
       {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
@@ -592,7 +592,7 @@ export class GoogleDriveService implements DriveProvider {
     const token = await this.getValidToken(driveAccountId);
 
     await this.driveFetch(
-      `${DRIVE_API}/files/${fileId}`,
+      `${DRIVE_API}/files/${fileId}?supportsAllDrives=true`,
       {
         method: 'PATCH',
         headers: {
@@ -643,7 +643,7 @@ export class GoogleDriveService implements DriveProvider {
     const token = await this.getValidToken(driveAccountId);
 
     await this.driveFetch(
-      `${DRIVE_API}/files/${fileId}`,
+      `${DRIVE_API}/files/${fileId}?supportsAllDrives=true`,
       {
         method: 'PATCH',
         headers: {
