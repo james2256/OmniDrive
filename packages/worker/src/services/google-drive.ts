@@ -19,6 +19,14 @@ const QUOTA_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const DRIVE_API = 'https://www.googleapis.com/drive/v3';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 
+/** Fields for single-file metadata (getFile + copyFile). */
+const FILE_FIELDS =
+  'id,name,mimeType,size,owners(me,displayName,emailAddress),thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum';
+
+/** Fields for files.list sync calls (listFolderContents + iterateAllFilesAndFolders). */
+const LIST_FILES_FIELDS =
+  'nextPageToken,files(id,name,mimeType,size,parents,owners(me,displayName,emailAddress),trashed,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum)';
+
 /** Result of a token refresh: the new access token plus its real expiry. */
 interface RefreshedTokens {
   accessToken: string;
@@ -349,8 +357,7 @@ export class GoogleDriveService implements DriveProvider {
 
   async getFile(driveAccountId: string, googleFileId: string): Promise<GDriveFile> {
     const token = await this.getValidToken(driveAccountId);
-    const fields =
-      'id,name,mimeType,size,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum';
+    const fields = FILE_FIELDS;
 
     const response = await this.driveFetch(
       `${DRIVE_API}/files/${googleFileId}?fields=${fields}&supportsAllDrives=true`,
@@ -541,8 +548,7 @@ export class GoogleDriveService implements DriveProvider {
 
   async copyFile(driveAccountId: string, fileId: string, name?: string): Promise<GDriveFile> {
     const token = await this.getValidToken(driveAccountId);
-    const fields =
-      'id,name,mimeType,size,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum';
+    const fields = FILE_FIELDS;
 
     const response = await this.driveFetch(
       `${DRIVE_API}/files/${fileId}/copy?fields=${fields}&supportsAllDrives=true`,
@@ -711,8 +717,7 @@ export class GoogleDriveService implements DriveProvider {
     driveAccountId: string,
     folderId: string,
   ): Promise<{ files: GDriveFile[]; folders: GDriveFolder[] }> {
-    const fields =
-      'nextPageToken,files(id,name,mimeType,size,parents,owners(me,displayName,emailAddress),trashed,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum)';
+    const fields = LIST_FILES_FIELDS;
     const q = encodeURIComponent(`'${folderId}' in parents and trashed = false`);
 
     const allFiles: GDriveFile[] = [];
@@ -755,8 +760,7 @@ export class GoogleDriveService implements DriveProvider {
     void,
     unknown
   > {
-    const fields =
-      'nextPageToken,files(id,name,mimeType,size,parents,owners(me,displayName,emailAddress),trashed,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum)';
+    const fields = LIST_FILES_FIELDS;
     const q = encodeURIComponent(`trashed = false`);
 
     let pageToken: string | undefined = startPageToken;

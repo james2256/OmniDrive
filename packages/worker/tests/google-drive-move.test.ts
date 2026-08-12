@@ -97,7 +97,7 @@ describe('GoogleDriveService Move Operations', () => {
 
       expect(file.id).toBe('new-file-id');
       expect(globalThis.fetch).toHaveBeenCalledWith(
-        'https://www.googleapis.com/drive/v3/files/fileId/copy?fields=id,name,mimeType,size,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum&supportsAllDrives=true',
+        'https://www.googleapis.com/drive/v3/files/fileId/copy?fields=id,name,mimeType,size,owners(me,displayName,emailAddress),thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum&supportsAllDrives=true',
         {
           method: 'POST',
           headers: {

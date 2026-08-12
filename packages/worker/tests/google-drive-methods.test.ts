@@ -50,7 +50,7 @@ describe('GoogleDriveService methods', () => {
 
       expect(result.id).toBe('new-id');
       expect(fetchMock).toHaveBeenCalledWith(
-        `${DRIVE_API}/files/file1/copy?fields=id,name,mimeType,size,thumbnailLink,` +
+        `${DRIVE_API}/files/file1/copy?fields=id,name,mimeType,size,owners(me,displayName,emailAddress),thumbnailLink,` +
           'webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum&supportsAllDrives=true',
         {
           method: 'POST',
@@ -317,7 +317,7 @@ describe('GoogleDriveService methods', () => {
 
       expect(file.id).toBe('file1');
       expect(fetchMock).toHaveBeenCalledWith(
-        `${DRIVE_API}/files/file1?fields=id,name,mimeType,size,thumbnailLink,` +
+        `${DRIVE_API}/files/file1?fields=id,name,mimeType,size,owners(me,displayName,emailAddress),thumbnailLink,` +
           'webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum&supportsAllDrives=true',
         expect.objectContaining({
           headers: { Authorization: 'Bearer fake-access-token' },
