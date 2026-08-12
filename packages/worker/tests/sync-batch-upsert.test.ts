@@ -272,4 +272,35 @@ describe('batchUpsertFolderContents', () => {
     expect(fileCalls[1].binds[13]).toBe(0); // nonOwnedFile
     expect(fileCalls[1].binds[14]).toBe('b@example.com');
   });
+
+  // ─── Service account (shared Drive) path ───
+
+  it('upserts service account files with owned_by_me=1 when owners[] is empty (shared Drive)', async () => {
+    // Google doesn't populate owners[] for shared Drive items.
+    // resolveOwnership must return ownedByMe=true when isServiceAccount=true.
+    const drive = makeDriveAccount({ type: 'service_account' });
+    const file = makeFile({ id: 'sa-file-1', owners: undefined });
+
+    const { db, runCalls } = makeMockDb();
+    await batchUpsertFolderContents(db, drive, [], [file], 'parent-1');
+
+    const upsertCall = findCall(runCalls, 'INSERT INTO files');
+    expect(upsertCall).toBeTruthy();
+    expect(upsertCall!.binds[13]).toBe(1); // ownedByMe=1 (not 0 — service account has full access)
+    expect(upsertCall!.binds[14]).toBeNull(); // ownerEmail=null (no individual owner for shared Drive items)
+  });
+
+  it('applies storage delta for service account files (owned_by_me=1)', async () => {
+    const drive = makeDriveAccount({ type: 'service_account' });
+    const file = makeFile({ id: 'sa-file-2', size: '5000', owners: undefined });
+
+    const { db, runCalls } = makeMockDb({ existingFileStates: new Map() });
+    await batchUpsertFolderContents(db, drive, [], [file], 'parent-1');
+
+    const deltaCall = findCall(runCalls, 'INSERT INTO file_storage_stats');
+    expect(deltaCall).toBeTruthy();
+    expect(deltaCall!.binds[0]).toBe('user-1');
+    expect(deltaCall!.binds[1]).toBe('application/pdf');
+    expect(deltaCall!.binds[2]).toBe(5000); // +5000 delta (file counts in quota)
+  });
 });

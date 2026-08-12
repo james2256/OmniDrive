@@ -656,7 +656,7 @@ export class GoogleDriveService implements DriveProvider {
     const token = await this.getValidToken(driveAccountId);
 
     const response = await this.driveFetch(
-      `${DRIVE_API}/changes/startPageToken`,
+      `${DRIVE_API}/changes/startPageToken?supportsAllDrives=true`,
       {
         headers: { Authorization: `Bearer ${token}` },
       },
@@ -697,7 +697,7 @@ export class GoogleDriveService implements DriveProvider {
       'nextPageToken,newStartPageToken,changes(fileId,removed,file(id,name,mimeType,size,parents,owners(me,displayName,emailAddress),trashed,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum))';
 
     const response = await this.driveFetch(
-      `${DRIVE_API}/changes?pageToken=${encodeURIComponent(pageToken)}&fields=${fields}&spaces=drive&includeRemoved=true`,
+      `${DRIVE_API}/changes?pageToken=${encodeURIComponent(pageToken)}&fields=${fields}&spaces=drive&includeRemoved=true&supportsAllDrives=true&includeItemsFromAllDrives=true`,
       { headers: { Authorization: `Bearer ${token}` } },
       { context: 'Failed to list changes' },
     );

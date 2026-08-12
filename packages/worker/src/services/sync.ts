@@ -60,11 +60,22 @@ function resolveParentId(
  * Per Google's User resource docs, emailAddress may be absent "if the user
  * has not made their email address visible to the requester" — callers must
  * tolerate null (UI falls back to the connected drive's email + 👤 icon).
+ *
+ * Service accounts (shared Drives) don't have owners[] populated at all
+ * (Google API: "This field isn't populated for items in shared drives").
+ * The service account has full access to the shared Drive — treat as owned
+ * so storage stats + S3 lifecycle + retention policies include them.
  */
-function resolveOwnership(owners: GDriveOwner[] | undefined): {
+function resolveOwnership(
+  owners: GDriveOwner[] | undefined,
+  isServiceAccount: boolean = false,
+): {
   ownedByMe: boolean;
   ownerEmail: string | null;
 } {
+  if (isServiceAccount) {
+    return { ownedByMe: true, ownerEmail: null };
+  }
   if (!owners || owners.length === 0) {
     return { ownedByMe: false, ownerEmail: null };
   }
@@ -97,7 +108,7 @@ export async function batchUpsertFolderContents(
 
   // Build folder UPSERTs (no storage delta for folders — only files count).
   const stmts: D1PreparedStatement[] = folders.map((f) => {
-    const { ownedByMe, ownerEmail } = resolveOwnership(f.owners);
+    const { ownedByMe, ownerEmail } = resolveOwnership(f.owners, drive.type === 'service_account');
     return folderRepo.buildDriveFolderUpsertStmt(drive, f, googleParentId, ownedByMe, ownerEmail);
   });
 
@@ -105,7 +116,10 @@ export async function batchUpsertFolderContents(
   // is called once per file (was called twice: once for UPSERT, once for delta).
   const deltas: { userId: string; mimeType: string; delta: number }[] = [];
   for (const file of files) {
-    const { ownedByMe, ownerEmail } = resolveOwnership(file.owners);
+    const { ownedByMe, ownerEmail } = resolveOwnership(
+      file.owners,
+      drive.type === 'service_account',
+    );
     stmts.push(fileRepo.buildUpsertStmt(drive, file, googleParentId, ownedByMe, ownerEmail));
 
     // Storage delta — reuse ownedByMe from the same resolveOwnership call.
@@ -232,7 +246,10 @@ async function performInitialSync(
 
     for (const folder of chunk.folders) {
       const parentId = resolveParentId(folder.parents, rootFolderId, true);
-      const { ownedByMe, ownerEmail } = resolveOwnership(folder.owners);
+      const { ownedByMe, ownerEmail } = resolveOwnership(
+        folder.owners,
+        drive.type === 'service_account',
+      );
       stmts.push(
         folderRepo.buildDriveFolderUpsertStmt(drive, folder, parentId, ownedByMe, ownerEmail),
       );
@@ -242,7 +259,10 @@ async function performInitialSync(
     const deltas: { userId: string; mimeType: string; delta: number }[] = [];
     for (const file of chunk.files) {
       const parentId = resolveParentId(file.parents, rootFolderId, false);
-      const { ownedByMe, ownerEmail } = resolveOwnership(file.owners);
+      const { ownedByMe, ownerEmail } = resolveOwnership(
+        file.owners,
+        drive.type === 'service_account',
+      );
       stmts.push(fileRepo.buildUpsertStmt(drive, file, parentId, ownedByMe, ownerEmail));
 
       // Storage delta — reuse ownedByMe from the same resolveOwnership call.
@@ -343,7 +363,10 @@ async function performIncrementalSync(
       if (!file) continue;
       if (file.mimeType === MIME_TYPE_SHORTCUT) continue;
 
-      const { ownedByMe, ownerEmail } = resolveOwnership(file.owners);
+      const { ownedByMe, ownerEmail } = resolveOwnership(
+        file.owners,
+        drive.type === 'service_account',
+      );
 
       if (file.trashed) {
         // Trashed → mark as trashed (recoverable via /trash → restore)
