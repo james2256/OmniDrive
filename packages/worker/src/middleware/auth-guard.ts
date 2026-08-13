@@ -12,6 +12,7 @@ import { AutomationRepository } from '../repositories/automation.repository';
 import { S3CredentialsRepository } from '../repositories/s3-credentials.repository';
 import { AdminRepository } from '../repositories/admin.repository';
 import { AuthRepository } from '../repositories/auth.repository';
+import { createDriveService } from '../lib/drive-factory';
 
 const EXTENSION_THRESHOLD = 60 * 60 * 1000; // 1 hour
 
@@ -48,26 +49,14 @@ export const authGuard = createMiddleware<AppContext>(async (c, next) => {
   c.set('userId', session.userId);
   c.set('session', session);
 
-  // Instantiate services once per request — routes access via c.get()
-  c.set(
-    'fileService',
-    new FileService(
-      c.env.DB,
-      c.env.GOOGLE_CLIENT_ID,
-      c.env.GOOGLE_CLIENT_SECRET,
-      c.env.TOKEN_ENCRYPTION_KEY,
-    ),
-  );
+  // Instantiate services once per request — routes access via c.get().
+  // A single shared DriveProvider is injected into both facades so they share
+  // the same in-memory token cache (avoids redundant loadTokens D1 reads when
+  // both facades call Google API for the same drive in one request).
+  const sharedDriveProvider = createDriveService(c.env);
+  c.set('fileService', new FileService(c.env.DB, sharedDriveProvider));
   c.set('folderService', new FolderService(c.env.DB));
-  c.set(
-    'driveService',
-    new DriveService(
-      c.env.DB,
-      c.env.GOOGLE_CLIENT_ID,
-      c.env.GOOGLE_CLIENT_SECRET,
-      c.env.TOKEN_ENCRYPTION_KEY,
-    ),
-  );
+  c.set('driveService', new DriveService(c.env.DB, sharedDriveProvider));
   c.set('workspaceService', new WorkspaceService(c.env.DB));
   c.set('automationRepo', new AutomationRepository(c.env.DB));
   c.set('s3CredentialsRepo', new S3CredentialsRepository(c.env.DB));

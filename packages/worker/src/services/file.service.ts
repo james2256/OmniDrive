@@ -3,7 +3,6 @@ import { FileRepository } from '../repositories/file.repository';
 import { FolderRepository } from '../repositories/folder.repository';
 import { DriveRepository } from '../repositories/drive.repository';
 import type { DriveProvider } from '../types/drive-provider';
-import { createDriveService } from '../lib/drive-factory';
 import { PolicyService } from './policy.service';
 import { getWorkspaceRole, hasPermission } from '../lib/rbac';
 import { AppError, NotFoundError, ForbiddenError } from '../lib/errors';
@@ -34,19 +33,12 @@ export class FileService {
 
   constructor(
     private db: D1Database,
-    clientId: string,
-    clientSecret: string,
-    encryptionKey: string,
+    driveProvider: DriveProvider,
   ) {
     this.fileRepo = new FileRepository(db);
     this.folderRepo = new FolderRepository(db);
     this.driveRepo = new DriveRepository(db);
-    this.driveProvider = createDriveService({
-      DB: db,
-      GOOGLE_CLIENT_ID: clientId,
-      GOOGLE_CLIENT_SECRET: clientSecret,
-      TOKEN_ENCRYPTION_KEY: encryptionKey,
-    });
+    this.driveProvider = driveProvider;
     this.policyService = new PolicyService(db, this.driveProvider);
   }
 

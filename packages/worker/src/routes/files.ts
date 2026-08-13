@@ -3,7 +3,6 @@ import { Hono } from 'hono';
 import type { AppContext } from '../types/context';
 import { generateId } from '../lib/id';
 import { authGuard } from '../middleware/auth-guard';
-import { createDriveService } from '../lib/drive-factory';
 import { AppError, ConflictError, NotFoundError, ForbiddenError } from '../lib/errors';
 import { DriveRepository } from '../repositories/drive.repository';
 import { FileRepository } from '../repositories/file.repository';
@@ -145,7 +144,7 @@ filesRouter.post(
       throw new NotFoundError('Target drive not found or unauthorized');
     }
 
-    const driveService = createDriveService(c.env);
+    const driveService = c.get('fileService').getDriveProvider();
 
     let sharePermissionId: string | null = null;
     let copySuccessId: string | null = null;
@@ -310,7 +309,7 @@ filesRouter.post('/upload/init', zValidator('json', uploadInitSchema, zodErrorHo
   }
 
   if (workspaceId && size) {
-    const policyService = new PolicyService(db, createDriveService(c.env));
+    const policyService = new PolicyService(db, c.get('fileService').getDriveProvider());
     const hasQuota = await policyService.checkQuota(workspaceId, size);
     if (!hasQuota) {
       return c.json({ error: 'Storage quota exceeded' }, 403);
@@ -335,7 +334,7 @@ filesRouter.post('/upload/init', zValidator('json', uploadInitSchema, zodErrorHo
   const router = new UploadRouter(drives);
   const targetDrive = router.selectDriveForUpload(size, driveAccountId);
 
-  const gDrive = createDriveService(c.env);
+  const gDrive = c.get('fileService').getDriveProvider();
   // parentFolderId (current view) wins; fall back to the drive's configured root folder, then Google 'root'.
   const uploadParent = parentFolderId || targetDrive.rootFolderId || 'root';
   let uploadUrl: string;
@@ -396,7 +395,7 @@ filesRouter.post(
     }
 
     // Fetch file metadata from Google Drive
-    const driveService = createDriveService(c.env);
+    const driveService = c.get('fileService').getDriveProvider();
     let gFile;
     try {
       gFile = await driveService.getFile(driveAccountId, googleFileId);
@@ -471,7 +470,7 @@ filesRouter.post(
     // Invalidate quota cache
     await c.get('driveService').deleteQuotaCache(driveAccountId);
 
-    const engine = new AutomationEngine(c.env, createDriveService(c.env));
+    const engine = new AutomationEngine(c.env, c.get('fileService').getDriveProvider());
     c.executionCtx.waitUntil(
       engine.processEventTrigger(
         { ...toDbFile(created), user_id: userId },

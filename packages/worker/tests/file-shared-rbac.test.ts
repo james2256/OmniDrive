@@ -10,8 +10,15 @@ import { FileService } from '../src/services/file.service';
 import { SharedService } from '../src/services/shared.service';
 import { getWorkspaceRole, hasPermission } from '../src/lib/rbac';
 import type { FileRow } from '../src/types';
+import type { DriveProvider } from '../src/types/drive-provider';
 
 const mockDb = {} as D1Database;
+const mockDriveProvider = {
+  trashFile: vi.fn(),
+  untrashFile: vi.fn(),
+  starFile: vi.fn(),
+  unstarFile: vi.fn(),
+} as unknown as DriveProvider;
 
 function makeFileRow(overrides: Partial<FileRow> = {}): FileRow {
   return {
@@ -46,7 +53,7 @@ describe('FileService RBAC (unit)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    fileService = new FileService(mockDb, 'client-id', 'secret', '0'.repeat(64));
+    fileService = new FileService(mockDb, mockDriveProvider);
   });
 
   it('owner can trash their own file (personal file)', async () => {

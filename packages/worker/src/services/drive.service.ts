@@ -1,7 +1,6 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import { DriveRepository } from '../repositories/drive.repository';
 import type { DriveProvider } from '../types/drive-provider';
-import { createDriveService } from '../lib/drive-factory';
 import { NotFoundError, ForbiddenError } from '../lib/errors';
 import { generateId } from '../lib/id';
 import { encodeCursor } from '../lib/cursor';
@@ -17,14 +16,9 @@ export class DriveService {
   private driveRepo: DriveRepository;
   private driveProvider: DriveProvider;
 
-  constructor(db: D1Database, clientId: string, clientSecret: string, encryptionKey: string) {
+  constructor(db: D1Database, driveProvider: DriveProvider) {
     this.driveRepo = new DriveRepository(db);
-    this.driveProvider = createDriveService({
-      DB: db,
-      GOOGLE_CLIENT_ID: clientId,
-      GOOGLE_CLIENT_SECRET: clientSecret,
-      TOKEN_ENCRYPTION_KEY: encryptionKey,
-    });
+    this.driveProvider = driveProvider;
   }
 
   /** Find a drive by ID + user, throw NotFoundError if missing/unauthorized. */

@@ -2,7 +2,6 @@ import { Hono } from 'hono';
 import type { Env } from '../types/env';
 import type { AppContext } from '../types/context';
 import { authGuard } from '../middleware/auth-guard';
-import { createDriveService } from '../lib/drive-factory';
 import { AppError } from '../lib/errors';
 import { mapDriveRow } from '../types/db';
 import { syncDriveAccount, syncDriveFolder } from '../services/sync';
@@ -227,7 +226,7 @@ foldersRouter.post('/:id/sync', async (c) => {
   const { results } = await c.get('driveService').findDrivesForFolder(folderId, userId);
 
   if (results && results.length > 0) {
-    const driveService = createDriveService(c.env);
+    const driveService = c.get('driveService').getDriveProvider();
     for (const row of results) {
       const drive = mapDriveRow(row);
       c.executionCtx.waitUntil(

@@ -8,7 +8,6 @@ import {
 } from '../lib/errors';
 import type { AppContext } from '../types/context';
 import { authGuard } from '../middleware/auth-guard';
-import { createDriveService } from '../lib/drive-factory';
 import { DriveRepository } from '../repositories/drive.repository';
 import { SyncStateRepository } from '../repositories/sync-state.repository';
 import { batchUpsertFolderContents } from '../services/sync';
@@ -110,7 +109,7 @@ drivesRouter.get('/:driveId/external-folders/:googleFolderId', async (c) => {
   if (!driveRow) return c.json({ error: 'Drive not found' }, 404);
 
   const drive = mapDriveRow(driveRow);
-  const driveService = createDriveService(c.env);
+  const driveService = c.get('driveService').getDriveProvider();
   let gFiles: GDriveFile[] = [];
   let gFolders: GDriveFolder[] = [];
   try {
@@ -421,7 +420,7 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/sync', async (c) => {
   }
 
   const drive = mapDriveRow(driveRow);
-  const driveService = createDriveService(c.env);
+  const driveService = c.get('driveService').getDriveProvider();
   const effectiveFolderId = resolveGoogleFolderId(drive, googleFolderId);
   let gFiles: GDriveFile[] = [];
   let gFolders: GDriveFolder[] = [];
@@ -752,7 +751,7 @@ drivesRouter.get('/:driveId/folders/:googleFolderId/download-tree', async (c) =>
   if (!driveRow) return c.json({ error: 'Drive not found' }, 404);
 
   const drive = mapDriveRow(driveRow);
-  const driveService = createDriveService(c.env);
+  const driveService = c.get('driveService').getDriveProvider();
 
   // Build a googleFileId → FileEntry map as we persist each folder's contents
   // to D1. The helper returns Google-file-keyed tree items; this map swaps in
