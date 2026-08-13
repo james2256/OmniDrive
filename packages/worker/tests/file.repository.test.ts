@@ -515,26 +515,6 @@ describe('FileRepository', () => {
     });
   });
 
-  // ─── recomputeStorageStats (admin reconcile) ───
-
-  describe('recomputeStorageStats', () => {
-    it('runs a 2-statement batch: DELETE + INSERT from files GROUP BY', async () => {
-      await repo.recomputeStorageStats('u-1');
-
-      expect(mockBatch).toHaveBeenCalledTimes(1);
-      const stmts = mockBatch.mock.calls[0][0] as unknown[];
-      expect(stmts).toHaveLength(2);
-
-      const sqls = mockPrepare.mock.calls.map((c) => c[0] as string);
-      expect(sqls).toContain('DELETE FROM file_storage_stats WHERE user_id = ?');
-      expect(
-        sqls.some(
-          (s) => s.includes('INSERT INTO file_storage_stats') && s.includes('GROUP BY COALESCE'),
-        ),
-      ).toBe(true);
-    });
-  });
-
   // ─── D1 bind variable limit regression tests ───
 
   describe('findExistingForDelta D1 variable limit', () => {

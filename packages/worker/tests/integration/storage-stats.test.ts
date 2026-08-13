@@ -200,56 +200,6 @@ describe('Storage Stats (integration)', () => {
     expect(results[0].total_size).toBe(0); // clamped, not -2000
   });
 
-  it('recomputeStorageStats rebuilds from files table', async () => {
-    await insertUser('u1', 'alice');
-    await insertDrive('d1', 'u1', 'alice@gmail.com');
-    const repo = new FileRepository(env.DB);
-
-    // Insert files directly (no deltas applied — simulates drift)
-    await insertFile({
-      id: 'f1',
-      userId: 'u1',
-      driveId: 'd1',
-      googleFileId: 'g1',
-      name: 'photo.jpg',
-      mimeType: 'image/jpeg',
-      size: 7000,
-    });
-    await insertFile({
-      id: 'f2',
-      userId: 'u1',
-      driveId: 'd1',
-      googleFileId: 'g2',
-      name: 'video.mp4',
-      mimeType: 'video/mp4',
-      size: 15000,
-    });
-    await insertFile({
-      id: 'f3',
-      userId: 'u1',
-      driveId: 'd1',
-      googleFileId: 'g3',
-      name: 'trashed.jpg',
-      mimeType: 'image/jpeg',
-      size: 9999,
-      isTrashed: 1,
-    });
-
-    // Stats should be empty (no deltas applied)
-    let { results } = await repo.getStorageStats('u1');
-    expect(results).toHaveLength(0);
-
-    // Recompute
-    await repo.recomputeStorageStats('u1');
-
-    // Should now reflect only non-trashed files
-    ({ results } = await repo.getStorageStats('u1'));
-    expect(results).toHaveLength(2);
-    const byMime = Object.fromEntries(results.map((r) => [r.mime_type, r.total_size]));
-    expect(byMime['image/jpeg']).toBe(7000); // only non-trashed image
-    expect(byMime['video/mp4']).toBe(15000);
-  });
-
   it('findExistingForDelta returns correct old states', async () => {
     await insertUser('u1', 'alice');
     await insertDrive('d1', 'u1', 'alice@gmail.com');

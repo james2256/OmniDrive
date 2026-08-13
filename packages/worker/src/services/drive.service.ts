@@ -55,12 +55,6 @@ export class DriveService {
     return googleFolderId;
   }
 
-  /** Check if the user owns a Drive folder by google_folder_id. Returns true/false. */
-  async checkDriveFolderOwnership(userId: string, googleFolderId: string): Promise<boolean> {
-    const folder = await this.driveRepo.findOwnedDriveFolderByGoogleId(googleFolderId, userId);
-    return !!folder;
-  }
-
   /** Rename a Google Drive folder via the API, then update the cache. */
   async renameDriveFolder(
     userId: string,

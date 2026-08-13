@@ -169,6 +169,7 @@ export function DashboardPage() {
             onClick={() => {
               queryClient.invalidateQueries({ queryKey: qk.recent });
               queryClient.invalidateQueries({ queryKey: qk.category });
+              queryClient.invalidateQueries({ queryKey: qk.drives });
               addToast('info', 'Refreshed');
             }}
           >

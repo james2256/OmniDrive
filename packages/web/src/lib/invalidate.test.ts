@@ -69,9 +69,9 @@ describe('invalidateAfterFileMutation', () => {
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['workspaceContents'] });
   });
 
-  it('issues exactly 10 invalidateQueries calls', () => {
+  it('issues exactly 11 invalidateQueries calls', () => {
     invalidateAfterFileMutation(qc);
-    expect(invalidateQueries).toHaveBeenCalledTimes(10);
+    expect(invalidateQueries).toHaveBeenCalledTimes(11);
   });
 
   it('does not return a value', () => {

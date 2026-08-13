@@ -163,11 +163,10 @@ CREATE INDEX IF NOT EXISTS idx_files_google_parent ON files(drive_account_id, go
 -- D1 rows-read hot-path indexes (see migrations 0007). Each targets a verified
 -- full/index-range scan in EXPLAIN QUERY PLAN:
 --   idx_files_workspace_trashed          → findRecent UNION branch 2 + retention/lifecycle cron
---   idx_files_user_parent_trashed_owned  → findExternalFiles (External page top-level)
+--   idx_files_external_cursor            → findExternalFiles (External page top-level, covering: sort eliminated)
 --   idx_files_user_starred_trashed       → findStarred page
 --   idx_files_ws_wsfol_trash_name_id     → findFilesInWorkspaceRoot (covering: sort eliminated)
 CREATE INDEX IF NOT EXISTS idx_files_workspace_trashed ON files(workspace_id, is_trashed);
-CREATE INDEX IF NOT EXISTS idx_files_user_parent_trashed_owned ON files(user_id, google_parent_id, is_trashed, owned_by_me);
 CREATE INDEX IF NOT EXISTS idx_files_external_cursor ON files(user_id, google_parent_id, is_trashed, owned_by_me, name, id);
 CREATE INDEX IF NOT EXISTS idx_files_user_starred_trashed ON files(user_id, is_starred, is_trashed);
 CREATE INDEX IF NOT EXISTS idx_files_ws_wsfol_trash_name_id ON files(workspace_id, workspace_folder_id, is_trashed, name, id);

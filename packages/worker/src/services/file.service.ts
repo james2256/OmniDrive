@@ -417,7 +417,7 @@ export class FileService {
       userId,
     });
     // Best-effort — a failure here only affects the "Storage by type" chart,
-    // not the file record or quota. recomputeStorageStats() is the backstop.
+    // not the file record or quota.
     try {
       await this.fileRepo.applyStorageDeltas([
         { userId, mimeType: params.mimeType ?? '', delta: params.size },

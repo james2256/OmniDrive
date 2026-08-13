@@ -108,8 +108,7 @@ export class FileRepository {
    * from drift (a missed delta would otherwise produce a negative value
    * that breaks the frontend donut chart — DashboardPage.tsx filters
    * `c.value > 0`, which would silently drop the negative bucket and
-   * inflate the total). The recomputeStorageStats admin endpoint is the
-   * real drift fix; MAX(0) prevents UI breakage in the meantime.
+   * inflate the total). MAX(0) prevents UI breakage in the meantime.
    */
   applyStorageDeltaStmt(userId: string, mimeType: string, delta: number): D1PreparedStatement {
     // INSERT stores the raw delta. On first insert, a negative delta would
@@ -187,23 +186,6 @@ export class FileRepository {
       }
     }
     return out;
-  }
-
-  /**
-   * Full recompute for admin reconcile / initial-sync fallback.
-   * DELETE + re-INSERT in a single batch (atomic).
-   */
-  async recomputeStorageStats(userId: string): Promise<void> {
-    await this.db.batch([
-      this.db.prepare('DELETE FROM file_storage_stats WHERE user_id = ?').bind(userId),
-      this.db
-        .prepare(
-          `INSERT INTO file_storage_stats (user_id, mime_type, total_size)
-           SELECT ?, COALESCE(mime_type, ''), SUM(size) FROM files
-           WHERE user_id = ? AND is_trashed = 0 AND owned_by_me = 1 GROUP BY COALESCE(mime_type, '')`,
-        )
-        .bind(userId, userId),
-    ]);
   }
 
   /**

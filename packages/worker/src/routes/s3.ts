@@ -798,7 +798,7 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
 
   // Update per-MIME-type storage stats (mirrors Web UI finalizeUpload).
   // Best-effort — a failure here only affects the "Storage by type" chart,
-  // not the file record or quota. recomputeStorageStats() is the backstop.
+  // not the file record or quota.
   try {
     await fileRepo.applyStorageDeltas([{ userId, mimeType, delta: contentLength }]);
   } catch (err) {
