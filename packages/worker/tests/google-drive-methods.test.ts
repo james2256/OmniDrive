@@ -51,7 +51,7 @@ describe('GoogleDriveService methods', () => {
       expect(result.id).toBe('new-id');
       expect(fetchMock).toHaveBeenCalledWith(
         `${DRIVE_API}/files/file1/copy?fields=id,name,mimeType,size,owners(me,displayName,emailAddress),thumbnailLink,` +
-          'webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum&supportsAllDrives=true',
+          'webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum,starred&supportsAllDrives=true',
         {
           method: 'POST',
           headers: {
@@ -199,6 +199,74 @@ describe('GoogleDriveService methods', () => {
     });
   });
 
+  // ─── starFile / unstarFile / starFolder / unstarFolder ───
+
+  describe('starFile', () => {
+    it('PATCHes /files/{id} with { starred: true }', async () => {
+      fetchMock.mockResolvedValueOnce({ ok: true });
+
+      await service.starFile('drive1', 'file1');
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        `${DRIVE_API}/files/file1?supportsAllDrives=true`,
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({ starred: true }),
+          headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
+        }),
+      );
+    });
+  });
+
+  describe('unstarFile', () => {
+    it('PATCHes /files/{id} with { starred: false }', async () => {
+      fetchMock.mockResolvedValueOnce({ ok: true });
+
+      await service.unstarFile('drive1', 'file1');
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        `${DRIVE_API}/files/file1?supportsAllDrives=true`,
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({ starred: false }),
+          headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
+        }),
+      );
+    });
+  });
+
+  describe('starFolder', () => {
+    it('PATCHes /files/{id}?supportsAllDrives=true with { starred: true }', async () => {
+      fetchMock.mockResolvedValueOnce({ ok: true });
+
+      await service.starFolder('drive1', 'folder1');
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        `${DRIVE_API}/files/folder1?supportsAllDrives=true`,
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({ starred: true }),
+        }),
+      );
+    });
+  });
+
+  describe('unstarFolder', () => {
+    it('PATCHes /files/{id}?supportsAllDrives=true with { starred: false }', async () => {
+      fetchMock.mockResolvedValueOnce({ ok: true });
+
+      await service.unstarFolder('drive1', 'folder1');
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        `${DRIVE_API}/files/folder1?supportsAllDrives=true`,
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({ starred: false }),
+        }),
+      );
+    });
+  });
+
   // ─── deleteFile ───
 
   describe('deleteFile', () => {
@@ -318,7 +386,7 @@ describe('GoogleDriveService methods', () => {
       expect(file.id).toBe('file1');
       expect(fetchMock).toHaveBeenCalledWith(
         `${DRIVE_API}/files/file1?fields=id,name,mimeType,size,owners(me,displayName,emailAddress),thumbnailLink,` +
-          'webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum&supportsAllDrives=true',
+          'webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum,starred&supportsAllDrives=true',
         expect.objectContaining({
           headers: { Authorization: 'Bearer fake-access-token' },
         }),

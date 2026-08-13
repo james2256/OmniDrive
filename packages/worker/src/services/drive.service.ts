@@ -104,15 +104,17 @@ export class DriveService {
     await this.driveRepo.deleteDriveFolder(driveId, googleFolderId);
   }
 
-  /** Star a Google Drive folder (DB only — no Google API call needed). */
+  /** Star a Google Drive folder via the API, then update the cache. */
   async starDriveFolder(userId: string, driveId: string, googleFolderId: string): Promise<void> {
     await this.getDriveOrThrow(driveId, userId);
+    await this.driveProvider.starFolder(driveId, googleFolderId);
     await this.driveRepo.starDriveFolder(driveId, googleFolderId);
   }
 
-  /** Unstar a Google Drive folder. */
+  /** Unstar a Google Drive folder via the API, then update the cache. */
   async unstarDriveFolder(userId: string, driveId: string, googleFolderId: string): Promise<void> {
     await this.getDriveOrThrow(driveId, userId);
+    await this.driveProvider.unstarFolder(driveId, googleFolderId);
     await this.driveRepo.unstarDriveFolder(driveId, googleFolderId);
   }
 

@@ -411,7 +411,13 @@ async function performIncrementalSync(
         stmts.push(
           folderRepo.buildDriveFolderUpsertStmt(
             drive,
-            { id: file.id, name: file.name, parents: file.parents, owners: file.owners },
+            {
+              id: file.id,
+              name: file.name,
+              parents: file.parents,
+              owners: file.owners,
+              starred: file.starred,
+            },
             parentId,
             ownedByMe,
             ownerEmail,

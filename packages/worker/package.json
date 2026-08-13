@@ -12,7 +12,9 @@
     "db:migrate:local": "wrangler d1 migrations apply omnidrive --local",
     "db:migrate:remote": "wrangler d1 migrations apply omnidrive --remote",
     "db:reset:local": "node scripts/reset.mjs --local",
-    "db:reset:remote": "node scripts/reset.mjs --remote"
+    "db:reset:remote": "node scripts/reset.mjs --remote",
+    "backfill:stars:local": "node scripts/backfill-stars.mjs --local",
+    "backfill:stars:remote": "node scripts/backfill-stars.mjs --remote"
   },
   "dependencies": {
     "@hono/node-server": "^2.0.11",

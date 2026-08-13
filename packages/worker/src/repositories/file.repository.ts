@@ -728,8 +728,8 @@ export class FileRepository {
 
   static readonly UPSERT_FILE_SQL = `INSERT INTO files
     (id, user_id, drive_account_id, google_file_id, google_parent_id, name, mime_type, size,
-     thumbnail_url, web_view_link, web_content_link, google_created_at, google_modified_at, synced_at, owned_by_me, owner_email)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?)
+     thumbnail_url, web_view_link, web_content_link, google_created_at, google_modified_at, synced_at, owned_by_me, owner_email, is_starred)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?, ?)
     ON CONFLICT(drive_account_id, google_file_id) DO UPDATE SET
       name = excluded.name,
       mime_type = excluded.mime_type,
@@ -742,6 +742,7 @@ export class FileRepository {
       synced_at = excluded.synced_at,
       owned_by_me = excluded.owned_by_me,
       owner_email = excluded.owner_email,
+      is_starred = excluded.is_starred,
       is_trashed = 0
     WHERE excluded.name IS NOT files.name
        OR excluded.mime_type IS NOT files.mime_type
@@ -753,6 +754,7 @@ export class FileRepository {
        OR excluded.google_parent_id IS NOT files.google_parent_id
        OR excluded.owned_by_me IS NOT files.owned_by_me
        OR excluded.owner_email IS NOT files.owner_email
+       OR excluded.is_starred IS NOT files.is_starred
        OR files.is_trashed = 1`;
 
   buildUpsertStmt(
@@ -780,6 +782,7 @@ export class FileRepository {
         file.modifiedTime,
         ownedByMe ? 1 : 0,
         ownerEmail,
+        file.starred ? 1 : 0,
       );
   }
 

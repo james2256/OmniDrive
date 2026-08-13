@@ -116,16 +116,18 @@ export class FileService {
     await this.fileRepo.rename(fileId, file.user_id, name);
   }
 
-  /** Star a file. RBAC: viewer. */
+  /** Star a file. RBAC: viewer. Pushes to Google Drive first, then D1. */
   async starFile(userId: string, fileId: string): Promise<void> {
     const file = await this.getFileOrThrow(fileId, userId, 'viewer');
+    await this.driveProvider.starFile(file.drive_account_id, file.google_file_id);
     const changed = await this.fileRepo.star(fileId, file.user_id);
     if (!changed) throw new NotFoundError('File not found');
   }
 
-  /** Unstar a file. RBAC: viewer. */
+  /** Unstar a file. RBAC: viewer. Pushes to Google Drive first, then D1. */
   async unstarFile(userId: string, fileId: string): Promise<void> {
     const file = await this.getFileOrThrow(fileId, userId, 'viewer');
+    await this.driveProvider.unstarFile(file.drive_account_id, file.google_file_id);
     const changed = await this.fileRepo.unstar(fileId, file.user_id);
     if (!changed) throw new NotFoundError('File not found');
   }

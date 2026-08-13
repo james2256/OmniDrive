@@ -13,12 +13,14 @@ import type { DriveAccount } from '../src/types/domain';
  * populates `owner_email` for non-owned files.
  *
  * Verified bind positions (0-indexed):
- *   buildUpsertStmt (file.repository.ts:767-783) — 15 binds:
+ *   buildUpsertStmt (file.repository.ts:760-787) — 16 binds:
  *     [13] ownedByMe ? 1 : 0
  *     [14] ownerEmail
- *   buildDriveFolderUpsertStmt (folder.repository.ts:333-341) — 7 binds:
+ *     [15] file.starred ? 1 : 0
+ *   buildDriveFolderUpsertStmt (folder.repository.ts:325-344) — 8 binds:
  *     [5]  ownedByMe ? 1 : 0
  *     [6]  ownerEmail
+ *     [7]  folder.starred ? 1 : 0
  *
  * The mock D1 captures every .run() call (sql + binds) so tests can assert
  * on the exact bind values that reach D1 — catching regressions in

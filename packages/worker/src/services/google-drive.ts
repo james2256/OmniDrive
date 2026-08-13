@@ -21,11 +21,11 @@ const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 
 /** Fields for single-file metadata (getFile + copyFile). */
 const FILE_FIELDS =
-  'id,name,mimeType,size,owners(me,displayName,emailAddress),thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum';
+  'id,name,mimeType,size,owners(me,displayName,emailAddress),thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum,starred';
 
 /** Fields for files.list sync calls (listFolderContents + iterateAllFilesAndFolders). */
 const LIST_FILES_FIELDS =
-  'nextPageToken,files(id,name,mimeType,size,parents,owners(me,displayName,emailAddress),trashed,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum)';
+  'nextPageToken,files(id,name,mimeType,size,parents,owners(me,displayName,emailAddress),trashed,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum,starred)';
 
 /** Result of a token refresh: the new access token plus its real expiry. */
 interface RefreshedTokens {
@@ -656,6 +656,76 @@ export class GoogleDriveService implements DriveProvider {
     );
   }
 
+  // ─── Star/unstar (file + folder — Google treats folders as files) ───
+
+  async starFile(driveAccountId: string, fileId: string): Promise<void> {
+    const token = await this.getValidToken(driveAccountId);
+
+    await this.driveFetch(
+      `${DRIVE_API}/files/${fileId}?supportsAllDrives=true`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ starred: true }),
+      },
+      { context: 'Failed to star file' },
+    );
+  }
+
+  async unstarFile(driveAccountId: string, fileId: string): Promise<void> {
+    const token = await this.getValidToken(driveAccountId);
+
+    await this.driveFetch(
+      `${DRIVE_API}/files/${fileId}?supportsAllDrives=true`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ starred: false }),
+      },
+      { context: 'Failed to unstar file' },
+    );
+  }
+
+  async starFolder(driveAccountId: string, folderId: string): Promise<void> {
+    const token = await this.getValidToken(driveAccountId);
+
+    await this.driveFetch(
+      `${DRIVE_API}/files/${folderId}?supportsAllDrives=true`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ starred: true }),
+      },
+      { context: 'Failed to star folder' },
+    );
+  }
+
+  async unstarFolder(driveAccountId: string, folderId: string): Promise<void> {
+    const token = await this.getValidToken(driveAccountId);
+
+    await this.driveFetch(
+      `${DRIVE_API}/files/${folderId}?supportsAllDrives=true`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ starred: false }),
+      },
+      { context: 'Failed to unstar folder' },
+    );
+  }
+
   // ─── Changes API (for sync) ───
 
   async getStartPageToken(driveAccountId: string): Promise<string> {
@@ -693,6 +763,7 @@ export class GoogleDriveService implements DriveProvider {
         webContentLink?: string;
         createdTime: string;
         modifiedTime: string;
+        starred?: boolean;
       };
     }>;
     nextPageToken?: string;
@@ -700,7 +771,7 @@ export class GoogleDriveService implements DriveProvider {
   }> {
     const token = await this.getValidToken(driveAccountId);
     const fields =
-      'nextPageToken,newStartPageToken,changes(fileId,removed,file(id,name,mimeType,size,parents,owners(me,displayName,emailAddress),trashed,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum))';
+      'nextPageToken,newStartPageToken,changes(fileId,removed,file(id,name,mimeType,size,parents,owners(me,displayName,emailAddress),trashed,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime,md5Checksum,starred))';
 
     const response = await this.driveFetch(
       `${DRIVE_API}/changes?pageToken=${encodeURIComponent(pageToken)}&fields=${fields}&spaces=drive&includeRemoved=true&supportsAllDrives=true&includeItemsFromAllDrives=true`,
@@ -788,6 +859,7 @@ export class GoogleDriveService implements DriveProvider {
             name: item.name,
             parents: item.parents,
             owners: item.owners,
+            starred: item.starred,
           });
         } else if (item.mimeType !== 'application/vnd.google-apps.shortcut') {
           chunkFiles.push(item);

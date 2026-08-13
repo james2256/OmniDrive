@@ -60,6 +60,8 @@ export interface DriveProvider {
   deleteFile(driveAccountId: string, fileId: string): Promise<void>;
   trashFile(driveAccountId: string, fileId: string): Promise<void>;
   untrashFile(driveAccountId: string, fileId: string): Promise<void>;
+  starFile(driveAccountId: string, fileId: string): Promise<void>;
+  unstarFile(driveAccountId: string, fileId: string): Promise<void>;
   renameFile(driveAccountId: string, fileId: string, newName: string): Promise<void>;
   copyFile(driveAccountId: string, fileId: string, name?: string): Promise<GDriveFile>;
   moveToFolder(
@@ -83,6 +85,8 @@ export interface DriveProvider {
   createFolder(driveAccountId: string, name: string, parentId?: string): Promise<string>;
   trashFolder(driveAccountId: string, folderId: string): Promise<void>;
   untrashFolder(driveAccountId: string, folderId: string): Promise<void>;
+  starFolder(driveAccountId: string, folderId: string): Promise<void>;
+  unstarFolder(driveAccountId: string, folderId: string): Promise<void>;
   listFolderContents(
     driveAccountId: string,
     folderId: string,
@@ -114,9 +118,10 @@ export interface DriveProvider {
    * (optional) and `md5Checksum?: string`. The Google implementation's
    * inline return type has `trashed: boolean` (required) and omits
    * `md5Checksum` from the type (though the `fields` param requests it from
-   * the API). The interface's wider type is assignable to the
-   * implementation's narrower type — this is a deliberate widening that
-   * more accurately reflects the runtime response.
+   * the API). Both types include `starred?: boolean` (no widening for that
+   * field). The interface's wider type is assignable to the implementation's
+   * narrower type — this is a deliberate widening that more accurately
+   * reflects the runtime response.
    */
   listChanges(
     driveAccountId: string,

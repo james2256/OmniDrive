@@ -27,6 +27,7 @@ export interface GDriveFile {
   createdTime: string;
   modifiedTime: string;
   md5Checksum?: string;
+  starred?: boolean;
 }
 
 export interface GDriveFolder {
@@ -34,4 +35,5 @@ export interface GDriveFolder {
   name: string;
   parents?: string[];
   owners?: GDriveOwner[];
+  starred?: boolean;
 }
