@@ -53,7 +53,7 @@ export function FilesPage() {
     if (isConnecting) return;
     setIsConnecting(true);
     try {
-      const { url } = await authApi.getGoogleOAuthUrl();
+      const { url } = await authApi.getDriveConnectUrl();
       window.location.href = url;
     } catch (e) {
       setIsConnecting(false);
@@ -226,6 +226,7 @@ export function FilesPage() {
         <UploadModal
           open={showModal}
           folderId={folderId}
+          driveId={driveIdParam ?? undefined}
           onClose={() => setShowModal(false)}
           onSuccess={refresh}
         />

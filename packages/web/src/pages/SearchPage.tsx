@@ -17,6 +17,9 @@ import { ErrorState } from '../components/ErrorState';
 export function SearchPage() {
   const [searchParams] = useSearchParams();
   const query = searchParams.get('q') || '';
+  const metadataKey = searchParams.get('metadataKey') || null;
+  const metadataValue = searchParams.get('metadataValue') || null;
+  const metadata = metadataKey && metadataValue ? { [metadataKey]: metadataValue } : null;
 
   const { data: drivesData } = useDrives();
   const drives = useMemo(() => drivesData?.drives ?? [], [drivesData]);
@@ -34,7 +37,7 @@ export function SearchPage() {
     queryKey: qk.search(query),
     queryFn: async () => {
       if (!query) return null;
-      return filesApi.searchFiles(query);
+      return filesApi.searchFiles(query, undefined, metadata);
     },
     enabled: !!query,
   });

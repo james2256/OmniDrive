@@ -44,7 +44,7 @@ export const Sidebar: React.FC = () => {
           <Home size={20} />
           {isSidebarOpen && <span>Home</span>}
         </NavLink>
-        <NavLink to="/files/root" className={navLinkClass}>
+        <NavLink to="/files" className={navLinkClass}>
           <HardDrive size={20} />
           {isSidebarOpen && <span>My Drive</span>}
         </NavLink>

@@ -74,6 +74,8 @@ describe('MoveModal', () => {
     type: 'file',
     item: {
       id: 'file-1',
+      googleFileId: 'g-file-1',
+      driveAccountId: 'drive-1',
       googleParentId: 'parent-1',
     } as any,
   };
@@ -158,7 +160,7 @@ describe('MoveModal', () => {
     });
     expect(drivesApi.moveToFolder).toHaveBeenCalledWith(
       'drive-1',
-      'file-1',
+      'g-file-1',
       'root',
       'parent-1',
       false,
@@ -170,6 +172,7 @@ describe('MoveModal', () => {
       type: 'folder',
       item: {
         googleFolderId: 'g-folder-1',
+        driveAccountId: 'drive-1',
         googleParentId: 'parent-1',
       } as any,
     };
@@ -230,11 +233,21 @@ describe('MoveModal', () => {
 
     const fileA: SelectedItem = {
       type: 'file',
-      item: { id: 'f-a', googleParentId: null } as any,
+      item: {
+        id: 'f-a',
+        googleFileId: 'g-f-a',
+        driveAccountId: 'drive-1',
+        googleParentId: null,
+      } as any,
     };
     const fileB: SelectedItem = {
       type: 'file',
-      item: { id: 'f-b', googleParentId: null } as any,
+      item: {
+        id: 'f-b',
+        googleFileId: 'g-f-b',
+        driveAccountId: 'drive-1',
+        googleParentId: null,
+      } as any,
     };
 
     render(

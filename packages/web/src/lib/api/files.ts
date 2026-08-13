@@ -21,8 +21,13 @@ export async function fetchFilePreviewBlob(fileId: string): Promise<Blob> {
 }
 
 export const filesApi = {
-  searchFiles: (query: string) =>
-    request<SearchResults>(`/api/files/search?q=${encodeURIComponent(query)}`),
+  searchFiles: (query: string, _workspaceId?: string, metadata?: Record<string, string> | null) => {
+    const params = new URLSearchParams({ q: query });
+    if (metadata && Object.keys(metadata).length > 0) {
+      params.set('metadata', JSON.stringify(metadata));
+    }
+    return request<SearchResults>(`/api/files/search?${params.toString()}`);
+  },
   initiateUpload: (
     data: {
       name: string;

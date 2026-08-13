@@ -5,9 +5,10 @@ import type { BreadcrumbItem } from '../types';
 interface BreadcrumbProps {
   items: BreadcrumbItem[];
   driveId?: string;
+  basePath?: string;
 }
 
-export function Breadcrumb({ items, driveId }: BreadcrumbProps) {
+export function Breadcrumb({ items, driveId, basePath = '/files' }: BreadcrumbProps) {
   if (items.length === 0) return null;
 
   return (
@@ -18,7 +19,7 @@ export function Breadcrumb({ items, driveId }: BreadcrumbProps) {
       <ol className="flex items-center gap-1 min-w-0">
         {items.map((item, i) => {
           const isLast = i === items.length - 1;
-          const linkTo = item.id === 'root' ? '/files' : `/files/${item.id}`;
+          const linkTo = item.id === 'root' ? basePath : `${basePath}/${item.id}`;
           const href = driveId && item.id !== 'root' ? `${linkTo}?driveId=${driveId}` : linkTo;
 
           return (

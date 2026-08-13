@@ -152,7 +152,9 @@ export function ExternalPage() {
             }}
           />
         }
-        breadcrumb={<Breadcrumb items={breadcrumb} driveId={driveIdParam || undefined} />}
+        breadcrumb={
+          <Breadcrumb items={breadcrumb} driveId={driveIdParam || undefined} basePath="/external" />
+        }
       />
 
       {isLoading ? (

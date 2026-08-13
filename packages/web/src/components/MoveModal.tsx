@@ -64,19 +64,31 @@ export function MoveModal({ open, items, driveId, onClose, onSuccess }: MoveModa
     for (const item of items) {
       try {
         if (item.type === 'file') {
-          const file = item.item as { id: string; googleParentId?: string | null };
+          const file = item.item as {
+            id: string;
+            googleFileId?: string;
+            driveAccountId?: string;
+            googleParentId?: string | null;
+          };
+          const effectiveDriveId = file.driveAccountId || driveId;
           await drivesApi.moveToFolder(
-            driveId,
-            file.id,
+            effectiveDriveId,
+            file.googleFileId || file.id,
             currentFolderId,
             file.googleParentId ?? null,
             false,
           );
         } else {
-          const folder = item.item;
+          const folder = item.item as {
+            googleFolderId: string;
+            driveAccountId?: string;
+            driveId?: string;
+            googleParentId?: string | null;
+          };
           if ('googleFolderId' in folder) {
+            const effectiveDriveId = folder.driveAccountId || folder.driveId || driveId;
             await drivesApi.moveToFolder(
-              driveId,
+              effectiveDriveId,
               folder.googleFolderId,
               currentFolderId,
               folder.googleParentId ?? null,

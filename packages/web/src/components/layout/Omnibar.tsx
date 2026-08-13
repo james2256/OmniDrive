@@ -200,6 +200,21 @@ export const Omnibar: React.FC = () => {
           ) : (
             <div className="p-4 text-center text-sm text-slate-500">No results found</div>
           )}
+          <div className="border-t border-slate-200 p-2">
+            <button
+              onClick={() => {
+                const params = new URLSearchParams();
+                if (query) params.set('q', query);
+                if (metadataKey) params.set('metadataKey', metadataKey);
+                if (metadataValue) params.set('metadataValue', metadataValue);
+                navigate(`/search?${params.toString()}`);
+                setIsOpen(false);
+              }}
+              className="w-full text-center text-sm text-primary hover:underline py-1"
+            >
+              View all results
+            </button>
+          </div>
         </div>
       )}
     </div>
