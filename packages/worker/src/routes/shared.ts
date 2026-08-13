@@ -9,10 +9,11 @@ import { authGuard } from '../middleware/auth-guard';
 import type { SharedLink } from '../types/domain';
 import { createDriveService } from '../lib/drive-factory';
 import { verifySharedPassword } from '../lib/password';
-import { logError } from '../lib/logger';
+import { logError, log } from '../lib/logger';
 import { isFileInSharedFolder } from '../lib/shared-folder';
 import { sharedLinkCookieOptions } from '../lib/session-cookie';
 import { buildDownloadTree } from '../services/download-tree';
+import { NotFoundError, ValidationError, AuthError, AppError } from '../lib/errors';
 import {
   createSharedLinkSchema,
   updateSharedLinkSchema,
@@ -87,7 +88,7 @@ sharedRouter.post(
 
     // ponytail: allowUploads not yet implemented — refuse to store a false promise
     if (body.allowUploads) {
-      return c.json({ error: 'Uploads via shared links are not yet supported' }, 400);
+      throw new ValidationError('Uploads via shared links are not yet supported');
     }
 
     const sharedService = c.get('sharedService');
@@ -139,6 +140,13 @@ sharedRouter.get('/:id/meta', async (c) => {
 
   const validation = await validateSharedLink(c, link);
   if (!validation.ok) {
+    log(
+      c,
+      'warn',
+      'Shared link validation failed',
+      { status: validation.status },
+      new Error(validation.error),
+    );
     return c.json(
       {
         error: validation.error,
@@ -169,14 +177,14 @@ sharedRouter.post(
   async (c) => {
     const sharedService = c.get('sharedService');
     const link = await sharedService.getLinkForValidation(c.req.param('id'));
-    if (!link) return c.json({ error: 'Link not found' }, 404);
+    if (!link) throw new NotFoundError('Link not found');
 
     // ponytail: check expiry before minting token — prevents password oracle on expired links
     if (link.expiresAt && new Date(link.expiresAt) < new Date()) {
-      return c.json({ error: 'Link expired' }, 410);
+      throw new AppError(410, 'Link expired');
     }
 
-    if (!link.passwordHash) return c.json({ error: 'Link does not require password' }, 400);
+    if (!link.passwordHash) throw new ValidationError('Link does not require password');
 
     const { password } = c.req.valid('json');
 
@@ -185,7 +193,7 @@ sharedRouter.post(
     const lockKey = `shared_verify_lock:${link.id}`;
     const failKey = `shared_verify_fail:${link.id}`;
     if (await c.env.KV.get(lockKey)) {
-      return c.json({ error: 'Too many failed attempts. Try again later.' }, 429);
+      throw new AppError(429, 'Too many failed attempts. Try again later.');
     }
 
     const valid = await verifySharedPassword(password, link.passwordHash);
@@ -197,7 +205,7 @@ sharedRouter.post(
       } else {
         await c.env.KV.put(failKey, String(failed), { expirationTtl: 15 * 60 });
       }
-      return c.json({ error: 'Invalid password' }, 401);
+      throw new AuthError('Invalid password');
     }
 
     await c.env.KV.delete(failKey);
@@ -218,11 +226,11 @@ sharedRouter.post(
   async (c) => {
     const sharedService = c.get('sharedService');
     const link = await sharedService.getLinkForValidation(c.req.param('id'));
-    if (!link) return c.json({ error: 'Link not found' }, 404);
+    if (!link) throw new NotFoundError('Link not found');
 
-    if (!link.requireEmail) return c.json({ error: 'This link does not require email' }, 400);
+    if (!link.requireEmail) throw new ValidationError('This link does not require email');
     if (link.expiresAt && new Date(link.expiresAt) < new Date()) {
-      return c.json({ error: 'Link expired' }, 410);
+      throw new AppError(410, 'Link expired');
     }
 
     const { email } = c.req.valid('json');
@@ -393,7 +401,23 @@ sharedRouter.get('/:id/folder-contents', async (c) => {
   if (!link) return c.text('Not found', 404);
 
   const validation = await validateSharedLink(c, link);
-  if (!validation.ok) return c.json({ error: validation.error }, validation.status as 400);
+  if (!validation.ok) {
+    log(
+      c,
+      'warn',
+      'Shared link validation failed',
+      { status: validation.status },
+      new Error(validation.error),
+    );
+    return c.json(
+      {
+        error: validation.error,
+        requiresPassword: validation.requiresPassword,
+        requiresEmail: validation.requiresEmail,
+      },
+      validation.status as 400 | 401 | 403 | 410 | 500,
+    );
+  }
 
   if (link.targetType !== 'folder') return c.text('Not a folder link', 400);
 
@@ -426,7 +450,23 @@ sharedRouter.get('/:id/download-tree', async (c) => {
   if (!link) return c.text('Not found', 404);
 
   const validation = await validateSharedLink(c, link);
-  if (!validation.ok) return c.json({ error: validation.error }, validation.status as 400);
+  if (!validation.ok) {
+    log(
+      c,
+      'warn',
+      'Shared link validation failed',
+      { status: validation.status },
+      new Error(validation.error),
+    );
+    return c.json(
+      {
+        error: validation.error,
+        requiresPassword: validation.requiresPassword,
+        requiresEmail: validation.requiresEmail,
+      },
+      validation.status as 400 | 401 | 403 | 410 | 500,
+    );
+  }
 
   if (!link.allowDownloads) return c.text('Downloads are disabled', 403);
   if (link.targetType !== 'folder') return c.text('Not a folder link', 400);

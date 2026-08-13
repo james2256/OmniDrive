@@ -7,6 +7,7 @@ import { zValidator } from '@hono/zod-validator';
 import { createS3CredentialsSchema, zodErrorHook } from '../lib/schemas';
 import type { AppContext } from '../types/context';
 import { mapS3CredentialRow } from '../types/db';
+import { ForbiddenError } from '../lib/errors';
 
 export const s3CredentialsRouter = new Hono<AppContext>();
 
@@ -23,7 +24,7 @@ s3CredentialsRouter.post(
     if (workspaceId) {
       const role = await getWorkspaceRole(c.env.DB, workspaceId, userId);
       if (!role || !hasPermission(role, 'manager')) {
-        return c.json({ error: 'Unauthorized to manage S3 keys for this workspace' }, 403);
+        throw new ForbiddenError('Unauthorized to manage S3 keys for this workspace');
       }
     }
 

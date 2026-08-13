@@ -312,7 +312,7 @@ filesRouter.post('/upload/init', zValidator('json', uploadInitSchema, zodErrorHo
     const policyService = new PolicyService(db, c.get('fileService').getDriveProvider());
     const hasQuota = await policyService.checkQuota(workspaceId, size);
     if (!hasQuota) {
-      return c.json({ error: 'Storage quota exceeded' }, 403);
+      throw new ForbiddenError('Storage quota exceeded');
     }
   }
 

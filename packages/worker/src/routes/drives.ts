@@ -106,7 +106,7 @@ drivesRouter.get('/:driveId/external-folders/:googleFolderId', async (c) => {
   // binds drive.userId to files.user_id (NOT NULL). Only the full row includes user_id.
   // Mirrors the FilesPage drill-in at drives.ts:327.
   const driveRow = await driveRepo.findFullByIdAndUser(driveId, userId);
-  if (!driveRow) return c.json({ error: 'Drive not found' }, 404);
+  if (!driveRow) throw new NotFoundError('Drive not found');
 
   const drive = mapDriveRow(driveRow);
   const driveService = c.get('driveService').getDriveProvider();
@@ -328,7 +328,7 @@ drivesRouter.get('/:driveId/folders/:googleFolderId', async (c) => {
 
   const driveRepo = new DriveRepository(c.env.DB);
   const drive = await driveRepo.findByIdAndUser(driveId, userId);
-  if (!drive) return c.json({ error: 'Drive not found' }, 404);
+  if (!drive) throw new NotFoundError('Drive not found');
 
   const folder =
     googleFolderId === 'root'
@@ -363,7 +363,7 @@ drivesRouter.post('/:id/sync', async (c) => {
   const driveRepo = new DriveRepository(c.env.DB);
   const row = await driveRepo.findFullByIdAndUser(driveId, userId);
 
-  if (!row) return c.json({ error: 'Drive not found' }, 404);
+  if (!row) throw new NotFoundError('Drive not found');
 
   // Enqueue via queue (not waitUntil) — gets 15min wall-clock + auto-re-enqueue
   // for large drives. Same path as cron-triggered sync and /:id/resync.
@@ -380,7 +380,7 @@ drivesRouter.post('/:id/resync', async (c) => {
 
   const driveRepo = new DriveRepository(c.env.DB);
   const row = await driveRepo.findFullByIdAndUser(driveId, userId);
-  if (!row) return c.json({ error: 'Drive not found' }, 404);
+  if (!row) throw new NotFoundError('Drive not found');
 
   // Reset the sync cursor so the next syncDriveAccount() call runs
   // performInitialSync (full re-fetch of ALL files, not just changes).
@@ -401,7 +401,7 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/sync', async (c) => {
 
   const driveRepo = new DriveRepository(c.env.DB);
   const driveRow = await driveRepo.findFullByIdAndUser(driveId, userId);
-  if (!driveRow) return c.json({ error: 'Drive not found' }, 404);
+  if (!driveRow) throw new NotFoundError('Drive not found');
 
   const folder = await driveRepo.findDriveFolderByGoogleId(driveId, googleFolderId);
 
@@ -748,7 +748,7 @@ drivesRouter.get('/:driveId/folders/:googleFolderId/download-tree', async (c) =>
 
   const driveRepo = new DriveRepository(db);
   const driveRow = await driveRepo.findFullByIdAndUser(driveId, userId);
-  if (!driveRow) return c.json({ error: 'Drive not found' }, 404);
+  if (!driveRow) throw new NotFoundError('Drive not found');
 
   const drive = mapDriveRow(driveRow);
   const driveService = c.get('driveService').getDriveProvider();
