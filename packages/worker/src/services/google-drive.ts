@@ -8,6 +8,7 @@ import { NotFoundError, AuthError, UpstreamError } from '../lib/errors';
 import { withBackoff } from '../lib/backoff';
 import { safeJsonParse } from '../lib/safe-json-parse';
 import { DriveRepository } from '../repositories/drive.repository';
+import { logNoCtx } from '../lib/logger';
 
 // ponytail: split into token/file/folder/sync modules when a 4th method group
 // is added or when extending becomes painful. Currently 27 methods across 4
@@ -157,6 +158,11 @@ export class GoogleDriveService implements DriveProvider {
     if (!tokens.serviceAccount) {
       throw new AuthError(`No service account credentials for drive ${driveAccountId}`);
     }
+    // Race detection (IMP-28 instrumentation): log every SA refresh so duplicate
+    // log lines for the same driveAccountId within ~5s reveal a concurrent
+    // refresh race. If duplicates appear in production logs, the ponytail
+    // marker in refreshToken becomes actionable.
+    logNoCtx('info', 'SA token refresh started', { driveAccountId });
     const { fetchServiceAccountAccessToken } = await import('../lib/google-service-account');
     const refreshed = await fetchServiceAccountAccessToken(tokens.serviceAccount);
     const nextTokens = {
@@ -183,11 +189,16 @@ export class GoogleDriveService implements DriveProvider {
     }
   }
 
-  // ponytail: last-write-wins refresh — sync is mostly serial (D1 sync_state lock); add single-flight lock if races become a problem
+  // ponytail: last-write-wins refresh — sync is mostly serial (D1 sync_state lock); add single-flight lock if races become a real problem
   private async refreshToken(
     driveAccountId: string,
     refreshToken: string,
   ): Promise<RefreshedTokens> {
+    // Race detection (IMP-28 instrumentation): log every refresh so duplicate
+    // log lines for the same driveAccountId within ~5s reveal a concurrent
+    // refresh race. If duplicates appear in production logs, the ponytail
+    // marker above becomes actionable.
+    logNoCtx('info', 'Token refresh started', { driveAccountId });
     const response = await this.driveFetch(
       TOKEN_URL,
       {
