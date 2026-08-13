@@ -5,7 +5,7 @@ import { DriveRepository } from '../repositories/drive.repository';
 import type { DriveProvider } from '../types/drive-provider';
 import { PolicyService } from './policy.service';
 import { getWorkspaceRole, hasPermission } from '../lib/rbac';
-import { AppError, NotFoundError, ForbiddenError } from '../lib/errors';
+import { AppError, ConflictError, NotFoundError, ForbiddenError } from '../lib/errors';
 import { logErrorNoCtx } from '../lib/logger';
 import {
   mapFileRow,
@@ -98,6 +98,135 @@ export class FileService {
 
     if (file.workspace_id && file.size && file.owned_by_me === 1) {
       await this.policyService.updateWorkspaceStorage(file.workspace_id, -file.size);
+    }
+  }
+
+  /**
+   * Move a file to a different Google Drive account.
+   *
+   * Orchestrates the cross-account share → copy → revoke-share → trash flow
+   * that was previously inlined in the move-drive route handler (IMP-21).
+   *
+   * Returns the updated file row + the source drive ID (the drive the file
+   * was moved FROM). The route needs sourceDriveId for quota-cache
+   * invalidation after the move.
+   *
+   * Failure modes:
+   *  - Same source/target drive → ConflictError (no API calls)
+   *  - Target drive not owned by user → NotFoundError (no API calls)
+   *  - Share/copy fails → AppError(500), rollback: revoke share if granted
+   *  - D1 update fails → AppError(500), rollback: delete copy + revoke share
+   *  - Trash fails → swallowed (best-effort), move still succeeds
+   *
+   * RBAC: user ownership (f.user_id = ?) via getForMoveDrive.
+   */
+  async moveFileToDrive(
+    userId: string,
+    fileId: string,
+    targetDriveId: string,
+  ): Promise<{ file: FileRow; sourceDriveId: string }> {
+    const file = (await this.getForMoveDrive(userId, fileId)) as {
+      driveEmail: string;
+      sourceDriveId: string;
+      google_file_id: string;
+      name: string;
+      owned_by_me: number;
+    };
+
+    if (file.sourceDriveId === targetDriveId) {
+      throw new ConflictError('File is already in the target drive');
+    }
+
+    const targetDrive = await this.driveRepo.findByIdAndUser(targetDriveId, userId);
+    if (!targetDrive) {
+      throw new NotFoundError('Target drive not found or unauthorized');
+    }
+
+    let sharePermissionId: string | null = null;
+    let copySuccessId: string | null = null;
+
+    try {
+      sharePermissionId = await this.driveProvider.shareFile(
+        file.sourceDriveId,
+        file.google_file_id,
+        targetDrive.email,
+        'writer',
+      );
+
+      const copiedFile = await this.driveProvider.copyFile(
+        targetDriveId,
+        file.google_file_id,
+        file.name,
+      );
+      copySuccessId = copiedFile.id;
+
+      try {
+        if (sharePermissionId) {
+          await this.driveProvider.revokeShare(
+            file.sourceDriveId,
+            file.google_file_id,
+            sharePermissionId,
+          );
+          sharePermissionId = null;
+        }
+      } catch (revokeError) {
+        logErrorNoCtx('Failed to revoke share after copy', revokeError, { fileId });
+      }
+
+      // Update D1 BEFORE trashing — if D1 fails, the original is still alive.
+      await this.updateDriveAssignment(fileId, targetDriveId, copiedFile.id);
+
+      // Fire +X delta if source was non-owned (Bob now owns the copy via
+      // files.copy API). Uses findById for size/mime.
+      if (file.owned_by_me !== 1) {
+        const updatedFile = await this.findById(fileId);
+        if (updatedFile) {
+          await this.fileRepo.applyStorageDeltas([
+            { userId, mimeType: updatedFile.mime_type ?? '', delta: updatedFile.size },
+          ]);
+        }
+      }
+
+      // Best-effort trash of the original (only when caller owned it).
+      try {
+        if (file.owned_by_me === 1) {
+          await this.driveProvider.trashFile(file.sourceDriveId, file.google_file_id);
+        }
+      } catch (trashError) {
+        logErrorNoCtx('Failed to trash original file', trashError, { fileId });
+      }
+
+      const updatedFile = await this.findById(fileId);
+      if (!updatedFile) throw new NotFoundError('File not found after move');
+
+      return { file: updatedFile, sourceDriveId: file.sourceDriveId };
+    } catch (error) {
+      logErrorNoCtx('Move drive failed', error, { fileId, targetDriveId });
+
+      // No untrash needed — trash happens after D1 update, so if we're in
+      // the catch block, either D1 failed (trash never ran) or trash failed
+      // (best-effort, already logged, move should still succeed).
+      if (copySuccessId) {
+        try {
+          await this.driveProvider.deleteFile(targetDriveId, copySuccessId);
+        } catch (e) {
+          logErrorNoCtx('Rollback delete failed', e, { fileId, copySuccessId });
+        }
+      }
+
+      if (sharePermissionId) {
+        try {
+          await this.driveProvider.revokeShare(
+            file.sourceDriveId,
+            file.google_file_id,
+            sharePermissionId,
+          );
+        } catch (e) {
+          logErrorNoCtx('Failed to revoke share', e, { fileId });
+        }
+      }
+
+      throw new AppError(500, 'Failed to move file to another drive');
     }
   }
 

@@ -310,4 +310,54 @@ describe('POST /api/files/:id/move-drive (integration)', () => {
     expect(mockDrive.untrashFile).not.toHaveBeenCalled();
     expect(mockDrive.deleteFile).not.toHaveBeenCalled();
   });
+
+  it('quota cache invalidation: clears cache for both source and target drives', async () => {
+    // Seed quota_cache rows for both drives — the route's waitUntil block
+    // must delete both. This guards against a regression where sourceDriveId
+    // is lost (e.g. undefined) after the IMP-21 refactor moved the
+    // orchestration into FileService.moveFileToDrive().
+    await env.DB.prepare(
+      'INSERT INTO quota_cache (drive_account_id, payload, updated_at) VALUES (?, ?, ?)',
+    )
+      .bind('mv-source', '{"used":"5GB"}', Date.now())
+      .run();
+    await env.DB.prepare(
+      'INSERT INTO quota_cache (drive_account_id, payload, updated_at) VALUES (?, ?, ?)',
+    )
+      .bind('mv-target', '{"used":"1GB"}', Date.now())
+      .run();
+
+    const res = await app.request(
+      '/api/files/mv-file/move-drive',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Cookie: cookie, Origin: ORIGIN },
+        body: JSON.stringify({ targetDriveId: 'mv-target' }),
+      },
+      env,
+      executionCtx,
+    );
+
+    expect(res.status).toBe(200);
+
+    // Drain the scheduled waitUntil promise so the DELETE statements complete.
+    expect(executionCtx.waitUntil).toHaveBeenCalledTimes(1);
+    await executionCtx.waitUntil.mock.calls[0][0];
+
+    // Both cache rows must be deleted — verifies sourceDriveId is correctly
+    // returned from moveFileToDrive() and passed to deleteQuotaCache.
+    const sourceCache = await env.DB.prepare(
+      'SELECT drive_account_id FROM quota_cache WHERE drive_account_id = ?',
+    )
+      .bind('mv-source')
+      .first<{ drive_account_id: string }>();
+    expect(sourceCache).toBeNull();
+
+    const targetCache = await env.DB.prepare(
+      'SELECT drive_account_id FROM quota_cache WHERE drive_account_id = ?',
+    )
+      .bind('mv-target')
+      .first<{ drive_account_id: string }>();
+    expect(targetCache).toBeNull();
+  });
 });

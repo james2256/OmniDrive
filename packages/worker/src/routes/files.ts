@@ -3,9 +3,8 @@ import { Hono } from 'hono';
 import type { AppContext } from '../types/context';
 import { generateId } from '../lib/id';
 import { authGuard } from '../middleware/auth-guard';
-import { AppError, ConflictError, NotFoundError, ForbiddenError } from '../lib/errors';
+import { AppError, NotFoundError, ForbiddenError } from '../lib/errors';
 import { DriveRepository } from '../repositories/drive.repository';
-import { FileRepository } from '../repositories/file.repository';
 import { resolveDrivesWithQuota } from '../services/drive-quota';
 import { UploadRouter } from '../services/upload-router';
 import { AutomationEngine, toDbFile } from '../services/automation.service';
@@ -122,125 +121,20 @@ filesRouter.post(
     const fileId = c.req.param('id');
     const { targetDriveId } = c.req.valid('json');
 
-    const fileService = c.get('fileService');
-    const file = (await fileService.getForMoveDrive(userId, fileId)) as {
-      driveEmail: string;
-      sourceDriveId: string;
-      google_file_id: string;
-      name: string;
-      owned_by_me: number;
-    };
+    const { file, sourceDriveId } = await c
+      .get('fileService')
+      .moveFileToDrive(userId, fileId, targetDriveId);
 
-    if (file.sourceDriveId === targetDriveId) {
-      throw new ConflictError('File is already in the target drive');
-    }
+    // Invalidate quota cache for both drives — non-blocking. The cache is
+    // read on next /api/drives/ GET, which will refetch from Google.
+    c.executionCtx.waitUntil(
+      Promise.all([
+        c.get('driveService').deleteQuotaCache(sourceDriveId),
+        c.get('driveService').deleteQuotaCache(targetDriveId),
+      ]).catch((e) => logError(c, 'Quota cache invalidation failed', e)),
+    );
 
-    const targetDrive = (await c.get('driveService').findByIdAndUser(targetDriveId, userId)) as {
-      id: string;
-      email: string;
-    } | null;
-
-    if (!targetDrive) {
-      throw new NotFoundError('Target drive not found or unauthorized');
-    }
-
-    const driveService = c.get('fileService').getDriveProvider();
-
-    let sharePermissionId: string | null = null;
-    let copySuccessId: string | null = null;
-
-    try {
-      sharePermissionId = await driveService.shareFile(
-        file.sourceDriveId,
-        file.google_file_id,
-        targetDrive.email,
-        'writer',
-      );
-
-      const copiedFile = await driveService.copyFile(targetDriveId, file.google_file_id, file.name);
-      copySuccessId = copiedFile.id;
-
-      try {
-        if (sharePermissionId) {
-          await driveService.revokeShare(
-            file.sourceDriveId,
-            file.google_file_id,
-            sharePermissionId,
-          );
-          sharePermissionId = null;
-        }
-      } catch (revokeError) {
-        logError(c, 'Failed to revoke share after copy', revokeError);
-      }
-
-      // Update D1 BEFORE trashing — if D1 fails, the original is still alive.
-      // Trash is best-effort (happens last, after D1 succeeds).
-      await c.get('fileService').updateDriveAssignment(fileId, targetDriveId, copiedFile.id);
-
-      // Fire +X delta if source was non-owned (Bob now owns the copy via files.copy API).
-      // Uses findById for size/mime — avoids adding them to the type assertion.
-      if (file.owned_by_me !== 1) {
-        const updatedFile = await c.get('fileService').findById(fileId);
-        if (updatedFile) {
-          const fileRepo = new FileRepository(c.env.DB);
-          await fileRepo.applyStorageDeltas([
-            { userId, mimeType: updatedFile.mime_type ?? '', delta: updatedFile.size },
-          ]);
-        }
-      }
-
-      try {
-        if (file.owned_by_me === 1) {
-          await driveService.trashFile(file.sourceDriveId, file.google_file_id);
-        }
-      } catch (trashError) {
-        logError(c, 'Failed to trash original file', trashError);
-      }
-
-      // Invalidate quota cache for both drives — the move changes used space
-      // on each. Non-blocking: the cache is read on next /api/drives/ GET,
-      // which will refetch from Google.
-      c.executionCtx.waitUntil(
-        Promise.all([
-          c.get('driveService').deleteQuotaCache(file.sourceDriveId),
-          c.get('driveService').deleteQuotaCache(targetDriveId),
-        ]).catch((e) => logError(c, 'Quota cache invalidation failed', e)),
-      );
-
-      const updatedFile = await c.get('fileService').findById(fileId);
-      if (!updatedFile) throw new NotFoundError('File not found after move');
-
-      return c.json({
-        file: mapFileRow(updatedFile),
-      });
-    } catch (error) {
-      logError(c, 'Move drive failed', error);
-
-      // No untrash needed — trash happens after D1 update, so if we're in
-      // the catch block, either D1 failed (trash never ran) or trash failed
-      // (best-effort, already logged, move should still succeed).
-      if (copySuccessId) {
-        try {
-          await driveService.deleteFile(targetDriveId, copySuccessId);
-        } catch (e) {
-          logError(c, 'Rollback delete failed', e);
-        }
-      }
-
-      if (sharePermissionId) {
-        try {
-          await driveService.revokeShare(
-            file.sourceDriveId,
-            file.google_file_id,
-            sharePermissionId,
-          );
-        } catch (e) {
-          logError(c, 'Failed to revoke share', e);
-        }
-      }
-
-      throw new AppError(500, 'Failed to move file to another drive');
-    }
+    return c.json({ file: mapFileRow(file) });
   },
 );
 
