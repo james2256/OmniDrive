@@ -7,29 +7,29 @@ import {
 
 describe('parseStorageQuota', () => {
   it('parses limited quota from Google response', () => {
-    expect(parseStorageQuota('16106127360', '1073741824', '5368709120')).toEqual({
-      total: 16106127360,
-      used: 1073741824,
-    });
-  });
-
-  it('prefers usageInDrive over account-wide usage', () => {
-    // usage includes Gmail + Photos; only usageInDrive reflects Drive bytes
-    expect(parseStorageQuota('16106127360', '1073741824', '5368709120')).toEqual({
-      total: 16106127360,
-      used: 1073741824,
-    });
-  });
-
-  it('falls back to account-wide usage when usageInDrive is missing', () => {
-    expect(parseStorageQuota('16106127360', undefined, '5368709120')).toEqual({
+    expect(parseStorageQuota('16106127360', '5368709120')).toEqual({
       total: 16106127360,
       used: 5368709120,
     });
   });
 
+  it('uses account-wide usage (matches Google storage manager)', () => {
+    // usage covers Drive + Gmail + Photos — the correct number against the pooled limit
+    expect(parseStorageQuota('16106127360', '5368709120')).toEqual({
+      total: 16106127360,
+      used: 5368709120,
+    });
+  });
+
+  it('returns 0 when usage is missing', () => {
+    expect(parseStorageQuota('16106127360')).toEqual({
+      total: 16106127360,
+      used: 0,
+    });
+  });
+
   it('treats missing limit as unlimited storage', () => {
-    expect(parseStorageQuota(undefined, undefined, '5000')).toEqual({
+    expect(parseStorageQuota(undefined, '5000')).toEqual({
       total: UNLIMITED_DRIVE_QUOTA_BYTES,
       used: 5000,
     });

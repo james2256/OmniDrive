@@ -522,7 +522,7 @@ describe('GoogleDriveService methods', () => {
       fetchMock.mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          storageQuota: { limit: '16106127360', usageInDrive: '1073741824' },
+          storageQuota: { limit: '16106127360', usage: '1073741824' },
         }),
       });
 
@@ -540,7 +540,7 @@ describe('GoogleDriveService methods', () => {
     it('falls back to the unlimited ceiling when Google omits storageQuota.limit', async () => {
       fetchMock.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ storageQuota: { usageInDrive: '1024' } }),
+        json: async () => ({ storageQuota: { usage: '1024' } }),
       });
 
       const quota = await service.getQuota('drive1');
@@ -611,7 +611,7 @@ describe('GoogleDriveService methods', () => {
       globalThis.fetch = fetchMock;
       fetchMock.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ storageQuota: { limit: '1000', usageInDrive: '50' } }),
+        json: async () => ({ storageQuota: { limit: '1000', usage: '50' } }),
       });
 
       const quota = await staleService.getQuota('drive1');

@@ -1,7 +1,9 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import { DriveRepository } from '../repositories/drive.repository';
+import { SyncStateRepository } from '../repositories/sync-state.repository';
+import { FileRepository } from '../repositories/file.repository';
 import type { DriveProvider } from '../types/drive-provider';
-import { NotFoundError, ForbiddenError } from '../lib/errors';
+import { NotFoundError, ForbiddenError, ConflictError } from '../lib/errors';
 import { generateId } from '../lib/id';
 import { encodeCursor } from '../lib/cursor';
 import { mapDriveRow, mapFileRow, mapDriveFolderRow } from '../types/db';
@@ -16,7 +18,10 @@ export class DriveService {
   private driveRepo: DriveRepository;
   private driveProvider: DriveProvider;
 
-  constructor(db: D1Database, driveProvider: DriveProvider) {
+  constructor(
+    private db: D1Database,
+    driveProvider: DriveProvider,
+  ) {
     this.driveRepo = new DriveRepository(db);
     this.driveProvider = driveProvider;
   }
@@ -234,20 +239,38 @@ export class DriveService {
     const row = await this.driveRepo.findFullByIdAndUser(driveId, userId);
     if (!row) throw new NotFoundError('Drive not found');
 
-    const wasPrimary = (row as Record<string, unknown>).is_primary === 1;
-    const driveType = (row as Record<string, unknown>).type as string;
-
-    if (driveType === 'oauth') {
-      await this.driveProvider.revokeTokens(driveId);
+    // Acquire the sync lock to prevent a new sync from starting while we
+    // disconnect. acquireLock returns null if a sync is actively running.
+    const syncStateRepo = new SyncStateRepository(this.db);
+    const lockAcquired = await syncStateRepo.acquireLock(driveId);
+    if (!lockAcquired) {
+      throw new ConflictError('Sync in progress. Try again in a moment.');
     }
 
-    await this.driveRepo.deleteDrive(driveId, userId);
+    try {
+      const wasPrimary = (row as Record<string, unknown>).is_primary === 1;
+      const driveType = (row as Record<string, unknown>).type as string;
 
-    if (wasPrimary) {
-      const next = await this.driveRepo.findNextDrive(userId);
-      if (next) {
-        await this.driveRepo.setPrimary(next.id);
+      if (driveType === 'oauth') {
+        await this.driveProvider.revokeTokens(driveId);
       }
+
+      await this.driveRepo.deleteDrive(driveId, userId);
+
+      // Recompute file_storage_stats — deleteDrive's cascade bypassed per-file deltas.
+      const fileRepo = new FileRepository(this.db);
+      await fileRepo.recomputeStorageStats(userId);
+
+      if (wasPrimary) {
+        const next = await this.driveRepo.findNextDrive(userId);
+        if (next) {
+          await this.driveRepo.setPrimary(next.id);
+        }
+      }
+    } finally {
+      // Release the lock if deleteDrive failed (drive still exists).
+      // If deleteDrive succeeded, sync_state row is gone (cascade) — no-op.
+      await syncStateRepo.setIdle(driveId).catch(() => {});
     }
   }
 

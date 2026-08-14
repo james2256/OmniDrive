@@ -1,21 +1,17 @@
 /** Google omits storageQuota.limit for unlimited accounts; use a practical ceiling for routing. */
 export const UNLIMITED_DRIVE_QUOTA_BYTES = 1_099_511_627_776; // 1 TiB
 
-/** Bumped when the cached quota shape or semantics change so stale KV entries are ignored. */
-export const QUOTA_CACHE_VERSION = 2;
+/** Bumped when the cached quota shape or semantics change so stale entries are ignored. */
+export const QUOTA_CACHE_VERSION = 3;
 
 /**
- * `usage` covers the whole Google account (Drive + Gmail + Photos), which makes
- * per-drive storage read higher than the drive's actual usage. `usageInDrive`
- * is Drive-only, so prefer it and fall back to `usage` only when Google omits it
- * (e.g. some service-account shared folders).
+ * Google's storage quota is pooled across Drive + Gmail + Photos. The `limit`
+ * is the total pooled quota, so `usage` (account-wide) is the correct number
+ * to show — not `usageInDrive` (Drive-only). Using `usageInDrive` against the
+ * pooled `limit` would underreport the user's actual quota consumption.
  */
-export function parseStorageQuota(
-  limit?: string,
-  usageInDrive?: string,
-  usage?: string,
-): { total: number; used: number } {
-  const used = parseInt(usageInDrive ?? usage ?? '0', 10);
+export function parseStorageQuota(limit?: string, usage?: string): { total: number; used: number } {
+  const used = parseInt(usage ?? '0', 10);
   const total = limit != null && limit !== '' ? parseInt(limit, 10) : UNLIMITED_DRIVE_QUOTA_BYTES;
   return { total, used };
 }

@@ -249,7 +249,7 @@ export class GoogleDriveService implements DriveProvider {
     driveAccountId: string,
   ): Promise<{ total: number; used: number; hasLimit: boolean }> {
     // Check D1 cache first. Cache entries carry the schema version so stale
-    // pre-usageInDrive entries (which stored account-wide usage) are ignored.
+    // pre-v3 entries (which stored Drive-only usageInDrive) are ignored.
     const cacheRow = await this.driveRepo.findQuotaCache(driveAccountId);
     if (cacheRow && Date.now() - cacheRow.updated_at < QUOTA_CACHE_TTL_MS) {
       const quota = safeJsonParse<QuotaCache | null>(cacheRow.payload, null);
@@ -269,15 +269,11 @@ export class GoogleDriveService implements DriveProvider {
     );
 
     const data: {
-      storageQuota: { limit?: string; usageInDrive?: string; usage?: string };
+      storageQuota: { limit?: string; usage?: string };
     } = await response.json();
 
     const hasLimit = data.storageQuota.limit != null && data.storageQuota.limit !== '';
-    const { total, used } = parseStorageQuota(
-      data.storageQuota.limit,
-      data.storageQuota.usageInDrive,
-      data.storageQuota.usage,
-    );
+    const { total, used } = parseStorageQuota(data.storageQuota.limit, data.storageQuota.usage);
 
     // Cache in D1 (5-min TTL enforced by updated_at check above)
     const payload = JSON.stringify({

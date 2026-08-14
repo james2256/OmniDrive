@@ -252,9 +252,9 @@ export function DashboardPage() {
             style={{ animationDelay: '120ms' }}
           >
             <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-medium text-slate-500">By type</span>
-              {totalCategoryBytes > 0 && (
-                <span className="text-xs text-slate-500">{formatFileSize(totalCategoryBytes)}</span>
+              <span className="text-sm font-medium text-slate-500">By type (Drive files)</span>
+              {totalUsed > 0 && (
+                <span className="text-xs text-slate-500">{formatFileSize(totalUsed)}</span>
               )}
             </div>
 

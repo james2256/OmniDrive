@@ -552,4 +552,34 @@ describe('FileRepository', () => {
       }
     });
   });
+
+  // ─── recomputeStorageStats ───
+
+  describe('recomputeStorageStats', () => {
+    it('batches a DELETE + INSERT...SELECT atomically', async () => {
+      await repo.recomputeStorageStats('u-1');
+
+      // batch() called once with 2 prepared statements
+      expect(mockBatch).toHaveBeenCalledTimes(1);
+      const stmts = mockBatch.mock.calls[0][0] as unknown[];
+      expect(stmts).toHaveLength(2);
+
+      // First statement: DELETE for the user
+      const deleteSql = mockPrepare.mock.calls[0][0] as string;
+      expect(deleteSql).toContain('DELETE FROM file_storage_stats');
+      expect(deleteSql).toContain('WHERE user_id = ?');
+      expect(mockBind).toHaveBeenNthCalledWith(1, 'u-1');
+
+      // Second statement: INSERT...SELECT with owned_by_me = 1 filter
+      const insertSql = mockPrepare.mock.calls[1][0] as string;
+      expect(insertSql).toContain('INSERT INTO file_storage_stats');
+      expect(insertSql).toContain("SELECT user_id, COALESCE(mime_type, '')");
+      expect(insertSql).toContain('FROM files');
+      expect(insertSql).toContain('WHERE user_id = ?');
+      expect(insertSql).toContain('AND is_trashed = 0');
+      expect(insertSql).toContain('AND owned_by_me = 1');
+      expect(insertSql).toContain("GROUP BY user_id, COALESCE(mime_type, '')");
+      expect(mockBind).toHaveBeenNthCalledWith(2, 'u-1');
+    });
+  });
 });

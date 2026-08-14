@@ -152,6 +152,29 @@ export class FileRepository {
   }
 
   /**
+   * Recompute file_storage_stats from scratch for a user. Self-heals drift from:
+   * - Migration 0012 backfill bug (no owned_by_me filter)
+   * - Non-atomic sync writes (Worker killed mid-page)
+   * - deleteDrive cascade (bypasses per-file deltas)
+   *
+   * Atomic via db.batch() — DELETE + INSERT roll back together if either fails.
+   */
+  async recomputeStorageStats(userId: string): Promise<void> {
+    await this.db.batch([
+      this.db.prepare('DELETE FROM file_storage_stats WHERE user_id = ?').bind(userId),
+      this.db
+        .prepare(
+          `INSERT INTO file_storage_stats (user_id, mime_type, total_size)
+         SELECT user_id, COALESCE(mime_type, ''), SUM(size)
+         FROM files
+         WHERE user_id = ? AND is_trashed = 0 AND owned_by_me = 1
+         GROUP BY user_id, COALESCE(mime_type, '')`,
+        )
+        .bind(userId),
+    ]);
+  }
+
+  /**
    * Fetch existing file rows for a set of Google file IDs — used by the sync
    * loop to compute deltas before upserting. Returns Map<googleFileId, state>.
    * One query per page (not per file) — stays within D1's subrequest budget.

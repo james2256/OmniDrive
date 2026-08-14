@@ -19,20 +19,20 @@ describe('module constants', () => {
 });
 
 describe('parseStorageQuota', () => {
-  it('parses limit + usageInDrive + usage from strings', () => {
-    expect(parseStorageQuota('1000', '500', '999')).toEqual({ total: 1000, used: 500 });
+  it('parses limit + usage from strings', () => {
+    expect(parseStorageQuota('1000', '999')).toEqual({ total: 1000, used: 999 });
   });
 
-  it('prefers usageInDrive over usage when both provided', () => {
-    expect(parseStorageQuota('1000', '500', '999')).toEqual({ total: 1000, used: 500 });
+  it('uses account-wide usage (Drive + Gmail + Photos)', () => {
+    expect(parseStorageQuota('1000', '999')).toEqual({ total: 1000, used: 999 });
   });
 
-  it('falls back to account-wide usage when usageInDrive missing', () => {
-    expect(parseStorageQuota('1000', undefined, '999')).toEqual({ total: 1000, used: 999 });
+  it('returns 0 used when usage is missing', () => {
+    expect(parseStorageQuota('1000')).toEqual({ total: 1000, used: 0 });
   });
 
   it('treats missing limit as UNLIMITED_DRIVE_QUOTA_BYTES', () => {
-    expect(parseStorageQuota(undefined, '100', undefined)).toEqual({
+    expect(parseStorageQuota(undefined, '100')).toEqual({
       total: UNLIMITED_DRIVE_QUOTA_BYTES,
       used: 100,
     });
@@ -40,16 +40,9 @@ describe('parseStorageQuota', () => {
 
   it('treats empty string limit as unlimited (NOT as 0)', () => {
     // Source: `limit != null && limit !== ''` — empty string is the "no limit" branch
-    expect(parseStorageQuota('', '100', undefined)).toEqual({
+    expect(parseStorageQuota('', '100')).toEqual({
       total: UNLIMITED_DRIVE_QUOTA_BYTES,
       used: 100,
-    });
-  });
-
-  it('falls back to 0 used when both usage values are missing', () => {
-    expect(parseStorageQuota('1000', undefined, undefined)).toEqual({
-      total: 1000,
-      used: 0,
     });
   });
 
@@ -62,12 +55,12 @@ describe('parseStorageQuota', () => {
 
   it('treats "0" limit as a real zero limit (NOT unlimited)', () => {
     // "0" passes the `limit !== ''` check, so it's parsed as 0 (a real limit)
-    expect(parseStorageQuota('0', '10', undefined)).toEqual({ total: 0, used: 10 });
+    expect(parseStorageQuota('0', '10')).toEqual({ total: 0, used: 10 });
   });
 
   it('handles large integer string values (TiB range)', () => {
     const oneTib = String(UNLIMITED_DRIVE_QUOTA_BYTES);
-    expect(parseStorageQuota(oneTib, '100', undefined)).toEqual({
+    expect(parseStorageQuota(oneTib, '100')).toEqual({
       total: UNLIMITED_DRIVE_QUOTA_BYTES,
       used: 100,
     });
