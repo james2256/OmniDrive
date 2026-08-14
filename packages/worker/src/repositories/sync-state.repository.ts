@@ -55,7 +55,12 @@ export class SyncStateRepository {
     return this.db
       .prepare('SELECT * FROM sync_state WHERE drive_account_id = ?')
       .bind(driveId)
-      .first<{ change_token: string | null; next_page_token: string | null }>();
+      .first<{
+        change_token: string | null;
+        next_page_token: string | null;
+        status: string | null;
+        locked_at: string | null;
+      }>();
   }
 
   /**
@@ -124,9 +129,10 @@ export class SyncStateRepository {
    * API, not just changes).
    *
    * Used by POST /api/drives/:id/resync — the user-triggered "Force
-   * Re-sync" button. Safe to call on a drive that's already syncing:
-   * the UPDATE doesn't touch status='syncing' or locked_at, so the
-   * in-flight sync completes normally and the NEXT cycle runs full.
+   * Re-sync" button. The SQL guard `AND status != 'syncing'` prevents
+   * clearing the change token while a sync is actively running —
+   * the UPDATE affects 0 rows, the in-flight sync completes normally,
+   * and the route returns 409 so the user can retry.
    */
   resetChangeToken(driveId: string) {
     return this.db
@@ -134,7 +140,8 @@ export class SyncStateRepository {
         `UPDATE sync_state
          SET change_token = NULL, next_page_token = NULL,
              status = 'idle', error_message = NULL
-         WHERE drive_account_id = ?`,
+         WHERE drive_account_id = ?
+           AND status != 'syncing'`,
       )
       .bind(driveId)
       .run();

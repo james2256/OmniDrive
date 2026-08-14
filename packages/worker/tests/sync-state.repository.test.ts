@@ -154,6 +154,7 @@ describe('SyncStateRepository', () => {
       expect(sql).toContain("status = 'idle'");
       expect(sql).toContain('error_message = NULL');
       expect(sql).toContain('WHERE drive_account_id = ?');
+      expect(sql).toContain("AND status != 'syncing'");
       expect(mockBind).toHaveBeenCalledWith('d-1');
       expect(mockRun).toHaveBeenCalledTimes(1);
     });
@@ -163,19 +164,18 @@ describe('SyncStateRepository', () => {
 
       const sql = mockPrepare.mock.calls[0][0] as string;
       // The reset must not clear the lock — a sync in flight should complete
-      // normally. The NEXT acquireLock sees status='idle' and acquires.
+      // normally. The SQL guard `AND status != 'syncing'` means the UPDATE
+      // affects 0 rows when a sync is active, so the in-flight sync is safe.
       expect(sql).not.toContain('locked_at');
     });
 
-    it('does NOT touch status=syncing (only sets idle — does not steal the lock)', async () => {
+    it('does NOT set status=syncing (only sets idle — does not steal the lock)', async () => {
       await repo.resetChangeToken('d-1');
 
       const sql = mockPrepare.mock.calls[0][0] as string;
-      // The SET clause sets status='idle' unconditionally. This is correct
-      // because: if a sync is in flight (status='syncing'), the in-flight
-      // sync's final upsertIdleCompleted/upsertError will overwrite status.
-      // If no sync is in flight, status='idle' is the right pre-sync state.
-      // We do NOT set status='syncing' here — that's acquireLock's job.
+      // The SET clause sets status='idle' unconditionally. The SQL guard
+      // `AND status != 'syncing'` ensures this only runs when status is NOT
+      // 'syncing' — so the in-flight sync's status is not overwritten.
       expect(sql).not.toContain("status = 'syncing'");
     });
   });

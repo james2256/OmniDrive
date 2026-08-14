@@ -1,4 +1,10 @@
-import type { D1Database, KVNamespace, ScheduledController } from '@cloudflare/workers-types';
+import type {
+  D1Database,
+  KVNamespace,
+  ExecutionContext,
+  Queue,
+  ScheduledController,
+} from '@cloudflare/workers-types';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import * as fs from 'fs';
@@ -9,8 +15,9 @@ import { setShuttingDown } from './services/sync';
 import worker from './index';
 import { D1DatabaseWrapper } from './polyfills/d1';
 import { KVNamespaceWrapper } from './polyfills/kv';
+import { QueueWrapper } from './polyfills/queue';
 import dotenv from 'dotenv';
-import type { Env } from './types/env';
+import type { Env, SyncJobMessage } from './types/env';
 import { validateEnv } from './lib/env';
 
 dotenv.config();
@@ -100,10 +107,28 @@ async function main() {
   // Initialize KV
   const kv = new KVNamespaceWrapper(path.join(dataDir, 'kv.sqlite'));
 
-  // Construct Cloudflare Env mock
+  // Construct a dummy execution context for waitUntil (hoisted before
+  // validateEnv so the QueueWrapper polyfill can close over it lazily).
+  const dummyCtx = {
+    waitUntil: (promise: Promise<unknown>) => promise.catch(console.error),
+    passThroughOnException: () => {},
+  } as unknown as ExecutionContext;
+
+  // Construct Cloudflare Env mock. SYNC_QUEUE is polyfilled via QueueWrapper
+  // which invokes worker.queue() synchronously — preserving the queue
+  // consumer pattern in Node self-host mode. The envHolder resolves the
+  // chicken-and-egg: QueueWrapper needs env, but env isn't constructed
+  // until validateEnv returns.
+  const envHolder: { value: Env | undefined } = { value: undefined };
+  const syncQueue = new QueueWrapper(
+    worker,
+    () => envHolder.value as Env,
+    () => dummyCtx,
+  );
   const nodeEnv = validateEnv({
     DB: d1 as unknown as D1Database,
     KV: kv as unknown as KVNamespace,
+    SYNC_QUEUE: syncQueue as unknown as Queue<SyncJobMessage>,
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || '',
     GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || '',
     FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:8080',
@@ -112,6 +137,7 @@ async function main() {
     TOKEN_ENCRYPTION_KEY: process.env.TOKEN_ENCRYPTION_KEY,
     BOOTSTRAP_TOKEN: process.env.BOOTSTRAP_TOKEN,
   }) as Env;
+  envHolder.value = nodeEnv;
 
   // Serve static React files from /usr/share/nginx/html or local web/dist
   const staticDir = process.env.STATIC_DIR || path.join(process.cwd(), '../web/dist');
@@ -131,22 +157,20 @@ async function main() {
     }
   });
 
-  // Construct a dummy execution context for waitUntil
-  const dummyCtx = {
-    waitUntil: (promise: Promise<unknown>) => promise.catch(console.error),
-    passThroughOnException: () => {},
-  } as unknown as ExecutionContext;
-
   // Setup Cron Schedule
   const CRON_SCHEDULE = '*/30 * * * *';
-  cron.schedule(CRON_SCHEDULE, () => {
+  cron.schedule(CRON_SCHEDULE, async () => {
     console.warn('Executing cron schedule...');
     if (worker.scheduled) {
-      worker.scheduled(
-        { cron: CRON_SCHEDULE, scheduledTime: Date.now() } as unknown as ScheduledController,
-        nodeEnv,
-        dummyCtx as unknown as ExecutionContext,
-      );
+      try {
+        await worker.scheduled(
+          { cron: CRON_SCHEDULE, scheduledTime: Date.now() } as unknown as ScheduledController,
+          nodeEnv,
+          dummyCtx as unknown as ExecutionContext,
+        );
+      } catch (e) {
+        console.error('Cron handler failed:', e);
+      }
     }
   });
 

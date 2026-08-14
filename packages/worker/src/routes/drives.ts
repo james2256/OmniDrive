@@ -382,9 +382,18 @@ drivesRouter.post('/:id/resync', async (c) => {
   const row = await driveRepo.findFullByIdAndUser(driveId, userId);
   if (!row) throw new NotFoundError('Drive not found');
 
+  // Fail-fast if sync is actively running. resetChangeToken has a SQL guard
+  // (AND status != 'syncing'), but this gives the user immediate feedback
+  // instead of a silent no-op + enqueued sync that won't run until the
+  // in-flight sync finishes.
+  const syncStateRepo = new SyncStateRepository(c.env.DB);
+  const syncState = await syncStateRepo.findSyncState(driveId);
+  if (syncState?.status === 'syncing') {
+    throw new ConflictError('Sync in progress. Try again in a moment.');
+  }
+
   // Reset the sync cursor so the next syncDriveAccount() call runs
   // performInitialSync (full re-fetch of ALL files, not just changes).
-  const syncStateRepo = new SyncStateRepository(c.env.DB);
   await syncStateRepo.resetChangeToken(driveId);
 
   // Enqueue via queue (not waitUntil) — gets 15min + auto-re-enqueue
