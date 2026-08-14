@@ -54,6 +54,15 @@ export class FileService {
     await this.fileRepo.markTrashed(fileId, file.user_id);
     if (file.owned_by_me === 1) {
       await this.fileRepo.pushDelta(file.user_id, file.mime_type ?? '', -file.size);
+      // Release workspace quota — trashing a file frees its workspace storage.
+      // Matches permanentDelete (L96) which also calls updateWorkspaceStorage.
+      if (file.workspace_id && file.size) {
+        try {
+          await this.policyService.updateWorkspaceStorage(file.workspace_id, -file.size);
+        } catch (err) {
+          logErrorNoCtx('trashFile: workspace quota release failed (non-fatal)', err, { fileId });
+        }
+      }
     }
   }
 
@@ -66,6 +75,15 @@ export class FileService {
     await this.fileRepo.markUntrashed(fileId, file.user_id);
     if (file.owned_by_me === 1) {
       await this.fileRepo.pushDelta(file.user_id, file.mime_type ?? '', file.size);
+      // Reserve workspace quota — restoring a file re-adds it to workspace storage.
+      // Matches the inverse of trashFile + permanentDelete.
+      if (file.workspace_id && file.size) {
+        try {
+          await this.policyService.updateWorkspaceStorage(file.workspace_id, file.size);
+        } catch (err) {
+          logErrorNoCtx('restoreFile: workspace quota reserve failed (non-fatal)', err, { fileId });
+        }
+      }
     }
   }
 

@@ -20,7 +20,11 @@ import type { GDriveFile } from '../types/google';
 import { createHash } from 'node:crypto';
 import { hasPermission } from '../lib/rbac';
 import type { WorkspaceRole } from '../lib/schemas';
-import { parseLifecycleXml, serializeLifecycleXml } from '../services/s3-lifecycle';
+import {
+  parseLifecycleXml,
+  serializeLifecycleXml,
+  deleteMultipartUploadParts,
+} from '../services/s3-lifecycle';
 import { PolicyService } from '../services/policy.service';
 import { escapeXml, parseCompleteMultipartBody, xmlError } from '../lib/s3-xml';
 import { ValidationError } from '../lib/errors';
@@ -433,7 +437,14 @@ s3Router.get('/:bucket/:key{.+}', async (c) => {
       (file.created_at as string),
   );
   c.header('Content-Type', file.mime_type || 'application/octet-stream');
-  c.header('Content-Length', String(file.size));
+  // Google Docs (vnd.google-apps.*) are exported to a different format with a
+  // different size — file.size (D1) is the Google-side size, not the export size.
+  // Omit Content-Length for exports so the runtime uses chunked encoding;
+  // setting it would truncate or hang the client.
+  const isGoogleDocExport = file.mime_type?.startsWith('application/vnd.google-apps.');
+  if (!isGoogleDocExport) {
+    c.header('Content-Length', String(file.size));
+  }
   c.header('ETag', `"${getFileETag(file)}"`);
   c.header('Last-Modified', lastModified);
   c.header('Accept-Ranges', 'none'); // Range not supported — separate issue
@@ -450,11 +461,6 @@ s3Router.get('/:bucket/:key{.+}', async (c) => {
     file.google_file_id,
     file.mime_type || undefined,
   );
-  // Google Docs (vnd.google-apps.*) are exported to a different format with a
-  // different size — file.size (D1) is the Google-side size, not the export size.
-  // Omit Content-Length for exports so the runtime uses chunked encoding;
-  // setting it would truncate or hang the client.
-  const isGoogleDocExport = file.mime_type?.startsWith('application/vnd.google-apps.');
   c.header('Content-Type', exportedMimeType || file.mime_type || 'application/octet-stream');
   if (isGoogleDocExport) {
     c.header('Content-Length', ''); // clear for chunked encoding
@@ -480,13 +486,7 @@ s3Router.delete('/:bucket/:key{.+}', async (c) => {
       return xmlError(c, 'NoSuchUpload', 'The specified multipart upload does not exist.', 404);
     }
 
-    const driveService = createDriveService(c.env);
-
-    try {
-      await driveService.deleteFile(upload.drive_account_id, upload.temp_folder_id);
-    } catch (err) {
-      logError(c, 'Failed to delete temp multipart upload folder from Google Drive', err);
-    }
+    await deleteMultipartUploadParts(c.env, upload);
 
     const s3LifecycleRepo = new S3LifecycleRepository(db);
     await s3LifecycleRepo.deleteUpload(uploadId);
@@ -523,6 +523,15 @@ s3Router.delete('/:bucket/:key{.+}', async (c) => {
   await driveService.trashFile(file.drive_account_id, file.google_file_id);
   await fileRepo.markTrashedSystem(file.id);
   await fileRepo.pushDelta(file.user_id, file.mime_type ?? '', -file.size);
+
+  // Release workspace quota — S3 DELETE trashes the file, freeing its reserved
+  // workspace storage. Without this, workspaces.used_bytes stays inflated.
+  try {
+    const policyService = new PolicyService(db, driveService);
+    await policyService.updateWorkspaceStorage(workspace.id, -(file.size as number));
+  } catch (e) {
+    logError(c, 'S3 DELETE: workspace quota release failed (non-fatal)', e);
+  }
 
   return c.body(null, 204);
 });
@@ -741,6 +750,15 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
         );
         if (raceFile) {
           await db.batch([fileRepo.deleteByIdStmt(raceFile.id), insertStmt]);
+          // Release the race-loser's pre-reserved quota — the race winner's
+          // insert already consumed the workspace storage. Without this release,
+          // every concurrent PUT to the same key permanently inflates
+          // workspaces.used_bytes by contentLength.
+          try {
+            await policyService.updateWorkspaceStorage(workspace.id, -contentLength);
+          } catch (e) {
+            logError(c, 'S3 PutObject: race-loser quota release failed (non-fatal)', e);
+          }
           try {
             if (raceFile.owned_by_me === 1) {
               await driveService.deleteFile(raceFile.drive_account_id, raceFile.google_file_id);
@@ -1260,12 +1278,8 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
       logError(c, 'S3 CompleteMultipart: storage stats update failed (non-fatal)', err);
     }
 
-    // Cleanup: Delete temp parts folder from Google Drive & clean SQLite state
-    try {
-      await driveService.deleteFile(upload.drive_account_id, upload.temp_folder_id);
-    } catch (err) {
-      logError(c, 'Failed to delete temp multipart folder from Google Drive', err);
-    }
+    // Cleanup: Delete individual part files + temp folder from Google Drive
+    await deleteMultipartUploadParts(c.env, upload);
     const s3LifecycleRepo = new S3LifecycleRepository(db);
     await s3LifecycleRepo.deleteUpload(uploadId);
 

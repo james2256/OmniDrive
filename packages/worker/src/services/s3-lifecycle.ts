@@ -2,6 +2,7 @@ import type { Env } from '../types/env';
 import { createDriveService } from '../lib/drive-factory';
 import { logErrorNoCtx } from '../lib/logger';
 import { S3LifecycleRepository } from '../repositories/s3-lifecycle.repository';
+import { S3MultipartRepository } from '../repositories/s3-multipart.repository';
 import { FileRepository } from '../repositories/file.repository';
 import { escapeXml } from '../lib/s3-xml';
 
@@ -116,18 +117,48 @@ export async function cleanupOrphanMultipartUploads(env: Env): Promise<void> {
 
   if (!orphans?.length) return;
 
-  const driveService = createDriveService(env);
-
   let orphanCount = 0;
   for (const upload of orphans) {
     if (orphanCount >= MAX_ORPHAN_CLEANUPS_PER_CYCLE) break;
-    try {
-      await driveService.deleteFile(upload.drive_account_id, upload.temp_folder_id);
-    } catch (err) {
-      // Best-effort: the temp folder may already be gone; still drop the DB row.
-      logErrorNoCtx('Failed to delete orphan multipart temp folder from Google Drive', err);
-    }
+    await deleteMultipartUploadParts(env, upload);
     await s3LifecycleRepo.deleteUpload(upload.upload_id);
     orphanCount++;
+  }
+}
+
+/**
+ * Delete all individual multipart part files from Google Drive, then delete
+ * the temp folder. Per Google Drive API, deleting a folder does NOT delete
+ * its children — so we must iterate s3_multipart_parts and delete each
+ * part's google_file_id individually before deleting the temp folder.
+ *
+ * Used by CompleteMultipartUpload, AbortMultipartUpload, and orphan cleanup.
+ */
+export async function deleteMultipartUploadParts(
+  env: Env,
+  upload: { drive_account_id: string; temp_folder_id: string; upload_id: string },
+): Promise<void> {
+  const driveService = createDriveService(env);
+  const multipartRepo = new S3MultipartRepository(env.DB);
+
+  // Delete each part file individually
+  const { results: parts } = await multipartRepo.findPartsByUpload(upload.upload_id);
+  for (const part of parts) {
+    try {
+      await driveService.deleteFile(upload.drive_account_id, part.google_file_id);
+    } catch (err) {
+      logErrorNoCtx('Failed to delete multipart part file (orphaned — not data loss)', err, {
+        googleFileId: part.google_file_id,
+      });
+    }
+  }
+
+  // Now delete the temp folder
+  try {
+    await driveService.deleteFile(upload.drive_account_id, upload.temp_folder_id);
+  } catch (err) {
+    logErrorNoCtx('Failed to delete multipart temp folder', err, {
+      tempFolderId: upload.temp_folder_id,
+    });
   }
 }

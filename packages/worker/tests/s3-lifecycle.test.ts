@@ -81,6 +81,7 @@ describe('cleanupOrphanMultipartUploads', () => {
             if (sql.includes('DELETE FROM s3_multipart_uploads')) deletes.push(args[0]);
             return { success: true };
           },
+          all: async () => ({ results: [] }), // parts query returns empty
         }),
         all: async () => {
           if (sql.includes('FROM s3_multipart_uploads')) {
