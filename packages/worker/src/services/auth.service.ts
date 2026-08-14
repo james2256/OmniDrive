@@ -2,6 +2,7 @@ import type { Env, OAuthTokens } from '../types/env';
 import { AppError, UpstreamError } from '../lib/errors';
 import { logErrorNoCtx } from '../lib/logger';
 import { withBackoff } from '../lib/backoff';
+import { GOOGLE_TOKEN_URL } from '../constants';
 
 export class AuthService {
   constructor(private env: Env) {}
@@ -42,7 +43,7 @@ export class AuthService {
       params.append('code_verifier', codeVerifier);
     }
     const response = await this.fetchWithBackoff(
-      'https://oauth2.googleapis.com/token',
+      GOOGLE_TOKEN_URL,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

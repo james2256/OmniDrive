@@ -140,6 +140,18 @@ export class FileRepository {
   }
 
   /**
+   * Convenience wrapper for applyStorageDeltas with a single delta.
+   * Matches the common pattern: fire one (user, mime, delta) tuple.
+   *
+   * Used by FileService mutations (trash/restore/move/finalize) and S3
+   * routes (PutObject/CompleteMultipart/DELETE) — previously 9 inline
+   * applyStorageDeltas([{...}]) call sites (IMP-36).
+   */
+  async pushDelta(userId: string, mimeType: string, delta: number): Promise<void> {
+    await this.applyStorageDeltas([{ userId, mimeType, delta }]);
+  }
+
+  /**
    * Fetch existing file rows for a set of Google file IDs — used by the sync
    * loop to compute deltas before upserting. Returns Map<googleFileId, state>.
    * One query per page (not per file) — stays within D1's subrequest budget.

@@ -6,6 +6,7 @@ import { decrypt } from '../lib/crypto';
 import { hmacSha256, sha256 } from '../lib/crypto-s3';
 import { logError } from '../lib/logger';
 import { S3CredentialsRepository } from '../repositories/s3-credentials.repository';
+import { FIFTEEN_MINUTES_MS } from '../constants';
 
 function returnXmlError(
   c: Context<AppContext>,
@@ -185,8 +186,7 @@ export const s3AuthMiddleware: MiddlewareHandler<AppContext> = async (c, next) =
       }
     } else {
       const currentTime = Date.now();
-      const fifteenMinutes = 15 * 60 * 1000;
-      if (Math.abs(currentTime - requestTime) > fifteenMinutes) {
+      if (Math.abs(currentTime - requestTime) > FIFTEEN_MINUTES_MS) {
         return returnXmlError(
           c,
           'RequestTimeTooSkewed',

@@ -2,11 +2,10 @@ import type { D1Database } from '@cloudflare/workers-types';
 import { SharedRepository } from '../repositories/shared.repository';
 import { FileRepository } from '../repositories/file.repository';
 import { DriveRepository } from '../repositories/drive.repository';
-import { FolderRepository } from '../repositories/folder.repository';
 import { hashSharedPassword } from '../lib/password';
 import { validateWebhookUrlAsync } from '../lib/validation';
 import { AppError, NotFoundError, ForbiddenError } from '../lib/errors';
-import { getWorkspaceRole, hasPermission } from '../lib/rbac';
+import { getWorkspaceRole, hasPermission, checkFolderEditorAccess } from '../lib/rbac';
 import { mapSharedLinkRow, mapFileRow, type FileRow } from '../types/db';
 import type { SharedLink, FileEntry } from '../types/domain';
 
@@ -27,13 +26,11 @@ import type { SharedLink, FileEntry } from '../types/domain';
 export class SharedService {
   private sharedRepo: SharedRepository;
   private fileRepo: FileRepository;
-  private folderRepo: FolderRepository;
   private driveRepo: DriveRepository;
 
   constructor(private db: D1Database) {
     this.sharedRepo = new SharedRepository(db);
     this.fileRepo = new FileRepository(db);
-    this.folderRepo = new FolderRepository(db);
     this.driveRepo = new DriveRepository(db);
   }
 
@@ -287,7 +284,7 @@ export class SharedService {
     }
 
     // Folder: check workspace membership first, then drive folder ownership
-    const wsOk = await this.checkFolderAccess(userId, targetId);
+    const wsOk = await checkFolderEditorAccess(this.db, targetId, userId);
     if (!wsOk) {
       const driveOk = !!(await this.driveRepo.findOwnedDriveFolderByGoogleId(targetId, userId));
       if (!driveOk) throw new ForbiddenError('You do not own this folder');
@@ -296,13 +293,5 @@ export class SharedService {
     // Fetch folder name for denormalization (1 extra D1 read — acceptable for a rare action).
     const folderName = await this.sharedRepo.findFolderName(targetId);
     return { name: folderName ?? targetId, mimeType: null };
-  }
-
-  /** Check if user has editor access to a workspace folder. */
-  private async checkFolderAccess(userId: string, folderId: string): Promise<boolean> {
-    const folder = await this.folderRepo.findMembership(folderId, userId);
-    if (!folder) return false;
-    const role = await getWorkspaceRole(this.db, folder.workspace_id, userId);
-    return !!role && hasPermission(role, 'editor');
   }
 }

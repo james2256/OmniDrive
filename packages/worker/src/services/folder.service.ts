@@ -34,7 +34,7 @@ export class FolderService {
     this.fileRepo = new FileRepository(db);
   }
 
-  // ─── Existing methods (star/unstar/checkFolderAccess/deleteFolder) ───
+  // ─── Existing methods (star/unstar/deleteFolder) ───
 
   /** Find all folders a user has access to (for GET /tree). */
   findAllFoldersByUser(userId: string) {
@@ -55,13 +55,8 @@ export class FolderService {
     await this.folderRepo.unstar(folderId);
   }
 
-  /** Check if user has editor access to a workspace folder. Returns true/false. */
-  async checkFolderAccess(userId: string, folderId: string): Promise<boolean> {
-    const folder = await this.folderRepo.findMembership(folderId, userId);
-    if (!folder) return false;
-    const role = await getWorkspaceRole(this.db, folder.workspace_id, userId);
-    return !!role && hasPermission(role, 'editor');
-  }
+  // checkFolderAccess deleted (IMP-35): dead code — zero external callers.
+  // Use checkFolderEditorAccess(db, folderId, userId) from lib/rbac.ts instead.
 
   /** Delete a folder. RBAC: editor. */
   async deleteFolder(userId: string, folderId: string): Promise<void> {

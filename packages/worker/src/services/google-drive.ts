@@ -9,16 +9,22 @@ import { withBackoff } from '../lib/backoff';
 import { safeJsonParse } from '../lib/safe-json-parse';
 import { DriveRepository } from '../repositories/drive.repository';
 import { logNoCtx } from '../lib/logger';
+import {
+  FIVE_MINUTES_MS,
+  TOKEN_REFRESH_MARGIN_MS,
+  GOOGLE_TOKEN_URL,
+  GOOGLE_DRIVE_API_BASE,
+} from '../constants';
 
 // ponytail: split into token/file/folder/sync modules when a 4th method group
 // is added or when extending becomes painful. Currently 27 methods across 4
 // groups (token mgmt, file ops, folder ops, sync) in one file is navigable
 // with section comments. 14 consumers depend on the GoogleDriveService facade.
 
-const QUOTA_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const QUOTA_CACHE_TTL_MS = FIVE_MINUTES_MS;
 
-const DRIVE_API = 'https://www.googleapis.com/drive/v3';
-const TOKEN_URL = 'https://oauth2.googleapis.com/token';
+const DRIVE_API = GOOGLE_DRIVE_API_BASE;
+const TOKEN_URL = GOOGLE_TOKEN_URL;
 
 /** Fields for single-file metadata (getFile + copyFile). */
 const FILE_FIELDS =
@@ -105,13 +111,13 @@ export class GoogleDriveService implements DriveProvider {
     // Cache hit: skip the D1 read entirely. The cache checks expiry with the same
     // 60-second margin as the refresh logic below, so it never serves stale tokens.
     const cached = this.tokenCache.get(driveAccountId);
-    if (cached && cached.expiresAt > Date.now() + 60_000) {
+    if (cached && cached.expiresAt > Date.now() + TOKEN_REFRESH_MARGIN_MS) {
       return cached.token;
     }
 
     const tokens = await this.loadTokens(driveAccountId);
     if (tokens.authType === 'service_account' && tokens.serviceAccount) {
-      if (tokens.expiresAt > Date.now() + 60_000) {
+      if (tokens.expiresAt > Date.now() + TOKEN_REFRESH_MARGIN_MS) {
         this.tokenCache.set(driveAccountId, {
           token: tokens.accessToken,
           expiresAt: tokens.expiresAt,
@@ -125,7 +131,7 @@ export class GoogleDriveService implements DriveProvider {
       });
       return refreshed.accessToken;
     }
-    if (tokens.expiresAt > Date.now() + 60_000) {
+    if (tokens.expiresAt > Date.now() + TOKEN_REFRESH_MARGIN_MS) {
       this.tokenCache.set(driveAccountId, {
         token: tokens.accessToken,
         expiresAt: tokens.expiresAt,

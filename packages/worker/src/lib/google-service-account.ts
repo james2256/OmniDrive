@@ -1,4 +1,5 @@
-const TOKEN_URL = 'https://oauth2.googleapis.com/token';
+import { GOOGLE_TOKEN_URL as TOKEN_URL } from '../constants';
+
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
 
 export interface ServiceAccountJson {

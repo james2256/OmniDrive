@@ -13,8 +13,9 @@ import { S3CredentialsRepository } from '../repositories/s3-credentials.reposito
 import { AdminRepository } from '../repositories/admin.repository';
 import { AuthRepository } from '../repositories/auth.repository';
 import { createDriveService } from '../lib/drive-factory';
+import { ONE_HOUR_MS } from '../constants';
 
-const EXTENSION_THRESHOLD = 60 * 60 * 1000; // 1 hour
+const EXTENSION_THRESHOLD = ONE_HOUR_MS;
 
 export const authGuard = createMiddleware<AppContext>(async (c, next) => {
   const cookie = getCookie(c, 'omnidrive_sid');

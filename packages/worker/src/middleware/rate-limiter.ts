@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import type { AppContext } from '../types/context';
+import { FIVE_MINUTES_MS } from '../constants';
 
 interface RateLimitEntry {
   timestamps: number[];
@@ -11,7 +12,7 @@ interface RateLimitStore {
   lastCleanup: number;
 }
 
-const CLEANUP_INTERVAL = 5 * 60 * 1000;
+const CLEANUP_INTERVAL = FIVE_MINUTES_MS;
 
 // Track every store so _resetStoreForTesting() can clear them all.
 const allStores: RateLimitStore[] = [];

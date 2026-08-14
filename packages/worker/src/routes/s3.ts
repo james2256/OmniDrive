@@ -522,9 +522,7 @@ s3Router.delete('/:bucket/:key{.+}', async (c) => {
   // Matches s3-lifecycle.ts pattern — S3 DELETE trashes, not hard-deletes.
   await driveService.trashFile(file.drive_account_id, file.google_file_id);
   await fileRepo.markTrashedSystem(file.id);
-  await fileRepo.applyStorageDeltas([
-    { userId: file.user_id, mimeType: file.mime_type ?? '', delta: -file.size },
-  ]);
+  await fileRepo.pushDelta(file.user_id, file.mime_type ?? '', -file.size);
 
   return c.body(null, 204);
 });
@@ -784,13 +782,11 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
     // Release old file's quota + storage stats (prevents quota drift on overwrite).
     try {
       await policyService.updateWorkspaceStorage(workspace.id, -(existingFile.size as number));
-      await fileRepo.applyStorageDeltas([
-        {
-          userId: existingFile.user_id as string,
-          mimeType: (existingFile.mime_type as string) ?? '',
-          delta: -(existingFile.size as number),
-        },
-      ]);
+      await fileRepo.pushDelta(
+        existingFile.user_id as string,
+        (existingFile.mime_type as string) ?? '',
+        -(existingFile.size as number),
+      );
     } catch (err) {
       logError(c, 'S3 PutObject: old file quota release failed (non-fatal)', err);
     }
@@ -800,7 +796,7 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
   // Best-effort — a failure here only affects the "Storage by type" chart,
   // not the file record or quota.
   try {
-    await fileRepo.applyStorageDeltas([{ userId, mimeType, delta: contentLength }]);
+    await fileRepo.pushDelta(userId, mimeType, contentLength);
   } catch (err) {
     logError(c, 'S3 PutObject: storage stats update failed (non-fatal)', err);
   }
@@ -1241,13 +1237,11 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
       // Release old file's quota + storage stats (prevents quota drift on overwrite).
       try {
         await policyService.updateWorkspaceStorage(workspace.id, -(existingFile.size as number));
-        await fileRepo.applyStorageDeltas([
-          {
-            userId: existingFile.user_id as string,
-            mimeType: (existingFile.mime_type as string) ?? '',
-            delta: -(existingFile.size as number),
-          },
-        ]);
+        await fileRepo.pushDelta(
+          existingFile.user_id as string,
+          (existingFile.mime_type as string) ?? '',
+          -(existingFile.size as number),
+        );
       } catch (err) {
         logError(c, 'S3 CompleteMultipart: old file quota release failed (non-fatal)', err);
       }
@@ -1257,13 +1251,11 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
 
     // Update per-MIME-type storage stats (mirrors Web UI finalizeUpload).
     try {
-      await fileRepo.applyStorageDeltas([
-        {
-          userId,
-          mimeType: upload.content_type ?? 'application/octet-stream',
-          delta: totalSize,
-        },
-      ]);
+      await fileRepo.pushDelta(
+        userId,
+        upload.content_type ?? 'application/octet-stream',
+        totalSize,
+      );
     } catch (err) {
       logError(c, 'S3 CompleteMultipart: storage stats update failed (non-fatal)', err);
     }

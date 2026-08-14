@@ -1,4 +1,5 @@
 import type { D1Database } from '@cloudflare/workers-types';
+import { FIVE_MINUTES_MS } from '../constants';
 
 /**
  * Data access layer for the `sync_state` table.
@@ -31,7 +32,7 @@ export class SyncStateRepository {
     // deploy, OOM) stops heartbeating → lock is re-acquirable after 5min.
     // COALESCE handles pre-migration rows where locked_at is NULL: falls back
     // to last_synced_at, then to epoch (definitely stale → re-acquire).
-    const STALE_LOCK_MS = 5 * 60 * 1000;
+    const STALE_LOCK_MS = FIVE_MINUTES_MS;
     return this.db
       .prepare(
         `INSERT INTO sync_state (drive_account_id, status, locked_at) VALUES (?, 'syncing', datetime('now'))

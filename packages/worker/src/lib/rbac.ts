@@ -1,6 +1,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import type { WorkspaceRole } from './schemas';
 import { WorkspaceRepository } from '../repositories/workspace.repository';
+import { FolderRepository } from '../repositories/folder.repository';
 
 const ROLE_LEVELS: Record<WorkspaceRole, number> = {
   viewer: 1,
@@ -34,4 +35,27 @@ export async function getWorkspaceRole(
 
 export function hasPermission(role: WorkspaceRole, requiredRole: WorkspaceRole): boolean {
   return roleLevel(role) >= roleLevel(requiredRole);
+}
+
+/**
+ * Check if the user has editor access to a workspace folder.
+ * Returns true if the user is a workspace member with editor+ role;
+ * false otherwise (including if the folder doesn't exist or isn't a
+ * workspace folder).
+ *
+ * Used by SharedService.assertCanShare (previously duplicated there
+ * as a private method — IMP-35).
+ *
+ * Pattern matches getWorkspaceRole: free function taking db,
+ * orchestrates FolderRepository.findMembership + getWorkspaceRole + hasPermission.
+ */
+export async function checkFolderEditorAccess(
+  db: D1Database,
+  folderId: string,
+  userId: string,
+): Promise<boolean> {
+  const folder = await new FolderRepository(db).findMembership(folderId, userId);
+  if (!folder) return false;
+  const role = await getWorkspaceRole(db, folder.workspace_id, userId);
+  return !!role && hasPermission(role, 'editor');
 }

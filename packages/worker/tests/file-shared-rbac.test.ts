@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Mock the rbac module so we can control getWorkspaceRole + hasPermission
+// Mock the rbac module so we can control getWorkspaceRole + hasPermission +
+// checkFolderEditorAccess (the folder-access primitive used by assertCanShare).
 vi.mock('../src/lib/rbac', () => ({
   getWorkspaceRole: vi.fn(),
   hasPermission: vi.fn(),
+  checkFolderEditorAccess: vi.fn(),
 }));
 
 import { FileService } from '../src/services/file.service';

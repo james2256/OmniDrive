@@ -53,9 +53,7 @@ export class FileService {
     await this.driveProvider.trashFile(file.drive_account_id, file.google_file_id);
     await this.fileRepo.markTrashed(fileId, file.user_id);
     if (file.owned_by_me === 1) {
-      await this.fileRepo.applyStorageDeltas([
-        { userId: file.user_id, mimeType: file.mime_type ?? '', delta: -file.size },
-      ]);
+      await this.fileRepo.pushDelta(file.user_id, file.mime_type ?? '', -file.size);
     }
   }
 
@@ -67,9 +65,7 @@ export class FileService {
     await this.driveProvider.untrashFile(file.drive_account_id, file.google_file_id);
     await this.fileRepo.markUntrashed(fileId, file.user_id);
     if (file.owned_by_me === 1) {
-      await this.fileRepo.applyStorageDeltas([
-        { userId: file.user_id, mimeType: file.mime_type ?? '', delta: file.size },
-      ]);
+      await this.fileRepo.pushDelta(file.user_id, file.mime_type ?? '', file.size);
     }
   }
 
@@ -181,9 +177,7 @@ export class FileService {
       if (file.owned_by_me !== 1) {
         const updatedFile = await this.findById(fileId);
         if (updatedFile) {
-          await this.fileRepo.applyStorageDeltas([
-            { userId, mimeType: updatedFile.mime_type ?? '', delta: updatedFile.size },
-          ]);
+          await this.fileRepo.pushDelta(userId, updatedFile.mime_type ?? '', updatedFile.size);
         }
       }
 
@@ -548,9 +542,7 @@ export class FileService {
     // Best-effort — a failure here only affects the "Storage by type" chart,
     // not the file record or quota.
     try {
-      await this.fileRepo.applyStorageDeltas([
-        { userId, mimeType: params.mimeType ?? '', delta: params.size },
-      ]);
+      await this.fileRepo.pushDelta(userId, params.mimeType ?? '', params.size);
     } catch (err) {
       logErrorNoCtx('applyStorageDeltas failed (non-fatal)', err);
     }
