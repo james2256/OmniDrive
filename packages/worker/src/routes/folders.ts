@@ -1,10 +1,10 @@
 import { Hono } from 'hono';
-import type { Env } from '../types/env';
+import type { Env, SyncJobMessage } from '../types/env';
 import type { AppContext } from '../types/context';
 import { authGuard } from '../middleware/auth-guard';
 import { AppError } from '../lib/errors';
 import { mapDriveRow } from '../types/db';
-import { syncDriveAccount, syncDriveFolder } from '../services/sync';
+import { syncDriveFolder } from '../services/sync';
 import { decodeCursor } from '../lib/cursor';
 import { zValidator } from '@hono/zod-validator';
 import {
@@ -13,7 +13,7 @@ import {
   addFilesToFolderSchema,
   zodErrorHook,
 } from '../lib/schemas';
-import { logError, logErrorNoCtx } from '../lib/logger';
+import { logErrorNoCtx } from '../lib/logger';
 
 export const foldersRouter = new Hono<AppContext>({ strict: false });
 
@@ -221,20 +221,17 @@ foldersRouter.post(
 foldersRouter.post('/:id/sync', async (c) => {
   const userId = c.get('userId');
   const folderId = c.req.param('id');
-  const db = c.env.DB;
 
   const { results } = await c.get('driveService').findDrivesForFolder(folderId, userId);
 
   if (results && results.length > 0) {
-    const driveService = c.get('driveService').getDriveProvider();
-    for (const row of results) {
+    // Enqueue via queue (not waitUntil) — gets 15min wall-clock + auto-re-enqueue
+    // for large drives. Same path as cron-triggered sync and drives.ts /:id/sync.
+    const messages: MessageSendRequest<SyncJobMessage>[] = results.map((row) => {
       const drive = mapDriveRow(row);
-      c.executionCtx.waitUntil(
-        syncDriveAccount(drive, db, driveService).catch((e) =>
-          logError(c, 'Sync drive account failed', e),
-        ),
-      );
-    }
+      return { body: { type: 'sync' as const, driveId: drive.id } };
+    });
+    await c.env.SYNC_QUEUE.sendBatch(messages);
   }
 
   return c.body(null, 204);

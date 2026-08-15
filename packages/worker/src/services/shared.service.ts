@@ -5,7 +5,12 @@ import { DriveRepository } from '../repositories/drive.repository';
 import { hashSharedPassword } from '../lib/password';
 import { validateWebhookUrlAsync } from '../lib/validation';
 import { AppError, NotFoundError, ForbiddenError } from '../lib/errors';
-import { getWorkspaceRole, hasPermission, checkFolderEditorAccess } from '../lib/rbac';
+import {
+  getWorkspaceRole,
+  hasPermission,
+  checkFolderEditorAccess,
+  assertWorkspaceRole,
+} from '../lib/rbac';
 import { mapSharedLinkRow, mapFileRow, type FileRow } from '../types/db';
 import type { SharedLink, FileEntry } from '../types/domain';
 
@@ -272,10 +277,7 @@ export class SharedService {
       if (!file) throw new NotFoundError('File not found');
 
       if (file.workspace_id) {
-        const role = await getWorkspaceRole(this.db, file.workspace_id, userId);
-        if (!role || !hasPermission(role, 'editor')) {
-          throw new ForbiddenError('Forbidden');
-        }
+        await assertWorkspaceRole(this.db, file.workspace_id, userId, 'editor', 'Forbidden');
       } else if (file.user_id !== userId) {
         throw new ForbiddenError('Forbidden');
       }

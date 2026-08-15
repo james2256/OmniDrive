@@ -2,10 +2,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock the rbac module so we can control getWorkspaceRole + hasPermission +
 // checkFolderEditorAccess (the folder-access primitive used by assertCanShare).
+// assertWorkspaceRole is a real pass-through to getWorkspaceRole + hasPermission.
 vi.mock('../src/lib/rbac', () => ({
   getWorkspaceRole: vi.fn(),
   hasPermission: vi.fn(),
   checkFolderEditorAccess: vi.fn(),
+  assertWorkspaceRole: vi.fn(async (db, _wsId, _userId, _role) => {
+    const { getWorkspaceRole, hasPermission } = await import('../src/lib/rbac');
+    const role = await getWorkspaceRole(db, _wsId, _userId);
+    if (!role || !hasPermission(role, _role)) {
+      const { ForbiddenError } = await import('../src/lib/errors');
+      throw new ForbiddenError();
+    }
+  }),
 }));
 
 import { FileService } from '../src/services/file.service';

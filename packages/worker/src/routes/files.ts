@@ -4,6 +4,7 @@ import type { AppContext } from '../types/context';
 import { generateId } from '../lib/id';
 import { authGuard } from '../middleware/auth-guard';
 import { AppError, NotFoundError, ForbiddenError } from '../lib/errors';
+import { assertWorkspaceRole } from '../lib/rbac';
 import { DriveRepository } from '../repositories/drive.repository';
 import { resolveDrivesWithQuota } from '../services/drive-quota';
 import { UploadRouter } from '../services/upload-router';
@@ -195,11 +196,7 @@ filesRouter.post('/upload/init', zValidator('json', uploadInitSchema, zodErrorHo
   if (workspaceId) {
     // IDOR/quota guard: workspaceId comes from the request body, so verify the
     // caller is an editor of that workspace before touching its quota.
-    const { getWorkspaceRole, hasPermission } = await import('../lib/rbac');
-    const role = await getWorkspaceRole(db, workspaceId, userId);
-    if (!role || !hasPermission(role, 'editor')) {
-      throw new ForbiddenError();
-    }
+    await assertWorkspaceRole(db, workspaceId, userId, 'editor');
   }
 
   if (workspaceId && size) {
@@ -275,11 +272,7 @@ filesRouter.post(
       // IDOR/quota guard: workspaceId comes from the request body. Verify the
       // caller is an editor before attaching the file to the workspace or
       // mutating its stored byte count.
-      const { getWorkspaceRole, hasPermission } = await import('../lib/rbac');
-      const role = await getWorkspaceRole(db, workspaceId, userId);
-      if (!role || !hasPermission(role, 'editor')) {
-        throw new ForbiddenError();
-      }
+      await assertWorkspaceRole(db, workspaceId, userId, 'editor');
     }
 
     const drive = await c.get('driveService').findByIdAndUser(driveAccountId, userId);

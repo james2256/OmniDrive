@@ -2,6 +2,7 @@ import type { D1Database } from '@cloudflare/workers-types';
 import type { WorkspaceRole } from './schemas';
 import { WorkspaceRepository } from '../repositories/workspace.repository';
 import { FolderRepository } from '../repositories/folder.repository';
+import { ForbiddenError } from './errors';
 
 const ROLE_LEVELS: Record<WorkspaceRole, number> = {
   viewer: 1,
@@ -35,6 +36,35 @@ export async function getWorkspaceRole(
 
 export function hasPermission(role: WorkspaceRole, requiredRole: WorkspaceRole): boolean {
   return roleLevel(role) >= roleLevel(requiredRole);
+}
+
+/**
+ * Assert that the user has at least `requiredRole` in the workspace.
+ * Throws ForbiddenError if the user is not a member or has insufficient role.
+ *
+ * Consolidates ~10 of 16 `getWorkspaceRole` call sites that previously did the
+ * manual 3-step dance: getWorkspaceRole → null check → hasPermission → throw.
+ *
+ * Sites that stay inline (cannot use this helper):
+ * - workspace.service.ts owner-removal: checks a DIFFERENT user's role
+ *   (targetUserId), not the current user
+ * - workspace.service.ts audit-log: uses string equality (role !== 'owner' &&
+ *   !== 'manager' && !== 'auditor') — auditor is level 1 like viewer, but
+ *   must be INCLUDED here; hasPermission's ≥ comparison cannot express this
+ * - shared.service.ts:220: read-only (returns null, doesn't throw)
+ * - file.service.ts:596 assertCanMutate: multi-role logic
+ */
+export async function assertWorkspaceRole(
+  db: D1Database,
+  workspaceId: string,
+  userId: string,
+  requiredRole: WorkspaceRole,
+  message?: string,
+): Promise<void> {
+  const role = await getWorkspaceRole(db, workspaceId, userId);
+  if (!role || !hasPermission(role, requiredRole)) {
+    throw new ForbiddenError(message ?? 'Insufficient workspace permissions');
+  }
 }
 
 /**

@@ -2,9 +2,9 @@ import type { D1Database } from '@cloudflare/workers-types';
 import { FolderRepository } from '../repositories/folder.repository';
 import { WorkspaceRepository } from '../repositories/workspace.repository';
 import { FileRepository } from '../repositories/file.repository';
-import { getWorkspaceRole, hasPermission } from '../lib/rbac';
+import { assertWorkspaceRole } from '../lib/rbac';
 import { encodeCursor } from '../lib/cursor';
-import { NotFoundError, ForbiddenError, AppError } from '../lib/errors';
+import { NotFoundError, AppError } from '../lib/errors';
 import { generateId } from '../lib/id';
 import { mapFileRow } from '../types/db';
 import type { FileEntry } from '../types/domain';
@@ -63,10 +63,7 @@ export class FolderService {
     const folder = await this.folderRepo.findMembership(folderId, userId);
     if (!folder) throw new NotFoundError('Folder not found or no access');
 
-    const role = await getWorkspaceRole(this.db, folder.workspace_id, userId);
-    if (!role || !hasPermission(role, 'editor')) {
-      throw new ForbiddenError();
-    }
+    await assertWorkspaceRole(this.db, folder.workspace_id, userId, 'editor');
 
     await this.folderRepo.delete(folderId);
   }

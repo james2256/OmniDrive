@@ -73,13 +73,12 @@ export function SettingsDrivesTab() {
   };
 
   const handleSync = async (id: string) => {
-    addToast('info', 'Syncing... this may take several cycles for large drives');
     try {
       await triggerSyncMutation.mutateAsync(id);
-      // Pessimistic (ADR-0004): POST returned 204 (sync started in background
-      // via waitUntil). Refetch to pick up syncStatus='syncing' — and again
-      // after 1s to catch the race where acquireLock hasn't run yet (~500ms
-      // after the POST resolves).
+      addToast('success', 'Sync started.');
+      // POST returned 204 (sync enqueued via queue). Refetch to pick up
+      // syncStatus='syncing' — and again after 1s to catch the race where
+      // the queue consumer hasn't picked up the message yet.
       queryClient.invalidateQueries({ queryKey: qk.drives });
       setTimeout(() => queryClient.invalidateQueries({ queryKey: qk.drives }), 1000);
     } catch {

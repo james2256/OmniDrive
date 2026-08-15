@@ -2,7 +2,7 @@ import type { D1Database } from '@cloudflare/workers-types';
 import { WorkspaceRepository } from '../repositories/workspace.repository';
 import { AuditRepository } from '../repositories/audit.repository';
 import { FolderRepository } from '../repositories/folder.repository';
-import { getWorkspaceRole, hasPermission, roleLevel } from '../lib/rbac';
+import { getWorkspaceRole, hasPermission, roleLevel, assertWorkspaceRole } from '../lib/rbac';
 import { AppError, ConflictError, ForbiddenError, NotFoundError } from '../lib/errors';
 import { generateId } from '../lib/id';
 import type { WorkspaceRole } from '../lib/schemas';
@@ -166,10 +166,7 @@ export class WorkspaceService {
    * RBAC: manager required (NOT membership).
    */
   async getPolicies(userId: string, workspaceId: string): Promise<WorkspacePolicy[]> {
-    const role = await getWorkspaceRole(this.db, workspaceId, userId);
-    if (!role || !hasPermission(role, 'manager')) {
-      throw new ForbiddenError();
-    }
+    await assertWorkspaceRole(this.db, workspaceId, userId, 'manager');
 
     const { results } = await this.workspaceRepo.findPolicies(workspaceId);
     return results.map((r: Record<string, unknown>) => mapWorkspacePolicyRow(r));
@@ -189,10 +186,7 @@ export class WorkspaceService {
       config: Record<string, unknown>;
     },
   ): Promise<WorkspacePolicy | null> {
-    const role = await getWorkspaceRole(this.db, workspaceId, userId);
-    if (!role || !hasPermission(role, 'manager')) {
-      throw new ForbiddenError();
-    }
+    await assertWorkspaceRole(this.db, workspaceId, userId, 'manager');
 
     const row = await this.workspaceRepo.createPolicy({
       workspaceId,
@@ -209,10 +203,7 @@ export class WorkspaceService {
    * RBAC: manager required.
    */
   async deletePolicy(userId: string, workspaceId: string, policyId: string): Promise<void> {
-    const role = await getWorkspaceRole(this.db, workspaceId, userId);
-    if (!role || !hasPermission(role, 'manager')) {
-      throw new ForbiddenError();
-    }
+    await assertWorkspaceRole(this.db, workspaceId, userId, 'manager');
 
     await this.workspaceRepo.deletePolicy(policyId, workspaceId);
   }
@@ -227,10 +218,7 @@ export class WorkspaceService {
     folderId: string,
     metadata: Record<string, unknown>,
   ): Promise<void> {
-    const role = await getWorkspaceRole(this.db, workspaceId, userId);
-    if (!role || !hasPermission(role, 'editor')) {
-      throw new ForbiddenError();
-    }
+    await assertWorkspaceRole(this.db, workspaceId, userId, 'editor');
 
     await this.folderRepo.updateMetadata(folderId, workspaceId, metadata);
   }

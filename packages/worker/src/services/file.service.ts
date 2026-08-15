@@ -4,7 +4,7 @@ import { FolderRepository } from '../repositories/folder.repository';
 import { DriveRepository } from '../repositories/drive.repository';
 import type { DriveProvider } from '../types/drive-provider';
 import { PolicyService } from './policy.service';
-import { getWorkspaceRole, hasPermission } from '../lib/rbac';
+import { assertWorkspaceRole } from '../lib/rbac';
 import { AppError, ConflictError, NotFoundError, ForbiddenError } from '../lib/errors';
 import { logErrorNoCtx } from '../lib/logger';
 import {
@@ -290,10 +290,7 @@ export class FileService {
 
       // Target RBAC: editor on target workspace.
       // (findParentWorkspace only checks membership, not role.)
-      const role = await getWorkspaceRole(this.db, workspaceId, userId);
-      if (!role || !hasPermission(role, 'editor')) {
-        throw new ForbiddenError();
-      }
+      await assertWorkspaceRole(this.db, workspaceId, userId, 'editor');
     } else if (file.workspace_id && file.user_id !== userId) {
       // Exfiltration guard: only the owner can remove a workspace file to personal storage.
       throw new ForbiddenError('Only the file owner can remove it from a workspace');
@@ -593,10 +590,7 @@ export class FileService {
     permission: 'viewer' | 'editor',
   ): Promise<void> {
     if (file.workspace_id) {
-      const role = await getWorkspaceRole(this.db, file.workspace_id, userId);
-      if (!role || !hasPermission(role, permission)) {
-        throw new ForbiddenError();
-      }
+      await assertWorkspaceRole(this.db, file.workspace_id, userId, permission);
     } else if (file.user_id !== userId) {
       throw new ForbiddenError();
     }

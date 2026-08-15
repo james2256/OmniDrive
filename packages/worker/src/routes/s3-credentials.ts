@@ -2,12 +2,11 @@ import { Hono } from 'hono';
 import { authGuard } from '../middleware/auth-guard';
 import { generateId } from '../lib/id';
 import { encrypt } from '../lib/crypto';
-import { getWorkspaceRole, hasPermission } from '../lib/rbac';
+import { assertWorkspaceRole } from '../lib/rbac';
 import { zValidator } from '@hono/zod-validator';
 import { createS3CredentialsSchema, zodErrorHook } from '../lib/schemas';
 import type { AppContext } from '../types/context';
 import { mapS3CredentialRow } from '../types/db';
-import { ForbiddenError } from '../lib/errors';
 
 export const s3CredentialsRouter = new Hono<AppContext>();
 
@@ -20,12 +19,15 @@ s3CredentialsRouter.post(
     const userId = c.get('userId');
     const { description, workspaceId } = c.req.valid('json');
 
-    // Workspace manager RBAC check (stays in route — simple 4-line check)
+    // Workspace manager RBAC check
     if (workspaceId) {
-      const role = await getWorkspaceRole(c.env.DB, workspaceId, userId);
-      if (!role || !hasPermission(role, 'manager')) {
-        throw new ForbiddenError('Unauthorized to manage S3 keys for this workspace');
-      }
+      await assertWorkspaceRole(
+        c.env.DB,
+        workspaceId,
+        userId,
+        'manager',
+        'Unauthorized to manage S3 keys for this workspace',
+      );
     }
 
     // Key generation + encryption (stays in route — needs TOKEN_ENCRYPTION_KEY)
