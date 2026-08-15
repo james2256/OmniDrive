@@ -111,8 +111,8 @@ function makeMockDb(
       };
     }),
     batch: vi.fn(async (stmts: any[]) => {
-      // batchInChunks calls db.batch(stmts). Each stmt carries __sql + __binds
-      // from prepare().bind(). Record them so tests can assert on the binds.
+      // batchUpsertUnitsWithCheckpoint calls db.batch(stmts). Each stmt carries
+      // __sql + __binds from prepare().bind(). Record them for assertions.
       for (const stmt of stmts) {
         if (stmt?.__sql) {
           runCalls.push({ sql: stmt.__sql, binds: stmt.__binds ?? [] });
@@ -256,11 +256,15 @@ describe('syncDriveAccount', () => {
     ).toBeFalsy();
   });
 
-  it('subrequest budget: pauses initial sync at 45 external calls and saves next_page_token', async () => {
-    // externalCount starts at 1 (getRootFolderId). Each chunk iteration → +1.
-    // After iteration 44: externalCount = 45 → check 45 >= 45 AND chunk.nextPageToken
-    // → return false (paused). So 44 chunks, each with nextPageToken.
-    const chunks: Chunk[] = Array.from({ length: 44 }, (_, i) => ({
+  it('subrequest budget: pauses initial sync when EITHER pool hits budget and saves next_page_token', async () => {
+    // External starts at 1 (getRootFolderId). Per page: +1 external (Google API).
+    // Internal starts at 2 (acquireLock + findSyncState). Per page (empty chunks):
+    //   +1 heartbeat + 0 findExistingForDelta + 1 batchUpsertUnits = +2.
+    // External: 1 + 44 = 45 ≥ 45 → pauses after page 44.
+    // Internal: 2 + 2×44 = 90 (< 990, continues).
+    // External is the binding constraint for empty chunks. 44 checkpoints saved.
+    // Tests use 46 chunks so the sync has enough pages to hit the external budget.
+    const chunks: Chunk[] = Array.from({ length: 46 }, (_, i) => ({
       files: [],
       folders: [],
       nextPageToken: `page-${i + 2}`,
@@ -291,13 +295,15 @@ describe('syncDriveAccount', () => {
     expect(checkpointUpdates[43].binds).toEqual(['page-45', 'drive-1']);
   });
 
-  it('subrequest budget: pauses incremental sync at 45 external calls with current token', async () => {
-    // externalCount starts at 1 (getRootFolderId). Loop:
-    //   iter 1: check 1>=45? No. listChanges. externalCount=2.
-    //   ...
-    //   iter 44: check 44>=45? No. listChanges. externalCount=45.
-    //   iter 45: check 45>=45? Yes → return currentToken (no listChanges).
-    // So 44 listChanges calls, each returning nextPageToken (no newStartPageToken).
+  it('subrequest budget: pauses incremental sync when EITHER pool hits budget with current token', async () => {
+    // External starts at 1 (getRootFolderId). Per iter: +1 external (listChanges).
+    // Internal starts at 2. Per iter (empty changes): +1 heartbeat + 0 lookup
+    //   + 0 batch = +1. Budget check is at TOP (after heartbeat, before listChanges).
+    // External check: 1 + N ≥ 45. Internal check: 2 + N ≥ 990.
+    // iter N+1: heartbeat → internal = 3 + N. Check max(1 + N ≥ 45, 3 + N ≥ 990)?
+    // External hits first: after iter 44, external = 45. iter 45: heartbeat
+    //   → internal = 47. Check external 45 ≥ 45 → return currentToken.
+    // 44 listChanges calls (iter 44 completes, iter 45 pauses before listChanges).
     const responses = Array.from({ length: 44 }, (_, i) => ({
       changes: [],
       nextPageToken: `page-${i + 2}`,

@@ -1,5 +1,5 @@
 import { NotFoundError } from '../lib/errors';
-import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types';
+import type { D1Database } from '@cloudflare/workers-types';
 import type { DriveAccount } from '../types/domain';
 import { mapDriveRow } from '../types/db';
 import type { GDriveFile, GDriveFolder, GDriveOwner } from '../types/google';
@@ -11,7 +11,8 @@ import { DriveRepository } from '../repositories/drive.repository';
 import { FileRepository } from '../repositories/file.repository';
 import { FolderRepository } from '../repositories/folder.repository';
 import { SyncStateRepository } from '../repositories/sync-state.repository';
-import { batchInChunks } from '../lib/d1-batch';
+import { batchUpsertUnitsWithCheckpoint, type BatchUnit } from '../lib/d1-batch';
+import { D1_MAX_BIND_VARIABLES } from '../lib/d1-constants';
 import { logErrorNoCtx } from '../lib/logger';
 import { computeStorageDelta, type FileStateForStats } from '../lib/storage-stats';
 
@@ -37,13 +38,31 @@ export function setShuttingDown(): void {
 const MIME_TYPE_FOLDER = 'application/vnd.google-apps.folder';
 const MIME_TYPE_SHORTCUT = 'application/vnd.google-apps.shortcut';
 
-// Workers Free plan: 50 external subrequests (fetch to Google API) per invocation.
-// D1 calls: 50/invocation on Free, 1,000 on Paid. On Free, D1 can be a co-bottleneck.
-// (waiting on Google API + D1), so CPU time (10ms) is not the constraint either.
-// Per sync page: 1 external call (Google API fetch). One-time: getRootFolderId (1).
-// Completion: getStartPageToken (1) + getQuota (1). Budget 45 leaves margin for
-// token refresh (+1) and the one-time calls. Capacity: (45 - 1) / 1 = 44 pages = 4,400 items.
+// Workers Free has TWO separate subrequest pools (verified Feb 2026 changelog):
+//   - External (fetch to Google API): 50/invocation
+//   - Internal (D1/KV/R2):           1,000/invocation
+// db.batch([N stmts]) counts as 1 internal subrequest regardless of N.
+// Per sync page (Google pageSize=1000):
+//   External: 1 (Google API fetch for next page)
+//   Internal: 1 heartbeat + 11 findExistingForDelta + 10 batchUpsertUnits = 22
+// Pre-loop overhead: 1 external (getRootFolderId) + 2 internal (acquireLock,
+//   findSyncState in syncDriveAccount).
+// Budgets leave margin under both walls:
+//   EXTERNAL_BUDGET=45 → pauses at page 44 (1 + 44 = 45 ≥ 45, 5 under 50)
+//   INTERNAL_BUDGET=990 → would pause at page 45 (2 + 22×45 = 992 ≥ 990)
+// External is the binding constraint (hits first) → ~44 pages/invocation = 44K files.
 const EXTERNAL_SUBREQUEST_BUDGET = 45;
+const INTERNAL_SUBREQUEST_BUDGET = 990;
+
+/**
+ * Number of internal subrequests findExistingForDelta will consume for N IDs.
+ * Each D1 `.all()` call binds ≤ 99 IDs + 1 driveAccountId (D1's 100-bind limit).
+ * Ceil(N/99) calls → ceil(N/99) internal subrequests.
+ */
+function findExistingForDeltaSubrequestCount(idCount: number): number {
+  if (idCount === 0) return 0;
+  return Math.ceil(idCount / (D1_MAX_BIND_VARIABLES - 1));
+}
 
 const SHARED_PARENT_MARKER = '__shared__';
 
@@ -98,8 +117,14 @@ function resolveOwnership(
   return { ownedByMe: false, ownerEmail: other?.emailAddress ?? null };
 }
 
-/** Batch-upsert lazy-loaded folder contents (used by drives route).
- * Uses batchInChunks directly since statements are mixed file+folder. */
+/**
+ * Batch-upsert lazy-loaded folder contents (used by drives route — drill-in).
+ *
+ * Per-file unit grouping: each file's UPSERT + its storage deltas commit in
+ * the same db.batch() chunk, matching performInitialSync's atomicity
+ * guarantee. No checkpoint — this is a single user-initiated load, not a
+ * paginated sync, so there is no cursor to advance.
+ */
 export async function batchUpsertFolderContents(
   db: D1Database,
   drive: DriveAccount,
@@ -115,23 +140,34 @@ export async function batchUpsertFolderContents(
   const allFileIds = [...files.map((f) => f.id), ...folders.map((f) => f.id)];
   const oldStates = await fileRepo.findExistingForDelta(drive.id, allFileIds);
 
-  // Build folder UPSERTs (no storage delta for folders — only files count).
-  const stmts: D1PreparedStatement[] = folders.map((f) => {
-    const { ownedByMe, ownerEmail } = resolveOwnership(f.owners, drive.type === 'service_account');
-    return folderRepo.buildDriveFolderUpsertStmt(drive, f, googleParentId, ownedByMe, ownerEmail);
-  });
+  const units: BatchUnit[] = [];
 
-  // Build file UPSERTs + storage deltas in a single pass — resolveOwnership
-  // is called once per file (was called twice: once for UPSERT, once for delta).
-  const deltas: { userId: string; mimeType: string; delta: number }[] = [];
+  // Folder UPSERTs — no storage delta (folders don't count toward quota).
+  for (const folder of folders) {
+    const { ownedByMe, ownerEmail } = resolveOwnership(
+      folder.owners,
+      drive.type === 'service_account',
+    );
+    units.push({
+      stmt: folderRepo.buildDriveFolderUpsertStmt(
+        drive,
+        folder,
+        googleParentId,
+        ownedByMe,
+        ownerEmail,
+      ),
+      deltas: [],
+    });
+  }
+
+  // File UPSERTs + storage deltas — each file's UPSERT and its deltas are
+  // grouped in the same BatchUnit so they commit atomically in the same
+  // db.batch() chunk. resolveOwnership is called once per file.
   for (const file of files) {
     const { ownedByMe, ownerEmail } = resolveOwnership(
       file.owners,
       drive.type === 'service_account',
     );
-    stmts.push(fileRepo.buildUpsertStmt(drive, file, googleParentId, ownedByMe, ownerEmail));
-
-    // Storage delta — reuse ownedByMe from the same resolveOwnership call.
     const old = oldStates.get(file.id) ?? null;
     const next: FileStateForStats = {
       size: parseInt(file.size ?? '0', 10),
@@ -139,12 +175,18 @@ export async function batchUpsertFolderContents(
       isTrashed: false,
       ownedByMe,
     };
-    for (const d of computeStorageDelta(old, next)) {
-      deltas.push({ userId: drive.userId, mimeType: d.mimeType, delta: d.delta });
-    }
+    const deltaStmts = computeStorageDelta(old, next)
+      .filter((d) => d.delta !== 0)
+      .map((d) => fileRepo.applyStorageDeltaStmt(drive.userId, d.mimeType, d.delta));
+    units.push({
+      stmt: fileRepo.buildUpsertStmt(drive, file, googleParentId, ownedByMe, ownerEmail),
+      deltas: deltaStmts,
+    });
   }
-  await batchInChunks(db, stmts);
-  await fileRepo.applyStorageDeltas(deltas);
+
+  // Atomic batch: UPSERTs + deltas in a single db.batch() per chunk.
+  // No checkpoint (lazy load is single-shot, not paginated).
+  await batchUpsertUnitsWithCheckpoint(db, units, null);
 }
 
 /**
@@ -233,9 +275,13 @@ async function performInitialSync(
     driveService.getRootFolderId(drive.id),
   );
   const iterator = driveService.iterateAllFilesAndFolders(drive.id, startPageToken);
-  // One external call so far: getRootFolderId. D1 calls (sync_state, loadTokens) don't
-  // count toward the 50 external limit — they have their own 1,000 limit.
+  // Two subrequest pools on Workers Free (verified Feb 2026 changelog):
+  //   external: fetch() to Google API — 50/invocation
+  //   internal: D1/KV/R2 calls — 1,000/invocation (db.batch counts as 1)
+  // Pre-loop: 1 external (getRootFolderId above) + 2 internal (acquireLock,
+  // findSyncState in syncDriveAccount before this fn).
   let externalCount = 1;
+  let internalCount = 2;
 
   // Repositories are stateless — instantiate once before the loop, not per page.
   const syncStateRepo = new SyncStateRepository(db);
@@ -248,13 +294,15 @@ async function performInitialSync(
     }
     // Heartbeat — refresh locked_at so acquireLock's stale check sees a live sync.
     await syncStateRepo.heartbeat(drive.id);
+    internalCount += 1;
 
-    const stmts: D1PreparedStatement[] = [];
+    const units: BatchUnit[] = [];
 
     // Store ALL files (owned + non-owned) — resolveParentId maps the correct
     // location. owned_by_me is set per-file.
     const allIds = [...chunk.files.map((f) => f.id), ...chunk.folders.map((f) => f.id)];
     const oldStates = await fileRepo.findExistingForDelta(drive.id, allIds);
+    internalCount += findExistingForDeltaSubrequestCount(allIds.length);
 
     for (const folder of chunk.folders) {
       const parentId = resolveParentId(folder.parents, rootFolderId, true);
@@ -262,20 +310,22 @@ async function performInitialSync(
         folder.owners,
         drive.type === 'service_account',
       );
-      stmts.push(
-        folderRepo.buildDriveFolderUpsertStmt(drive, folder, parentId, ownedByMe, ownerEmail),
-      );
+      units.push({
+        stmt: folderRepo.buildDriveFolderUpsertStmt(drive, folder, parentId, ownedByMe, ownerEmail),
+        deltas: [],
+      });
     }
-    // Build file UPSERTs + storage deltas in a single pass — resolveOwnership
-    // is called once per file (was called twice: once for UPSERT, once for delta).
-    const deltas: { userId: string; mimeType: string; delta: number }[] = [];
+    // Build file UPSERT units + storage deltas in a single pass — each file's
+    // UPSERT and its deltas are grouped in the same BatchUnit so they commit
+    // atomically in the same db.batch() chunk. This prevents permanent
+    // file_storage_stats drift if the Worker is killed mid-page.
     for (const file of chunk.files) {
       const parentId = resolveParentId(file.parents, rootFolderId, false);
       const { ownedByMe, ownerEmail } = resolveOwnership(
         file.owners,
         drive.type === 'service_account',
       );
-      stmts.push(fileRepo.buildUpsertStmt(drive, file, parentId, ownedByMe, ownerEmail));
+      const stmt = fileRepo.buildUpsertStmt(drive, file, parentId, ownedByMe, ownerEmail);
 
       // Storage delta — reuse ownedByMe from the same resolveOwnership call.
       const old = oldStates.get(file.id) ?? null;
@@ -285,26 +335,36 @@ async function performInitialSync(
         isTrashed: false,
         ownedByMe,
       };
-      for (const d of computeStorageDelta(old, next)) {
-        deltas.push({ userId: drive.userId, mimeType: d.mimeType, delta: d.delta });
-      }
-    }
-    await batchInChunks(db, stmts);
-    await fileRepo.applyStorageDeltas(deltas);
+      const deltaStmts = computeStorageDelta(old, next)
+        .filter((d) => d.delta !== 0)
+        .map((d) => fileRepo.applyStorageDeltaStmt(drive.userId, d.mimeType, d.delta));
 
-    // Save checkpoint every page — bulletproof crash resilience. D1 has 1,000 subrequest
-    // limit, so the extra save per page (44 max) is well within budget.
-    if (chunk.nextPageToken) {
-      await syncStateRepo.updateNextPageToken(drive.id, chunk.nextPageToken);
+      units.push({ stmt, deltas: deltaStmts });
     }
+
+    // Atomic batch: UPSERTs + deltas + checkpoint in a single db.batch()
+    // per chunk. Each file's UPSERT + its deltas commit together. The
+    // checkpoint goes in the last chunk so the cursor only advances if
+    // all writes in the last chunk succeed.
+    const checkpointStmt = chunk.nextPageToken
+      ? db
+          .prepare('UPDATE sync_state SET next_page_token = ? WHERE drive_account_id = ?')
+          .bind(chunk.nextPageToken, drive.id)
+      : null;
+    const d1Subrequests = await batchUpsertUnitsWithCheckpoint(db, units, checkpointStmt);
+    internalCount += d1Subrequests;
 
     // 1 external call per page: Google API fetch for the next page.
     externalCount += 1;
 
-    // Pause before hitting the 50 external subrequest wall. next_page_token is already
-    // saved above, so the next cron cycle resumes cleanly. Only pause if there's more
-    // work to do (nextPageToken present); otherwise let the loop complete naturally.
-    if (externalCount >= EXTERNAL_SUBREQUEST_BUDGET && chunk.nextPageToken) {
+    // Pause before hitting EITHER subrequest wall. next_page_token is already
+    // saved above, so the next cron cycle resumes cleanly. Only pause if there's
+    // more work to do (nextPageToken present); otherwise let the loop complete.
+    if (
+      (externalCount >= EXTERNAL_SUBREQUEST_BUDGET ||
+        internalCount >= INTERNAL_SUBREQUEST_BUDGET) &&
+      chunk.nextPageToken
+    ) {
       return false;
     }
   }
@@ -320,8 +380,13 @@ async function performIncrementalSync(
   const rootFolderId = await resolveSyncRootFolderId(drive, () =>
     driveService.getRootFolderId(drive.id),
   );
-  // One external call so far: getRootFolderId. Track to stay within Free tier.
+  // Two subrequest pools on Workers Free (verified Feb 2026 changelog):
+  //   external: fetch() to Google API — 50/invocation
+  //   internal: D1/KV/R2 calls — 1,000/invocation (db.batch counts as 1)
+  // Pre-loop: 1 external (getRootFolderId above) + 2 internal (acquireLock,
+  // findSyncState in syncDriveAccount before this fn).
   let externalCount = 1;
+  let internalCount = 2;
 
   let currentToken = pageToken;
 
@@ -335,23 +400,27 @@ async function performIncrementalSync(
     if (getIsShuttingDown()) return currentToken;
     // Heartbeat — refresh locked_at so acquireLock's stale check sees a live sync.
     await syncStateRepo.heartbeat(drive.id);
-    // Pause before hitting the 50-subrequest wall. currentToken is saved by
+    internalCount += 1;
+    // Pause before hitting EITHER subrequest wall. currentToken is saved by
     // the caller so the next cron cycle resumes from here.
-    if (externalCount >= EXTERNAL_SUBREQUEST_BUDGET) {
+    if (
+      externalCount >= EXTERNAL_SUBREQUEST_BUDGET ||
+      internalCount >= INTERNAL_SUBREQUEST_BUDGET
+    ) {
       return currentToken;
     }
 
     const response = await driveService.listChanges(drive.id, currentToken);
     externalCount++;
 
-    const stmts: D1PreparedStatement[] = [];
-    const deltas: { userId: string; mimeType: string; delta: number }[] = [];
+    const units: BatchUnit[] = [];
 
     // Read existing file states BEFORE processing changes — needed for delta
     // computation. Fetch all change fileIds (removed, trashed, upserted) since
     // any may have an existing D1 row whose state determines the delta.
     const fileIdsToLookup = response.changes.filter((c) => c.fileId).map((c) => c.fileId);
     const oldStates = await fileRepo.findExistingForDelta(drive.id, fileIdsToLookup);
+    internalCount += findExistingForDeltaSubrequestCount(fileIdsToLookup.length);
 
     for (const change of response.changes) {
       if (getIsShuttingDown()) return currentToken;
@@ -366,11 +435,19 @@ async function performIncrementalSync(
         // Push BOTH deletes — one is always a 0-row no-op (idempotent). The delta
         // only fires for files (oldState is null for folders — findExistingForDelta
         // queries the files table only).
-        stmts.push(driveRepo.deleteDriveFolderStmt(drive.id, change.fileId));
-        stmts.push(fileRepo.deleteByDriveAndGoogleIdStmt(drive.id, change.fileId));
-        for (const d of computeStorageDelta(oldState, null)) {
-          deltas.push({ userId: drive.userId, mimeType: d.mimeType, delta: d.delta });
-        }
+        const deltaStmts = computeStorageDelta(oldState, null)
+          .filter((d) => d.delta !== 0)
+          .map((d) => fileRepo.applyStorageDeltaStmt(drive.userId, d.mimeType, d.delta));
+        // Folder delete (no deltas)
+        units.push({
+          stmt: driveRepo.deleteDriveFolderStmt(drive.id, change.fileId),
+          deltas: [],
+        });
+        // File delete (with negative deltas)
+        units.push({
+          stmt: fileRepo.deleteByDriveAndGoogleIdStmt(drive.id, change.fileId),
+          deltas: deltaStmts,
+        });
         continue;
       }
 
@@ -388,19 +465,24 @@ async function performIncrementalSync(
       if (file.trashed) {
         // Trashed → mark as trashed (recoverable via /trash → restore)
         if (isFolder) {
-          stmts.push(driveRepo.markDriveFolderTrashedStmt(drive.id, change.fileId));
+          units.push({
+            stmt: driveRepo.markDriveFolderTrashedStmt(drive.id, change.fileId),
+            deltas: [],
+          });
         } else {
-          stmts.push(fileRepo.markTrashedByDriveAndGoogleIdStmt(drive.id, change.fileId));
-          // Delta: old state → trashed. computeStorageDelta is ownership-aware.
           const newState: FileStateForStats = {
             size: parseInt(file.size ?? '0', 10),
             mimeType: file.mimeType ?? '',
             isTrashed: true,
             ownedByMe,
           };
-          for (const d of computeStorageDelta(oldState, newState)) {
-            deltas.push({ userId: drive.userId, mimeType: d.mimeType, delta: d.delta });
-          }
+          const deltaStmts = computeStorageDelta(oldState, newState)
+            .filter((d) => d.delta !== 0)
+            .map((d) => fileRepo.applyStorageDeltaStmt(drive.userId, d.mimeType, d.delta));
+          units.push({
+            stmt: fileRepo.markTrashedByDriveAndGoogleIdStmt(drive.id, change.fileId),
+            deltas: deltaStmts,
+          });
         }
         continue;
       }
@@ -408,8 +490,8 @@ async function performIncrementalSync(
       // ─── 4. Active: upsert (owned + non-owned) + delta ───
       if (isFolder) {
         const parentId = resolveParentId(file.parents, rootFolderId, true);
-        stmts.push(
-          folderRepo.buildDriveFolderUpsertStmt(
+        units.push({
+          stmt: folderRepo.buildDriveFolderUpsertStmt(
             drive,
             {
               id: file.id,
@@ -422,24 +504,29 @@ async function performIncrementalSync(
             ownedByMe,
             ownerEmail,
           ),
-        );
+          deltas: [],
+        });
       } else {
         const parentId = resolveParentId(file.parents, rootFolderId, false);
-        stmts.push(fileRepo.buildUpsertStmt(drive, file, parentId, ownedByMe, ownerEmail));
-        // Delta: old state → active. computeStorageDelta is ownership-aware.
         const newState: FileStateForStats = {
           size: parseInt(file.size ?? '0', 10),
           mimeType: file.mimeType ?? '',
           isTrashed: false,
           ownedByMe,
         };
-        for (const d of computeStorageDelta(oldState, newState)) {
-          deltas.push({ userId: drive.userId, mimeType: d.mimeType, delta: d.delta });
-        }
+        const deltaStmts = computeStorageDelta(oldState, newState)
+          .filter((d) => d.delta !== 0)
+          .map((d) => fileRepo.applyStorageDeltaStmt(drive.userId, d.mimeType, d.delta));
+        units.push({
+          stmt: fileRepo.buildUpsertStmt(drive, file, parentId, ownedByMe, ownerEmail),
+          deltas: deltaStmts,
+        });
       }
     }
-    await batchInChunks(db, stmts);
-    await fileRepo.applyStorageDeltas(deltas);
+    // Atomic batch: UPSERTs/deletes + deltas in a single db.batch() per chunk.
+    // No checkpoint for incremental sync (changeToken is returned, not saved per-page).
+    const d1Subrequests = await batchUpsertUnitsWithCheckpoint(db, units, null);
+    internalCount += d1Subrequests;
 
     if (response.newStartPageToken) {
       return response.newStartPageToken;

@@ -29,8 +29,8 @@ import type { DriveAccount } from '../src/types/domain';
 
 // ─── Mock D1 ───
 //
-// batchUpsertFolderContents calls batchInChunks → db.batch(stmts) — NOT
-// stmt.run() directly. D1's batch() executes each D1PreparedStatement
+// batchUpsertFolderContents calls batchUpsertUnitsWithCheckpoint → db.batch(stmts)
+// — NOT stmt.run() directly. D1's batch() executes each D1PreparedStatement
 // internally, so we capture the SQL + binds at prepare().bind() time by
 // attaching them to the bound statement object. When batch() receives the
 // statements, it reads __sql + __binds to record the call.
@@ -42,6 +42,10 @@ interface CapturedCall {
 
 function makeMockDb(opts: { existingFileStates?: Map<string, unknown> } = {}) {
   const runCalls: CapturedCall[] = [];
+  // Per-batch boundaries: each entry is one db.batch(stmts) call's statements.
+  // Lets atomicity tests assert that a file's UPSERT + its delta land in the
+  // SAME batch (the per-file unit grouping invariant).
+  const batchCalls: CapturedCall[][] = [];
   const existingStates = opts.existingFileStates ?? new Map<string, unknown>();
 
   const db = {
@@ -71,18 +75,23 @@ function makeMockDb(opts: { existingFileStates?: Map<string, unknown> } = {}) {
       };
     }),
     batch: vi.fn(async (stmts: any[]) => {
-      // batchInChunks calls db.batch(stmts). Each stmt carries __sql + __binds
-      // from prepare().bind(). Record them so tests can assert on the binds.
+      // batchUpsertUnitsWithCheckpoint calls db.batch(stmts). Each stmt carries
+      // __sql + __binds from prepare().bind(). Record them so tests can assert
+      // on the binds.
+      const captured: CapturedCall[] = [];
       for (const stmt of stmts) {
         if (stmt?.__sql) {
-          runCalls.push({ sql: stmt.__sql, binds: stmt.__binds ?? [] });
+          const call = { sql: stmt.__sql, binds: stmt.__binds ?? [] };
+          runCalls.push(call);
+          captured.push(call);
         }
       }
+      batchCalls.push(captured);
       return stmts.map(() => ({ success: true, meta: { changes: 1 } }));
     }),
   } as unknown as D1Database;
 
-  return { db, runCalls };
+  return { db, runCalls, batchCalls };
 }
 
 // ─── Fixture factories ───
@@ -304,5 +313,71 @@ describe('batchUpsertFolderContents', () => {
     expect(deltaCall!.binds[0]).toBe('user-1');
     expect(deltaCall!.binds[1]).toBe('application/pdf');
     expect(deltaCall!.binds[2]).toBe(5000); // +5000 delta (file counts in quota)
+  });
+
+  // ─── Atomicity (per-file unit grouping) ───
+
+  it('commits a file UPSERT + its storage delta in the same db.batch() call', async () => {
+    // The core invariant of the per-file unit refactor: a file's UPSERT and
+    // its delta must land in the SAME db.batch() invocation so they commit
+    // atomically. If a later change splits them into separate batches, a
+    // Worker kill between the two would leave file_storage_stats permanently
+    // drifted — this test catches that regression.
+    const drive = makeDriveAccount();
+    const file = makeFile({ id: 'file-atomic', size: '1000', owners: [{ me: true }] });
+
+    const { db, batchCalls } = makeMockDb({ existingFileStates: new Map() });
+    await batchUpsertFolderContents(db, drive, [], [file], 'parent-1');
+
+    // Exactly one db.batch() call for a single file (no checkpoint).
+    expect(batchCalls).toHaveLength(1);
+    const batch = batchCalls[0];
+    const hasUpsert = batch.some((c) => c.sql.includes('INSERT INTO files'));
+    const hasDelta = batch.some((c) => c.sql.includes('INSERT INTO file_storage_stats'));
+    expect(hasUpsert).toBe(true);
+    expect(hasDelta).toBe(true);
+    // UPSERT must come before its delta (unit.stmt pushed before unit.deltas).
+    const upsertIdx = batch.findIndex((c) => c.sql.includes('INSERT INTO files'));
+    const deltaIdx = batch.findIndex((c) => c.sql.includes('INSERT INTO file_storage_stats'));
+    expect(upsertIdx).toBeGreaterThanOrEqual(0);
+    expect(deltaIdx).toBeGreaterThan(upsertIdx);
+  });
+
+  it('does not issue a second db.batch() for deltas (no separate applyStorageDeltas call)', async () => {
+    // Guards against regression to the old pattern: batchInChunks(stmts) then
+    // applyStorageDeltas(deltas) as two separate awaits. With per-file unit
+    // grouping, deltas ride along in the same chunk as the UPSERTs — so a
+    // 1-file load must produce exactly ONE db.batch() call, not two.
+    const drive = makeDriveAccount();
+    const file = makeFile({ id: 'file-one-batch', size: '2000', owners: [{ me: true }] });
+
+    const { db, batchCalls } = makeMockDb({ existingFileStates: new Map() });
+    await batchUpsertFolderContents(db, drive, [], [file], 'parent-1');
+
+    expect(batchCalls).toHaveLength(1);
+  });
+
+  it('commits each file UPSERT + delta pair together when multiple files exceed one chunk', async () => {
+    // D1_BATCH_SIZE=100 — a 150-file load produces 2 chunks. Each file's
+    // UPSERT + delta must stay together WITHIN the same chunk (never split
+    // across the chunk boundary), so a failure of chunk 2 leaves chunk 1's
+    // files fully consistent (UPSERT + delta both applied or both absent).
+    const drive = makeDriveAccount();
+    const files = Array.from({ length: 150 }, (_, i) =>
+      makeFile({ id: `file-${i}`, size: '100', owners: [{ me: true }] }),
+    );
+
+    const { db, batchCalls } = makeMockDb({ existingFileStates: new Map() });
+    await batchUpsertFolderContents(db, drive, [], files, 'parent-1');
+
+    // 150 files / 100 per chunk = 2 db.batch() calls.
+    expect(batchCalls).toHaveLength(2);
+    for (const batch of batchCalls) {
+      const upserts = batch.filter((c) => c.sql.includes('INSERT INTO files'));
+      const deltas = batch.filter((c) => c.sql.includes('INSERT INTO file_storage_stats'));
+      // Every UPSERT in this chunk must have its corresponding delta in the
+      // SAME chunk (1:1 — each new owned file produces exactly one delta).
+      expect(deltas).toHaveLength(upserts.length);
+    }
   });
 });

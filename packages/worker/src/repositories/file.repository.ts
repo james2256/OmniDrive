@@ -177,8 +177,10 @@ export class FileRepository {
   /**
    * Fetch existing file rows for a set of Google file IDs — used by the sync
    * loop to compute deltas before upserting. Returns Map<googleFileId, state>.
-   * One query per page (not per file) — stays within D1's subrequest budget.
-   * Chunks IN(?) lists at 500 to stay under D1's variable limit.
+   * One `.all()` call per 99 IDs (the D1 bind-variable limit minus 1 for the
+   * driveAccountId WHERE column). A 1000-file page produces ceil(1000/99) = 11
+   * internal subrequests — the sync loop tracks these against the 1,000
+   * internal-subrequest pool (separate from the 50 external pool).
    */
   async findExistingForDelta(
     driveAccountId: string,
