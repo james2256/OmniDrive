@@ -52,8 +52,9 @@ export async function batchUpsertUnitsWithCheckpoint(
 
   let subrequestCount = 0;
 
-  // Handle the edge case: no units but a checkpoint exists (e.g., page with
-  // only folders, no files — checkpoint still needs to advance).
+  // Handle the edge case: no units but a checkpoint exists (e.g., Google
+  // returned an empty page — no files AND no folders — with a nextPageToken;
+  // checkpoint still needs to advance so the next invocation resumes correctly).
   if (units.length === 0 && checkpointStmt) {
     await db.batch([checkpointStmt]);
     return 1;

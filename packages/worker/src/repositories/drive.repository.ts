@@ -474,7 +474,8 @@ export class DriveRepository {
    * Return a prepared "mark drive folder trashed" statement (not run) for
    * batch composition. This is the `Stmt` variant of `markDriveFolderTrashed`
    * — used by the sync engine to batch incremental-sync trash updates with
-   * file trash updates via `batchInChunks`. No userId scoping — system op.
+   * file trash updates via `batchUpsertUnitsWithCheckpoint` (per-file atomic
+   * grouping). No userId scoping — system op.
    */
   markDriveFolderTrashedStmt(driveId: string, googleFolderId: string): D1PreparedStatement {
     return this.db
@@ -531,8 +532,8 @@ export class DriveRepository {
    * Return a prepared "delete drive folder" statement (not run) for batch
    * composition. This is the `Stmt` variant of `deleteDriveFolder` — used by
    * the sync engine to batch incremental-sync deletions (removed-from-Google
-   * and not-owned cleanup) with file deletions via `batchInChunks`. No userId
-   * scoping — system op.
+   * and not-owned cleanup) with file deletions via `batchUpsertUnitsWithCheckpoint`
+   * (per-file atomic grouping). No userId scoping — system op.
    */
   deleteDriveFolderStmt(driveId: string, googleFolderId: string): D1PreparedStatement {
     return this.db

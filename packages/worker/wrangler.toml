@@ -45,3 +45,11 @@ enabled = true
 persist = true
 head_sampling_rate = 1
 destinations = ["grafana-traces"]
+
+# CPU time limit per invocation (Paid plan). Default is 30000ms (30s).
+# Set to 60s to give sync headroom for large drives (44 pages × ~1ms CPU/page
+# for D1 + JSON parsing). Free plan is hardcoded to 10ms — cannot be raised
+# here, only by upgrading to Workers Paid.
+# Ref: https://developers.cloudflare.com/workers/platform/limits/
+[limits]
+cpu_ms = 60000

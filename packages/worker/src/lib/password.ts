@@ -1,5 +1,7 @@
-// ponytail: PBKDF2 via Web Crypto — bcrypt (cost ≥ 10) times out on Workers CPU limit.
-// ponytail: 10k iterations — 100k exceeds Workers CPU limit (~50ms); 10k is fast enough for web auth, upgrade if Workers raises CPU ceiling
+// ponytail: PBKDF2 via Web Crypto — bcrypt (cost ≥ 10) times out on Workers Free CPU limit (10ms/request).
+// ponytail: 10k iterations — 100k exceeds Workers Free CPU limit (10ms/request); 10k is safe for
+// Free (~1ms) and Paid (30s default). Upgrade if Workers raises the Free CPU ceiling.
+// Ref: https://developers.cloudflare.com/workers/platform/limits/
 const ITERATIONS = 10_000;
 const LEGACY_SHARED_ITERATIONS = 100_000;
 const SALT_BYTES = 16;

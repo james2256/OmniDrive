@@ -13,7 +13,7 @@ import { FolderRepository } from '../repositories/folder.repository';
 import { SyncStateRepository } from '../repositories/sync-state.repository';
 import { batchUpsertUnitsWithCheckpoint, type BatchUnit } from '../lib/d1-batch';
 import { D1_MAX_BIND_VARIABLES } from '../lib/d1-constants';
-import { logErrorNoCtx } from '../lib/logger';
+import { logErrorNoCtx, logNoCtx } from '../lib/logger';
 import { computeStorageDelta, type FileStateForStats } from '../lib/storage-stats';
 
 /**
@@ -38,14 +38,19 @@ export function setShuttingDown(): void {
 const MIME_TYPE_FOLDER = 'application/vnd.google-apps.folder';
 const MIME_TYPE_SHORTCUT = 'application/vnd.google-apps.shortcut';
 
-// Workers Free has TWO separate subrequest pools (verified Feb 2026 changelog):
+// Workers Free has TWO separate subrequest pools (verified Feb 2026 changelog
+// — https://developers.cloudflare.com/changelog/post/2026-02-11-subrequests-limit):
 //   - External (fetch to Google API): 50/invocation
 //   - Internal (D1/KV/R2):           1,000/invocation
 // db.batch([N stmts]) counts as 1 internal subrequest regardless of N.
-// Per sync page (Google pageSize=1000):
+// Per sync page (Google pageSize=1000, initial sync worst case — 1000 files/page):
 //   External: 1 (Google API fetch for next page)
 //   Internal: 1 heartbeat + 11 findExistingForDelta + 10 batchUpsertUnits = 22
-// Pre-loop overhead: 1 external (getRootFolderId) + 2 internal (acquireLock,
+// For incremental sync with sparse changes (e.g., 5 changes), internal cost
+// is ~3/page (1 heartbeat + 1 lookup + 0-1 batch). External is always the
+// binding constraint regardless of sync type.
+// Pre-loop overhead: 0-1 external (getRootFolderId only for OAuth — service
+//   accounts with stored rootFolderId skip it) + 2 internal (acquireLock,
 //   findSyncState in syncDriveAccount).
 // Budgets leave margin under both walls:
 //   EXTERNAL_BUDGET=45 → pauses at page 44 (1 + 44 = 45 ≥ 45, 5 under 50)
@@ -53,6 +58,13 @@ const MIME_TYPE_SHORTCUT = 'application/vnd.google-apps.shortcut';
 // External is the binding constraint (hits first) → ~44 pages/invocation = 44K files.
 const EXTERNAL_SUBREQUEST_BUDGET = 45;
 const INTERNAL_SUBREQUEST_BUDGET = 990;
+
+// NOTE: The D1 platform limits page (developers.cloudflare.com/d1/platform/limits)
+// is STALE — it still shows "Queries per Worker invocation: 50 (Free)" from the
+// pre-Feb-2026 single-pool model. The authoritative source is the Workers limits
+// page (developers.cloudflare.com/workers/platform/limits) which documents the
+// two-pool model: 50 external + 1000 internal on Free. Do NOT reduce the budget
+// based on the D1 docs alone — you'd re-introduce the single-pool regression.
 
 /**
  * Number of internal subrequests findExistingForDelta will consume for N IDs.
@@ -213,6 +225,7 @@ export async function syncDriveAccount(
   db: D1Database,
   driveService: DriveProvider,
 ): Promise<boolean> {
+  const wallStart = Date.now();
   const syncStateRepo = new SyncStateRepository(db);
   // Cross-isolate lock: INSERT if no row, UPDATE only if not already syncing.
   // If RETURNING returns null, another isolate (or direct caller) is syncing.
@@ -237,6 +250,10 @@ export async function syncDriveAccount(
         // saved per-page by performInitialSync, so the next cron cycle resumes from there.
         // Mark 'idle' (not 'error') so the UI doesn't show a false failure.
         await syncStateRepo.setIdle(drive.id);
+        logNoCtx('info', 'Sync invocation paused (budget hit)', {
+          driveId: drive.id,
+          wallTimeMs: Date.now() - wallStart,
+        });
         return false; // paused — caller (queue consumer) should re-enqueue to resume
       }
       changeToken = await driveService.getStartPageToken(drive.id);
@@ -251,6 +268,10 @@ export async function syncDriveAccount(
     } catch {
       // Non-fatal
     }
+    logNoCtx('info', 'Sync invocation completed', {
+      driveId: drive.id,
+      wallTimeMs: Date.now() - wallStart,
+    });
     return true; // completed — don't re-enqueue
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
@@ -258,6 +279,7 @@ export async function syncDriveAccount(
       driveId: drive.id,
       driveEmail: drive.email,
       message,
+      wallTimeMs: Date.now() - wallStart,
     });
 
     await syncStateRepo.upsertError(drive.id, message);
@@ -278,9 +300,10 @@ async function performInitialSync(
   // Two subrequest pools on Workers Free (verified Feb 2026 changelog):
   //   external: fetch() to Google API — 50/invocation
   //   internal: D1/KV/R2 calls — 1,000/invocation (db.batch counts as 1)
-  // Pre-loop: 1 external (getRootFolderId above) + 2 internal (acquireLock,
-  // findSyncState in syncDriveAccount before this fn).
-  let externalCount = 1;
+  // Pre-loop: 0-1 external (getRootFolderId only for OAuth — service accounts
+  //   with stored rootFolderId skip it) + 2 internal (acquireLock, findSyncState).
+  //   Mirrors resolveSyncRootFolderId's condition exactly.
+  let externalCount = drive.type === 'service_account' && drive.rootFolderId ? 0 : 1;
   let internalCount = 2;
 
   // Repositories are stateless — instantiate once before the loop, not per page.
@@ -354,7 +377,8 @@ async function performInitialSync(
     const d1Subrequests = await batchUpsertUnitsWithCheckpoint(db, units, checkpointStmt);
     internalCount += d1Subrequests;
 
-    // 1 external call per page: Google API fetch for the next page.
+    // 1 external call per page: Google API fetch that produced this chunk
+    // (via the for-await iterator's implicit .next()).
     externalCount += 1;
 
     // Pause before hitting EITHER subrequest wall. next_page_token is already
@@ -383,9 +407,10 @@ async function performIncrementalSync(
   // Two subrequest pools on Workers Free (verified Feb 2026 changelog):
   //   external: fetch() to Google API — 50/invocation
   //   internal: D1/KV/R2 calls — 1,000/invocation (db.batch counts as 1)
-  // Pre-loop: 1 external (getRootFolderId above) + 2 internal (acquireLock,
-  // findSyncState in syncDriveAccount before this fn).
-  let externalCount = 1;
+  // Pre-loop: 0-1 external (getRootFolderId only for OAuth — service accounts
+  //   with stored rootFolderId skip it) + 2 internal (acquireLock, findSyncState).
+  //   Mirrors resolveSyncRootFolderId's condition exactly.
+  let externalCount = drive.type === 'service_account' && drive.rootFolderId ? 0 : 1;
   let internalCount = 2;
 
   let currentToken = pageToken;

@@ -472,10 +472,10 @@ export class FileRepository {
    * Return a prepared DELETE statement scoped by drive_account_id + google_file_id
    * (not run), for batch composition. Used by the sync engine to batch
    * incremental-sync deletions — both "removed from Google" and "no longer
-   * owned" cleanup — with drive-folder deletions via `batchInChunks`. Distinct
-   * from `deleteByIdStmt` (scoped by file `id`) and `delete` (scoped by
-   * id + user_id): the sync engine only knows the Google file id, not the D1
-   * row id. No userId scoping — system op.
+   * owned" cleanup — with drive-folder deletions via `batchUpsertUnitsWithCheckpoint`
+   * (per-file atomic grouping). Distinct from `deleteByIdStmt` (scoped by
+   * file `id`) and `delete` (scoped by id + user_id): the sync engine only
+   * knows the Google file id, not the D1 row id. No userId scoping — system op.
    */
   deleteByDriveAndGoogleIdStmt(driveAccountId: string, googleFileId: string): D1PreparedStatement {
     return this.db
@@ -487,10 +487,10 @@ export class FileRepository {
    * Return a prepared "mark trashed" statement scoped by drive_account_id +
    * google_file_id (not run), for batch composition. Used by the sync engine
    * to batch incremental-sync trash updates (owned + trashed on Google) with
-   * drive-folder trash updates via `batchInChunks`. Distinct from
-   * `markTrashedStmt` (scoped by file `id`, takes a trashed flag): the sync
-   * engine only knows the Google file id and always sets is_trashed = 1. No
-   * userId scoping — system op.
+   * drive-folder trash updates via `batchUpsertUnitsWithCheckpoint` (per-file
+   * atomic grouping). Distinct from `markTrashedStmt` (scoped by file `id`,
+   * takes a trashed flag): the sync engine only knows the Google file id and
+   * always sets is_trashed = 1. No userId scoping — system op.
    */
   markTrashedByDriveAndGoogleIdStmt(
     driveAccountId: string,

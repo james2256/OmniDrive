@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { batchInChunks } from '../src/lib/d1-batch';
+import { batchInChunks, batchUpsertUnitsWithCheckpoint, type BatchUnit } from '../src/lib/d1-batch';
 import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types';
 
 function makeStmt(): D1PreparedStatement {
@@ -89,5 +89,124 @@ describe('batchInChunks', () => {
     await batchInChunks(db, stmts);
     expect(seen.length).toBe(250);
     expect(new Set(seen).size).toBe(250); // every reference unique and present
+  });
+});
+
+describe('batchUpsertUnitsWithCheckpoint', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns 0 and makes no db.batch call when units empty and no checkpoint', async () => {
+    const batch = vi.fn().mockResolvedValue(undefined);
+    const db = { batch } as unknown as D1Database;
+    const result = await batchUpsertUnitsWithCheckpoint(db, [], null);
+    expect(result).toBe(0);
+    expect(batch).not.toHaveBeenCalled();
+  });
+
+  it('returns 1 and makes one db.batch call with just the checkpoint when units empty', async () => {
+    const batch = vi.fn().mockResolvedValue(undefined);
+    const db = { batch } as unknown as D1Database;
+    const checkpoint = makeStmt();
+    const result = await batchUpsertUnitsWithCheckpoint(db, [], checkpoint);
+    expect(result).toBe(1);
+    expect(batch).toHaveBeenCalledTimes(1);
+    expect(batch).toHaveBeenCalledWith([checkpoint]);
+  });
+
+  it('executes a single unit in one batch call (no checkpoint)', async () => {
+    const batch = vi.fn().mockResolvedValue(undefined);
+    const db = { batch } as unknown as D1Database;
+    const units: BatchUnit[] = [{ stmt: makeStmt(), deltas: [makeStmt()] }];
+    const result = await batchUpsertUnitsWithCheckpoint(db, units, null);
+    expect(result).toBe(1);
+    expect(batch).toHaveBeenCalledTimes(1);
+    // Verify stmt order: stmt first, then its deltas
+    expect(batch).toHaveBeenCalledWith([units[0]!.stmt, units[0]!.deltas[0]]);
+  });
+
+  it('appends checkpoint to the LAST chunk only (not the first)', async () => {
+    // Critical invariant: checkpoint must go in the last chunk so it only
+    // advances if ALL writes succeed. If a bad refactor moves it to the first
+    // chunk, this test catches it immediately.
+    const batch = vi.fn().mockResolvedValue(undefined);
+    const db = { batch } as unknown as D1Database;
+    // 250 units → 3 chunks (100, 100, 50)
+    const units: BatchUnit[] = Array.from({ length: 250 }, () => ({
+      stmt: makeStmt(),
+      deltas: [],
+    }));
+    const checkpoint = makeStmt();
+    const result = await batchUpsertUnitsWithCheckpoint(db, units, checkpoint);
+    expect(result).toBe(3);
+    expect(batch).toHaveBeenCalledTimes(3);
+    // First chunk: NO checkpoint
+    const firstCall = batch.mock.calls[0]![0] as D1PreparedStatement[];
+    expect(firstCall).not.toContain(checkpoint);
+    // Second chunk: NO checkpoint
+    const secondCall = batch.mock.calls[1]![0] as D1PreparedStatement[];
+    expect(secondCall).not.toContain(checkpoint);
+    // Third (last) chunk: HAS checkpoint at the end
+    const lastCall = batch.mock.calls[2]![0] as D1PreparedStatement[];
+    expect(lastCall[lastCall.length - 1]).toBe(checkpoint);
+  });
+
+  it('returns chunk count as subrequest count (150 units → 2)', async () => {
+    const batch = vi.fn().mockResolvedValue(undefined);
+    const db = { batch } as unknown as D1Database;
+    const units: BatchUnit[] = Array.from({ length: 150 }, () => ({
+      stmt: makeStmt(),
+      deltas: [],
+    }));
+    const result = await batchUpsertUnitsWithCheckpoint(db, units, null);
+    expect(result).toBe(2);
+  });
+
+  it('interleaves stmt + deltas in the correct order within a chunk', async () => {
+    const batch = vi.fn().mockResolvedValue(undefined);
+    const db = { batch } as unknown as D1Database;
+    const stmt1 = makeStmt();
+    const delta1a = makeStmt();
+    const delta1b = makeStmt();
+    const stmt2 = makeStmt();
+    const delta2 = makeStmt();
+    const units: BatchUnit[] = [
+      { stmt: stmt1, deltas: [delta1a, delta1b] },
+      { stmt: stmt2, deltas: [delta2] },
+    ];
+    await batchUpsertUnitsWithCheckpoint(db, units, null);
+    // Order: stmt1, delta1a, delta1b, stmt2, delta2
+    expect(batch).toHaveBeenCalledWith([stmt1, delta1a, delta1b, stmt2, delta2]);
+  });
+
+  it('propagates error from db.batch (later chunks not executed)', async () => {
+    const err = new Error('D1 batch failed');
+    const batch = vi
+      .fn()
+      .mockResolvedValueOnce(undefined) // chunk 1 succeeds
+      .mockRejectedValueOnce(err); // chunk 2 fails
+    const db = { batch } as unknown as D1Database;
+    const units: BatchUnit[] = Array.from({ length: 150 }, () => ({
+      stmt: makeStmt(),
+      deltas: [],
+    }));
+    await expect(batchUpsertUnitsWithCheckpoint(db, units, null)).rejects.toThrow(
+      'D1 batch failed',
+    );
+    expect(batch).toHaveBeenCalledTimes(2); // chunk 3 never executed
+  });
+
+  it('appends checkpoint when single chunk is also the last chunk', async () => {
+    // Edge case: 1 unit (1 chunk, also the last chunk) + checkpoint.
+    // The single chunk IS the last chunk → checkpoint appended.
+    const batch = vi.fn().mockResolvedValue(undefined);
+    const db = { batch } as unknown as D1Database;
+    const stmt = makeStmt();
+    const checkpoint = makeStmt();
+    const units: BatchUnit[] = [{ stmt, deltas: [] }];
+    await batchUpsertUnitsWithCheckpoint(db, units, checkpoint);
+    // Single chunk is also the last chunk → checkpoint appended
+    expect(batch).toHaveBeenCalledWith([stmt, checkpoint]);
   });
 });
