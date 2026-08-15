@@ -21,6 +21,22 @@ export async function request<T>(path: string, options?: RequestInit): Promise<T
   });
 
   if (!response.ok) {
+    // Global 401 interceptor: redirect to /login on session expiry.
+    // Skip shared-link endpoints (they use 401 for "wrong password", not
+    // session expiry) and auth endpoints (login/register — circular).
+    if (
+      response.status === 401 &&
+      !path.startsWith('/api/shared/') &&
+      !path.startsWith('/api/auth/login') &&
+      !path.startsWith('/api/auth/register')
+    ) {
+      // Dynamic import avoids circular dependency: core.ts → useAuthStore → authApi → core.ts.
+      const { useAuthStore } = await import('../../stores/useAuthStore');
+      useAuthStore.getState().clearAuth();
+      window.location.href = '/login';
+      // Throw to stop the current request chain (the redirect is non-blocking).
+      throw new ApiError(401, 'Session expired');
+    }
     const body = await response.json().catch(() => ({ error: 'Unknown error' }));
     throw new ApiError(response.status, body.error ?? `HTTP ${response.status}`);
   }

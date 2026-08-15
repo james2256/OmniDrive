@@ -1,4 +1,5 @@
 import { createMiddleware } from 'hono/factory';
+import { ForbiddenError } from '../lib/errors';
 
 const SAFE_METHODS = ['GET', 'HEAD', 'OPTIONS'];
 
@@ -32,7 +33,7 @@ export const csrfGuard = createMiddleware<{
   const origin = c.req.header('Origin');
   if (origin) {
     if (!allowedOrigins.includes(origin)) {
-      return c.json({ error: 'CSRF validation failed' }, 403);
+      throw new ForbiddenError('CSRF validation failed');
     }
     return next();
   }
@@ -42,13 +43,13 @@ export const csrfGuard = createMiddleware<{
     try {
       const refererOrigin = new URL(referer).origin;
       if (!allowedOrigins.includes(refererOrigin)) {
-        return c.json({ error: 'CSRF validation failed' }, 403);
+        throw new ForbiddenError('CSRF validation failed');
       }
       return next();
     } catch {
-      return c.json({ error: 'CSRF validation failed' }, 403);
+      throw new ForbiddenError('CSRF validation failed');
     }
   }
 
-  return c.json({ error: 'CSRF validation failed' }, 403);
+  throw new ForbiddenError('CSRF validation failed');
 });

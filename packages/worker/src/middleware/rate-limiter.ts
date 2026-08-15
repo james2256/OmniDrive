@@ -2,6 +2,7 @@ import type { Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import type { AppContext } from '../types/context';
 import { FIVE_MINUTES_MS } from '../constants';
+import { RateLimitError } from '../lib/errors';
 
 interface RateLimitEntry {
   timestamps: number[];
@@ -73,7 +74,7 @@ export function rateLimiter(opts: RateLimitOptions) {
       if (valid.length >= opts.maxRequests) {
         const retryAfter = Math.ceil((valid[0] + opts.windowMs - now) / 1000);
         c.header('Retry-After', String(retryAfter));
-        return c.json({ error: 'Too many requests' }, 429);
+        throw new RateLimitError('Too many requests');
       }
 
       valid.push(now);
@@ -93,7 +94,7 @@ export function rateLimiter(opts: RateLimitOptions) {
     if (entry.timestamps.length >= opts.maxRequests) {
       const retryAfter = Math.ceil((entry.timestamps[0] + opts.windowMs - now) / 1000);
       c.header('Retry-After', String(retryAfter));
-      return c.json({ error: 'Too many requests' }, 429);
+      throw new RateLimitError('Too many requests');
     }
 
     entry.timestamps.push(now);

@@ -50,3 +50,11 @@ export class UpstreamError extends AppError {
     this.name = 'UpstreamError';
   }
 }
+
+/** For rate limit hits — 429 Too Many Requests. */
+export class RateLimitError extends AppError {
+  constructor(message: string) {
+    super(429, message);
+    this.name = 'RateLimitError';
+  }
+}

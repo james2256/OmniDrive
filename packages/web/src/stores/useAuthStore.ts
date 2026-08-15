@@ -11,6 +11,7 @@ interface AuthState {
   authError: string | null;
   fetchUser: () => Promise<void>;
   logout: () => Promise<void>;
+  clearAuth: () => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -47,5 +48,19 @@ export const useAuthStore = create<AuthState>((set) => ({
       queryClient.clear();
       set({ user: null, isAuthenticated: false, authError: null });
     }
+  },
+
+  /**
+   * Clear local auth state WITHOUT calling the backend. Used by the global
+   * 401 interceptor (core.ts) to avoid an infinite redirect loop: calling
+   * `logout` would hit `/api/auth/logout` → 401 → interceptor → `logout` → ...
+   *
+   * Matches `logout`'s finally block: clears query cache + auth state.
+   * Does NOT set `isLoading` (the interceptor is a mid-session event, not
+   * a boot event — loading state should stay as-is).
+   */
+  clearAuth: () => {
+    queryClient.clear();
+    set({ user: null, isAuthenticated: false, authError: null });
   },
 }));

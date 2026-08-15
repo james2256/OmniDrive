@@ -169,4 +169,23 @@ describe('useAuthStore', () => {
     expect(state.authError).toBeNull();
     expect(queryClient.clear).toHaveBeenCalledTimes(1);
   });
+
+  it('clearAuth clears user, isAuthenticated, authError, and queryClient cache WITHOUT calling the API', async () => {
+    useAuthStore.setState({
+      user: mockUser,
+      isAuthenticated: true,
+      authError: 'pre-existing error',
+    });
+
+    useAuthStore.getState().clearAuth();
+
+    const state = useAuthStore.getState();
+    expect(state.user).toBeNull();
+    expect(state.isAuthenticated).toBe(false);
+    expect(state.authError).toBeNull();
+    expect(queryClient.clear).toHaveBeenCalledTimes(1);
+    // clearAuth must NOT call authApi.logout — that would trigger the
+    // infinite 401 redirect loop (logout → 401 → interceptor → logout → ...).
+    expect(authApi.logout).not.toHaveBeenCalled();
+  });
 });

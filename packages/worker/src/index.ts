@@ -75,7 +75,7 @@ app.onError((err, c) => {
     return xmlError(c, s3Code, message, status);
   }
 
-  return c.json({ error: message }, status as 400 | 401 | 403 | 404 | 500);
+  return c.json({ error: message }, status as 400 | 401 | 403 | 404 | 429 | 500);
 });
 
 // Rate limiters — applied before auth to protect login/register

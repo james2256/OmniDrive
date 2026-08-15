@@ -1,9 +1,18 @@
 import { describe, it, expect } from 'vitest';
 import { Hono } from 'hono';
 import { csrfGuard } from '../src/middleware/csrf-guard';
+import { AppError } from '../src/lib/errors';
 
 function createApp(frontendUrl = 'https://app.example.com', workerUrl = 'https://api.example.com') {
   const app = new Hono<{ Bindings: { FRONTEND_URL: string; WORKER_URL: string } }>();
+  // Mirror the global onError handler (index.ts) so thrown AppErrors
+  // produce the correct status + JSON body (not Hono's default 500).
+  app.onError((err, c) => {
+    const isAppError = err instanceof AppError || err.name === 'AppError';
+    const status = isAppError ? (err as AppError).status : 500;
+    const message = isAppError ? err.message : 'Internal server error';
+    return c.json({ error: message }, status as 400 | 401 | 403 | 404 | 429 | 500);
+  });
   app.use('*', csrfGuard);
   app.post('/api/test', (c) => c.json({ ok: true }));
   app.get('/api/test', (c) => c.json({ ok: true }));
