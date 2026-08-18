@@ -7,6 +7,7 @@ import { z } from 'zod';
 const envSchema = z.object({
   DB: z.unknown(),
   KV: z.unknown(),
+  SYNC_QUEUE: z.unknown(),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   FRONTEND_URL: z.string().url('FRONTEND_URL must be a valid URL'),

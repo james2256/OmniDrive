@@ -5,6 +5,7 @@ function validBaseEnv() {
   return {
     DB: {},
     KV: {},
+    SYNC_QUEUE: {},
     FRONTEND_URL: 'https://app.example.com',
     WORKER_URL: 'https://worker.example.com',
     JWT_SECRET: 'a'.repeat(32),
@@ -29,6 +30,7 @@ describe('validateEnv', () => {
     expect(result.TOKEN_ENCRYPTION_KEY).toBe(env.TOKEN_ENCRYPTION_KEY);
     expect(result.FRONTEND_URL).toBe(env.FRONTEND_URL);
     expect(result.WORKER_URL).toBe(env.WORKER_URL);
+    expect(result.SYNC_QUEUE).toBe(env.SYNC_QUEUE);
   });
 
   it('accepts valid env with optional GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / BOOTSTRAP_TOKEN', () => {
@@ -96,6 +98,12 @@ describe('validateEnv', () => {
   it('throws when required KV is missing', () => {
     const env = validBaseEnv();
     delete (env as { KV?: unknown }).KV;
+    expect(() => validateEnv(env)).toThrow('Environment validation failed');
+  });
+
+  it('throws when required SYNC_QUEUE is missing', () => {
+    const env = validBaseEnv();
+    delete (env as { SYNC_QUEUE?: unknown }).SYNC_QUEUE;
     expect(() => validateEnv(env)).toThrow('Environment validation failed');
   });
 

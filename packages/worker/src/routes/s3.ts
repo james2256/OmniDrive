@@ -750,12 +750,19 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
         );
         if (raceFile) {
           await db.batch([fileRepo.deleteByIdStmt(raceFile.id), insertStmt]);
-          // Release the race-loser's pre-reserved quota — the race winner's
-          // insert already consumed the workspace storage. Without this release,
-          // every concurrent PUT to the same key permanently inflates
-          // workspaces.used_bytes by contentLength.
+          // Release the deleted race-winner file's quota + storage stats.
+          // The race-loser's batch DELETES raceFile (the winner's file) and
+          // inserts the loser's own file. The loser's own reservation
+          // (contentLength) is now "realized" by the loser's file in D1 — do NOT
+          // release it. Instead, release raceFile.size — the winner's file
+          // was deleted, making the winner's reservation phantom.
           try {
-            await policyService.updateWorkspaceStorage(workspace.id, -contentLength);
+            await policyService.updateWorkspaceStorage(workspace.id, -(raceFile.size as number));
+            await fileRepo.pushDelta(
+              raceFile.user_id as string,
+              (raceFile.mime_type as string) ?? '',
+              -(raceFile.size as number),
+            );
           } catch (e) {
             logError(c, 'S3 PutObject: race-loser quota release failed (non-fatal)', e);
           }
@@ -1214,6 +1221,22 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
           );
           if (raceFile) {
             await db.batch([fileRepo.deleteByIdStmt(raceFile.id), insertStmt]);
+            // Release the deleted race-winner file's quota + storage stats.
+            // The race-loser's batch DELETES raceFile (the winner's file) and
+            // inserts the loser's own file. The loser's own reservation
+            // (totalSize) is now "realized" by the loser's file in D1 — do NOT
+            // release it. Instead, release raceFile.size — the winner's file
+            // was deleted, making the winner's reservation phantom.
+            try {
+              await policyService.updateWorkspaceStorage(workspace.id, -(raceFile.size as number));
+              await fileRepo.pushDelta(
+                raceFile.user_id as string,
+                (raceFile.mime_type as string) ?? '',
+                -(raceFile.size as number),
+              );
+            } catch (e) {
+              logError(c, 'S3 CompleteMultipart: race-loser quota release failed (non-fatal)', e);
+            }
             try {
               if (raceFile.owned_by_me === 1) {
                 await driveService.deleteFile(raceFile.drive_account_id, raceFile.google_file_id);

@@ -163,6 +163,7 @@ export default {
   // Queue consumer — each message gets a fresh Worker invocation with its own
   // 50-subrequest budget. max_batch_size=1 ensures 1 drive per invocation.
   async queue(batch: MessageBatch<SyncJobMessage>, env: Env, ctx: ExecutionContext) {
+    validateEnv(env as unknown as Record<string, unknown>);
     const driveService = createDriveService(env);
 
     for (const message of batch.messages) {
