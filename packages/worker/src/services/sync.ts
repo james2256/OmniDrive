@@ -395,6 +395,148 @@ async function performInitialSync(
   return true;
 }
 
+/** Context object for applyChange — avoids a 7-param function signature. */
+export interface ApplyChangeContext {
+  drive: DriveAccount;
+  rootFolderId: string;
+  fileRepo: FileRepository;
+  folderRepo: FolderRepository;
+  driveRepo: DriveRepository;
+}
+
+/** Return type: BatchUnits to commit + optional newState for oldStates update (C11 fix). */
+export interface ApplyChangeResult {
+  units: BatchUnit[];
+  /** The new file state after this change, or null if the file was removed or is a folder. */
+  newState: FileStateForStats | null;
+}
+
+/**
+ * Process a single Google Drive change and return BatchUnits for atomic
+ * batched writes. Returns null if the change should be skipped (no file
+ * metadata or shortcut type).
+ *
+ * Pure function — builds prepared statements but does not execute them.
+ * The caller batches all units from a page into a single db.batch().
+ *
+ * Returns `newState` so the caller can update its `oldStates` map within
+ * the same page (fixes C11: within-page oldState staleness that caused
+ * quota drift when Google returned multiple changes for the same fileId
+ * in one page).
+ */
+export function applyChange(
+  change: { fileId: string; removed: boolean; file?: GDriveFile },
+  oldState: FileStateForStats | null,
+  ctx: ApplyChangeContext,
+): ApplyChangeResult | null {
+  const { drive, rootFolderId, fileRepo, folderRepo, driveRepo } = ctx;
+
+  // ─── 1. Removed: deleted or access lost (unshared) → delete from D1 + delta ───
+  if (change.removed) {
+    // Google omits `file` when removed=true, so isFolder is unreliable here.
+    // Push BOTH deletes — one is always a 0-row no-op (idempotent). The delta
+    // only fires for files (oldState is null for folders — findExistingForDelta
+    // queries the files table only).
+    const deltaStmts = computeStorageDelta(oldState, null)
+      .filter((d) => d.delta !== 0)
+      .map((d) => fileRepo.applyStorageDeltaStmt(drive.userId, d.mimeType, d.delta));
+    return {
+      units: [
+        { stmt: driveRepo.deleteDriveFolderStmt(drive.id, change.fileId), deltas: [] },
+        {
+          stmt: fileRepo.deleteByDriveAndGoogleIdStmt(drive.id, change.fileId),
+          deltas: deltaStmts,
+        },
+      ],
+      newState: null,
+    };
+  }
+
+  // ─── 2. Skip: no file metadata (anomaly) or shortcut ───
+  const file = change.file;
+  if (!file) return null;
+  if (file.mimeType === MIME_TYPE_SHORTCUT) return null;
+
+  const isFolder = file.mimeType === MIME_TYPE_FOLDER;
+  const { ownedByMe, ownerEmail } = resolveOwnership(file.owners, drive.type === 'service_account');
+
+  // ─── 3. Trashed: mark as trashed (recoverable via /trash → restore) + delta ───
+  if (file.trashed) {
+    if (isFolder) {
+      return {
+        units: [
+          { stmt: driveRepo.markDriveFolderTrashedStmt(drive.id, change.fileId), deltas: [] },
+        ],
+        newState: null,
+      };
+    }
+    const newState: FileStateForStats = {
+      size: parseInt(file.size ?? '0', 10),
+      mimeType: file.mimeType ?? '',
+      isTrashed: true,
+      ownedByMe,
+    };
+    const deltaStmts = computeStorageDelta(oldState, newState)
+      .filter((d) => d.delta !== 0)
+      .map((d) => fileRepo.applyStorageDeltaStmt(drive.userId, d.mimeType, d.delta));
+    return {
+      units: [
+        {
+          stmt: fileRepo.markTrashedByDriveAndGoogleIdStmt(drive.id, change.fileId),
+          deltas: deltaStmts,
+        },
+      ],
+      newState,
+    };
+  }
+
+  // ─── 4. Active: upsert (owned + non-owned) + delta ───
+  if (isFolder) {
+    const parentId = resolveParentId(file.parents, rootFolderId, true);
+    return {
+      units: [
+        {
+          stmt: folderRepo.buildDriveFolderUpsertStmt(
+            drive,
+            {
+              id: file.id,
+              name: file.name,
+              parents: file.parents,
+              owners: file.owners,
+              starred: file.starred,
+            },
+            parentId,
+            ownedByMe,
+            ownerEmail,
+          ),
+          deltas: [],
+        },
+      ],
+      newState: null,
+    };
+  }
+
+  const parentId = resolveParentId(file.parents, rootFolderId, false);
+  const newState: FileStateForStats = {
+    size: parseInt(file.size ?? '0', 10),
+    mimeType: file.mimeType ?? '',
+    isTrashed: false,
+    ownedByMe,
+  };
+  const deltaStmts = computeStorageDelta(oldState, newState)
+    .filter((d) => d.delta !== 0)
+    .map((d) => fileRepo.applyStorageDeltaStmt(drive.userId, d.mimeType, d.delta));
+  return {
+    units: [
+      {
+        stmt: fileRepo.buildUpsertStmt(drive, file, parentId, ownedByMe, ownerEmail),
+        deltas: deltaStmts,
+      },
+    ],
+    newState,
+  };
+}
+
 async function performIncrementalSync(
   drive: DriveAccount,
   db: D1Database,
@@ -447,105 +589,20 @@ async function performIncrementalSync(
     const oldStates = await fileRepo.findExistingForDelta(drive.id, fileIdsToLookup);
     internalCount += findExistingForDeltaSubrequestCount(fileIdsToLookup.length);
 
+    const ctx: ApplyChangeContext = { drive, rootFolderId, fileRepo, folderRepo, driveRepo };
+
     for (const change of response.changes) {
       if (getIsShuttingDown()) return currentToken;
-      const isFolder = change.file?.mimeType === MIME_TYPE_FOLDER;
-
-      // For delta computation: look up old state (may be null if file is new)
       const oldState = oldStates.get(change.fileId) ?? null;
-
-      // ─── 1. Removed: deleted or access lost (unshared) → delete from D1 + delta ───
-      if (change.removed) {
-        // Google omits `file` when removed=true, so isFolder is unreliable here.
-        // Push BOTH deletes — one is always a 0-row no-op (idempotent). The delta
-        // only fires for files (oldState is null for folders — findExistingForDelta
-        // queries the files table only).
-        const deltaStmts = computeStorageDelta(oldState, null)
-          .filter((d) => d.delta !== 0)
-          .map((d) => fileRepo.applyStorageDeltaStmt(drive.userId, d.mimeType, d.delta));
-        // Folder delete (no deltas)
-        units.push({
-          stmt: driveRepo.deleteDriveFolderStmt(drive.id, change.fileId),
-          deltas: [],
-        });
-        // File delete (with negative deltas)
-        units.push({
-          stmt: fileRepo.deleteByDriveAndGoogleIdStmt(drive.id, change.fileId),
-          deltas: deltaStmts,
-        });
-        continue;
-      }
-
-      // ─── 2. Skip: no file metadata (anomaly) or shortcut ───
-      const file = change.file;
-      if (!file) continue;
-      if (file.mimeType === MIME_TYPE_SHORTCUT) continue;
-
-      // ─── 3. Trashed: mark as trashed (recoverable via /trash → restore) + delta ───
-      const { ownedByMe, ownerEmail } = resolveOwnership(
-        file.owners,
-        drive.type === 'service_account',
-      );
-
-      if (file.trashed) {
-        // Trashed → mark as trashed (recoverable via /trash → restore)
-        if (isFolder) {
-          units.push({
-            stmt: driveRepo.markDriveFolderTrashedStmt(drive.id, change.fileId),
-            deltas: [],
-          });
-        } else {
-          const newState: FileStateForStats = {
-            size: parseInt(file.size ?? '0', 10),
-            mimeType: file.mimeType ?? '',
-            isTrashed: true,
-            ownedByMe,
-          };
-          const deltaStmts = computeStorageDelta(oldState, newState)
-            .filter((d) => d.delta !== 0)
-            .map((d) => fileRepo.applyStorageDeltaStmt(drive.userId, d.mimeType, d.delta));
-          units.push({
-            stmt: fileRepo.markTrashedByDriveAndGoogleIdStmt(drive.id, change.fileId),
-            deltas: deltaStmts,
-          });
+      const result = applyChange(change, oldState, ctx);
+      if (result) {
+        units.push(...result.units);
+        // C11 fix: update oldStates within the same page so that if Google
+        // returns multiple changes for the same fileId, subsequent changes
+        // compute deltas against the fresh state (not the stale pre-page state).
+        if (result.newState) {
+          oldStates.set(change.fileId, result.newState);
         }
-        continue;
-      }
-
-      // ─── 4. Active: upsert (owned + non-owned) + delta ───
-      if (isFolder) {
-        const parentId = resolveParentId(file.parents, rootFolderId, true);
-        units.push({
-          stmt: folderRepo.buildDriveFolderUpsertStmt(
-            drive,
-            {
-              id: file.id,
-              name: file.name,
-              parents: file.parents,
-              owners: file.owners,
-              starred: file.starred,
-            },
-            parentId,
-            ownedByMe,
-            ownerEmail,
-          ),
-          deltas: [],
-        });
-      } else {
-        const parentId = resolveParentId(file.parents, rootFolderId, false);
-        const newState: FileStateForStats = {
-          size: parseInt(file.size ?? '0', 10),
-          mimeType: file.mimeType ?? '',
-          isTrashed: false,
-          ownedByMe,
-        };
-        const deltaStmts = computeStorageDelta(oldState, newState)
-          .filter((d) => d.delta !== 0)
-          .map((d) => fileRepo.applyStorageDeltaStmt(drive.userId, d.mimeType, d.delta));
-        units.push({
-          stmt: fileRepo.buildUpsertStmt(drive, file, parentId, ownedByMe, ownerEmail),
-          deltas: deltaStmts,
-        });
       }
     }
     // Atomic batch: UPSERTs/deletes + deltas in a single db.batch() per chunk.

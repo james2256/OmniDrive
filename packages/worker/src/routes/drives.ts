@@ -109,7 +109,7 @@ drivesRouter.get('/:driveId/external-folders/:googleFolderId', async (c) => {
   if (!driveRow) throw new NotFoundError('Drive not found');
 
   const drive = mapDriveRow(driveRow);
-  const driveService = c.get('driveService').getDriveProvider();
+  const driveService = c.get('driveService');
   let gFiles: GDriveFile[] = [];
   let gFolders: GDriveFolder[] = [];
   try {
@@ -171,8 +171,7 @@ drivesRouter.get('/', async (c) => {
       }
 
       try {
-        const driveProvider = driveService.getDriveProvider();
-        const quota = await driveProvider.getQuota(drive.id);
+        const quota = await driveService.getQuota(drive.id);
 
         // Only persist the total quota Google actually reports. Google omits
         // storageQuota.limit for Google Workspace pooled storage and service
@@ -429,7 +428,7 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/sync', async (c) => {
   }
 
   const drive = mapDriveRow(driveRow);
-  const driveService = c.get('driveService').getDriveProvider();
+  const driveService = c.get('driveService');
   const effectiveFolderId = resolveGoogleFolderId(drive, googleFolderId);
   let gFiles: GDriveFile[] = [];
   let gFolders: GDriveFolder[] = [];
@@ -760,6 +759,8 @@ drivesRouter.get('/:driveId/folders/:googleFolderId/download-tree', async (c) =>
   if (!driveRow) throw new NotFoundError('Drive not found');
 
   const drive = mapDriveRow(driveRow);
+  // buildDownloadTree takes a DriveProvider (interface) for recursive
+  // listFolderContents calls — kept as documented accessor exception.
   const driveService = c.get('driveService').getDriveProvider();
 
   // Build a googleFileId → FileEntry map as we persist each folder's contents

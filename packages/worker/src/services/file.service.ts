@@ -315,9 +315,39 @@ export class FileService {
     return this.getFileOrThrow(fileId, userId, 'viewer');
   }
 
-  /** Get the DriveProvider instance (for preview/download streaming). // ponytail: remove this accessor — lift downloadFile delegation onto FileService so routes don't bypass the service layer. */
+  // ─── DriveProvider delegation methods ───
+  // These let routes call Google Drive API methods through the service layer
+  // instead of reaching through getDriveProvider().
+
+  async initiateResumableUpload(
+    driveId: string,
+    fileName: string,
+    mimeType: string,
+    parentFolderId: string,
+  ): Promise<string> {
+    return this.driveProvider.initiateResumableUpload(driveId, fileName, mimeType, parentFolderId);
+  }
+
+  async getFile(driveId: string, fileId: string) {
+    return this.driveProvider.getFile(driveId, fileId);
+  }
+
+  async downloadFile(driveId: string, fileId: string, mimeType?: string, previewMode?: boolean) {
+    return this.driveProvider.downloadFile(driveId, fileId, mimeType, previewMode);
+  }
+
+  /**
+   * Get the DriveProvider instance. Used ONLY for:
+   * - PolicyService constructor injection (files.ts)
+   * - AutomationEngine constructor injection (files.ts)
+   * All other call sites use delegation methods on FileService.
+   */
   getDriveProvider(): DriveProvider {
     return this.driveProvider;
+  }
+
+  async trashFileOnDrive(driveId: string, fileId: string): Promise<void> {
+    return this.driveProvider.trashFile(driveId, fileId);
   }
 
   // ─── Listing / search / overview (no RBAC — scoped by user_id + EXISTS) ───

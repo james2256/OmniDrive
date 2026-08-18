@@ -225,12 +225,17 @@ filesRouter.post('/upload/init', zValidator('json', uploadInitSchema, zodErrorHo
   const router = new UploadRouter(drives);
   const targetDrive = router.selectDriveForUpload(size, driveAccountId);
 
-  const gDrive = c.get('fileService').getDriveProvider();
+  const fileService = c.get('fileService');
   // parentFolderId (current view) wins; fall back to the drive's configured root folder, then Google 'root'.
   const uploadParent = parentFolderId || targetDrive.rootFolderId || 'root';
   let uploadUrl: string;
   try {
-    uploadUrl = await gDrive.initiateResumableUpload(targetDrive.id, name, mimeType, uploadParent);
+    uploadUrl = await fileService.initiateResumableUpload(
+      targetDrive.id,
+      name,
+      mimeType,
+      uploadParent,
+    );
   } catch (err) {
     const msg = (err as Error).message || '';
     logError(c, 'upload/init initiateResumableUpload failed', undefined, {
@@ -282,10 +287,10 @@ filesRouter.post(
     }
 
     // Fetch file metadata from Google Drive
-    const driveService = c.get('fileService').getDriveProvider();
+    const fileService = c.get('fileService');
     let gFile;
     try {
-      gFile = await driveService.getFile(driveAccountId, googleFileId);
+      gFile = await fileService.getFile(driveAccountId, googleFileId);
     } catch (err) {
       logError(c, 'Upload finalize getFile error', err, { googleFileId, driveAccountId });
       throw new AppError(400, 'Failed to fetch uploaded file from Google Drive');
@@ -297,14 +302,14 @@ filesRouter.post(
     // Reserve workspace storage quota BEFORE finalizeUpload (atomic — prevents
     // TOCTOU race and D1 row orphaning). If finalizeUpload fails after this,
     // the reservation is released via updateWorkspaceStorage(workspaceId, -fileSize).
-    const policyService = new PolicyService(db, driveService);
+    const policyService = new PolicyService(db, fileService.getDriveProvider());
     let quotaReserved = false;
     if (workspaceId && fileSize > 0) {
       const ok = await policyService.tryReserveQuota(workspaceId, fileSize);
       if (!ok) {
         // File is already on Google Drive (can't un-upload). Trash best-effort.
         try {
-          await driveService.trashFile(driveAccountId, gFile.id);
+          await fileService.trashFileOnDrive(driveAccountId, gFile.id);
         } catch {
           /* best-effort */
         }
@@ -461,14 +466,12 @@ filesRouter.get('/:id/preview', async (c) => {
     throw new AppError(415, 'Preview not available for this file type');
   }
 
-  const driveService = fileService.getDriveProvider();
-
   let stream: ReadableStream<Uint8Array>;
   let finalMimeType = mimeType === 'application/vnd.google-apps.photo' ? 'image/jpeg' : mimeType;
   let isExport = false;
 
   try {
-    const downloadResult = await driveService.downloadFile(
+    const downloadResult = await fileService.downloadFile(
       file.drive_account_id as string,
       file.google_file_id as string,
       file.mime_type as string,
@@ -503,15 +506,13 @@ filesRouter.get('/:id/download', async (c) => {
 
   const file = await fileService.getFileForRead(userId, fileId);
 
-  const driveService = fileService.getDriveProvider();
-
   let stream: ReadableStream<Uint8Array>;
   let finalMimeType = (file.mime_type as string) || 'application/octet-stream';
   let finalFileName = file.name as string;
   let isExport = false;
 
   try {
-    const downloadResult = await driveService.downloadFile(
+    const downloadResult = await fileService.downloadFile(
       file.drive_account_id as string,
       file.google_file_id as string,
       file.mime_type as string,

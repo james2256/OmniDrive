@@ -274,7 +274,27 @@ export class DriveService {
     }
   }
 
-  /** Get the DriveProvider instance (for routes that need Google API directly). // ponytail: remove this accessor — lift the delegation onto DriveService so routes don't bypass the service layer. */
+  // ─── DriveProvider delegation methods ───
+  // These let routes call Google Drive API methods through the service layer
+  // instead of reaching through getDriveProvider(). 7 of 10 former bypass
+  // sites now use these; 3 remain (2 constructor injection + 1 utility
+  // injection to buildDownloadTree), documented below.
+
+  async listFolderContents(driveId: string, folderId: string) {
+    return this.driveProvider.listFolderContents(driveId, folderId);
+  }
+
+  async getQuota(driveId: string) {
+    return this.driveProvider.getQuota(driveId);
+  }
+
+  /**
+   * Get the DriveProvider instance. Used ONLY for:
+   * - PolicyService constructor injection (files.ts)
+   * - AutomationEngine constructor injection (files.ts)
+   * - buildDownloadTree utility injection (drives.ts)
+   * All other call sites use delegation methods on DriveService/FileService.
+   */
   getDriveProvider(): DriveProvider {
     return this.driveProvider;
   }
