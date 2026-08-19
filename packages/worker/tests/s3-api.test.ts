@@ -8,6 +8,14 @@ const TOKEN_ENCRYPTION_KEY = 'test-token-encryption-key-which-is-long-enough';
 const ACCESS_KEY_ID = 'AKIAIOSFODNN7EXAMPLE';
 const SECRET_ACCESS_KEY = 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY';
 const USER_ID = 'test-user-id';
+// app.request() in tests has no ExecutionContext — pass a stub for parity with
+// routes that use c.executionCtx.waitUntil (matches oauth-callback.test.ts:26).
+// The stub actually awaits the promise so waitUntil cleanup runs in tests.
+const executionCtx = {
+  waitUntil: (promise: Promise<unknown>) => {
+    void promise.catch(() => {});
+  },
+};
 
 function calculateSigV4({
   method,
@@ -1417,6 +1425,7 @@ describe('S3 API compatibility endpoints', () => {
             },
           },
           env,
+          executionCtx,
         );
 
         expect(res.status).toBe(200);

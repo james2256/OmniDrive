@@ -21,6 +21,14 @@ declare module 'cloudflare:workers' {
 
 const SECRET_ACCESS_KEY = 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY';
 const HOST = 'localhost';
+// app.request() in tests has no ExecutionContext — pass a stub for parity with
+// routes that use c.executionCtx.waitUntil (matches oauth-callback.test.ts:26).
+// The stub actually awaits the promise so waitUntil cleanup runs in tests.
+const executionCtx = {
+  waitUntil: (promise: Promise<unknown>) => {
+    void promise.catch(() => {});
+  },
+};
 // Counter ensures each test gets a unique access key ID, avoiding UNIQUE
 // constraint collisions even if cleanup is incomplete.
 let accessKeyCounter = 0;
@@ -178,6 +186,7 @@ function signedRequest(
       body: opts.body,
     },
     env,
+    executionCtx,
   );
 }
 
@@ -896,5 +905,201 @@ describe('S3 Protocol (integration)', () => {
       .bind(userId, 'text/plain')
       .first<{ total_size: number }>();
     expect(stats2!.total_size).toBe(900);
+  });
+
+  // ─── 9.10 CompleteMultipartUpload: response returns before cleanup; cleanup eventually runs ───
+  it('POST CompleteMultipartUpload returns 200 immediately and runs cleanup in waitUntil', async () => {
+    const { userId } = await insertUserAndS3Cred('alice');
+    const aliceAccessKey = currentAccessKeyId;
+    const wsId = await insertWorkspace(userId, 'my-bucket');
+    await insertDrive(userId, 'drive-1', 'alice@gmail.com');
+
+    // Seed multipart upload session + 1 part
+    await env.DB.prepare(
+      'INSERT INTO s3_multipart_uploads (upload_id, user_id, workspace_id, key, drive_account_id, temp_folder_id, created_at, content_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    )
+      .bind(
+        'upload-waituntil',
+        userId,
+        wsId,
+        'large-file.bin',
+        'drive-1',
+        'temp-folder-wu',
+        Date.now(),
+        'application/octet-stream',
+      )
+      .run();
+
+    await env.DB.prepare(
+      'INSERT INTO s3_multipart_parts (upload_id, part_number, google_file_id, etag, size) VALUES (?, ?, ?, ?, ?)',
+    )
+      .bind('upload-waituntil', 1, 'gfile-part-wu', '"partetag"', 100)
+      .run();
+
+    // Track deleteFile calls (cleanup phase) — they should run AFTER the response
+    const deleteCalls: string[] = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url =
+          typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+        // initiateResumableUpload
+        if (url.includes('uploadType=resumable') && init?.method !== 'PUT') {
+          return new Response('', {
+            status: 200,
+            headers: {
+              Location:
+                'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&upload_id=wu',
+            },
+          });
+        }
+        // Final upload PUT
+        if (url.includes('uploadType=resumable') && init?.method === 'PUT') {
+          if (init.body instanceof ReadableStream) {
+            const reader = init.body.getReader();
+            while (true) {
+              const { done } = await reader.read();
+              if (done) break;
+            }
+          }
+          return new Response(JSON.stringify({ id: 'gfile-final-wu', md5Checksum: 'abc' }), {
+            status: 200,
+          });
+        }
+        // Part download (during upload phase)
+        if (url.includes('alt=media')) {
+          return new Response('part-data', { status: 200 });
+        }
+        // deleteFile (during cleanup phase) — track these
+        if (init?.method === 'DELETE' && url.includes('/files/')) {
+          deleteCalls.push(url);
+          return new Response(null, { status: 204 });
+        }
+        return new Response('{}', { status: 200 });
+      },
+    );
+
+    const res = await signedRequest('POST', '/s3/my-bucket/large-file.bin', {
+      queryParams: { uploadId: 'upload-waituntil' },
+      body: '<CompleteMultipartUpload><Part><PartNumber>1</PartNumber><ETag>"partetag"</ETag></Part></CompleteMultipartUpload>',
+      accessKeyId: aliceAccessKey,
+    });
+
+    // Response returns 200 with ETag immediately (not blocked by cleanup)
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain('<ETag>"');
+    expect(body).toContain('<CompleteMultipartUploadResult');
+
+    // The file row is inserted (upload succeeded)
+    const file = await env.DB.prepare(
+      "SELECT google_file_id FROM files WHERE google_file_id = 'gfile-final-wu'",
+    ).first();
+    expect(file).toBeTruthy();
+
+    // Cleanup eventually runs in waitUntil — wait for deleteFile calls.
+    // The cleanup deletes: 1 part file + 1 temp folder = 2 delete calls.
+    await vi.waitFor(
+      () => {
+        expect(deleteCalls.length).toBeGreaterThanOrEqual(2);
+      },
+      { timeout: 3000 },
+    );
+
+    // s3_multipart_uploads row is deleted (deleteUpload ran in waitUntil)
+    await vi.waitFor(
+      async () => {
+        const upload = await env.DB.prepare(
+          "SELECT upload_id FROM s3_multipart_uploads WHERE upload_id = 'upload-waituntil'",
+        ).first();
+        expect(upload).toBeNull();
+      },
+      { timeout: 3000 },
+    );
+  });
+
+  // ─── 9.11 CompleteMultipartUpload with 40 parts: response succeeds (cleanup deferred) ───
+  it('POST CompleteMultipartUpload with 40 parts returns 200 (cleanup deferred to waitUntil)', async () => {
+    const { userId } = await insertUserAndS3Cred('alice');
+    const aliceAccessKey = currentAccessKeyId;
+    const wsId = await insertWorkspace(userId, 'my-bucket');
+    await insertDrive(userId, 'drive-1', 'alice@gmail.com');
+
+    // Seed multipart upload session + 40 parts
+    await env.DB.prepare(
+      'INSERT INTO s3_multipart_uploads (upload_id, user_id, workspace_id, key, drive_account_id, temp_folder_id, created_at, content_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    )
+      .bind(
+        'upload-40parts',
+        userId,
+        wsId,
+        'big.bin',
+        'drive-1',
+        'temp-folder-40',
+        Date.now(),
+        'application/octet-stream',
+      )
+      .run();
+
+    for (let i = 1; i <= 40; i++) {
+      await env.DB.prepare(
+        'INSERT INTO s3_multipart_parts (upload_id, part_number, google_file_id, etag, size) VALUES (?, ?, ?, ?, ?)',
+      )
+        .bind('upload-40parts', i, `gfile-part-${i}`, `"etag${i}"`, 10485760)
+        .run();
+    }
+
+    // Build the CompleteMultipartUpload XML with 40 parts
+    const partsXml = Array.from(
+      { length: 40 },
+      (_, i) => `<Part><PartNumber>${i + 1}</PartNumber><ETag>"etag${i + 1}"</ETag></Part>`,
+    ).join('');
+    const requestBody = `<CompleteMultipartUpload>${partsXml}</CompleteMultipartUpload>`;
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url =
+          typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+        if (url.includes('uploadType=resumable') && init?.method !== 'PUT') {
+          return new Response('', {
+            status: 200,
+            headers: {
+              Location:
+                'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&upload_id=40',
+            },
+          });
+        }
+        if (url.includes('uploadType=resumable') && init?.method === 'PUT') {
+          if (init.body instanceof ReadableStream) {
+            const reader = init.body.getReader();
+            while (true) {
+              const { done } = await reader.read();
+              if (done) break;
+            }
+          }
+          return new Response(JSON.stringify({ id: 'gfile-final-40', md5Checksum: 'abc' }), {
+            status: 200,
+          });
+        }
+        if (url.includes('alt=media')) {
+          return new Response('part-data', { status: 200 });
+        }
+        if (init?.method === 'DELETE') {
+          return new Response(null, { status: 204 });
+        }
+        return new Response('{}', { status: 200 });
+      },
+    );
+
+    const res = await signedRequest('POST', '/s3/my-bucket/big.bin', {
+      queryParams: { uploadId: 'upload-40parts' },
+      body: requestBody,
+      accessKeyId: aliceAccessKey,
+    });
+
+    // Before fix: this would 500 (or hang) because total subrequests ~95 > 50 budget.
+    // After fix: response returns 200 immediately (cleanup deferred to waitUntil).
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain('<ETag>"');
   });
 });

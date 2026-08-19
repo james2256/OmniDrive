@@ -1328,10 +1328,20 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
       logError(c, 'S3 CompleteMultipart: storage stats update failed (non-fatal)', err);
     }
 
-    // Cleanup: Delete individual part files + temp folder from Google Drive
-    await deleteMultipartUploadParts(c.env, upload);
-    const s3LifecycleRepo = new S3LifecycleRepository(db);
-    await s3LifecycleRepo.deleteUpload(uploadId);
+    // Cleanup: Delete individual part files + temp folder from Google Drive.
+    // Moved to waitUntil so the response returns immediately with the ETag —
+    // the ~43 cleanup subrequests (40 part deletes + 1 folder delete + D1
+    // batch) would otherwise push the total past the Free-tier 50-subrequest
+    // budget (upload phase alone is ~49). The 24h orphan cron
+    // (cleanupOrphanMultipartUploads in s3-lifecycle.ts) is the safety net if
+    // the Worker is killed before waitUntil completes.
+    c.executionCtx.waitUntil(
+      (async () => {
+        await deleteMultipartUploadParts(c.env, upload);
+        const s3LifecycleRepo = new S3LifecycleRepository(db);
+        await s3LifecycleRepo.deleteUpload(uploadId);
+      })(),
+    );
 
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <CompleteMultipartUploadResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
