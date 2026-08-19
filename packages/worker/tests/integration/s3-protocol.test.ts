@@ -543,4 +543,288 @@ describe('S3 Protocol (integration)', () => {
     expect(body).toContain('InvalidRequest');
     expect(body).toContain('does not belong to this bucket');
   });
+
+  // ─── 9.6 PutObject ownership gate — no quota leak on 403 ───
+  it('PUT /s3/:bucket/:key PutObject returns 403 without leaking quota when target owned by another user', async () => {
+    // Alice owns the workspace + the file
+    const { userId: aliceId } = await insertUserAndS3Cred('alice');
+    const wsId = await insertWorkspace(aliceId, 'team-bucket');
+    await insertDrive(aliceId, 'drive-alice', 'alice@gmail.com');
+
+    // Raw INSERT: file with owned_by_me = 0 (insertFile helper omits this column;
+    // schema.sql:70 defaults to 1, so we must specify it explicitly).
+    await env.DB.prepare(
+      'INSERT INTO files (id, user_id, drive_account_id, workspace_id, workspace_folder_id, ' +
+        'google_file_id, name, mime_type, size, is_trashed, is_starred, owned_by_me) ' +
+        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    )
+      .bind(
+        'file-alice-report',
+        aliceId,
+        'drive-alice',
+        wsId,
+        null,
+        'gfile-alice-1',
+        'report.pdf',
+        'text/plain',
+        100,
+        0,
+        0,
+        0, // ← owned_by_me = 0
+      )
+      .run();
+
+    // Bob: workspace editor (insertWorkspace only adds the owner — raw INSERT needed)
+    const { userId: bobId } = await insertUserAndS3Cred('bob');
+    const bobAccessKey = currentAccessKeyId;
+    await env.DB.prepare(
+      'INSERT INTO workspace_members (id, workspace_id, user_id, role) VALUES (?, ?, ?, ?)',
+    )
+      .bind('wm-bob-editor', wsId, bobId, 'editor')
+      .run();
+    await insertDrive(bobId, 'drive-bob', 'bob@gmail.com');
+
+    // Mock Drive API (same pattern as existing PutObject test at line 447)
+    vi.spyOn(globalThis, 'fetch').mockImplementation(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url =
+          typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+        if (url.includes('uploadType=resumable') && init?.method !== 'PUT') {
+          return new Response('', {
+            status: 200,
+            headers: {
+              Location:
+                'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&upload_id=x',
+            },
+          });
+        }
+        if (url.includes('uploadType=resumable') && init?.method === 'PUT') {
+          // Should NEVER be reached — 403 returns before upload
+          if (init.body instanceof ReadableStream) {
+            const reader = init.body.getReader();
+            while (true) {
+              const { done } = await reader.read();
+              if (done) break;
+            }
+          }
+          return new Response(JSON.stringify({ id: 'should-not-happen' }), { status: 200 });
+        }
+        return new Response('{}', { status: 200 });
+      },
+    );
+
+    const res = await signedRequest('PUT', '/s3/team-bucket/report.pdf', {
+      body: 'overwrite attempt',
+      accessKeyId: bobAccessKey,
+    });
+
+    expect(res.status).toBe(403);
+    expect(await res.text()).toContain('AccessDenied');
+
+    // Quota NOT leaked — used_bytes unchanged (was 0, still 0)
+    const ws = await env.DB.prepare('SELECT used_bytes FROM workspaces WHERE id = ?')
+      .bind(wsId)
+      .first<{ used_bytes: number }>();
+    expect(ws!.used_bytes).toBe(0);
+  });
+
+  // ─── 9.7 CompleteMultipartUpload ownership gate — no quota leak + no orphan on 403 ───
+  it('POST CompleteMultipartUpload returns 403 without uploading when target owned by another user', async () => {
+    const { userId: aliceId } = await insertUserAndS3Cred('alice');
+    const wsId = await insertWorkspace(aliceId, 'team-bucket');
+    await insertDrive(aliceId, 'drive-alice', 'alice@gmail.com');
+
+    // Seed existing file owned by Alice (owned_by_me = 0 from Bob's perspective)
+    await env.DB.prepare(
+      'INSERT INTO files (id, user_id, drive_account_id, workspace_id, workspace_folder_id, ' +
+        'google_file_id, name, mime_type, size, is_trashed, is_starred, owned_by_me) ' +
+        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    )
+      .bind(
+        'file-alice-demo',
+        aliceId,
+        'drive-alice',
+        wsId,
+        null,
+        'gfile-alice-demo',
+        'demo.mp4',
+        'video/mp4',
+        52428800,
+        0,
+        0,
+        0, // ← owned_by_me = 0
+      )
+      .run();
+
+    // Bob: workspace editor + his own drive (MUST use unique id — drive_accounts.id is PK)
+    const { userId: bobId } = await insertUserAndS3Cred('bob');
+    const bobAccessKey = currentAccessKeyId;
+    await env.DB.prepare(
+      'INSERT INTO workspace_members (id, workspace_id, user_id, role) VALUES (?, ?, ?, ?)',
+    )
+      .bind('wm-bob-editor', wsId, bobId, 'editor')
+      .run();
+    await insertDrive(bobId, 'drive-bob', 'bob@gmail.com');
+
+    // Seed a multipart upload session + 1 part (references Bob's drive 'drive-bob')
+    await env.DB.prepare(
+      'INSERT INTO s3_multipart_uploads (upload_id, user_id, workspace_id, key, drive_account_id, temp_folder_id, created_at, content_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    )
+      .bind(
+        'upload-1',
+        bobId,
+        wsId,
+        'demo.mp4',
+        'drive-bob',
+        'temp-folder-1',
+        Date.now(),
+        'video/mp4',
+      )
+      .run();
+
+    await env.DB.prepare(
+      'INSERT INTO s3_multipart_parts (upload_id, part_number, google_file_id, etag, size) VALUES (?, ?, ?, ?, ?)',
+    )
+      .bind('upload-1', 1, 'gfile-part-1', '"abc123"', 52428800)
+      .run();
+
+    // Mock Drive API — track whether the FINAL upload PUT happens
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url =
+          typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+        if (url.includes('uploadType=resumable') && init?.method !== 'PUT') {
+          return new Response('', {
+            status: 200,
+            headers: {
+              Location:
+                'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&upload_id=y',
+            },
+          });
+        }
+        if (url.includes('uploadType=resumable') && init?.method === 'PUT') {
+          if (init.body instanceof ReadableStream) {
+            const reader = init.body.getReader();
+            while (true) {
+              const { done } = await reader.read();
+              if (done) break;
+            }
+          }
+          return new Response(JSON.stringify({ id: 'gfile-final', md5Checksum: 'abc' }), {
+            status: 200,
+          });
+        }
+        // Part download
+        if (url.includes('alt=media')) {
+          return new Response('part-data', { status: 200 });
+        }
+        return new Response('{}', { status: 200 });
+      });
+
+    const res = await signedRequest('POST', '/s3/team-bucket/demo.mp4', {
+      queryParams: { uploadId: 'upload-1' },
+      body: '<CompleteMultipartUpload><Part><PartNumber>1</PartNumber><ETag>"abc123"</ETag></Part></CompleteMultipartUpload>',
+      accessKeyId: bobAccessKey,
+    });
+
+    expect(res.status).toBe(403);
+    expect(await res.text()).toContain('AccessDenied');
+
+    // No final upload PUT happened — filter matches existing convention at s3-protocol.test.ts:453/463
+    const finalUploadCalls = fetchSpy.mock.calls.filter(
+      ([url, init]) =>
+        init?.method === 'PUT' &&
+        (typeof url === 'string' ? url : url instanceof URL ? url.toString() : url.url).includes(
+          'uploadType=resumable',
+        ),
+    );
+    expect(finalUploadCalls.length).toBe(0);
+
+    // Quota NOT leaked
+    const ws = await env.DB.prepare('SELECT used_bytes FROM workspaces WHERE id = ?')
+      .bind(wsId)
+      .first<{ used_bytes: number }>();
+    expect(ws!.used_bytes).toBe(0);
+
+    // No new file row inserted (the orphan would be a files row with google_file_id='gfile-final')
+    const orphan = await env.DB.prepare(
+      "SELECT id FROM files WHERE google_file_id = 'gfile-final'",
+    ).first();
+    expect(orphan).toBeNull();
+  });
+
+  // ─── 9.8 Concurrent PUT to same new folder path — no 500 ───
+  it('PUT /s3/:bucket/:key concurrent PUTs to same new folder path do not 500', async () => {
+    const { userId } = await insertUserAndS3Cred('alice');
+    const aliceAccessKey = currentAccessKeyId;
+    const wsId = await insertWorkspace(userId, 'race-bucket');
+    await insertDrive(userId, 'drive-1', 'alice@gmail.com');
+
+    // Pre-create the root "reports" folder so the race happens at the NESTED
+    // "2026" level (parent_id NOT NULL). SQLite's UNIQUE constraint treats NULL
+    // parent_id as distinct, so root-level folder races aren't caught by the
+    // constraint — only nested folder races (where parent_id is non-NULL) are.
+    await env.DB.prepare(
+      'INSERT INTO workspace_folders (id, workspace_id, name, parent_id) VALUES (?, ?, ?, ?)',
+    )
+      .bind('folder-reports', wsId, 'reports', null)
+      .run();
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url =
+          typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+        if (url.includes('uploadType=resumable') && init?.method !== 'PUT') {
+          return new Response('', {
+            status: 200,
+            headers: {
+              Location:
+                'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&upload_id=z',
+            },
+          });
+        }
+        if (url.includes('uploadType=resumable') && init?.method === 'PUT') {
+          if (init.body instanceof ReadableStream) {
+            const reader = init.body.getReader();
+            while (true) {
+              const { done } = await reader.read();
+              if (done) break;
+            }
+          }
+          return new Response(
+            JSON.stringify({ id: 'gfile-' + Math.random(), md5Checksum: 'abc' }),
+            { status: 200 },
+          );
+        }
+        return new Response('{}', { status: 200 });
+      },
+    );
+
+    // Two concurrent PUTs to different files in the SAME new nested folder path.
+    // Both need "reports/2026" — "reports" exists, "2026" doesn't. The race is
+    // on creating "2026" (parent_id = folder-reports, non-NULL).
+    const [resA, resB] = await Promise.all([
+      signedRequest('PUT', '/s3/race-bucket/reports/2026/q1.csv', {
+        body: 'data-a',
+        accessKeyId: aliceAccessKey,
+      }),
+      signedRequest('PUT', '/s3/race-bucket/reports/2026/q2.csv', {
+        body: 'data-b',
+        accessKeyId: aliceAccessKey,
+      }),
+    ]);
+
+    // Neither should 500 (before fix: one would get UNIQUE constraint → 500)
+    expect(resA.status).toBe(200);
+    expect(resB.status).toBe(200);
+
+    // Exactly one "2026" folder under "reports" (not duplicates)
+    const y2026 = await env.DB.prepare(
+      'SELECT COUNT(*) as count FROM workspace_folders WHERE workspace_id = ? AND name = ? AND parent_id = ?',
+    )
+      .bind(wsId, '2026', 'folder-reports')
+      .first<{ count: number }>();
+    expect(y2026!.count).toBe(1);
+  });
 });

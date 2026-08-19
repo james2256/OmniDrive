@@ -392,8 +392,25 @@ async function getOrCreateWorkspaceFolder(
       parentId = existing.id;
     } else {
       const newId = generateId();
-      await folderRepo.insertFolder(newId, workspaceId, name, parentId);
-      parentId = newId;
+      try {
+        await folderRepo.insertFolder(newId, workspaceId, name, parentId);
+        parentId = newId;
+      } catch (e: unknown) {
+        // Concurrent PUT may have created the same folder (UNIQUE constraint on
+        // workspace_folders.workspace_id, parent_id, name — schema.sql:112).
+        // Re-read the winner's folder id and continue. Matches the established
+        // UNIQUE-catch pattern at workspace.service.ts:101-106.
+        if ((e instanceof Error ? e.message : String(e)).includes('UNIQUE constraint failed')) {
+          const concurrent = await folderRepo.findFolderByPath(workspaceId, name, parentId);
+          if (concurrent) {
+            parentId = concurrent.id;
+          } else {
+            throw e; // Race loser rolled back — genuine failure, re-throw
+          }
+        } else {
+          throw e; // Non-UNIQUE error — propagate
+        }
+      }
     }
   }
 
@@ -603,6 +620,28 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
   // 3. Perform Direct Google Drive Upload
   const driveService = createDriveService(c.env);
 
+  // Resolve folder path + check ownership BEFORE reserving quota, so the 403
+  // path (owned by another user) leaks neither quota nor Drive storage.
+  // selectDriveForS3Upload (above) + pipedStream + createDriveService are all
+  // side-effect-free, so returning 403 here is clean.
+  const pathParts = key.split('/');
+  const fileName = pathParts.pop() ?? '';
+  const folderPath = pathParts.join('/');
+  const folderId = await getOrCreateWorkspaceFolder(db, workspace.id, folderPath);
+
+  const fileRepo = new FileRepository(db);
+  const existingFile = await fileRepo.findByWorkspaceKeyFull(
+    workspace.id,
+    fileName,
+    folderId || null,
+  );
+
+  // Gate: don't allow overwriting files owned by another user via S3.
+  // Checked BEFORE quota reservation so no quota leaks on the 403 path.
+  if (existingFile && existingFile.owned_by_me !== 1) {
+    return xmlError(c, 'AccessDenied', 'Cannot overwrite file owned by another user', 403);
+  }
+
   // Reserve workspace storage quota BEFORE upload (atomic — prevents TOCTOU race
   // and data loss on overwrite). If the upload fails after this point, the
   // reservation is released via updateWorkspaceStorage(workspaceId, -contentLength).
@@ -614,25 +653,6 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
     }
   }
   const quotaReserved = contentLength > 0;
-
-  const pathParts = key.split('/');
-  const fileName = pathParts.pop() ?? '';
-  const folderPath = pathParts.join('/');
-  const folderId = await getOrCreateWorkspaceFolder(db, workspace.id, folderPath);
-
-  // Check if file already exists in D1 under the same folder/name/workspace
-  const fileRepo = new FileRepository(db);
-  const existingFile = await fileRepo.findByWorkspaceKeyFull(
-    workspace.id,
-    fileName,
-    folderId || null,
-  );
-
-  // Gate: don't allow overwriting files owned by another user via S3.
-  // Checked BEFORE the upload so no orphan Google Drive files are created.
-  if (existingFile && existingFile.owned_by_me !== 1) {
-    return xmlError(c, 'AccessDenied', 'Cannot overwrite file owned by another user', 403);
-  }
 
   // Initiate resumable session + upload. Wrapped in try/catch to release
   // the pre-reserved quota on any failure (prevents quota leak).
@@ -1062,6 +1082,20 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
     // Compute total size
     const totalSize = parts.reduce((acc, p) => acc + p.size, 0);
 
+    // Check ownership BEFORE reserving quota + uploading, so the 403 path leaks
+    // neither quota nor a Google Drive orphan file.
+    const fileRepo = new FileRepository(db);
+    const existingFile = await fileRepo.findByWorkspaceKeyFull(
+      workspace.id,
+      fileName,
+      folderId || null,
+    );
+
+    // Gate: don't allow overwriting files owned by another user via S3.
+    if (existingFile && existingFile.owned_by_me !== 1) {
+      return xmlError(c, 'AccessDenied', 'Cannot overwrite file owned by another user', 403);
+    }
+
     // Reserve workspace storage quota BEFORE upload (atomic — prevents TOCTOU race
     // and data loss on overwrite).
     const policyService = new PolicyService(db, driveService);
@@ -1154,19 +1188,6 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
         }
       }
       return xmlError(c, 'InternalError', (err as Error).message, 502);
-    }
-
-    // Check if file already exists in D1 under the same folder/name/workspace
-    const fileRepo = new FileRepository(db);
-    const existingFile = await fileRepo.findByWorkspaceKeyFull(
-      workspace.id,
-      fileName,
-      folderId || null,
-    );
-
-    // Gate: don't allow overwriting files owned by another user via S3.
-    if (existingFile && existingFile.owned_by_me !== 1) {
-      return xmlError(c, 'AccessDenied', 'Cannot overwrite file owned by another user', 403);
     }
 
     // Calculate S3-compliant ETag
