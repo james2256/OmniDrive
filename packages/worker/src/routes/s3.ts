@@ -16,6 +16,7 @@ import {
   type S3MultipartPartRow,
 } from '../types/db';
 import type { DriveAccount } from '../types/domain';
+import type { DriveProvider } from '../types/drive-provider';
 import type { GDriveFile } from '../types/google';
 import { createHash } from 'node:crypto';
 import { hasPermission } from '../lib/rbac';
@@ -417,6 +418,66 @@ async function getOrCreateWorkspaceFolder(
   return parentId;
 }
 
+/**
+ * Handle a UNIQUE-constraint race on the S3 object INSERT. When a concurrent
+ * PUT inserts the same (workspace, folder, name) key between our lookup and
+ * our INSERT, the INSERT throws. This re-reads the race winner, atomically
+ * deletes it + inserts our row, then releases the winner's quota + storage
+ * stats and best-effort deletes the winner's Google Drive file.
+ *
+ * The loser's own reservation (contentLength/totalSize) is NOT released here —
+ * it's now "realized" by the loser's file in D1. Only the winner's reservation
+ * (raceFile.size) is phantom and gets released.
+ *
+ * @param label Used in log messages to identify the calling handler.
+ */
+async function handleInsertRace(
+  db: D1Database,
+  fileRepo: FileRepository,
+  policyService: PolicyService,
+  driveService: DriveProvider,
+  workspace: { id: string },
+  fileName: string,
+  folderId: string | null,
+  insertStmt: D1PreparedStatement,
+  label: string,
+  c: Context<AppContext>,
+): Promise<void> {
+  try {
+    await insertStmt.run();
+  } catch (err) {
+    const raceFile = await fileRepo.findByWorkspaceKeyMinimal(workspace.id, fileName, folderId);
+    if (raceFile) {
+      await db.batch([fileRepo.deleteByIdStmt(raceFile.id), insertStmt]);
+      // Release the deleted race-winner file's quota + storage stats.
+      // The race-loser's batch DELETES raceFile (the winner's file) and
+      // inserts the loser's own file. The loser's own reservation
+      // is now "realized" by the loser's file in D1 — do NOT release it.
+      // Instead, release raceFile.size — the winner's file was deleted,
+      // making the winner's reservation phantom.
+      try {
+        await policyService.updateWorkspaceStorage(workspace.id, -(raceFile.size as number));
+        await fileRepo.pushDelta(
+          raceFile.user_id as string,
+          (raceFile.mime_type as string) ?? '',
+          -(raceFile.size as number),
+        );
+      } catch (e) {
+        logError(c, `${label}: race-loser quota release failed (non-fatal)`, e);
+      }
+      try {
+        if (raceFile.owned_by_me === 1) {
+          await driveService.deleteFile(raceFile.drive_account_id, raceFile.google_file_id);
+        }
+      } catch (e) {
+        logError(c, 'Failed to delete race-loser Google file (orphaned — not data loss)', e);
+      }
+    } else {
+      throw err;
+    }
+  }
+}
+
 // GET /s3/:bucket/:key (GetObject - Download)
 // Also handles HEAD (HeadObject) — Hono converts HEAD→GET internally and strips the body.
 // c.req.method returns 'HEAD' for HEAD requests, so we branch on it for metadata-only responses.
@@ -765,44 +826,20 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
       await db.batch([fileRepo.deleteByIdStmt(existingFile.id), insertStmt]);
     } else {
       // No existing file found — but a concurrent PUT may have inserted one.
-      // On unique constraint error, re-read, delete the race winner, and insert.
-      try {
-        await insertStmt.run();
-      } catch (err) {
-        const raceFile = await fileRepo.findByWorkspaceKeyMinimal(
-          workspace.id,
-          fileName,
-          folderId || null,
-        );
-        if (raceFile) {
-          await db.batch([fileRepo.deleteByIdStmt(raceFile.id), insertStmt]);
-          // Release the deleted race-winner file's quota + storage stats.
-          // The race-loser's batch DELETES raceFile (the winner's file) and
-          // inserts the loser's own file. The loser's own reservation
-          // (contentLength) is now "realized" by the loser's file in D1 — do NOT
-          // release it. Instead, release raceFile.size — the winner's file
-          // was deleted, making the winner's reservation phantom.
-          try {
-            await policyService.updateWorkspaceStorage(workspace.id, -(raceFile.size as number));
-            await fileRepo.pushDelta(
-              raceFile.user_id as string,
-              (raceFile.mime_type as string) ?? '',
-              -(raceFile.size as number),
-            );
-          } catch (e) {
-            logError(c, 'S3 PutObject: race-loser quota release failed (non-fatal)', e);
-          }
-          try {
-            if (raceFile.owned_by_me === 1) {
-              await driveService.deleteFile(raceFile.drive_account_id, raceFile.google_file_id);
-            }
-          } catch (e) {
-            logError(c, 'Failed to delete race-loser Google file (orphaned — not data loss)', e);
-          }
-        } else {
-          throw err;
-        }
-      }
+      // On unique constraint error, handleInsertRace re-reads, deletes the
+      // race winner, and inserts our row.
+      await handleInsertRace(
+        db,
+        fileRepo,
+        policyService,
+        driveService,
+        workspace,
+        fileName,
+        folderId || null,
+        insertStmt,
+        'S3 PutObject',
+        c,
+      );
     }
   } catch (err) {
     // D1 failed after a successful Google upload — delete the orphaned Google
@@ -1238,43 +1275,18 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
         await db.batch([fileRepo.deleteByIdStmt(existingFile.id), insertStmt]);
       } else {
         // No existing file — handle concurrent PUT race (same as PutObject handler)
-        try {
-          await insertStmt.run();
-        } catch (err) {
-          const raceFile = await fileRepo.findByWorkspaceKeyMinimal(
-            workspace.id,
-            fileName,
-            folderId || null,
-          );
-          if (raceFile) {
-            await db.batch([fileRepo.deleteByIdStmt(raceFile.id), insertStmt]);
-            // Release the deleted race-winner file's quota + storage stats.
-            // The race-loser's batch DELETES raceFile (the winner's file) and
-            // inserts the loser's own file. The loser's own reservation
-            // (totalSize) is now "realized" by the loser's file in D1 — do NOT
-            // release it. Instead, release raceFile.size — the winner's file
-            // was deleted, making the winner's reservation phantom.
-            try {
-              await policyService.updateWorkspaceStorage(workspace.id, -(raceFile.size as number));
-              await fileRepo.pushDelta(
-                raceFile.user_id as string,
-                (raceFile.mime_type as string) ?? '',
-                -(raceFile.size as number),
-              );
-            } catch (e) {
-              logError(c, 'S3 CompleteMultipart: race-loser quota release failed (non-fatal)', e);
-            }
-            try {
-              if (raceFile.owned_by_me === 1) {
-                await driveService.deleteFile(raceFile.drive_account_id, raceFile.google_file_id);
-              }
-            } catch (e) {
-              logError(c, 'Failed to delete race-loser Google file (orphaned — not data loss)', e);
-            }
-          } else {
-            throw err;
-          }
-        }
+        await handleInsertRace(
+          db,
+          fileRepo,
+          policyService,
+          driveService,
+          workspace,
+          fileName,
+          folderId || null,
+          insertStmt,
+          'S3 CompleteMultipart',
+          c,
+        );
       }
     } catch (err) {
       // D1 failed after a successful Google upload — delete the orphaned Google
