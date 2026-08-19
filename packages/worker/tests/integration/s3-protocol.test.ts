@@ -827,4 +827,74 @@ describe('S3 Protocol (integration)', () => {
       .first<{ count: number }>();
     expect(y2026!.count).toBe(1);
   });
+
+  // ─── 9.9 DeleteObject D1 batch atomicity — both writes roll back on failure ───
+  it('DELETE /s3/:bucket/:key rolls back markTrashedSystem if the storage-delta write fails (batch atomicity)', async () => {
+    const { userId } = await insertUserAndS3Cred('alice');
+    const wsId = await insertWorkspace(userId, 'my-bucket');
+    await insertDrive(userId, 'drive-1', 'alice@gmail.com');
+    await insertFile(userId, 'drive-1', wsId, null, 'atomic-test.txt', 'gfile-atomic');
+
+    // Pre-seed a stats row so we can verify it's NOT decremented on batch failure
+    await env.DB.prepare(
+      'INSERT INTO file_storage_stats (user_id, mime_type, total_size) VALUES (?, ?, ?)',
+    )
+      .bind(userId, 'text/plain', 1000)
+      .run();
+
+    // Mock Google Drive trash (the route calls driveService.trashFile before the batch)
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 204 }));
+
+    // Spy on db.batch and make it throw ONCE (simulating a D1 transient failure).
+    // The batch is the single atomic transaction — if it throws, both the
+    // markTrashedSystem and applyStorageDelta writes must roll back together.
+    const batchSpy = vi.spyOn(env.DB, 'batch');
+    batchSpy.mockRejectedValueOnce(new Error('D1 transient: database is locked'));
+
+    const res = await signedRequest('DELETE', '/s3/my-bucket/atomic-test.txt');
+
+    // Handler returns 500 (batch threw, escaped the handler before updateWorkspaceStorage)
+    expect(res.status).toBe(500);
+
+    // Both writes rolled back: is_trashed still 0 (NOT 1)
+    const file = await env.DB.prepare('SELECT is_trashed FROM files WHERE id = ?')
+      .bind('file-atomic-test.txt')
+      .first<{ is_trashed: number }>();
+    expect(file).toBeTruthy();
+    expect(file!.is_trashed).toBe(0); // ← rolled back, NOT trashed
+
+    // file_storage_stats NOT decremented: still 1000 (NOT 900)
+    const stats = await env.DB.prepare(
+      'SELECT total_size FROM file_storage_stats WHERE user_id = ? AND mime_type = ?',
+    )
+      .bind(userId, 'text/plain')
+      .first<{ total_size: number }>();
+    expect(stats).toBeTruthy();
+    expect(stats!.total_size).toBe(1000); // ← rolled back, NOT decremented
+
+    // workspaces.used_bytes also NOT released (batch threw before updateWorkspaceStorage ran)
+    const ws = await env.DB.prepare('SELECT used_bytes FROM workspaces WHERE id = ?')
+      .bind(wsId)
+      .first<{ used_bytes: number }>();
+    expect(ws!.used_bytes).toBe(0); // workspace started at 0, still 0 (no leak either way)
+
+    // Restore batch and verify retry succeeds (idempotent — file still live, not trashed)
+    batchSpy.mockRestore();
+    const res2 = await signedRequest('DELETE', '/s3/my-bucket/atomic-test.txt');
+    expect(res2.status).toBe(204);
+
+    // Now both writes committed: is_trashed = 1
+    const file2 = await env.DB.prepare('SELECT is_trashed FROM files WHERE id = ?')
+      .bind('file-atomic-test.txt')
+      .first<{ is_trashed: number }>();
+    expect(file2!.is_trashed).toBe(1);
+
+    // And file_storage_stats decremented: 1000 - 100 = 900
+    const stats2 = await env.DB.prepare(
+      'SELECT total_size FROM file_storage_stats WHERE user_id = ? AND mime_type = ?',
+    )
+      .bind(userId, 'text/plain')
+      .first<{ total_size: number }>();
+    expect(stats2!.total_size).toBe(900);
+  });
 });

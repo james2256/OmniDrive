@@ -538,8 +538,14 @@ s3Router.delete('/:bucket/:key{.+}', async (c) => {
   // Trash file in Google Drive (recoverable ~30 days) and mark as trashed in D1.
   // Matches s3-lifecycle.ts pattern — S3 DELETE trashes, not hard-deletes.
   await driveService.trashFile(file.drive_account_id, file.google_file_id);
-  await fileRepo.markTrashedSystem(file.id);
-  await fileRepo.pushDelta(file.user_id, file.mime_type ?? '', -file.size);
+  // Atomic: mark trashed + apply storage delta in a single D1 batch.
+  // Gate delta on ownership — non-owned files don't count against quota.
+  // Matches s3-lifecycle.ts:84-90 pattern.
+  const stmts: D1PreparedStatement[] = [fileRepo.markTrashedSystemStmt(file.id)];
+  if (file.owned_by_me === 1) {
+    stmts.push(fileRepo.applyStorageDeltaStmt(file.user_id, file.mime_type ?? '', -file.size));
+  }
+  await db.batch(stmts);
 
   // Release workspace quota — S3 DELETE trashes the file, freeing its reserved
   // workspace storage. Without this, workspaces.used_bytes stays inflated.
