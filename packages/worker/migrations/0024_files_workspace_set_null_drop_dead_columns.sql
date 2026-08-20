@@ -8,8 +8,11 @@
 --
 -- SQLite doesn't support ALTER TABLE ... ALTER CONSTRAINT or DROP COLUMN
 -- (before 3.35), so we recreate: backup → drop → create → restore → indexes.
-
-BEGIN TRANSACTION;
+--
+-- Note: D1 does not support BEGIN TRANSACTION / COMMIT in raw SQL —
+-- wrangler executes each statement individually. The _files_backup table
+-- serves as the safety net: if any statement fails, the backup is still
+-- there for manual recovery.
 
 -- 1. Save existing data
 CREATE TABLE _files_backup AS SELECT * FROM files;
@@ -73,5 +76,3 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_files_workspace_folder_name_active ON file
 
 -- 5. Clean up backup
 DROP TABLE _files_backup;
-
-COMMIT;
