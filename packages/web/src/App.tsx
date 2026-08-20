@@ -130,14 +130,15 @@ export const App = () => {
 
 /**
  * Inner component rendered inside <BrowserRouter> so it can call useLocation.
- * The `key={location.pathname}` on ErrorBoundary causes React to unmount +
- * remount the boundary on route change, resetting hasError to false. This
- * lets users navigate away from a crashed page without a hard refresh.
+ * The `resetKey={location.pathname}` on ErrorBoundary triggers
+ * `componentDidUpdate` on route change, resetting `hasError` to false —
+ * WITHOUT unmounting children (which would discard the lazy-component
+ * cache and flash "Loading…" on every navigation).
  */
 const AppRoutes = ({ isSetup }: { isSetup: boolean }) => {
   const location = useLocation();
   return (
-    <ErrorBoundary key={location.pathname}>
+    <ErrorBoundary resetKey={location.pathname}>
       <Suspense fallback={<PageFallback />}>
         <Routes>
           <Route path="/home" element={<LandingPage />} />

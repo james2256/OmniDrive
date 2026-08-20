@@ -149,10 +149,10 @@ describe('ErrorBoundary', () => {
     expect(screen.getByTestId('recovered')).toBeTruthy();
   });
 
-  it('resets error state when key prop changes (route-change reset)', () => {
-    // App.tsx passes key={location.pathname} so the ErrorBoundary unmounts +
-    // remounts on navigation, resetting hasError. This test verifies that
-    // changing the key prop resets the error state.
+  it('resets error state when resetKey prop changes (route-change reset)', () => {
+    // App.tsx passes resetKey={location.pathname} so componentDidUpdate
+    // resets hasError on navigation — WITHOUT unmounting children (which
+    // would discard the lazy-component cache and flash "Loading…").
     let shouldThrow = true;
 
     function ConditionalChild() {
@@ -161,7 +161,7 @@ describe('ErrorBoundary', () => {
     }
 
     const { rerender } = render(
-      <ErrorBoundary key="page-1">
+      <ErrorBoundary resetKey="page-1">
         <ConditionalChild />
       </ErrorBoundary>,
     );
@@ -169,15 +169,15 @@ describe('ErrorBoundary', () => {
     // Error state on first render.
     expect(screen.getByText('Something went wrong')).toBeTruthy();
 
-    // Fix the underlying issue, then change the key (simulating navigation).
+    // Fix the underlying issue, then change resetKey (simulating navigation).
     shouldThrow = false;
     rerender(
-      <ErrorBoundary key="page-2">
+      <ErrorBoundary resetKey="page-2">
         <ConditionalChild />
       </ErrorBoundary>,
     );
 
-    // Error state cleared by remount — child renders normally.
+    // Error state cleared by componentDidUpdate — child renders normally.
     expect(screen.queryByText('Something went wrong')).toBeNull();
     expect(screen.getByTestId('recovered')).toBeTruthy();
   });

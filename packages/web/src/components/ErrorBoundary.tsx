@@ -11,21 +11,34 @@ interface State {
  * blank the entire app. Placed inside <BrowserRouter> so navigation
  * still works after an error.
  *
- * Route-change reset: App.tsx passes `key={location.pathname}` so React
- * unmounts + remounts this component on navigation, resetting `hasError`
- * to false. This lets the user navigate away from a crashed page without
- * a hard refresh.
+ * Route-change reset: App.tsx passes `resetKey={location.pathname}`. When
+ * the route changes, `componentDidUpdate` detects the prop change and clears
+ * `hasError` — WITHOUT unmounting children. This is critical: using `key`
+ * instead would unmount the entire <Suspense> boundary, discarding the
+ * lazy-component cache and flashing "Loading…" on every navigation.
  *
  * In-place recovery: the "Try Again" button clears the error state so the
  * subtree re-renders. If the underlying data is still bad, the error
  * boundary catches again — but if it was a transient render issue, the
  * page recovers immediately.
  */
-export class ErrorBoundary extends React.Component<{ children: React.ReactNode }, State> {
+export class ErrorBoundary extends React.Component<
+  { children: React.ReactNode; resetKey?: string },
+  State
+> {
   state: State = { hasError: false, message: '' };
 
   static getDerivedStateFromError(err: Error): State {
     return { hasError: true, message: err.message };
+  }
+
+  componentDidUpdate(prevProps: { resetKey?: string }) {
+    // Reset error state when resetKey changes (route navigation) — without
+    // unmounting children. This avoids re-suspending lazy-loaded pages
+    // (which would flash "Loading…" on every navigation).
+    if (prevProps.resetKey !== this.props.resetKey && this.state.hasError) {
+      this.setState({ hasError: false, message: '' });
+    }
   }
 
   componentDidCatch(err: Error, info: React.ErrorInfo) {
