@@ -32,25 +32,30 @@ function buildApp(
 ) {
   const d1Files = opts.d1Files ?? [];
   const d1Folders = opts.d1Folders ?? [];
-  const driveRow = opts.driveRow ?? {
-    id: DRIVE_ID,
-    user_id: USER_ID,
-    google_account_id: 'g-1',
-    email: 'alice@example.com',
-    name: 'Alice Drive',
-    type: 'oauth',
-    is_primary: 1,
-    root_folder_id: 'root-id',
-    total_quota: 1000,
-    used_quota: 100,
-    quota_override: null,
-    quota_updated_at: null,
-    sync_status: 'idle',
-    sync_error_message: null,
-    sync_paused: 0,
-    last_synced_at: null,
-    created_at: '2024-01-01T00:00:00Z',
-  };
+  // Allow null driveRow (for 404 tests) — `??` would fall back to the default
+  // on null, so we check for undefined explicitly.
+  const driveRow =
+    opts.driveRow !== undefined
+      ? opts.driveRow
+      : {
+          id: DRIVE_ID,
+          user_id: USER_ID,
+          google_account_id: 'g-1',
+          email: 'alice@example.com',
+          name: 'Alice Drive',
+          type: 'oauth',
+          is_primary: 1,
+          root_folder_id: 'root-id',
+          total_quota: 1000,
+          used_quota: 100,
+          quota_override: null,
+          quota_updated_at: null,
+          sync_status: 'idle',
+          sync_error_message: null,
+          sync_paused: 0,
+          last_synced_at: null,
+          created_at: '2024-01-01T00:00:00Z',
+        };
   const folderRow = opts.folderRow ?? null;
 
   const sessionRow = {
@@ -149,17 +154,17 @@ function buildApp(
   };
 }
 
-describe('GET /drives/:driveId/external-folders/:googleFolderId — drill-in 502 fix', () => {
+describe('GET /drives/:driveId/external-folders/:googleFolderId — D1-only drill-in', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('returns cached D1 rows when Google returns 404 (lost access)', async () => {
-    // Bob unshared ProjectX → Google returns 404 → UpstreamError thrown.
-    // The fix catches it and falls through to the D1-only read, returning
-    // Alice's cached owned files (e.g., notes.docx).
-    listFolderContentsMock.mockRejectedValue(new UpstreamError('Failed: 404 notFound'));
-
+  it('returns cached D1 rows (no Google API call, no lock conflict)', async () => {
+    // The external-folders GET route is now D1-only (mirrors FilesPage drill-in
+    // at drives.ts:324). It does NOT call listFolderContents or
+    // batchUpsertFolderContents — so there's no 409-on-navigation risk.
+    // Background sync populates D1; the user clicks "Sync" (POST /sync) for
+    // a live refresh.
     const cachedFiles = [
       {
         id: 'f1',
@@ -182,20 +187,17 @@ describe('GET /drives/:driveId/external-folders/:googleFolderId — drill-in 502
       env,
     );
 
-    // Must be 200 (not 502) — the fix catches UpstreamError.
     expect(res.status).toBe(200);
     const body = await res.json();
-    // Cached notes.docx from D1 is returned.
     expect(body.files).toHaveLength(1);
     expect(body.files[0].name).toBe('notes.docx');
+    // listFolderContents must NOT be called — the route is D1-only.
+    expect(listFolderContentsMock).not.toHaveBeenCalled();
   });
 
-  it('re-throws non-UpstreamError errors unchanged (defense in depth)', async () => {
-    // A programming error (TypeError) must NOT be swallowed — only UpstreamError is caught.
-    const programmingError = new TypeError('Cannot read properties of undefined');
-    listFolderContentsMock.mockRejectedValue(programmingError);
-
-    const { app, env } = buildApp();
+  it('returns 404 when drive not found', async () => {
+    // findByIdAndUser returns null → NotFoundError('Drive not found').
+    const { app, env } = buildApp({ driveRow: null });
 
     const res = await app.request(
       `/drives/${DRIVE_ID}/external-folders/${FOLDER_ID}`,
@@ -206,33 +208,15 @@ describe('GET /drives/:driveId/external-folders/:googleFolderId — drill-in 502
       env,
     );
 
-    // app.onError returns 500 for non-AppError errors. The TypeError propagates
-    // (not caught by the UpstreamError-only catch) → 500 to client.
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body.error).toBe('Drive not found');
   });
 
-  it('returns normal Google response when listFolderContents succeeds (regression guard)', async () => {
-    // Happy path — Google returns fresh data. The try/catch must not interfere.
-    const gFiles = [
-      { id: 'gfile-new', name: 'fresh.docx', mimeType: 'application/pdf', size: '512' },
-    ];
-    const gFolders = [];
-    listFolderContentsMock.mockResolvedValue({ files: gFiles, folders: gFolders });
-
-    // D1 returns the freshly-upserted data on re-read.
-    const { app, env } = buildApp({
-      d1Files: [
-        {
-          id: 'f1',
-          google_file_id: 'gfile-new',
-          name: 'fresh.docx',
-          owned_by_me: 1,
-          is_trashed: 0,
-          size: 512,
-          mime_type: 'application/pdf',
-        },
-      ],
-    });
+  it('returns empty arrays when D1 has no cached rows for the folder', async () => {
+    // Folder never synced (no files/folders in D1) → returns empty arrays,
+    // not an error. The user sees an empty folder and can click "Sync".
+    const { app, env } = buildApp({ d1Files: [], d1Folders: [] });
 
     const res = await app.request(
       `/drives/${DRIVE_ID}/external-folders/${FOLDER_ID}`,
@@ -245,7 +229,8 @@ describe('GET /drives/:driveId/external-folders/:googleFolderId — drill-in 502
 
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.files[0].name).toBe('fresh.docx');
+    expect(body.files).toEqual([]);
+    expect(body.subfolders).toEqual([]);
   });
 });
 

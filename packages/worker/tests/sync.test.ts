@@ -59,11 +59,26 @@ function makeDriveServiceMock(
  * `prepare(sql).all()` (no bind). The SELECT for sync_state returns
  * `opts.syncStateRow`; the SELECT for drive_accounts returns `opts.driveAccounts`.
  * `runCalls` records every .run() invocation (sql + binds) for assertion.
+ *
+ * `folderStates` — rows returned by findExistingFolderStates (cascade-restore
+ *   gating). Keys on `google_folder_id` to simulate D1's prior is_trashed state.
+ * `childFiles` — rows returned by findChildFilesForTrashCascade /
+ *   findTrashedChildFilesForRestoreCascade (cascade read). Empty by default
+ *   so cascade functions return [] (no units) — preserves existing test behavior.
  */
 function makeMockDb(
   opts: {
     syncStateRow?: Record<string, unknown> | null;
     alreadySyncing?: boolean;
+    folderStates?: Array<{ google_folder_id: string; is_trashed: number }>;
+    childFiles?: Array<{
+      google_file_id: string;
+      size: number;
+      mime_type: string | null;
+      owned_by_me: number;
+      workspace_id: string | null;
+      user_id: string;
+    }>;
   } = {},
 ) {
   const runCalls: { sql: string; binds: any[] }[] = [];
@@ -75,6 +90,8 @@ function makeMockDb(
   if (opts.alreadySyncing) {
     syncStateRows['drive-1'] = { drive_account_id: 'drive-1', status: 'syncing' };
   }
+  const folderStates = opts.folderStates ?? [];
+  const childFiles = opts.childFiles ?? [];
 
   const db: any = {
     prepare: vi.fn((sql: string) => {
@@ -102,6 +119,18 @@ function makeMockDb(
           return null;
         }),
         all: vi.fn(async () => {
+          // findExistingFolderStates — returns prior is_trashed state for
+          // cascade-restore gating. Routes by column list in SELECT.
+          if (sql.includes('SELECT google_folder_id, is_trashed')) {
+            return { results: folderStates };
+          }
+          // findChildFilesForTrashCascade / findTrashedChildFilesForRestoreCascade
+          // — both SELECT the same columns; the is_trashed filter is in the WHERE
+          // clause, not the SELECT. Return childFiles for both (the sync loop's
+          // cascade condition determines which one fires, not the mock).
+          if (sql.includes('SELECT google_file_id, size, mime_type, owned_by_me')) {
+            return { results: childFiles };
+          }
           return { results: [] };
         }),
       });
@@ -550,5 +579,199 @@ describe('syncDriveAccount', () => {
     // Must NOT have pushed a DELETE (trashed != removed).
     expect(findCall(runCalls, 'DELETE FROM files')).toBeFalsy();
     expect(findCall(runCalls, 'DELETE FROM drive_folders')).toBeFalsy();
+  });
+
+  // ─── A-06 cascade integration (sync loop) ───
+
+  it('cascade-trash fires on trashed=true folder change and marks child files', async () => {
+    // A folder trashed in Google → sync loop must cascade-trash all child files.
+    // Verifies the fire condition at sync.ts:767 + the markTrashed CTE UPDATE.
+    const driveService = makeDriveServiceMock({
+      listChangesResponses: [
+        {
+          changes: [
+            {
+              fileId: 'folder-1',
+              removed: false,
+              file: {
+                id: 'folder-1',
+                name: 'Old Photos',
+                mimeType: 'application/vnd.google-apps.folder',
+                trashed: true,
+                parents: ['root-id'],
+                owners: [{ me: true }],
+              },
+            },
+          ],
+          newStartPageToken: 'next-token',
+        },
+      ],
+    });
+
+    const { db, runCalls } = makeMockDb({
+      syncStateRow: { change_token: 'curr-token', next_page_token: null },
+      childFiles: [
+        {
+          google_file_id: 'file-a',
+          size: 500,
+          mime_type: 'application/pdf',
+          owned_by_me: 1,
+          workspace_id: null,
+          user_id: 'user-1',
+        },
+      ],
+    });
+
+    await syncDriveAccount(makeDrive(), db, driveService as any);
+
+    // The cascade-trash CTE UPDATE must have been pushed to db.batch().
+    // This is the markTrashedByDriveAndParentFolderStmt — distinct from the
+    // single-file markTrashedByDriveAndGoogleIdStmt (no CTE).
+    const cascadeTrashCall = runCalls.find(
+      (c) =>
+        c.sql.includes('UPDATE files SET is_trashed = 1') &&
+        c.sql.includes('WITH RECURSIVE descendant_folders'),
+    );
+    expect(cascadeTrashCall).toBeTruthy();
+  });
+
+  it('cascade-restore fires on trashed→active transition (oldFolderStates gating)', async () => {
+    // A folder was trashed in D1 (is_trashed=1), now Google reports it active
+    // (trashed=false) → sync loop must cascade-restore all trashed child files.
+    // Verifies the fire condition at sync.ts:782-796 including oldFolderStates gating.
+    const driveService = makeDriveServiceMock({
+      listChangesResponses: [
+        {
+          changes: [
+            {
+              fileId: 'folder-1',
+              removed: false,
+              file: {
+                id: 'folder-1',
+                name: 'Restored Photos',
+                mimeType: 'application/vnd.google-apps.folder',
+                trashed: false,
+                parents: ['root-id'],
+                owners: [{ me: true }],
+              },
+            },
+          ],
+          newStartPageToken: 'next-token',
+        },
+      ],
+    });
+
+    const { db, runCalls } = makeMockDb({
+      syncStateRow: { change_token: 'curr-token', next_page_token: null },
+      // Prior D1 state: folder-1 was trashed → cascade-restore should fire.
+      folderStates: [{ google_folder_id: 'folder-1', is_trashed: 1 }],
+      childFiles: [
+        {
+          google_file_id: 'file-a',
+          size: 500,
+          mime_type: 'application/pdf',
+          owned_by_me: 1,
+          workspace_id: null,
+          user_id: 'user-1',
+        },
+      ],
+    });
+
+    await syncDriveAccount(makeDrive(), db, driveService as any);
+
+    // The cascade-restore CTE UPDATE must have been pushed to db.batch().
+    const cascadeRestoreCall = runCalls.find(
+      (c) =>
+        c.sql.includes('UPDATE files SET is_trashed = 0') &&
+        c.sql.includes('WITH RECURSIVE descendant_folders'),
+    );
+    expect(cascadeRestoreCall).toBeTruthy();
+  });
+
+  it('cascade-restore SKIPPED on folder rename (oldFolderStates isTrashed=false)', async () => {
+    // A folder is renamed (trashed=false, active→active). oldFolderStates
+    // reports is_trashed=0 → cascade-restore must NOT fire. This is the N+1
+    // gating test — without oldFolderStates, the cascade would fire on every
+    // active-folder metadata change.
+    const driveService = makeDriveServiceMock({
+      listChangesResponses: [
+        {
+          changes: [
+            {
+              fileId: 'folder-1',
+              removed: false,
+              file: {
+                id: 'folder-1',
+                name: 'Renamed Photos',
+                mimeType: 'application/vnd.google-apps.folder',
+                trashed: false,
+                parents: ['root-id'],
+                owners: [{ me: true }],
+              },
+            },
+          ],
+          newStartPageToken: 'next-token',
+        },
+      ],
+    });
+
+    const { db, runCalls } = makeMockDb({
+      syncStateRow: { change_token: 'curr-token', next_page_token: null },
+      // Prior D1 state: folder-1 was already active (is_trashed=0).
+      folderStates: [{ google_folder_id: 'folder-1', is_trashed: 0 }],
+    });
+
+    await syncDriveAccount(makeDrive(), db, driveService as any);
+
+    // The cascade-restore CTE UPDATE must NOT have been pushed.
+    const cascadeRestoreCall = runCalls.find(
+      (c) =>
+        c.sql.includes('UPDATE files SET is_trashed = 0') &&
+        c.sql.includes('WITH RECURSIVE descendant_folders'),
+    );
+    expect(cascadeRestoreCall).toBeFalsy();
+  });
+
+  it('cascade-restore SKIPPED for new folder (not in D1, oldFolderStates empty)', async () => {
+    // A new folder (first sync as a change) is not in D1 → oldFolderStates
+    // returns empty → cascade-restore must NOT fire. Prevents restoring
+    // independently-trashed children of a brand-new folder.
+    const driveService = makeDriveServiceMock({
+      listChangesResponses: [
+        {
+          changes: [
+            {
+              fileId: 'folder-new',
+              removed: false,
+              file: {
+                id: 'folder-new',
+                name: 'Brand New Folder',
+                mimeType: 'application/vnd.google-apps.folder',
+                trashed: false,
+                parents: ['root-id'],
+                owners: [{ me: true }],
+              },
+            },
+          ],
+          newStartPageToken: 'next-token',
+        },
+      ],
+    });
+
+    const { db, runCalls } = makeMockDb({
+      syncStateRow: { change_token: 'curr-token', next_page_token: null },
+      // No folderStates → folder-new is not in D1 (new folder).
+      folderStates: [],
+    });
+
+    await syncDriveAccount(makeDrive(), db, driveService as any);
+
+    // The cascade-restore CTE UPDATE must NOT have been pushed.
+    const cascadeRestoreCall = runCalls.find(
+      (c) =>
+        c.sql.includes('UPDATE files SET is_trashed = 0') &&
+        c.sql.includes('WITH RECURSIVE descendant_folders'),
+    );
+    expect(cascadeRestoreCall).toBeFalsy();
   });
 });

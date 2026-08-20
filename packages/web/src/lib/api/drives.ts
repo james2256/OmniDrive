@@ -77,4 +77,11 @@ export const drivesApi = {
       files: FileEntry[];
       breadcrumb: BreadcrumbItem[];
     }>(`/api/drives/${driveId}/external-folders/${folderId}`),
+  syncExternalFolder: (driveId: string, folderId: string) =>
+    request<{
+      folder: DriveFolder | null;
+      subfolders: DriveFolder[];
+      files: FileEntry[];
+      breadcrumb: BreadcrumbItem[];
+    }>(`/api/drives/${driveId}/folders/${folderId}/sync`, { method: 'POST' }),
 };

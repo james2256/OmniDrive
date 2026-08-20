@@ -73,6 +73,30 @@ export function useForceResync() {
 }
 
 /**
+ * Sync a single external folder (live Google API → D1 persist).
+ *
+ * Used by ExternalPage's "Sync" button. Unlike the D1-only drill-in
+ * (getExternalFolderContents), this calls the live Google API + persists,
+ * so it CAN 409 if a background sync is running. The 409 surfaces as a toast
+ * (not a blocking error) — the user retries in a moment.
+ *
+ * On success, invalidates the externalFolder query so the page refetches
+ * with the fresh D1 data.
+ */
+export function useSyncExternalFolder(driveId: string, folderId: string) {
+  const queryClient = useQueryClient();
+  const addToast = useToastStore((s) => s.addToast);
+  return useMutation({
+    mutationFn: () => drivesApi.syncExternalFolder(driveId, folderId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: qk.externalFolder(driveId, folderId) });
+      addToast('success', 'Folder synced');
+    },
+    onError: () => addToast('error', 'Sync in progress. Try again in a moment.'),
+  });
+}
+
+/**
  * Resolve a drive account by ID, with its index for color-badging.
  * Standardized fallback: returns { drive: null, index: -1 } when the ID
  * is absent OR not found — fixes the ExternalPage divergence (M-11) that

@@ -10,9 +10,9 @@ import { ItemModals } from '../components/files/ItemModals';
 import { ErrorState } from '../components/ErrorState';
 import { EmptyState, ListSkeleton } from '../components/EmptyState';
 import { PageHeader } from '../components/layout/PageHeader';
-import { FolderInput } from 'lucide-react';
+import { FolderInput, RefreshCw } from 'lucide-react';
 import { drivesApi } from '../lib/api/drives';
-import { useDrives, useGetDriveInfo } from '../hooks/useDrives';
+import { useDrives, useGetDriveInfo, useSyncExternalFolder } from '../hooks/useDrives';
 import { useSharedLinks, useIsTargetSharedCallback } from '../hooks/useSharedLinks';
 import { useItemModals } from '../hooks/useItemModals';
 import type {
@@ -121,6 +121,11 @@ export function ExternalPage() {
 
   const getDriveInfo = useGetDriveInfo(drives);
 
+  // Sync button — only shown when drilling into a folder (not top-level).
+  // Calls POST /sync (live Google API + persist). CAN 409 if background sync
+  // is running — the hook surfaces it as a toast, not a blocking error.
+  const syncFolder = useSyncExternalFolder(driveIdParam ?? '', folderId ?? '');
+
   return (
     <div className="p-4 sm:p-6 space-y-2">
       <PageHeader
@@ -129,6 +134,19 @@ export function ExternalPage() {
         }
         icon={FolderInput}
         description={folderId ? undefined : 'Items you own that live outside My Drive'}
+        actions={
+          folderId && driveIdParam ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => syncFolder.mutate()}
+              disabled={syncFolder.isPending}
+            >
+              <RefreshCw size={14} className={syncFolder.isPending ? 'animate-spin' : ''} />
+              {syncFolder.isPending ? 'Syncing…' : 'Sync'}
+            </Button>
+          ) : undefined
+        }
       />
       <FilesToolbar
         searchQuery={searchQuery}

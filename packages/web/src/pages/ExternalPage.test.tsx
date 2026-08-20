@@ -32,7 +32,11 @@ vi.mock('react-router-dom', () => ({
   useSearchParams: vi.fn(),
   useNavigate: () => navigateMock,
 }));
-vi.mock('../hooks/useDrives', () => ({ useDrives: vi.fn(), useGetDriveInfo: () => vi.fn() }));
+vi.mock('../hooks/useDrives', () => ({
+  useDrives: vi.fn(),
+  useGetDriveInfo: () => vi.fn(),
+  useSyncExternalFolder: () => ({ mutate: vi.fn(), isPending: false }),
+}));
 vi.mock('../hooks/useSharedLinks', () => ({
   useSharedLinks: vi.fn(() => ({ data: [] })),
   useIsTargetSharedCallback: () => vi.fn(),

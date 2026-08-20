@@ -95,55 +95,31 @@ drivesRouter.get('/external', async (c) => {
   return c.json(data);
 });
 
-// GET /api/drives/:driveId/external-folders/:googleFolderId — live API list children of an external folder
+// GET /api/drives/:driveId/external-folders/:googleFolderId — D1 read of an
+// external folder's children. Mirrors the FilesPage drill-in at drives.ts:324
+// (no Google API call, no batchUpsertFolderContents → no lock conflict).
+// Background sync populates D1; the user clicks "Sync" (POST /sync) for a
+// live refresh if they need the latest Google state.
 drivesRouter.get('/:driveId/external-folders/:googleFolderId', async (c) => {
   const userId = c.get('userId');
   const { driveId, googleFolderId } = c.req.param();
-  const db = c.env.DB;
 
-  const driveRepo = new DriveRepository(db);
-  // findFullByIdAndUser (not findByIdAndUser) — batchUpsertFolderContents → buildUpsertStmt
-  // binds drive.userId to files.user_id (NOT NULL). Only the full row includes user_id.
-  // Mirrors the FilesPage drill-in at drives.ts:327.
-  const driveRow = await driveRepo.findFullByIdAndUser(driveId, userId);
-  if (!driveRow) throw new NotFoundError('Drive not found');
+  const driveRepo = new DriveRepository(c.env.DB);
+  const drive = await driveRepo.findByIdAndUser(driveId, userId);
+  if (!drive) throw new NotFoundError('Drive not found');
 
-  const drive = mapDriveRow(driveRow);
-  const driveService = c.get('driveService');
-  let gFiles: GDriveFile[] = [];
-  let gFolders: GDriveFolder[] = [];
-  try {
-    ({ files: gFiles, folders: gFolders } = await driveService.listFolderContents(
-      driveId,
-      googleFolderId,
-    ));
-  } catch (e) {
-    // Folder no longer accessible (unshared, deleted, or permission revoked).
-    // Fall through with empty arrays — the D1 read below returns cached rows
-    // (e.g., owned files orphaned inside the now-inaccessible folder).
-    if (!(e instanceof UpstreamError)) throw e;
-  }
-
-  // Persist live Google data to D1 so file actions (star/rename/share/delete/move)
-  // work — they query D1 primary key (files.id), not Google IDs. Same pattern as
-  // drives.ts:354 (FilesPage drill-in).
-  await batchUpsertFolderContents(db, drive, gFolders, gFiles, googleFolderId);
-
-  // Re-read from D1 — returns full FileEntry/DriveFolder objects with D1 row ids
-  // and all fields (isStarred, isTrashed, googleFileId, etc.).
-  const newFolders = await driveRepo.findDriveFoldersByParent(driveId, googleFolderId);
-  const newFiles = await driveRepo.findFilesByParent(driveId, googleFolderId);
-
-  // Build real breadcrumb (same pattern as sibling route at line 291).
-  // findBreadcrumbPath returns the folder chain (parent → child) without a root;
-  // the frontend prepends its own "My External Items" root entry.
+  const subfolderResult = await driveRepo.findDriveFoldersByParent(driveId, googleFolderId);
+  const filesResult = await driveRepo.findFilesByParent(driveId, googleFolderId);
   const { results: breadcrumbPath } = await driveRepo.findBreadcrumbPath(driveId, googleFolderId);
   const folderRow = await driveRepo.findDriveFolderByGoogleId(driveId, googleFolderId);
 
+  // Raw findBreadcrumbPath (no buildDriveBreadcrumb) — the frontend at
+  // ExternalPage.tsx prepends its own "My External Items" root entry.
+  // buildDriveBreadcrumb would prepend "All Files" → duplicate root entries.
   return c.json({
     folder: folderRow ? mapDriveFolderRow(folderRow) : null,
-    subfolders: newFolders.results.map((r) => mapDriveFolderRow(r)),
-    files: newFiles.results.map((r) => mapFileRow(r)),
+    subfolders: subfolderResult.results.map((r) => mapDriveFolderRow(r)),
+    files: filesResult.results.map((r) => mapFileRow(r)),
     breadcrumb: breadcrumbPath.map((b) => ({ id: b.id, name: b.name })),
   });
 });
