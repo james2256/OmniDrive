@@ -22,6 +22,19 @@ export interface DownloadTreeFile {
   mimeType: string | null;
 }
 
+/**
+ * Sanitize a file or folder name for safe inclusion in a zip path.
+ * Strips path separators (/ and \), NUL bytes, and leading dots that
+ * could enable Zip Slip path traversal on extraction.
+ *
+ * Google Drive permits any characters in display names, but zip entry
+ * names with / or .. can cause client-side extraction to write outside
+ * the target directory.
+ */
+function sanitizePathSegment(name: string): string {
+  return name.replace(/[/\\\0]+/g, '_').replace(/\.{2,}/g, (m) => '_'.repeat(m.length));
+}
+
 export interface BuildDownloadTreeOptions {
   driveService: DriveProvider;
   driveId: string;
@@ -119,10 +132,11 @@ export async function buildDownloadTree(
         truncated = true;
         break;
       }
+      const safeName = sanitizePathSegment(file.name);
       files.push({
         googleFileId: file.id,
-        name: file.name,
-        path: pathPrefix + file.name,
+        name: safeName,
+        path: pathPrefix + safeName,
         size: parseInt(file.size ?? '0', 10),
         mimeType: file.mimeType ?? null,
       });
@@ -133,7 +147,7 @@ export async function buildDownloadTree(
         truncated = true;
         break;
       }
-      await walk(folder.id, `${pathPrefix}${folder.name}/`);
+      await walk(folder.id, `${pathPrefix}${sanitizePathSegment(folder.name)}/`);
     }
   }
 

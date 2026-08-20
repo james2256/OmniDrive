@@ -65,7 +65,7 @@ async function validateSharedLink(
   if (sessionCookie) {
     try {
       const payload = await verify(sessionCookie, c.env.JWT_SECRET, 'HS256');
-      if (payload.id === link.id) {
+      if (payload.id === link.id && payload.kind === 'session') {
         return { ok: true };
       }
     } catch {
@@ -210,7 +210,7 @@ sharedRouter.post(
 
     await c.env.KV.delete(failKey);
     const token = await sign(
-      { id: link.id, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 },
+      { id: link.id, kind: 'session', exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 },
       c.env.JWT_SECRET,
       'HS256',
     );

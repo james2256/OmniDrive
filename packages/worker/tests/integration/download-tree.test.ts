@@ -219,4 +219,61 @@ describe('buildDownloadTree (integration)', () => {
     });
     expect(result.files[0].size).toBe(0);
   });
+
+  it('sanitizes path traversal characters in file and folder names (Zip Slip)', async () => {
+    const drive = makeDriveService({
+      evil: {
+        files: [
+          file('f1', '../../escape.txt'),
+          file('f2', 'foo/bar.txt'),
+          file('f3', '.hidden'),
+          file('f4', 'normal.file.name'),
+        ],
+        folders: [folder('sub', '../../../tmp')],
+      },
+      sub: {
+        files: [file('f5', 'secret.txt')],
+        folders: [],
+      },
+    });
+    const result = await buildDownloadTree({
+      driveService: drive as never,
+      driveId: 'd1',
+      rootFolderId: 'evil',
+    });
+
+    // No path should contain ".." — traversal blocked
+    for (const f of result.files) {
+      expect(f.path).not.toContain('..');
+    }
+
+    // No path should contain raw "/" from file names (only from folder prefixes)
+    // File f2 "foo/bar.txt" should have "/" replaced with "_"
+    const f2 = result.files.find((f) => f.googleFileId === 'f2');
+    expect(f2).toBeDefined();
+    expect(f2!.path).toBe('foo_bar.txt');
+
+    // File f1 "../../escape.txt" should have all ".." replaced
+    const f1 = result.files.find((f) => f.googleFileId === 'f1');
+    expect(f1).toBeDefined();
+    expect(f1!.path).not.toContain('..');
+    expect(f1!.path).toContain('escape.txt');
+
+    // File f3 ".hidden" — single leading dot preserved (not a traversal)
+    const f3 = result.files.find((f) => f.googleFileId === 'f3');
+    expect(f3).toBeDefined();
+    expect(f3!.path).toBe('.hidden');
+
+    // File f4 "normal.file.name" — dots in middle preserved
+    const f4 = result.files.find((f) => f.googleFileId === 'f4');
+    expect(f4).toBeDefined();
+    expect(f4!.path).toBe('normal.file.name');
+
+    // Folder "../../../tmp" sanitized — child file reachable, no ".." in path
+    const f5 = result.files.find((f) => f.googleFileId === 'f5');
+    expect(f5).toBeDefined();
+    expect(f5!.path).not.toContain('..');
+    expect(f5!.path).toContain('tmp');
+    expect(f5!.path).toContain('secret.txt');
+  });
 });
