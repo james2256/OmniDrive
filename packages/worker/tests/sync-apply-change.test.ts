@@ -29,6 +29,9 @@ function makeCtx(overrides: Partial<ApplyChangeContext> = {}): ApplyChangeContex
       deleteDriveFolderStmt: vi.fn(() => makeStmt()),
       markDriveFolderTrashedStmt: vi.fn(() => makeStmt()),
     },
+    workspaceRepo: {
+      updateUsedBytesStmt: vi.fn(() => makeStmt()),
+    },
     ...overrides,
   } as unknown as ApplyChangeContext;
 }
@@ -87,6 +90,7 @@ describe('applyChange', () => {
       mimeType: 'application/pdf',
       isTrashed: false,
       ownedByMe: true,
+      workspaceId: 'ws-1',
     };
     const result = applyChange({ fileId: 'file-1', removed: true }, oldState, ctx);
 
@@ -95,7 +99,7 @@ describe('applyChange', () => {
     expect(result!.newState).toBeNull();
     // First unit: folder delete (no deltas)
     expect(result!.units[0]!.deltas).toHaveLength(0);
-    // Second unit: file delete (with negative delta for the old owned size)
+    // Second unit: file delete (with negative delta for the old owned size + workspace delta)
     expect(result!.units[1]!.deltas.length).toBeGreaterThan(0);
   });
 
@@ -135,6 +139,7 @@ describe('applyChange', () => {
       mimeType: 'application/pdf',
       isTrashed: false,
       ownedByMe: true,
+      workspaceId: 'ws-1',
     };
     const result = applyChange({ fileId: 'file-1', removed: false, file }, oldState, ctx);
 
@@ -146,6 +151,7 @@ describe('applyChange', () => {
       mimeType: 'application/pdf',
       isTrashed: true,
       ownedByMe: true,
+      workspaceId: 'ws-1',
     });
   });
 
@@ -182,6 +188,7 @@ describe('applyChange', () => {
       mimeType: 'application/pdf',
       isTrashed: false,
       ownedByMe: true,
+      workspaceId: null,
     });
   });
 

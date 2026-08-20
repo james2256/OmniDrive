@@ -117,15 +117,22 @@ export class PolicyService {
           continue;
         }
 
-        const stmts: D1PreparedStatement[] = [this.fileRepo.deleteByIdStmt(file.id)];
-        if (file.owned_by_me === 1) {
-          stmts.push(this.workspaceRepo.updateUsedBytesStmt(file.workspace_id, -file.size));
-          stmts.push(
-            this.fileRepo.applyStorageDeltaStmt(file.user_id, file.mime_type ?? '', -file.size),
-          );
+        // Conditional DELETE — prevents concurrent cycles from double-applying.
+        const deleteResult = await this.db.batch([this.fileRepo.deleteByIdIfActiveStmt(file.id)]);
+        deleted++; // Outside changes > 0 — counts iterations, protects subrequest budget
+        if (deleteResult[0]?.meta?.changes > 0 && file.owned_by_me === 1) {
+          try {
+            await this.db.batch([
+              this.workspaceRepo.updateUsedBytesStmt(file.workspace_id, -file.size),
+              this.fileRepo.applyStorageDeltaStmt(file.user_id, file.mime_type ?? '', -file.size),
+            ]);
+          } catch (err) {
+            logErrorNoCtx('Retention: DELETE succeeded but quota delta failed', err, {
+              fileId: file.id,
+              workspaceId: file.workspace_id,
+            });
+          }
         }
-        await this.db.batch(stmts);
-        deleted++;
       }
     }
   }

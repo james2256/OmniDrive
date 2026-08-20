@@ -1,15 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { request, ApiError } from './core';
-
-// Mock useAuthStore to verify clearAuth is called on 401 (without triggering
-// the real store's side effects).
-vi.mock('../../stores/useAuthStore', () => ({
-  useAuthStore: {
-    getState: vi.fn(() => ({
-      clearAuth: vi.fn(),
-    })),
-  },
-}));
+import { request, ApiError, setUnauthorizedHandler } from './core';
 
 // Mock window.location.href (jsdom doesn't allow setting it directly).
 const mockLocation = { href: '' };
@@ -25,6 +15,11 @@ describe('request — 401 interceptor', () => {
     originalFetch = globalThis.fetch;
     vi.clearAllMocks();
     mockLocation.href = '';
+    // Register a test handler that simulates the real app's 401 behavior
+    // (main.tsx registers the real one with useAuthStore.clearAuth + redirect).
+    setUnauthorizedHandler(() => {
+      mockLocation.href = '/login';
+    });
   });
 
   afterEach(() => {

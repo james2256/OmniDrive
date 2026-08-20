@@ -7,18 +7,21 @@ describe('computeStorageDelta', () => {
     mimeType: 'image/jpeg',
     isTrashed: false,
     ownedByMe: true,
+    workspaceId: null,
   };
   const trashed: FileStateForStats = {
     size: 100,
     mimeType: 'image/jpeg',
     isTrashed: true,
     ownedByMe: true,
+    workspaceId: null,
   };
   const activeVideo: FileStateForStats = {
     size: 500,
     mimeType: 'video/mp4',
     isTrashed: false,
     ownedByMe: true,
+    workspaceId: null,
   };
 
   // 1. Insert active (null → active)
@@ -52,6 +55,7 @@ describe('computeStorageDelta', () => {
       mimeType: 'image/jpeg',
       isTrashed: false,
       ownedByMe: true,
+      workspaceId: null,
     };
     const deltas = computeStorageDelta(active, bigger);
     expect(deltas).toEqual([{ mimeType: 'image/jpeg', delta: 100 }]);
@@ -97,7 +101,13 @@ describe('computeStorageDelta', () => {
   });
 
   it('null mime → uses empty string', () => {
-    const state: FileStateForStats = { size: 50, mimeType: '', isTrashed: false, ownedByMe: true };
+    const state: FileStateForStats = {
+      size: 50,
+      mimeType: '',
+      isTrashed: false,
+      ownedByMe: true,
+      workspaceId: null,
+    };
     const deltas = computeStorageDelta(null, state);
     expect(deltas).toEqual([{ mimeType: '', delta: 50 }]);
   });
@@ -108,6 +118,7 @@ describe('computeStorageDelta', () => {
       mimeType: 'text/plain',
       isTrashed: false,
       ownedByMe: true,
+      workspaceId: null,
     };
     const deltas = computeStorageDelta(null, zero);
     expect(deltas).toEqual([{ mimeType: 'text/plain', delta: 0 }]);

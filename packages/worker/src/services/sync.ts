@@ -11,6 +11,7 @@ import { DriveRepository } from '../repositories/drive.repository';
 import { FileRepository } from '../repositories/file.repository';
 import { FolderRepository } from '../repositories/folder.repository';
 import { SyncStateRepository } from '../repositories/sync-state.repository';
+import { WorkspaceRepository } from '../repositories/workspace.repository';
 import { batchUpsertUnitsWithCheckpoint, type BatchUnit } from '../lib/d1-batch';
 import { D1_MAX_BIND_VARIABLES } from '../lib/d1-constants';
 import { logErrorNoCtx, logNoCtx } from '../lib/logger';
@@ -186,6 +187,7 @@ export async function batchUpsertFolderContents(
       mimeType: file.mimeType ?? '',
       isTrashed: false,
       ownedByMe,
+      workspaceId: old?.workspaceId ?? null,
     };
     const deltaStmts = computeStorageDelta(old, next)
       .filter((d) => d.delta !== 0)
@@ -357,6 +359,7 @@ async function performInitialSync(
         mimeType: file.mimeType ?? '',
         isTrashed: false,
         ownedByMe,
+        workspaceId: old?.workspaceId ?? null,
       };
       const deltaStmts = computeStorageDelta(old, next)
         .filter((d) => d.delta !== 0)
@@ -402,6 +405,7 @@ export interface ApplyChangeContext {
   fileRepo: FileRepository;
   folderRepo: FolderRepository;
   driveRepo: DriveRepository;
+  workspaceRepo: WorkspaceRepository;
 }
 
 /** Return type: BatchUnits to commit + optional newState for oldStates update (C11 fix). */
@@ -429,7 +433,7 @@ export function applyChange(
   oldState: FileStateForStats | null,
   ctx: ApplyChangeContext,
 ): ApplyChangeResult | null {
-  const { drive, rootFolderId, fileRepo, folderRepo, driveRepo } = ctx;
+  const { drive, rootFolderId, fileRepo, folderRepo, driveRepo, workspaceRepo } = ctx;
 
   // ─── 1. Removed: deleted or access lost (unshared) → delete from D1 + delta ───
   if (change.removed) {
@@ -440,12 +444,17 @@ export function applyChange(
     const deltaStmts = computeStorageDelta(oldState, null)
       .filter((d) => d.delta !== 0)
       .map((d) => fileRepo.applyStorageDeltaStmt(drive.userId, d.mimeType, d.delta));
+    // Release workspace quota — permanent delete/unshare frees workspace storage.
+    const workspaceDeltaStmts =
+      oldState?.workspaceId && oldState?.ownedByMe && oldState.size > 0
+        ? [workspaceRepo.updateUsedBytesStmt(oldState.workspaceId, -oldState.size)]
+        : [];
     return {
       units: [
         { stmt: driveRepo.deleteDriveFolderStmt(drive.id, change.fileId), deltas: [] },
         {
           stmt: fileRepo.deleteByDriveAndGoogleIdStmt(drive.id, change.fileId),
-          deltas: deltaStmts,
+          deltas: [...deltaStmts, ...workspaceDeltaStmts],
         },
       ],
       newState: null,
@@ -475,15 +484,21 @@ export function applyChange(
       mimeType: file.mimeType ?? '',
       isTrashed: true,
       ownedByMe,
+      workspaceId: oldState?.workspaceId ?? null,
     };
     const deltaStmts = computeStorageDelta(oldState, newState)
       .filter((d) => d.delta !== 0)
       .map((d) => fileRepo.applyStorageDeltaStmt(drive.userId, d.mimeType, d.delta));
+    // Release workspace quota — trashing a file frees its workspace storage.
+    const workspaceDeltaStmts =
+      oldState?.workspaceId && oldState?.ownedByMe && oldState.size > 0
+        ? [workspaceRepo.updateUsedBytesStmt(oldState.workspaceId, -oldState.size)]
+        : [];
     return {
       units: [
         {
           stmt: fileRepo.markTrashedByDriveAndGoogleIdStmt(drive.id, change.fileId),
-          deltas: deltaStmts,
+          deltas: [...deltaStmts, ...workspaceDeltaStmts],
         },
       ],
       newState,
@@ -522,15 +537,29 @@ export function applyChange(
     mimeType: file.mimeType ?? '',
     isTrashed: false,
     ownedByMe,
+    workspaceId: oldState?.workspaceId ?? null,
   };
   const deltaStmts = computeStorageDelta(oldState, newState)
     .filter((d) => d.delta !== 0)
     .map((d) => fileRepo.applyStorageDeltaStmt(drive.userId, d.mimeType, d.delta));
+  // Re-reserve workspace quota on untrash (trashed→active transition).
+  // Matches file.service.ts restoreFile. Prevents the asymmetry where trash
+  // releases quota (-size) but untrash doesn't re-reserve (+size).
+  // Pre-existing gap: null→active (new file) and active→active (size change)
+  // don't fire workspace deltas — documented for follow-up.
+  const workspaceDeltaStmts =
+    oldState?.isTrashed &&
+    !newState.isTrashed &&
+    newState.workspaceId &&
+    newState.ownedByMe &&
+    newState.size > 0
+      ? [workspaceRepo.updateUsedBytesStmt(newState.workspaceId, newState.size)]
+      : [];
   return {
     units: [
       {
         stmt: fileRepo.buildUpsertStmt(drive, file, parentId, ownedByMe, ownerEmail),
-        deltas: deltaStmts,
+        deltas: [...deltaStmts, ...workspaceDeltaStmts],
       },
     ],
     newState,
@@ -589,7 +618,15 @@ async function performIncrementalSync(
     const oldStates = await fileRepo.findExistingForDelta(drive.id, fileIdsToLookup);
     internalCount += findExistingForDeltaSubrequestCount(fileIdsToLookup.length);
 
-    const ctx: ApplyChangeContext = { drive, rootFolderId, fileRepo, folderRepo, driveRepo };
+    const workspaceRepo = new WorkspaceRepository(db);
+    const ctx: ApplyChangeContext = {
+      drive,
+      rootFolderId,
+      fileRepo,
+      folderRepo,
+      driveRepo,
+      workspaceRepo,
+    };
 
     for (const change of response.changes) {
       if (getIsShuttingDown()) return currentToken;

@@ -4,6 +4,7 @@ import { logErrorNoCtx } from '../lib/logger';
 import { S3LifecycleRepository } from '../repositories/s3-lifecycle.repository';
 import { S3MultipartRepository } from '../repositories/s3-multipart.repository';
 import { FileRepository } from '../repositories/file.repository';
+import { WorkspaceRepository } from '../repositories/workspace.repository';
 import { escapeXml } from '../lib/s3-xml';
 
 export interface LifecycleRule {
@@ -58,6 +59,7 @@ export async function runLifecycleExpiration(env: Env): Promise<void> {
   const MAX_LIFECYCLE_EXPIRES_PER_CYCLE = 15;
   const s3LifecycleRepo = new S3LifecycleRepository(env.DB);
   const fileRepo = new FileRepository(env.DB);
+  const workspaceRepo = new WorkspaceRepository(env.DB);
 
   const { results: rules } = await s3LifecycleRepo.findEnabledRules();
 
@@ -79,16 +81,23 @@ export async function runLifecycleExpiration(env: Env): Promise<void> {
       if (expiredCount >= MAX_LIFECYCLE_EXPIRES_PER_CYCLE) break;
       try {
         await driveService.trashFile(file.drive_account_id, file.google_file_id);
-        // Atomic: mark trashed + apply storage delta in a single D1 batch.
-        // Gate delta on ownership — non-owned files don't count against quota.
-        const stmts: D1PreparedStatement[] = [fileRepo.markTrashedSystemStmt(file.id)];
-        if (file.owned_by_me === 1) {
-          stmts.push(
-            fileRepo.applyStorageDeltaStmt(file.user_id, file.mime_type ?? '', -file.size),
-          );
+        // Conditional mark-trashed — prevents concurrent cycles from double-applying.
+        const markResult = await env.DB.batch([fileRepo.markTrashedSystemIfActiveStmt(file.id)]);
+        expiredCount++; // Outside changes > 0 — counts iterations, protects subrequest budget
+        // Only apply deltas if the UPDATE actually changed a row.
+        if (markResult[0]?.meta?.changes > 0 && file.owned_by_me === 1) {
+          try {
+            await env.DB.batch([
+              fileRepo.applyStorageDeltaStmt(file.user_id, file.mime_type ?? '', -file.size),
+              workspaceRepo.updateUsedBytesStmt(rule.workspace_id, -file.size),
+            ]);
+          } catch (e) {
+            logErrorNoCtx('Lifecycle: mark-trashed succeeded but quota delta failed', e, {
+              fileId: file.id,
+              workspaceId: rule.workspace_id,
+            });
+          }
         }
-        await env.DB.batch(stmts);
-        expiredCount++;
       } catch (e) {
         // Best-effort: skip this file, keep processing the rest.
         logErrorNoCtx('Lifecycle expire failed for file', e, { fileId: file.id });

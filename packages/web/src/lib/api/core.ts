@@ -10,6 +10,19 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Callback registered at app startup (main.tsx) to handle 401 session expiry.
+ * Breaks the circular dependency: core.ts → useAuthStore → authApi → core.ts.
+ * Without this, core.ts would need to dynamically import useAuthStore, which
+ * triggers Rollup's INEFFECTIVE_DYNAMIC_IMPORT warning (useAuthStore is also
+ * statically imported by 5+ components, so it can't be split into a chunk).
+ */
+let unauthorizedHandler: (() => void) | null = null;
+
+export function setUnauthorizedHandler(fn: () => void): void {
+  unauthorizedHandler = fn;
+}
+
 export async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
@@ -23,18 +36,14 @@ export async function request<T>(path: string, options?: RequestInit): Promise<T
   if (!response.ok) {
     // Global 401 interceptor: redirect to /login on session expiry.
     // Skip shared-link endpoints (they use 401 for "wrong password", not
-    // session expiry) and auth endpoints (login/register — circular).
+    // session expiry) and auth endpoints (login/register).
     if (
       response.status === 401 &&
       !path.startsWith('/api/shared/') &&
       !path.startsWith('/api/auth/login') &&
       !path.startsWith('/api/auth/register')
     ) {
-      // Dynamic import avoids circular dependency: core.ts → useAuthStore → authApi → core.ts.
-      const { useAuthStore } = await import('../../stores/useAuthStore');
-      useAuthStore.getState().clearAuth();
-      window.location.href = '/login';
-      // Throw to stop the current request chain (the redirect is non-blocking).
+      unauthorizedHandler?.();
       throw new ApiError(401, 'Session expired');
     }
     const body = await response.json().catch(() => ({ error: 'Unknown error' }));

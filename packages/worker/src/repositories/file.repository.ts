@@ -2,6 +2,7 @@ import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types'
 import { generateId } from '../lib/id';
 import { batchInChunks } from '../lib/d1-batch';
 import { D1_MAX_BIND_VARIABLES, assertWithinD1Limit } from '../lib/d1-constants';
+import type { FileStateForStats } from '../lib/storage-stats';
 import type { FileRow } from '../types/db';
 import type { DriveAccount } from '../types/domain';
 import type { GDriveFile } from '../types/google';
@@ -185,13 +186,8 @@ export class FileRepository {
   async findExistingForDelta(
     driveAccountId: string,
     googleFileIds: string[],
-  ): Promise<
-    Map<string, { size: number; mimeType: string; isTrashed: boolean; ownedByMe: boolean }>
-  > {
-    const out = new Map<
-      string,
-      { size: number; mimeType: string; isTrashed: boolean; ownedByMe: boolean }
-    >();
+  ): Promise<Map<string, FileStateForStats>> {
+    const out = new Map<string, FileStateForStats>();
     if (googleFileIds.length === 0) return out;
 
     // 99 file IDs + 1 driveAccountId = 100 = D1's max bind variables per query
@@ -202,7 +198,7 @@ export class FileRepository {
       assertWithinD1Limit(1 + chunk.length, 'findExistingForDelta');
       const { results } = await this.db
         .prepare(
-          `SELECT google_file_id, size, mime_type, is_trashed, owned_by_me
+          `SELECT google_file_id, size, mime_type, is_trashed, owned_by_me, workspace_id
            FROM files WHERE drive_account_id = ? AND google_file_id IN (${placeholders})`,
         )
         .bind(driveAccountId, ...chunk)
@@ -212,6 +208,7 @@ export class FileRepository {
           mime_type: string | null;
           is_trashed: number;
           owned_by_me: number;
+          workspace_id: string | null;
         }>();
       for (const r of results) {
         out.set(r.google_file_id, {
@@ -219,6 +216,7 @@ export class FileRepository {
           mimeType: r.mime_type ?? '',
           isTrashed: r.is_trashed === 1,
           ownedByMe: r.owned_by_me === 1,
+          workspaceId: r.workspace_id ?? null,
         });
       }
     }
@@ -398,6 +396,19 @@ export class FileRepository {
       .bind(fileId);
   }
 
+  /**
+   * Conditional mark-trashed — only fires if the file is still non-trashed.
+   * Used by lifecycle retention cron to prevent concurrent cycles from
+   * double-applying deltas. Check meta.changes > 0 after batch.
+   */
+  markTrashedSystemIfActiveStmt(fileId: string): D1PreparedStatement {
+    return this.db
+      .prepare(
+        'UPDATE files SET is_trashed = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND is_trashed = 0',
+      )
+      .bind(fileId);
+  }
+
   markUntrashed(fileId: string, userId: string) {
     return this.db
       .prepare(
@@ -446,6 +457,15 @@ export class FileRepository {
    */
   deleteByIdStmt(fileId: string): D1PreparedStatement {
     return this.db.prepare('DELETE FROM files WHERE id = ?').bind(fileId);
+  }
+
+  /**
+   * Conditional DELETE — only fires if the file is still non-trashed.
+   * Used by retention cron to prevent concurrent cycles from double-applying deltas.
+   * Check meta.changes > 0 after batch.
+   */
+  deleteByIdIfActiveStmt(fileId: string): D1PreparedStatement {
+    return this.db.prepare('DELETE FROM files WHERE id = ? AND is_trashed = 0').bind(fileId);
   }
 
   /**

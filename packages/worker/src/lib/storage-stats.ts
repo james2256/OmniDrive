@@ -3,6 +3,7 @@ export interface FileStateForStats {
   mimeType: string; // caller COALESCEs NULL → ''
   isTrashed: boolean;
   ownedByMe: boolean;
+  workspaceId: string | null;
 }
 
 /**
