@@ -317,8 +317,8 @@ export class DriveService {
   // sites now use these; 3 remain (2 constructor injection + 1 utility
   // injection to buildDownloadTree), documented below.
 
-  async listFolderContents(driveId: string, folderId: string) {
-    return this.driveProvider.listFolderContents(driveId, folderId);
+  async listFolderContents(driveId: string, folderId: string, rootFolderId?: string | null) {
+    return this.driveProvider.listFolderContents(driveId, folderId, rootFolderId);
   }
 
   async getQuota(driveId: string) {

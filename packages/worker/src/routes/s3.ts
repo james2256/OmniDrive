@@ -91,6 +91,47 @@ function formatRfc1123Date(dateStr: string | null | undefined): string {
 }
 
 /**
+ * Error thrown when the Content-Length header is missing, non-numeric,
+ * negative, or exceeds the maximum allowed size. Carries the XML error code
+ * + message so the caller can return the appropriate S3 XML error response.
+ */
+class S3ContentLengthError extends Error {
+  constructor(
+    public readonly xmlCode: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'S3ContentLengthError';
+  }
+}
+
+/**
+ * Parse + validate the Content-Length header for S3 upload routes.
+ * Returns the validated length or throws S3ContentLengthError on invalid input.
+ * Guards against NaN (non-numeric header), negative values, and impossibly
+ * large uploads that would exceed D1's INTEGER range or Google Drive's limits.
+ *
+ * The 100GB cap catches obvious client bugs — a legitimate single-part PUT
+ * above 100GB is extremely rare (multipart upload is the correct path for
+ * large files).
+ */
+function parseContentLength(c: Context): number {
+  const raw = c.req.header('Content-Length') || '0';
+  const len = parseInt(raw, 10);
+  if (!Number.isFinite(len) || len < 0) {
+    throw new S3ContentLengthError(
+      'InvalidRequest',
+      'Content-Length must be a non-negative integer',
+    );
+  }
+  const MAX_PUT_SIZE = 100 * 1024 * 1024 * 1024; // 100 GB
+  if (len > MAX_PUT_SIZE) {
+    throw new S3ContentLengthError('InvalidRequest', 'Content-Length exceeds maximum (100 GB)');
+  }
+  return len;
+}
+
+/**
  * Select the best drive for an S3 upload using UploadRouter (most free space).
  * Shared by PutObject (known size) and InitiateMultipartUpload (size unknown → 0).
  * Throws ValidationError if no drives connected or insufficient quota.
@@ -665,7 +706,13 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
   const { workspace } = resolved;
   const userId = c.get('userId');
 
-  const contentLength = parseInt(c.req.header('Content-Length') || '0', 10);
+  let contentLength: number;
+  try {
+    contentLength = parseContentLength(c);
+  } catch (e) {
+    if (e instanceof S3ContentLengthError) return xmlError(c, e.xmlCode, e.message, 400);
+    throw e;
+  }
   const mimeType = c.req.header('Content-Type') || 'application/octet-stream';
 
   // 1. Select target Drive using UploadRouter (shared helper)
@@ -771,13 +818,14 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
       }
     }
   } catch (err) {
-    // Release the pre-reserved quota (compensating decrement)
+    // Release the pre-reserved quota in the background (non-blocking) so the
+    // error response returns immediately. The quota release is best-effort —
+    // if the Worker is killed before waitUntil completes, the quota may be
+    // slightly over-reserved until the next recomputeStorageStats run.
     if (quotaReserved) {
-      try {
-        await policyService.updateWorkspaceStorage(workspace.id, -contentLength);
-      } catch {
-        /* best-effort — quota may be slightly over-reserved */
-      }
+      c.executionCtx.waitUntil(
+        policyService.updateWorkspaceStorage(workspace.id, -contentLength).catch(() => {}),
+      );
     }
     const msg = (err as Error).message;
     if (msg === 'SignatureDoesNotMatch') {
@@ -904,7 +952,13 @@ async function handleUploadPart(
   const db = c.env.DB;
   const multipartRepo = new S3MultipartRepository(db);
 
-  const contentLength = parseInt(c.req.header('Content-Length') || '0', 10);
+  let contentLength: number;
+  try {
+    contentLength = parseContentLength(c);
+  } catch (e) {
+    if (e instanceof S3ContentLengthError) return xmlError(c, e.xmlCode, e.message, 400);
+    throw e;
+  }
   const bodyStream = c.req.raw.body;
   if (!bodyStream) return xmlError(c, 'MissingContentLength', 'Missing part body', 400);
 

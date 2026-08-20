@@ -293,47 +293,11 @@ export const s3AuthMiddleware: MiddlewareHandler<AppContext> = async (c, next) =
       return { valid, calculated: calculatedSignature, canonical: canonicalRequest, stringToSign };
     };
 
-    // Accept-Encoding permutation setup
-    const acceptEncodingValues = [c.req.header('accept-encoding') || ''];
-    if (signedHeadersList.includes('accept-encoding')) {
-      // Add common fallbacks that proxies might have appended to or modified
-      acceptEncodingValues.push('gzip');
-      acceptEncodingValues.push('gzip, deflate');
-      acceptEncodingValues.push('identity');
-      acceptEncodingValues.push('');
-    }
-
-    // Generate path candidates
-    const pathCandidates = [rawPath];
-    if (rawPath.startsWith('/s3')) {
-      let stripped = rawPath.slice(3);
-      if (!stripped.startsWith('/')) stripped = '/' + stripped;
-      pathCandidates.push(stripped);
-    } else {
-      pathCandidates.push('/s3' + rawPath);
-    }
-
-    let result = { valid: false, calculated: '', canonical: '', stringToSign: '' };
-
-    // Try all combinations of path candidates and accept-encoding overrides
-    outerLoop: for (const pathCandidate of pathCandidates) {
-      for (const aeVal of acceptEncodingValues) {
-        const overrides = signedHeadersList.includes('accept-encoding')
-          ? { 'accept-encoding': aeVal }
-          : ({} as Record<string, string>);
-
-        const testResult = checkSignatureForPath(pathCandidate, overrides);
-        if (testResult.valid) {
-          result = testResult;
-          break outerLoop;
-        } else {
-          // Keep the first result (or default) for error reporting if none matches
-          if (!result.calculated) {
-            result = testResult;
-          }
-        }
-      }
-    }
+    // Calculate the expected signature for the exact request path + headers
+    // the server received. No fallback permutations — SigV4 requires the
+    // signature to match the exact canonical request. Proxy-modified headers
+    // (e.g. Accept-Encoding) must be re-signed by the client.
+    const result = checkSignatureForPath(rawPath);
 
     if (!result.valid) {
       logError(c, 'S3 Signature Mismatch', undefined, {

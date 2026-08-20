@@ -222,7 +222,7 @@ export class AdminRepository {
   /** Find all invitation codes, most recent first. */
   findAllInvitations() {
     return this.db
-      .prepare('SELECT * FROM invitation_codes ORDER BY created_at DESC')
+      .prepare('SELECT * FROM invitation_codes ORDER BY created_at DESC LIMIT 1000')
       .all<InvitationCodeRow>();
   }
 

@@ -308,7 +308,7 @@ export class FileRepository {
   findStarred(userId: string) {
     return this.db
       .prepare(
-        'SELECT f.*, d.email as driveEmail FROM files f JOIN drive_accounts d ON f.drive_account_id = d.id WHERE f.user_id = ? AND f.is_starred = 1 AND f.is_trashed = 0 ORDER BY f.created_at DESC',
+        'SELECT f.*, d.email as driveEmail FROM files f JOIN drive_accounts d ON f.drive_account_id = d.id WHERE f.user_id = ? AND f.is_starred = 1 AND f.is_trashed = 0 ORDER BY f.created_at DESC LIMIT 1000',
       )
       .bind(userId)
       .all<Record<string, unknown>>();

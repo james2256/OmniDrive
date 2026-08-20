@@ -36,6 +36,14 @@ export class AuthRepository {
       .first<{ id: string }>();
   }
 
+  /** Find a user by ID (for post-insert read-back of atomically-set fields). */
+  findById(id: string) {
+    return this.db
+      .prepare('SELECT id, is_super_admin FROM users WHERE id = ?')
+      .bind(id)
+      .first<{ id: string; is_super_admin: number }>();
+  }
+
   /** Find a user by username with all auth fields (for login). */
   findByUsernameWithAuth(username: string) {
     return this.db
@@ -63,18 +71,17 @@ export class AuthRepository {
     name: string;
     isSuperAdmin: number;
   }) {
+    // Atomically determine is_super_admin at INSERT time — prevents the
+    // bootstrap race where two concurrent registrations both see isSetup=false
+    // (no users) and both get isSuperAdmin=1. The subquery evaluates inside
+    // the same statement, so only the first INSERT (when COUNT=0) sets
+    // is_super_admin=1; the second sees COUNT=1 and gets 0.
     return this.db
       .prepare(
-        'INSERT INTO users (id, username, password_hash, email, name, is_super_admin) VALUES (?, ?, ?, ?, ?, ?)',
+        `INSERT INTO users (id, username, password_hash, email, name, is_super_admin)
+         VALUES (?, ?, ?, ?, ?, CASE WHEN (SELECT COUNT(*) FROM users) = 0 THEN 1 ELSE 0 END)`,
       )
-      .bind(
-        params.id,
-        params.username,
-        params.passwordHash,
-        params.email,
-        params.name,
-        params.isSuperAdmin,
-      )
+      .bind(params.id, params.username, params.passwordHash, params.email, params.name)
       .run();
   }
 

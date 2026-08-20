@@ -79,7 +79,29 @@ app.onError((err, c) => {
 });
 
 // Rate limiters — applied before auth to protect login/register
-app.use('/api/auth/login', rateLimiter({ windowMs: 60_000, maxRequests: 10, useKV: true }));
+app.use(
+  '/api/auth/login',
+  rateLimiter({
+    windowMs: 60_000,
+    maxRequests: 10,
+    useKV: true,
+    // Per-(IP, email) key — a botnet from N IPs gets N×10 attempts/min total,
+    // but each IP is limited to 10 attempts per email. Without the email
+    // component, N IPs could each hammer a single account with 10 attempts.
+    keyFn: async (c: Context) => {
+      const ip = c.req.header('CF-Connecting-IP') ?? c.req.header('X-Real-IP') ?? 'unknown';
+      try {
+        // Hono buffers the body so c.req.json() can be called before the route
+        // handler reads it again. If the body is invalid, fall back to IP-only.
+        const body = await c.req.json().catch(() => null);
+        const email = (body?.email ?? body?.username ?? '').toString().toLowerCase();
+        return email ? `${ip}:${email}` : ip;
+      } catch {
+        return ip;
+      }
+    },
+  }),
+);
 app.use('/api/auth/register', rateLimiter({ windowMs: 600_000, maxRequests: 10, useKV: true }));
 app.use(
   '/api/shared/:id/verify',

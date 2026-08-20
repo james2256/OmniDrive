@@ -76,10 +76,17 @@ export class GoogleDriveService implements DriveProvider {
   private async driveFetch(
     url: string,
     init: RequestInit,
-    opts: { isSuccess?: (r: Response) => boolean; context?: string } = {},
+    opts: { isSuccess?: (r: Response) => boolean; context?: string; driveAccountId?: string } = {},
   ): Promise<Response> {
     try {
-      return await withBackoff(() => fetch(url, init), { isSuccess: opts.isSuccess });
+      const response = await withBackoff(() => fetch(url, init), { isSuccess: opts.isSuccess });
+      // Invalidate the in-memory token cache on 401 — the cached token is
+      // stale (revoked/invalid). Without this, every subsequent request
+      // reuses the stale token until its expiry, creating a 401 loop.
+      if (response.status === 401 && opts.driveAccountId) {
+        this.tokenCache.delete(opts.driveAccountId);
+      }
+      return response;
     } catch (error) {
       if (error instanceof UpstreamError && opts.context) {
         throw new UpstreamError(`${opts.context}: ${error.message}`);
@@ -217,7 +224,7 @@ export class GoogleDriveService implements DriveProvider {
           grant_type: 'refresh_token',
         }),
       },
-      { context: `Token refresh failed for ${driveAccountId}` },
+      { driveAccountId, context: `Token refresh failed for ${driveAccountId}` },
     );
 
     const data: { access_token: string; expires_in: number } = await response.json();
@@ -265,7 +272,7 @@ export class GoogleDriveService implements DriveProvider {
       {
         headers: { Authorization: `Bearer ${token}` },
       },
-      { context: 'Failed to fetch quota' },
+      { driveAccountId, context: 'Failed to fetch quota' },
     );
 
     const data: {
@@ -297,7 +304,7 @@ export class GoogleDriveService implements DriveProvider {
       {
         headers: { Authorization: `Bearer ${token}` },
       },
-      { context: 'Failed to get root folder ID' },
+      { driveAccountId, context: 'Failed to get root folder ID' },
     );
     const data: { id: string } = await response.json();
     return data.id;
@@ -324,7 +331,7 @@ export class GoogleDriveService implements DriveProvider {
         },
         body: JSON.stringify(metadata),
       },
-      { context: 'Failed to create folder' },
+      { driveAccountId, context: 'Failed to create folder' },
     );
 
     const folder: { id: string } = await response.json();
@@ -355,7 +362,7 @@ export class GoogleDriveService implements DriveProvider {
           parents: [parentFolderId],
         }),
       },
-      { context: 'Failed to initiate upload' },
+      { driveAccountId, context: 'Failed to initiate upload' },
     );
 
     const uploadUrl = response.headers.get('Location');
@@ -377,7 +384,7 @@ export class GoogleDriveService implements DriveProvider {
       {
         headers: { Authorization: `Bearer ${token}` },
       },
-      { context: 'Failed to get file' },
+      { driveAccountId, context: 'Failed to get file' },
     );
 
     return response.json();
@@ -392,7 +399,7 @@ export class GoogleDriveService implements DriveProvider {
     const response = await this.driveFetch(
       `${DRIVE_API}/files/${googleFileId}?fields=parents&supportsAllDrives=true`,
       { headers: { Authorization: `Bearer ${token}` } },
-      { context: 'Failed to get file parents' },
+      { driveAccountId, context: 'Failed to get file parents' },
     );
     const data = (await response.json()) as { parents?: string[] };
     return data.parents ?? [];
@@ -419,6 +426,7 @@ export class GoogleDriveService implements DriveProvider {
       `${DRIVE_API}/files/${googleFileId}?fields=${fields}&supportsAllDrives=true`,
       { headers: { Authorization: `Bearer ${token}` } },
       {
+        driveAccountId,
         isSuccess: (r) => r.ok || r.status === 404,
         context: 'Failed to get file with parents',
       },
@@ -474,7 +482,7 @@ export class GoogleDriveService implements DriveProvider {
       {
         headers: { Authorization: `Bearer ${token}` },
       },
-      { context: 'Failed to download file' },
+      { driveAccountId, context: 'Failed to download file' },
     );
 
     if (!response.body) {
@@ -497,7 +505,11 @@ export class GoogleDriveService implements DriveProvider {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       },
-      { isSuccess: (r) => r.ok || r.status === 404, context: 'Failed to delete file' },
+      {
+        driveAccountId,
+        isSuccess: (r) => r.ok || r.status === 404,
+        context: 'Failed to delete file',
+      },
     );
   }
 
@@ -514,7 +526,7 @@ export class GoogleDriveService implements DriveProvider {
         },
         body: JSON.stringify({ name: newName }),
       },
-      { context: 'Failed to rename file' },
+      { driveAccountId, context: 'Failed to rename file' },
     );
   }
 
@@ -539,7 +551,7 @@ export class GoogleDriveService implements DriveProvider {
         },
         body: JSON.stringify({ role, type, emailAddress }),
       },
-      { context: 'Failed to share file' },
+      { driveAccountId, context: 'Failed to share file' },
     );
 
     const data: { id: string } = await response.json();
@@ -555,7 +567,7 @@ export class GoogleDriveService implements DriveProvider {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       },
-      { context: 'Failed to revoke share' },
+      { driveAccountId, context: 'Failed to revoke share' },
     );
   }
 
@@ -570,7 +582,7 @@ export class GoogleDriveService implements DriveProvider {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(name ? { name } : {}),
       },
-      { context: 'Failed to copy file' },
+      { driveAccountId, context: 'Failed to copy file' },
     );
 
     return response.json();
@@ -597,7 +609,7 @@ export class GoogleDriveService implements DriveProvider {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` },
       },
-      { context: 'Failed to move item' },
+      { driveAccountId, context: 'Failed to move item' },
     );
   }
 
@@ -614,7 +626,7 @@ export class GoogleDriveService implements DriveProvider {
         },
         body: JSON.stringify({ trashed: true }),
       },
-      { context: 'Failed to trash file' },
+      { driveAccountId, context: 'Failed to trash file' },
     );
   }
 
@@ -631,7 +643,7 @@ export class GoogleDriveService implements DriveProvider {
         },
         body: JSON.stringify({ trashed: true }),
       },
-      { context: 'Failed to trash folder' },
+      { driveAccountId, context: 'Failed to trash folder' },
     );
   }
 
@@ -648,7 +660,7 @@ export class GoogleDriveService implements DriveProvider {
         },
         body: JSON.stringify({ trashed: false }),
       },
-      { context: 'Failed to untrash folder' },
+      { driveAccountId, context: 'Failed to untrash folder' },
     );
   }
 
@@ -665,7 +677,7 @@ export class GoogleDriveService implements DriveProvider {
         },
         body: JSON.stringify({ trashed: false }),
       },
-      { context: 'Failed to untrash file' },
+      { driveAccountId, context: 'Failed to untrash file' },
     );
   }
 
@@ -684,7 +696,7 @@ export class GoogleDriveService implements DriveProvider {
         },
         body: JSON.stringify({ starred: true }),
       },
-      { context: 'Failed to star file' },
+      { driveAccountId, context: 'Failed to star file' },
     );
   }
 
@@ -701,7 +713,7 @@ export class GoogleDriveService implements DriveProvider {
         },
         body: JSON.stringify({ starred: false }),
       },
-      { context: 'Failed to unstar file' },
+      { driveAccountId, context: 'Failed to unstar file' },
     );
   }
 
@@ -718,7 +730,7 @@ export class GoogleDriveService implements DriveProvider {
         },
         body: JSON.stringify({ starred: true }),
       },
-      { context: 'Failed to star folder' },
+      { driveAccountId, context: 'Failed to star folder' },
     );
   }
 
@@ -735,7 +747,7 @@ export class GoogleDriveService implements DriveProvider {
         },
         body: JSON.stringify({ starred: false }),
       },
-      { context: 'Failed to unstar folder' },
+      { driveAccountId, context: 'Failed to unstar folder' },
     );
   }
 
@@ -749,7 +761,7 @@ export class GoogleDriveService implements DriveProvider {
       {
         headers: { Authorization: `Bearer ${token}` },
       },
-      { context: 'Failed to get start page token' },
+      { driveAccountId, context: 'Failed to get start page token' },
     );
 
     const data: { startPageToken: string } = await response.json();
@@ -789,7 +801,7 @@ export class GoogleDriveService implements DriveProvider {
     const response = await this.driveFetch(
       `${DRIVE_API}/changes?pageToken=${encodeURIComponent(pageToken)}&fields=${fields}&spaces=drive&includeRemoved=true&supportsAllDrives=true&includeItemsFromAllDrives=true`,
       { headers: { Authorization: `Bearer ${token}` } },
-      { context: 'Failed to list changes' },
+      { driveAccountId, context: 'Failed to list changes' },
     );
 
     return response.json();
@@ -800,6 +812,7 @@ export class GoogleDriveService implements DriveProvider {
   async listFolderContents(
     driveAccountId: string,
     folderId: string,
+    rootFolderId?: string | null,
   ): Promise<{ files: GDriveFile[]; folders: GDriveFolder[] }> {
     const fields = LIST_FILES_FIELDS;
     const q = encodeURIComponent(`'${folderId}' in parents and trashed = false`);
@@ -808,15 +821,27 @@ export class GoogleDriveService implements DriveProvider {
     const allFolders: GDriveFolder[] = [];
     let pageToken: string | undefined;
 
+    // For service accounts (shared Drives), scope the query to the specific
+    // shared Drive via corpora=drive&driveId=<rootFolderId>. Without this,
+    // Google may search across all shared Drives the SA has access to,
+    // potentially returning files outside the intended shared Drive.
+    // rootFolderId is passed by the caller (who has the DriveAccount object).
+    const tokens = await this.loadTokens(driveAccountId);
+    const isServiceAccount = tokens.authType === 'service_account';
+    const saScope =
+      isServiceAccount && rootFolderId
+        ? `&corpora=drive&driveId=${encodeURIComponent(rootFolderId)}`
+        : '';
+
     do {
       const token = await this.getValidToken(driveAccountId);
-      const url = `${DRIVE_API}/files?q=${q}&fields=${fields}&supportsAllDrives=true&includeItemsFromAllDrives=true${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
+      const url = `${DRIVE_API}/files?q=${q}&fields=${fields}&supportsAllDrives=true&includeItemsFromAllDrives=true${saScope}${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
       const response = await this.driveFetch(
         url,
         {
           headers: { Authorization: `Bearer ${token}` },
         },
-        { context: 'Failed to list folder contents' },
+        { driveAccountId, context: 'Failed to list folder contents' },
       );
 
       const data: { files: GDriveFile[]; nextPageToken?: string } = await response.json();
@@ -857,7 +882,7 @@ export class GoogleDriveService implements DriveProvider {
         {
           headers: { Authorization: `Bearer ${token}` },
         },
-        { context: 'Failed to list folder contents' },
+        { driveAccountId, context: 'Failed to list folder contents' },
       );
 
       const data: { files: GDriveFile[]; nextPageToken?: string } = await response.json();

@@ -90,6 +90,7 @@ export interface DriveProvider {
   listFolderContents(
     driveAccountId: string,
     folderId: string,
+    rootFolderId?: string | null,
   ): Promise<{ files: GDriveFile[]; folders: GDriveFolder[] }>;
   iterateAllFilesAndFolders(
     driveAccountId: string,

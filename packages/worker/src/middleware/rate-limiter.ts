@@ -31,7 +31,12 @@ function cleanup(store: RateLimitStore, windowMs: number) {
 interface RateLimitOptions {
   windowMs: number;
   maxRequests: number;
-  keyFn?: (c: Context) => string;
+  /**
+   * Async-capable key function. When omitted, the key defaults to the client IP.
+   * Awaited by the middleware so callers can read the request body (e.g. the
+   * login email for per-(IP, email) rate limiting).
+   */
+  keyFn?: (c: Context) => string | Promise<string>;
   /**
    * When true, use Cloudflare KV for cross-isolate rate limiting instead of
    * the per-isolate in-memory Map. Adds ~50ms latency per request but ensures
@@ -52,7 +57,7 @@ export function rateLimiter(opts: RateLimitOptions) {
 
   return createMiddleware<AppContext>(async (c, next) => {
     const key = opts.keyFn
-      ? opts.keyFn(c)
+      ? await opts.keyFn(c)
       : (c.req.header('CF-Connecting-IP') ?? c.req.header('X-Real-IP') ?? 'unknown');
 
     const now = Date.now();

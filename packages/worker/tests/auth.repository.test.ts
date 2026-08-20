@@ -130,18 +130,19 @@ describe('AuthRepository', () => {
   // ─── users mutations ───
 
   describe('insertUser', () => {
-    it('INSERTs a user with all six fields in order', async () => {
+    it('INSERTs a user with 5 fields (is_super_admin set atomically by DB subquery)', async () => {
       await repo.insertUser({
         id: 'u-new',
         username: 'carol',
         passwordHash: '$2a$hash',
         email: 'c@d.com',
         name: 'Carol',
-        isSuperAdmin: 1,
+        isSuperAdmin: 1, // ignored — DB subquery (CASE WHEN COUNT=0) overrides
       });
 
       expect(mockPrepare).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO users'));
-      expect(mockBind).toHaveBeenCalledWith('u-new', 'carol', '$2a$hash', 'c@d.com', 'Carol', 1);
+      // Only 5 binds — is_super_admin is computed by the SQL subquery, not bound
+      expect(mockBind).toHaveBeenCalledWith('u-new', 'carol', '$2a$hash', 'c@d.com', 'Carol');
     });
 
     it('passes null email through unchanged (column accepts NULL)', async () => {
@@ -154,7 +155,7 @@ describe('AuthRepository', () => {
         isSuperAdmin: 0,
       });
 
-      expect(mockBind).toHaveBeenCalledWith('u-2', 'dave', '$2a$hash', null, 'Dave', 0);
+      expect(mockBind).toHaveBeenCalledWith('u-2', 'dave', '$2a$hash', null, 'Dave');
     });
   });
 

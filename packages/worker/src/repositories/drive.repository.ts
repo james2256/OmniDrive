@@ -736,7 +736,7 @@ export class DriveRepository {
   findStarredDriveFolders(userId: string) {
     return this.db
       .prepare(
-        'SELECT df.*, d.email as driveEmail FROM drive_folders df JOIN drive_accounts d ON df.drive_account_id = d.id WHERE d.user_id = ? AND df.is_starred = 1 AND df.is_trashed = 0 ORDER BY df.synced_at DESC',
+        'SELECT df.*, d.email as driveEmail FROM drive_folders df JOIN drive_accounts d ON df.drive_account_id = d.id WHERE d.user_id = ? AND df.is_starred = 1 AND df.is_trashed = 0 ORDER BY df.synced_at DESC LIMIT 1000',
       )
       .bind(userId)
       .all<Record<string, unknown>>();

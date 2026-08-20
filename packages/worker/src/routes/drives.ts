@@ -412,6 +412,7 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/sync', async (c) => {
     ({ files: gFiles, folders: gFolders } = await driveService.listFolderContents(
       driveId,
       effectiveFolderId,
+      drive.rootFolderId,
     ));
   } catch (e) {
     // Folder no longer accessible (unshared, deleted, or permission revoked).

@@ -482,14 +482,12 @@ sharedRouter.get('/:id/download-tree', async (c) => {
     rootFolderId: googleFolderId,
   });
 
-  // Enforce download limit
-  if (link.maxDownloads !== null && link.maxDownloads !== undefined) {
-    const newCount = await sharedService.incrementDownloadCountWithLimit(link.id);
-    if (newCount === null) return c.text('Maximum download limit reached', 403);
-  } else {
-    c.executionCtx.waitUntil(sharedService.incrementDownloadCount(link.id));
-  }
-  c.executionCtx.waitUntil(sharedService.logAction(link.id, 'download'));
+  // Do NOT increment the download count here — /download-tree returns a file
+  // listing, not an actual file download. The count is incremented on the
+  // per-file /download?fileId=... endpoint (which streams the file content).
+  // Counting the tree listing would consume a download slot before the user
+  // downloads any files.
+  c.executionCtx.waitUntil(sharedService.logAction(link.id, 'download-tree'));
 
   return c.json({ files, rootName, truncated });
 });

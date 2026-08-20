@@ -70,7 +70,7 @@ export class FolderRepository {
   findRootFoldersByWorkspace(workspaceId: string) {
     return this.db
       .prepare(
-        'SELECT * FROM workspace_folders WHERE workspace_id = ? AND parent_id IS NULL ORDER BY name ASC',
+        'SELECT * FROM workspace_folders WHERE workspace_id = ? AND parent_id IS NULL ORDER BY name ASC LIMIT 1000',
       )
       .bind(workspaceId)
       .all<WorkspaceFolderRow>();
@@ -79,7 +79,7 @@ export class FolderRepository {
   /** Find subfolders of a specific parent folder. */
   findSubfoldersByParent(parentId: string) {
     return this.db
-      .prepare('SELECT * FROM workspace_folders WHERE parent_id = ? ORDER BY name ASC')
+      .prepare('SELECT * FROM workspace_folders WHERE parent_id = ? ORDER BY name ASC LIMIT 1000')
       .bind(parentId)
       .all<WorkspaceFolderRow>();
   }
@@ -298,7 +298,7 @@ export class FolderRepository {
   findStarredFolders(userId: string) {
     return this.db
       .prepare(
-        'SELECT f.*, w.name as ws_name FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id JOIN workspaces w ON f.workspace_id = w.id WHERE wm.user_id = ? AND f.is_starred = 1 ORDER BY f.updated_at DESC',
+        'SELECT f.*, w.name as ws_name FROM workspace_folders f JOIN workspace_members wm ON f.workspace_id = wm.workspace_id JOIN workspaces w ON f.workspace_id = w.id WHERE wm.user_id = ? AND f.is_starred = 1 ORDER BY f.updated_at DESC LIMIT 1000',
       )
       .bind(userId)
       .all<Record<string, unknown>>();

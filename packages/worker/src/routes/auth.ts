@@ -64,7 +64,10 @@ authRouter.post('/register', zValidator('json', registerSchema, zodErrorHook), a
 
   const id = generateId();
   const passwordHash = await hashPassword(password);
-  const isSuperAdmin = isSetup ? 0 : 1;
+  // isSuperAdmin is determined atomically by the INSERT subquery (CASE WHEN
+  // COUNT(users)=0) — no longer passed from the route. This closes the
+  // bootstrap race where two concurrent registrations could both see
+  // isSetup=false and both pass isSuperAdmin=1.
 
   try {
     await authRepo.insertUser({
@@ -73,7 +76,7 @@ authRouter.post('/register', zValidator('json', registerSchema, zodErrorHook), a
       passwordHash,
       email: email || null,
       name: name || username,
-      isSuperAdmin,
+      isSuperAdmin: 0, // ignored — DB subquery overrides this value atomically
     });
   } catch (err) {
     // TOCTOU race: another request inserted the same username/email between
@@ -84,6 +87,11 @@ authRouter.post('/register', zValidator('json', registerSchema, zodErrorHook), a
     }
     throw err;
   }
+
+  // Read back the atomically-determined is_super_admin flag — the INSERT
+  // subquery set it, so we need to fetch it to build the session.
+  const insertedUser = await authRepo.findById(id);
+  const isSuperAdmin = insertedUser?.is_super_admin === 1;
 
   const now = Date.now();
   const sessionData: SessionData = {
@@ -107,7 +115,7 @@ authRouter.post('/register', zValidator('json', registerSchema, zodErrorHook), a
 
   setCookie(c, 'omnidrive_sid', sessionId, sessionCookieOptions(c.env));
 
-  return c.json({ user: sessionData, isSuperAdmin: !!isSuperAdmin });
+  return c.json({ user: sessionData, isSuperAdmin });
 });
 
 authRouter.post('/login', zValidator('json', loginSchema, zodErrorHook), async (c) => {
