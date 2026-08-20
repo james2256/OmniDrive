@@ -1,4 +1,4 @@
-import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types';
+import type { D1Database, D1PreparedStatement, D1Result } from '@cloudflare/workers-types';
 import { generateId } from '../lib/id';
 import { batchInChunks } from '../lib/d1-batch';
 import { D1_MAX_BIND_VARIABLES, assertWithinD1Limit } from '../lib/d1-constants';
@@ -158,6 +158,20 @@ export class FileRepository {
    * - Non-atomic sync writes (Worker killed mid-page)
    * - deleteDrive cascade (bypasses per-file deltas)
    *
+   * LEFT JOIN drive_folders excludes files whose DIRECT parent folder is
+   * trashed — without this, files under a trashed folder (whose own
+   * is_trashed=0 because the folder trash wasn't cascaded) would be
+   * counted toward quota. The `df.is_trashed IS NULL` branch handles
+   * root-level files (google_parent_id = 'root' or '__shared__' — no
+   * matching drive_folders row) so they're still counted.
+   *
+   * Limitation: only checks the DIRECT parent, not all ancestors. With
+   * cascadeFolderTrashUnits (A-06), trashing any ancestor marks all
+   * descendant files is_trashed=1 directly, so f.is_trashed=0 already
+   * excludes them. The LEFT JOIN is only needed for historical
+   * (pre-cascade) data — a one-time backfill migration would fully
+   * close this gap.
+   *
    * Atomic via db.batch() — DELETE + INSERT roll back together if either fails.
    */
   async recomputeStorageStats(userId: string): Promise<void> {
@@ -166,10 +180,16 @@ export class FileRepository {
       this.db
         .prepare(
           `INSERT INTO file_storage_stats (user_id, mime_type, total_size)
-         SELECT user_id, COALESCE(mime_type, ''), SUM(size)
-         FROM files
-         WHERE user_id = ? AND is_trashed = 0 AND owned_by_me = 1
-         GROUP BY user_id, COALESCE(mime_type, '')`,
+         SELECT f.user_id, COALESCE(f.mime_type, ''), SUM(f.size)
+         FROM files f
+         LEFT JOIN drive_folders df
+           ON df.drive_account_id = f.drive_account_id
+           AND df.google_folder_id = f.google_parent_id
+         WHERE f.user_id = ?
+           AND f.is_trashed = 0
+           AND f.owned_by_me = 1
+           AND (df.is_trashed = 0 OR df.is_trashed IS NULL)
+         GROUP BY f.user_id, COALESCE(f.mime_type, '')`,
         )
         .bind(userId),
     ]);
@@ -519,6 +539,191 @@ export class FileRepository {
     return this.db
       .prepare('UPDATE files SET is_trashed = 1 WHERE drive_account_id = ? AND google_file_id = ?')
       .bind(driveAccountId, googleFileId);
+  }
+
+  /**
+   * Find all NON-trashed child files under a folder (recursively, including
+   * all descendant subfolders). Used by cascadeFolderTrashUnits to build
+   * negative storage deltas + workspace quota release when a folder is trashed.
+   *
+   * The recursive CTE traverses ALL descendant folders (no is_trashed=0
+   * filter on the CTE itself) so previously-trashed subfolders' non-cascaded
+   * children are found — this fixes the historical data gap where a
+   * subfolder was trashed but its children were never cascaded.
+   *
+   * The outer query filters `files.is_trashed = 0` so already-trashed
+   * children are skipped (no double-cascade / double-delta).
+   *
+   * LIMIT 1000 on the CTE caps depth as defense-in-depth against cycles
+   * (Google Drive is a tree, but SQLite has no default depth limit).
+   *
+   * Uses the subquery CTE form (CTE inside IN (...)) to match the
+   * codebase convention for DML+recursive-CTE (folder.repository.ts:168).
+   *
+   * Pattern mirrors markTrashedByDriveAndParentFolderStmt's CTE shape.
+   */
+  findChildFilesForTrashCascade(
+    driveAccountId: string,
+    googleFolderId: string,
+  ): Promise<
+    D1Result<{
+      google_file_id: string;
+      size: number;
+      mime_type: string | null;
+      owned_by_me: number;
+      workspace_id: string | null;
+      user_id: string;
+    }>
+  > {
+    return this.db
+      .prepare(
+        `SELECT google_file_id, size, mime_type, owned_by_me, workspace_id, user_id
+         FROM files
+         WHERE drive_account_id = ?
+           AND is_trashed = 0
+           AND google_parent_id IN (
+             WITH RECURSIVE descendant_folders(google_folder_id) AS (
+               SELECT google_folder_id FROM drive_folders
+                 WHERE drive_account_id = ? AND google_folder_id = ?
+               UNION ALL
+               SELECT df.google_folder_id FROM drive_folders df
+                 JOIN descendant_folders d ON df.drive_account_id = ?
+                   AND df.google_parent_id = d.google_folder_id
+               LIMIT 1000
+             )
+             SELECT google_folder_id FROM descendant_folders
+           )`,
+      )
+      .bind(driveAccountId, driveAccountId, googleFolderId, driveAccountId)
+      .all<{
+        google_file_id: string;
+        size: number;
+        mime_type: string | null;
+        owned_by_me: number;
+        workspace_id: string | null;
+        user_id: string;
+      }>();
+  }
+
+  /**
+   * Find all TRASHED child files under a folder (recursively). Used by
+   * cascadeFolderRestoreUnits to build positive storage deltas + workspace
+   * quota re-reserve when a folder is restored.
+   *
+   * Mirrors findChildFilesForTrashCascade but filters `is_trashed = 1`
+   * (restores only trashed children, no double-restore).
+   */
+  findTrashedChildFilesForRestoreCascade(
+    driveAccountId: string,
+    googleFolderId: string,
+  ): Promise<
+    D1Result<{
+      google_file_id: string;
+      size: number;
+      mime_type: string | null;
+      owned_by_me: number;
+      workspace_id: string | null;
+      user_id: string;
+    }>
+  > {
+    return this.db
+      .prepare(
+        `SELECT google_file_id, size, mime_type, owned_by_me, workspace_id, user_id
+         FROM files
+         WHERE drive_account_id = ?
+           AND is_trashed = 1
+           AND google_parent_id IN (
+             WITH RECURSIVE descendant_folders(google_folder_id) AS (
+               SELECT google_folder_id FROM drive_folders
+                 WHERE drive_account_id = ? AND google_folder_id = ?
+               UNION ALL
+               SELECT df.google_folder_id FROM drive_folders df
+                 JOIN descendant_folders d ON df.drive_account_id = ?
+                   AND df.google_parent_id = d.google_folder_id
+               LIMIT 1000
+             )
+             SELECT google_folder_id FROM descendant_folders
+           )`,
+      )
+      .bind(driveAccountId, driveAccountId, googleFolderId, driveAccountId)
+      .all<{
+        google_file_id: string;
+        size: number;
+        mime_type: string | null;
+        owned_by_me: number;
+        workspace_id: string | null;
+        user_id: string;
+      }>();
+  }
+
+  /**
+   * Return a prepared "mark all child files trashed" statement (not run),
+   * for batch composition. Recursively marks all descendant files under
+   * a folder as trashed via a recursive CTE. Used by cascadeFolderTrashUnits
+   * to atomically cascade folder-trash to all children.
+   *
+   * Filters `is_trashed = 0` so already-trashed files are skipped (idempotent
+   * — re-trashing an already-trashed folder is a no-op on children).
+   *
+   * Uses the subquery CTE form (CTE inside IN (...)) to match the codebase
+   * convention for DML+recursive-CTE (folder.repository.ts:168).
+   */
+  markTrashedByDriveAndParentFolderStmt(
+    driveAccountId: string,
+    googleFolderId: string,
+  ): D1PreparedStatement {
+    return this.db
+      .prepare(
+        `UPDATE files SET is_trashed = 1, updated_at = CURRENT_TIMESTAMP
+         WHERE drive_account_id = ?
+           AND is_trashed = 0
+           AND google_parent_id IN (
+             WITH RECURSIVE descendant_folders(google_folder_id) AS (
+               SELECT google_folder_id FROM drive_folders
+                 WHERE drive_account_id = ? AND google_folder_id = ?
+               UNION ALL
+               SELECT df.google_folder_id FROM drive_folders df
+                 JOIN descendant_folders d ON df.drive_account_id = ?
+                   AND df.google_parent_id = d.google_folder_id
+               LIMIT 1000
+             )
+             SELECT google_folder_id FROM descendant_folders
+           )`,
+      )
+      .bind(driveAccountId, driveAccountId, googleFolderId, driveAccountId);
+  }
+
+  /**
+   * Return a prepared "mark all child files untrashed" statement (not run),
+   * for batch composition. Recursively marks all descendant files under
+   * a folder as untrashed. Used by cascadeFolderRestoreUnits to atomically
+   * cascade folder-restore to all children.
+   *
+   * Filters `is_trashed = 1` so already-active files are skipped (idempotent).
+   */
+  markUntrashedByDriveAndParentFolderStmt(
+    driveAccountId: string,
+    googleFolderId: string,
+  ): D1PreparedStatement {
+    return this.db
+      .prepare(
+        `UPDATE files SET is_trashed = 0, updated_at = CURRENT_TIMESTAMP
+         WHERE drive_account_id = ?
+           AND is_trashed = 1
+           AND google_parent_id IN (
+             WITH RECURSIVE descendant_folders(google_folder_id) AS (
+               SELECT google_folder_id FROM drive_folders
+                 WHERE drive_account_id = ? AND google_folder_id = ?
+               UNION ALL
+               SELECT df.google_folder_id FROM drive_folders df
+                 JOIN descendant_folders d ON df.drive_account_id = ?
+                   AND df.google_parent_id = d.google_folder_id
+               LIMIT 1000
+             )
+             SELECT google_folder_id FROM descendant_folders
+           )`,
+      )
+      .bind(driveAccountId, driveAccountId, googleFolderId, driveAccountId);
   }
 
   updateMetadata(fileId: string, metadata: string) {

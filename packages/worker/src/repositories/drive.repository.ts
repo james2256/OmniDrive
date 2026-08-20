@@ -494,6 +494,47 @@ export class DriveRepository {
       .run();
   }
 
+  /**
+   * Batch-lookup existing drive_folders state (is_trashed) for a set of
+   * Google folder IDs. Used by the incremental sync loop to detect
+   * trashed→active transitions (folder untrash) so cascadeFolderRestoreUnits
+   * only fires when the folder was actually trashed in D1 — avoids N+1
+   * cascade queries on every active-folder metadata change (rename, move,
+   * star — all have trashed=false).
+   *
+   * Mirrors FileRepository.findExistingForDelta's chunking pattern
+   * (99 IDs + 1 driveAccountId per query = D1's 100-bind limit).
+   *
+   * Returns Map<googleFolderId, { isTrashed }>. Folders not in D1 are absent
+   * from the map (caller treats absent as "new folder" → no restore cascade).
+   */
+  async findExistingFolderStates(
+    driveAccountId: string,
+    googleFolderIds: string[],
+  ): Promise<Map<string, { isTrashed: boolean }>> {
+    const out = new Map<string, { isTrashed: boolean }>();
+    if (googleFolderIds.length === 0) return out;
+
+    const CHUNK = D1_MAX_BIND_VARIABLES - 1;
+    for (let i = 0; i < googleFolderIds.length; i += CHUNK) {
+      const chunk = googleFolderIds.slice(i, i + CHUNK);
+      const placeholders = chunk.map(() => '?').join(',');
+      assertWithinD1Limit(1 + chunk.length, 'findExistingFolderStates');
+      const { results } = await this.db
+        .prepare(
+          `SELECT google_folder_id, is_trashed
+           FROM drive_folders
+           WHERE drive_account_id = ? AND google_folder_id IN (${placeholders})`,
+        )
+        .bind(driveAccountId, ...chunk)
+        .all<{ google_folder_id: string; is_trashed: number }>();
+      for (const r of results) {
+        out.set(r.google_folder_id, { isTrashed: r.is_trashed === 1 });
+      }
+    }
+    return out;
+  }
+
   starDriveFolder(driveId: string, googleFolderId: string) {
     return this.db
       .prepare(

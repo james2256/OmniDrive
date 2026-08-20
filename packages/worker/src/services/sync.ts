@@ -1,5 +1,5 @@
-import { NotFoundError } from '../lib/errors';
-import type { D1Database } from '@cloudflare/workers-types';
+import { NotFoundError, ConflictError } from '../lib/errors';
+import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types';
 import type { DriveAccount } from '../types/domain';
 import { mapDriveRow } from '../types/db';
 import type { GDriveFile, GDriveFolder, GDriveOwner } from '../types/google';
@@ -137,6 +137,12 @@ function resolveOwnership(
  * the same db.batch() chunk, matching performInitialSync's atomicity
  * guarantee. No checkpoint — this is a single user-initiated load, not a
  * paginated sync, so there is no cursor to advance.
+ *
+ * Acquires the sync lock to prevent concurrent sync + drill-in from
+ * double-counting storage deltas (A-08). If a sync is running, throws
+ * ConflictError(409) — the caller (drives route) surfaces it to the user.
+ * The lock is released in `finally` via setIdle (matching disconnectDrive's
+ * pattern at drive.service.ts:273).
  */
 export async function batchUpsertFolderContents(
   db: D1Database,
@@ -145,62 +151,74 @@ export async function batchUpsertFolderContents(
   files: GDriveFile[],
   googleParentId: string,
 ): Promise<void> {
-  const fileRepo = new FileRepository(db);
-  const folderRepo = new FolderRepository(db);
+  const syncStateRepo = new SyncStateRepository(db);
+  const lockAcquired = await syncStateRepo.acquireLock(drive.id);
+  if (!lockAcquired) {
+    throw new ConflictError('Sync in progress. Try again in a moment.');
+  }
+  try {
+    const fileRepo = new FileRepository(db);
+    const folderRepo = new FolderRepository(db);
 
-  // Store ALL files (owned + non-owned). resolveParentId maps the correct
-  // location. owned_by_me is set per-file so queries can distinguish.
-  const allFileIds = [...files.map((f) => f.id), ...folders.map((f) => f.id)];
-  const oldStates = await fileRepo.findExistingForDelta(drive.id, allFileIds);
+    // Store ALL files (owned + non-owned). resolveParentId maps the correct
+    // location. owned_by_me is set per-file so queries can distinguish.
+    const allFileIds = [...files.map((f) => f.id), ...folders.map((f) => f.id)];
+    const oldStates = await fileRepo.findExistingForDelta(drive.id, allFileIds);
 
-  const units: BatchUnit[] = [];
+    const units: BatchUnit[] = [];
 
-  // Folder UPSERTs — no storage delta (folders don't count toward quota).
-  for (const folder of folders) {
-    const { ownedByMe, ownerEmail } = resolveOwnership(
-      folder.owners,
-      drive.type === 'service_account',
-    );
-    units.push({
-      stmt: folderRepo.buildDriveFolderUpsertStmt(
-        drive,
-        folder,
-        googleParentId,
+    // Folder UPSERTs — no storage delta (folders don't count toward quota).
+    for (const folder of folders) {
+      const { ownedByMe, ownerEmail } = resolveOwnership(
+        folder.owners,
+        drive.type === 'service_account',
+      );
+      units.push({
+        stmt: folderRepo.buildDriveFolderUpsertStmt(
+          drive,
+          folder,
+          googleParentId,
+          ownedByMe,
+          ownerEmail,
+        ),
+        deltas: [],
+      });
+    }
+
+    // File UPSERTs + storage deltas — each file's UPSERT and its deltas are
+    // grouped in the same BatchUnit so they commit atomically in the same
+    // db.batch() chunk. resolveOwnership is called once per file.
+    for (const file of files) {
+      const { ownedByMe, ownerEmail } = resolveOwnership(
+        file.owners,
+        drive.type === 'service_account',
+      );
+      const old = oldStates.get(file.id) ?? null;
+      const next: FileStateForStats = {
+        size: parseInt(file.size ?? '0', 10),
+        mimeType: file.mimeType ?? '',
+        isTrashed: false,
         ownedByMe,
-        ownerEmail,
-      ),
-      deltas: [],
-    });
-  }
+        workspaceId: old?.workspaceId ?? null,
+      };
+      const deltaStmts = computeStorageDelta(old, next)
+        .filter((d) => d.delta !== 0)
+        .map((d) => fileRepo.applyStorageDeltaStmt(drive.userId, d.mimeType, d.delta));
+      units.push({
+        stmt: fileRepo.buildUpsertStmt(drive, file, googleParentId, ownedByMe, ownerEmail),
+        deltas: deltaStmts,
+      });
+    }
 
-  // File UPSERTs + storage deltas — each file's UPSERT and its deltas are
-  // grouped in the same BatchUnit so they commit atomically in the same
-  // db.batch() chunk. resolveOwnership is called once per file.
-  for (const file of files) {
-    const { ownedByMe, ownerEmail } = resolveOwnership(
-      file.owners,
-      drive.type === 'service_account',
-    );
-    const old = oldStates.get(file.id) ?? null;
-    const next: FileStateForStats = {
-      size: parseInt(file.size ?? '0', 10),
-      mimeType: file.mimeType ?? '',
-      isTrashed: false,
-      ownedByMe,
-      workspaceId: old?.workspaceId ?? null,
-    };
-    const deltaStmts = computeStorageDelta(old, next)
-      .filter((d) => d.delta !== 0)
-      .map((d) => fileRepo.applyStorageDeltaStmt(drive.userId, d.mimeType, d.delta));
-    units.push({
-      stmt: fileRepo.buildUpsertStmt(drive, file, googleParentId, ownedByMe, ownerEmail),
-      deltas: deltaStmts,
-    });
+    // Atomic batch: UPSERTs + deltas in a single db.batch() per chunk.
+    // No checkpoint (lazy load is single-shot, not paginated).
+    await batchUpsertUnitsWithCheckpoint(db, units, null);
+  } finally {
+    // Release the lock if the body threw (sync can still proceed later).
+    // .catch(() => {}) prevents masking the original error if setIdle
+    // itself fails on a transient D1 error — matches drive.service.ts:273.
+    await syncStateRepo.setIdle(drive.id).catch(() => {});
   }
-
-  // Atomic batch: UPSERTs + deltas in a single db.batch() per chunk.
-  // No checkpoint (lazy load is single-shot, not paginated).
-  await batchUpsertUnitsWithCheckpoint(db, units, null);
 }
 
 /**
@@ -566,6 +584,95 @@ export function applyChange(
   };
 }
 
+/**
+ * Build BatchUnits to cascade folder-trash to all child files (A-06).
+ *
+ * Reads all non-trashed child files under the folder (recursively, via
+ * findChildFilesForTrashCascade), then builds:
+ *   1. A single markTrashedByDriveAndParentFolderStmt — recursive CTE UPDATE
+ *      that marks all descendant files is_trashed=1 atomically.
+ *   2. Per-child storage deltas (negative — files leave the active set)
+ *      for owned files.
+ *   3. Per-child workspace quota release (-size) for owned files in a workspace.
+ *
+ * Returns [] if the folder has no non-trashed children (idempotent —
+ * re-trashing an already-trashed folder is a no-op).
+ *
+ * The mark + deltas are grouped in a single BatchUnit so they commit
+ * atomically in the same db.batch() chunk.
+ */
+export async function cascadeFolderTrashUnits(
+  db: D1Database,
+  driveAccountId: string,
+  googleFolderId: string,
+  workspaceRepo: WorkspaceRepository,
+): Promise<BatchUnit[]> {
+  const fileRepo = new FileRepository(db);
+  const { results: children } = await fileRepo.findChildFilesForTrashCascade(
+    driveAccountId,
+    googleFolderId,
+  );
+  if (children.length === 0) return [];
+
+  const markStmt = fileRepo.markTrashedByDriveAndParentFolderStmt(driveAccountId, googleFolderId);
+  const deltaStmts: D1PreparedStatement[] = [];
+  for (const child of children) {
+    // Only owned files contribute to user + workspace quota. Non-owned files
+    // are stored for visibility but don't count toward this user's storage.
+    if (child.owned_by_me === 1) {
+      deltaStmts.push(
+        fileRepo.applyStorageDeltaStmt(child.user_id, child.mime_type ?? '', -child.size),
+      );
+      if (child.workspace_id && child.size > 0) {
+        deltaStmts.push(workspaceRepo.updateUsedBytesStmt(child.workspace_id, -child.size));
+      }
+    }
+  }
+  return [{ stmt: markStmt, deltas: deltaStmts }];
+}
+
+/**
+ * Build BatchUnits to cascade folder-restore to all child files (A-06).
+ *
+ * Mirrors cascadeFolderTrashUnits but reads TRASHED children and builds
+ * positive deltas (+size) + workspace quota re-reserve.
+ *
+ * Returns [] if the folder has no trashed children.
+ *
+ * Note: this restores ALL trashed children under the folder, including
+ * those individually trashed by the user (not just those cascaded on
+ * trash). This matches Google Drive semantics — restoring a folder
+ * restores all its contents. This is a behavioral change from the
+ * pre-cascade behavior, where folder restore had no effect on children.
+ */
+export async function cascadeFolderRestoreUnits(
+  db: D1Database,
+  driveAccountId: string,
+  googleFolderId: string,
+  workspaceRepo: WorkspaceRepository,
+): Promise<BatchUnit[]> {
+  const fileRepo = new FileRepository(db);
+  const { results: children } = await fileRepo.findTrashedChildFilesForRestoreCascade(
+    driveAccountId,
+    googleFolderId,
+  );
+  if (children.length === 0) return [];
+
+  const markStmt = fileRepo.markUntrashedByDriveAndParentFolderStmt(driveAccountId, googleFolderId);
+  const deltaStmts: D1PreparedStatement[] = [];
+  for (const child of children) {
+    if (child.owned_by_me === 1) {
+      deltaStmts.push(
+        fileRepo.applyStorageDeltaStmt(child.user_id, child.mime_type ?? '', child.size),
+      );
+      if (child.workspace_id && child.size > 0) {
+        deltaStmts.push(workspaceRepo.updateUsedBytesStmt(child.workspace_id, child.size));
+      }
+    }
+  }
+  return [{ stmt: markStmt, deltas: deltaStmts }];
+}
+
 async function performIncrementalSync(
   drive: DriveAccount,
   db: D1Database,
@@ -618,6 +725,18 @@ async function performIncrementalSync(
     const oldStates = await fileRepo.findExistingForDelta(drive.id, fileIdsToLookup);
     internalCount += findExistingForDeltaSubrequestCount(fileIdsToLookup.length);
 
+    // Read existing folder states (is_trashed) for cascade-restore gating.
+    // Only folders that are NOT removed and NOT trashed in the change can be
+    // untrash candidates — we look up their prior D1 state to detect the
+    // trashed→active transition. Without this, cascadeFolderRestoreUnits would
+    // fire on every active-folder change (rename, move, star — all have
+    // trashed=false), causing N+1 recursive CTE queries per sync page.
+    const folderIdsToLookup = response.changes
+      .filter((c) => c.file?.mimeType === MIME_TYPE_FOLDER && !c.removed)
+      .map((c) => c.fileId);
+    const oldFolderStates = await driveRepo.findExistingFolderStates(drive.id, folderIdsToLookup);
+    internalCount += findExistingForDeltaSubrequestCount(folderIdsToLookup.length);
+
     const workspaceRepo = new WorkspaceRepository(db);
     const ctx: ApplyChangeContext = {
       drive,
@@ -639,6 +758,41 @@ async function performIncrementalSync(
         // compute deltas against the fresh state (not the stale pre-page state).
         if (result.newState) {
           oldStates.set(change.fileId, result.newState);
+        }
+
+        // A-06: cascade folder trash to child files. Fires when the change
+        // marks a folder as trashed (file.trashed=true, not removed).
+        // findChildFilesForTrashCascade filters is_trashed=0 so re-trashing
+        // an already-trashed folder is a no-op (returns []).
+        if (change.file?.mimeType === MIME_TYPE_FOLDER && change.file?.trashed && !change.removed) {
+          const cascadeUnits = await cascadeFolderTrashUnits(
+            db,
+            drive.id,
+            change.fileId,
+            workspaceRepo,
+          );
+          units.push(...cascadeUnits);
+          internalCount += 1; // findChildFilesForTrashCascade D1 read
+        }
+
+        // A-06: cascade folder restore to child files. ONLY fires on the
+        // trashed→active transition — oldFolderStates gating prevents N+1
+        // queries on folder metadata changes (rename, move, star). A folder
+        // not in D1 (new) or already active (isTrashed=false) is skipped.
+        if (
+          change.file?.mimeType === MIME_TYPE_FOLDER &&
+          !change.file?.trashed &&
+          !change.removed &&
+          oldFolderStates.get(change.fileId)?.isTrashed === true
+        ) {
+          const cascadeUnits = await cascadeFolderRestoreUnits(
+            db,
+            drive.id,
+            change.fileId,
+            workspaceRepo,
+          );
+          units.push(...cascadeUnits);
+          internalCount += 1; // findTrashedChildFilesForRestoreCascade D1 read
         }
       }
     }

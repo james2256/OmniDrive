@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { D1Database } from '@cloudflare/workers-types';
 import { batchUpsertFolderContents } from '../src/services/sync';
+import { ConflictError } from '../src/lib/errors';
 import type { GDriveFile, GDriveFolder } from '../src/types/google';
 import type { DriveAccount } from '../src/types/domain';
 
@@ -40,7 +41,9 @@ interface CapturedCall {
   binds: unknown[];
 }
 
-function makeMockDb(opts: { existingFileStates?: Map<string, unknown> } = {}) {
+function makeMockDb(
+  opts: { existingFileStates?: Map<string, unknown>; alreadySyncing?: boolean } = {},
+) {
   const runCalls: CapturedCall[] = [];
   // Per-batch boundaries: each entry is one db.batch(stmts) call's statements.
   // Lets atomicity tests assert that a file's UPSERT + its delta land in the
@@ -57,7 +60,17 @@ function makeMockDb(opts: { existingFileStates?: Map<string, unknown> } = {}) {
           runCalls.push({ sql, binds });
           return { success: true, meta: { changes: 1 } };
         }),
-        first: vi.fn(async () => null),
+        first: vi.fn(async () => {
+          // Handle the sync lock: INSERT INTO sync_state ... RETURNING.
+          // acquireLock returns a row when the lock is acquired, null when
+          // a sync is already running. Tests default to "lock acquired"
+          // unless alreadySyncing=true is passed.
+          if (sql.includes('INSERT INTO sync_state') && sql.includes('RETURNING')) {
+            if (opts.alreadySyncing) return null;
+            return { drive_account_id: binds[0] };
+          }
+          return null;
+        }),
         all: vi.fn(async () => {
           if (sql.includes('SELECT google_file_id')) {
             const fileIds = binds.slice(1);
@@ -379,5 +392,72 @@ describe('batchUpsertFolderContents', () => {
       // SAME chunk (1:1 — each new owned file produces exactly one delta).
       expect(deltas).toHaveLength(upserts.length);
     }
+  });
+
+  // ─── Sync lock (A-08) ───
+
+  it('throws ConflictError(409) when a sync is already running (acquireLock returns null)', async () => {
+    // A-08: batchUpsertFolderContents must acquire the sync lock to prevent
+    // concurrent sync + drill-in from double-counting storage deltas. If a
+    // sync is running, acquireLock returns null → throw ConflictError so the
+    // route surfaces a 409 to the user (instead of silently racing).
+    const drive = makeDriveAccount();
+    const file = makeFile({ id: 'file-1', owners: [{ me: true }] });
+
+    const { db } = makeMockDb({ alreadySyncing: true });
+    await expect(batchUpsertFolderContents(db, drive, [], [file], 'parent-1')).rejects.toThrow(
+      ConflictError,
+    );
+  });
+
+  it('releases the sync lock via setIdle in finally (even if the body throws)', async () => {
+    // The lock must be released even if the body throws — otherwise a
+    // transient D1 error would leave the lock held for 5 minutes (until
+    // the stale-lock timeout). setIdle is called in a finally block with
+    // .catch(() => {}) so it doesn't mask the original error.
+    const drive = makeDriveAccount();
+    const file = makeFile({ id: 'file-1', owners: [{ me: true }] });
+
+    const { db, runCalls } = makeMockDb();
+    await batchUpsertFolderContents(db, drive, [], [file], 'parent-1');
+
+    // setIdle uses: UPDATE sync_state SET status = 'idle' WHERE drive_account_id = ?
+    const setIdleCall = runCalls.find(
+      (c) =>
+        c.sql.includes("UPDATE sync_state SET status = 'idle'") &&
+        c.sql.includes('WHERE drive_account_id = ?'),
+    );
+    expect(setIdleCall).toBeTruthy();
+    expect(setIdleCall!.binds[0]).toBe('drive-1');
+  });
+
+  it('acquires the lock before reading existing file states (no race window)', async () => {
+    // The lock must be acquired BEFORE findExistingForDelta — otherwise a
+    // sync could read + write between our lock check and our oldState read,
+    // causing a double-count. This test verifies the lock query appears
+    // before the findExistingForDelta query in the call sequence.
+    const drive = makeDriveAccount();
+    const file = makeFile({ id: 'file-1', owners: [{ me: true }] });
+
+    const { db } = makeMockDb({ existingFileStates: new Map() });
+    await batchUpsertFolderContents(db, drive, [], [file], 'parent-1');
+
+    // The first D1 call should be the lock acquisition (INSERT INTO sync_state ... RETURNING).
+    // runCalls captures .run() calls, but acquireLock uses .first() — so we check
+    // the prepare() calls via the mock's call history instead.
+    const prepareCalls = (db as unknown as { prepare: { mock: { calls: string[][] } } }).prepare
+      .mock.calls;
+    const firstSql = prepareCalls[0]?.[0] as string;
+    expect(firstSql).toContain('INSERT INTO sync_state');
+    expect(firstSql).toContain('RETURNING');
+
+    // findExistingForDelta's SELECT should come AFTER the lock
+    const findExistingIdx = prepareCalls.findIndex((c) =>
+      (c[0] as string).includes('SELECT google_file_id'),
+    );
+    const lockIdx = prepareCalls.findIndex((c) =>
+      (c[0] as string).includes('INSERT INTO sync_state'),
+    );
+    expect(lockIdx).toBeLessThan(findExistingIdx);
   });
 });

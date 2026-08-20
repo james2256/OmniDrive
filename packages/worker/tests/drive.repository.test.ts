@@ -215,6 +215,56 @@ describe('DriveRepository', () => {
     });
   });
 
+  describe('findExistingFolderStates', () => {
+    it('returns an empty Map when no folder IDs are passed', async () => {
+      const result = await repo.findExistingFolderStates('d-1', []);
+      expect(result.size).toBe(0);
+      expect(mockPrepare).not.toHaveBeenCalled();
+    });
+
+    it('returns Map<googleFolderId, { isTrashed }> for existing folders', async () => {
+      mockAll.mockResolvedValueOnce({
+        results: [
+          { google_folder_id: 'folder-a', is_trashed: 0 },
+          { google_folder_id: 'folder-b', is_trashed: 1 },
+        ],
+      });
+
+      const result = await repo.findExistingFolderStates('d-1', ['folder-a', 'folder-b']);
+
+      expect(result.size).toBe(2);
+      expect(result.get('folder-a')).toEqual({ isTrashed: false });
+      expect(result.get('folder-b')).toEqual({ isTrashed: true });
+    });
+
+    it('uses the subquery CTE form with IN (?, ?, ...) and driveAccountId bind', async () => {
+      mockAll.mockResolvedValueOnce({ results: [] });
+
+      await repo.findExistingFolderStates('d-1', ['folder-a', 'folder-b']);
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain('SELECT google_folder_id, is_trashed');
+      expect(sql).toContain('FROM drive_folders');
+      expect(sql).toContain('WHERE drive_account_id = ?');
+      expect(sql).toContain('AND google_folder_id IN (?,?)');
+      // driveAccountId is the first bind, then the folder IDs
+      expect(mockBind).toHaveBeenCalledWith('d-1', 'folder-a', 'folder-b');
+    });
+
+    it('omits folders not in D1 from the Map (absent = new folder)', async () => {
+      // Only folder-a exists in D1; folder-b is new (not in D1 yet).
+      mockAll.mockResolvedValueOnce({
+        results: [{ google_folder_id: 'folder-a', is_trashed: 0 }],
+      });
+
+      const result = await repo.findExistingFolderStates('d-1', ['folder-a', 'folder-b']);
+
+      expect(result.size).toBe(1);
+      expect(result.has('folder-a')).toBe(true);
+      expect(result.has('folder-b')).toBe(false); // absent = new folder
+    });
+  });
+
   // ─── mutations ───
 
   describe('updateQuota', () => {

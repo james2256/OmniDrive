@@ -556,7 +556,7 @@ describe('FileRepository', () => {
   // ─── recomputeStorageStats ───
 
   describe('recomputeStorageStats', () => {
-    it('batches a DELETE + INSERT...SELECT atomically', async () => {
+    it('batches a DELETE + INSERT...SELECT atomically with LEFT JOIN to exclude trashed-folder children', async () => {
       await repo.recomputeStorageStats('u-1');
 
       // batch() called once with 2 prepared statements
@@ -570,15 +570,21 @@ describe('FileRepository', () => {
       expect(deleteSql).toContain('WHERE user_id = ?');
       expect(mockBind).toHaveBeenNthCalledWith(1, 'u-1');
 
-      // Second statement: INSERT...SELECT with owned_by_me = 1 filter
+      // Second statement: INSERT...SELECT with LEFT JOIN drive_folders to
+      // exclude files whose direct parent folder is trashed (A-07).
       const insertSql = mockPrepare.mock.calls[1][0] as string;
       expect(insertSql).toContain('INSERT INTO file_storage_stats');
-      expect(insertSql).toContain("SELECT user_id, COALESCE(mime_type, '')");
-      expect(insertSql).toContain('FROM files');
-      expect(insertSql).toContain('WHERE user_id = ?');
-      expect(insertSql).toContain('AND is_trashed = 0');
-      expect(insertSql).toContain('AND owned_by_me = 1');
-      expect(insertSql).toContain("GROUP BY user_id, COALESCE(mime_type, '')");
+      expect(insertSql).toContain("SELECT f.user_id, COALESCE(f.mime_type, '')");
+      expect(insertSql).toContain('FROM files f');
+      expect(insertSql).toContain('LEFT JOIN drive_folders df');
+      expect(insertSql).toContain('ON df.drive_account_id = f.drive_account_id');
+      expect(insertSql).toContain('AND df.google_folder_id = f.google_parent_id');
+      expect(insertSql).toContain('WHERE f.user_id = ?');
+      expect(insertSql).toContain('AND f.is_trashed = 0');
+      expect(insertSql).toContain('AND f.owned_by_me = 1');
+      // df.is_trashed IS NULL handles root-level files (no parent folder row)
+      expect(insertSql).toContain('(df.is_trashed = 0 OR df.is_trashed IS NULL)');
+      expect(insertSql).toContain("GROUP BY f.user_id, COALESCE(f.mime_type, '')");
       expect(mockBind).toHaveBeenNthCalledWith(2, 'u-1');
     });
   });

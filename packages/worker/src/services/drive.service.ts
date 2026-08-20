@@ -2,11 +2,14 @@ import type { D1Database } from '@cloudflare/workers-types';
 import { DriveRepository } from '../repositories/drive.repository';
 import { SyncStateRepository } from '../repositories/sync-state.repository';
 import { FileRepository } from '../repositories/file.repository';
+import { WorkspaceRepository } from '../repositories/workspace.repository';
 import type { DriveProvider } from '../types/drive-provider';
 import { NotFoundError, ForbiddenError, ConflictError } from '../lib/errors';
 import { generateId } from '../lib/id';
 import { encodeCursor } from '../lib/cursor';
 import { mapDriveRow, mapFileRow, mapDriveFolderRow } from '../types/db';
+import { cascadeFolderTrashUnits, cascadeFolderRestoreUnits } from '../services/sync';
+import { batchUpsertUnitsWithCheckpoint } from '../lib/d1-batch';
 
 /**
  * Business logic layer for Google Drive account and folder operations.
@@ -72,18 +75,52 @@ export class DriveService {
     await this.driveRepo.renameDriveFolder(driveId, googleFolderId, name);
   }
 
-  /** Trash a Google Drive folder via the API, then update the cache. */
+  /**
+   * Trash a Google Drive folder via the API, then update the cache + cascade
+   * to child files (A-06). The cascade marks all descendant files is_trashed=1
+   * and releases their storage + workspace quota — without it, child files
+   * stay is_trashed=0 and continue counting toward quota after the folder
+   * is trashed.
+   */
   async trashDriveFolder(userId: string, driveId: string, googleFolderId: string): Promise<void> {
     await this.getDriveOrThrow(driveId, userId);
     await this.driveProvider.trashFolder(driveId, googleFolderId);
     await this.driveRepo.markDriveFolderTrashed(driveId, googleFolderId);
+    const workspaceRepo = new WorkspaceRepository(this.db);
+    const cascadeUnits = await cascadeFolderTrashUnits(
+      this.db,
+      driveId,
+      googleFolderId,
+      workspaceRepo,
+    );
+    if (cascadeUnits.length > 0) {
+      await batchUpsertUnitsWithCheckpoint(this.db, cascadeUnits, null);
+    }
   }
 
-  /** Restore a trashed Google Drive folder. */
+  /**
+   * Restore a trashed Google Drive folder + cascade to child files (A-06).
+   * The cascade marks all descendant files is_trashed=0 and re-reserves their
+   * storage + workspace quota — symmetric with trashDriveFolder.
+   *
+   * Note: this restores ALL trashed children under the folder, including
+   * those individually trashed by the user. This matches Google Drive
+   * semantics — restoring a folder restores all its contents.
+   */
   async restoreDriveFolder(userId: string, driveId: string, googleFolderId: string): Promise<void> {
     await this.getDriveOrThrow(driveId, userId);
     await this.driveProvider.untrashFolder(driveId, googleFolderId);
     await this.driveRepo.markDriveFolderUntrashed(driveId, googleFolderId);
+    const workspaceRepo = new WorkspaceRepository(this.db);
+    const cascadeUnits = await cascadeFolderRestoreUnits(
+      this.db,
+      driveId,
+      googleFolderId,
+      workspaceRepo,
+    );
+    if (cascadeUnits.length > 0) {
+      await batchUpsertUnitsWithCheckpoint(this.db, cascadeUnits, null);
+    }
   }
 
   /** Permanently delete a Google Drive folder. Uses deleteFile (Google API treats folders as files). */
