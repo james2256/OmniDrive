@@ -63,8 +63,6 @@ export interface FileEntry {
   googleCreatedAt: string | null;
   googleModifiedAt: string | null;
   syncedAt: string;
-  lastSyncedAt: string | null;
-  syncStatus: SyncStatus;
   createdAt: string;
 }
 

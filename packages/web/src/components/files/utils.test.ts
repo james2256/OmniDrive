@@ -74,8 +74,6 @@ describe('isDriveFolder', () => {
     icon: null,
     color: null,
     isStarred: false,
-    lastSyncedAt: null,
-    syncStatus: 'idle',
     createdAt: '2024-01-01T00:00:00Z',
     updatedAt: '2024-01-01T00:00:00Z',
   };
@@ -112,8 +110,6 @@ describe('isWorkspaceFolder', () => {
     icon: null,
     color: null,
     isStarred: false,
-    lastSyncedAt: null,
-    syncStatus: 'idle',
     createdAt: '2024-01-01T00:00:00Z',
     updatedAt: '2024-01-01T00:00:00Z',
   };

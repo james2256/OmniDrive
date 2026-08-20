@@ -2,6 +2,7 @@ import type { D1Database } from '@cloudflare/workers-types';
 import { FileRepository } from '../repositories/file.repository';
 import { FolderRepository } from '../repositories/folder.repository';
 import { DriveRepository } from '../repositories/drive.repository';
+import { SharedRepository } from '../repositories/shared.repository';
 import type { DriveProvider } from '../types/drive-provider';
 import { PolicyService } from './policy.service';
 import { assertWorkspaceRole } from '../lib/rbac';
@@ -109,6 +110,10 @@ export class FileService {
     }
 
     await this.fileRepo.delete(fileId, file.user_id);
+
+    // Clean up shared links pointing to this file — prevents orphaned links
+    // that would 404 when accessed. Best-effort (non-blocking on failure).
+    await new SharedRepository(this.db).deleteByTarget(fileId, 'file').catch(() => {});
 
     if (file.workspace_id && file.size && file.owned_by_me === 1) {
       await this.policyService.updateWorkspaceStorage(file.workspace_id, -file.size);

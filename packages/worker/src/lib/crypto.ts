@@ -1,5 +1,3 @@
-import { logNoCtx } from './logger';
-
 const ALGORITHM = 'AES-GCM';
 const IV_LENGTH = 12; // 96-bit IV for AES-GCM
 const KEY_VERSION = 'v1'; // ponytail: versioned ciphertext for future key rotation
@@ -60,15 +58,4 @@ export async function decrypt(encoded: string, secret: string): Promise<string> 
   const plaintext = await crypto.subtle.decrypt({ name: ALGORITHM, iv }, key, ciphertext);
 
   return new TextDecoder().decode(plaintext);
-}
-
-export async function decryptOrPassthrough(value: string, secret: string): Promise<string> {
-  // No plaintext bypass — all values must be encrypted.
-  // The 'plain:' marker was removed for security (no plaintext secrets in DB).
-  try {
-    return await decrypt(value, secret);
-  } catch (e) {
-    logNoCtx('error', 'decryptOrPassthrough: decryption failed', undefined, e);
-    throw new Error('Failed to decrypt value', { cause: e });
-  }
 }

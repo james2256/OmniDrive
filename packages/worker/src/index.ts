@@ -176,6 +176,14 @@ export default {
     // 3. D1-only tasks (0 external subrequests — safe in cron invocation)
     await new AuditRepository(env.DB).cleanupOldLogs(30);
 
+    // Retention for shared_link_logs + automation_logs (90-day window).
+    // audit_logs already has its own 30-day retention above.
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+    await env.DB.batch([
+      env.DB.prepare('DELETE FROM shared_link_logs WHERE created_at < ?').bind(ninetyDaysAgo),
+      env.DB.prepare('DELETE FROM automation_logs WHERE executed_at < ?').bind(ninetyDaysAgo),
+    ]);
+
     const now = Date.now();
     const authRepo = new AuthRepository(env.DB);
     await authRepo.deleteExpiredSessions(now);

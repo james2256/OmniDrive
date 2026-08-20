@@ -197,18 +197,11 @@ export const InfoPanel: React.FC = () => {
                 <div className="flex flex-col">
                   <dt className="text-slate-500 mb-0.5 text-xs">Last Synced</dt>
                   <dd className="text-slate-800">
-                    {(
-                      item as unknown as FileEntry & { workspaceId?: string; lastSyncedAt?: string }
-                    ).lastSyncedAt
-                      ? formatRelativeTime(
-                          (
-                            item as unknown as FileEntry & {
-                              workspaceId?: string;
-                              lastSyncedAt?: string;
-                            }
-                          ).lastSyncedAt,
-                        )
-                      : 'Never'}
+                    {(() => {
+                      const lastSynced = (item as unknown as { lastSyncedAt?: string })
+                        .lastSyncedAt;
+                      return lastSynced ? formatRelativeTime(lastSynced) : 'Never';
+                    })()}
                   </dd>
                 </div>
               )}

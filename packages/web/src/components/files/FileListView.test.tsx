@@ -52,8 +52,6 @@ function makeFile(overrides: Partial<FileEntry> = {}): FileEntry {
     googleCreatedAt: null,
     googleModifiedAt: null,
     syncedAt: '2024-01-01',
-    lastSyncedAt: null,
-    syncStatus: 'idle',
     createdAt: '2024-01-01',
     ...overrides,
   };

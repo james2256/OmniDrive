@@ -3,6 +3,7 @@ import { DriveRepository } from '../repositories/drive.repository';
 import { SyncStateRepository } from '../repositories/sync-state.repository';
 import { FileRepository } from '../repositories/file.repository';
 import { WorkspaceRepository } from '../repositories/workspace.repository';
+import { SharedRepository } from '../repositories/shared.repository';
 import type { DriveProvider } from '../types/drive-provider';
 import { NotFoundError, ForbiddenError, ConflictError } from '../lib/errors';
 import { generateId } from '../lib/id';
@@ -132,6 +133,8 @@ export class DriveService {
     await this.getDriveOrThrow(driveId, userId);
     await this.driveProvider.deleteFile(driveId, googleFolderId);
     await this.driveRepo.deleteDriveFolder(driveId, googleFolderId);
+    // Clean up shared links pointing to this folder — prevents orphaned links.
+    await new SharedRepository(this.db).deleteByTarget(googleFolderId, 'folder').catch(() => {});
   }
 
   /** Star a Google Drive folder via the API, then update the cache. */

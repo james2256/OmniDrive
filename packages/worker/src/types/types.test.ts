@@ -34,8 +34,6 @@ describe('types/ sub-modules', () => {
         googleCreatedAt: null,
         googleModifiedAt: null,
         syncedAt: '2026-01-01',
-        lastSyncedAt: null,
-        syncStatus: 'idle',
         createdAt: '2026-01-01',
       };
       expect(file.name).toBe('test.txt');

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { encrypt, decrypt, decryptOrPassthrough } from '../src/lib/crypto';
+import { encrypt, decrypt } from '../src/lib/crypto';
 
 const TEST_KEY = 'a]V3$kP9mN7wQ2xR8jF5tL0yB6cH4dG'; // exactly 32 chars
 
@@ -35,22 +35,9 @@ describe('encrypt/decrypt', () => {
     const wrongKey = 'b]W4$lQ0nO8xR3yS9kG6uM1zA7dI5eH';
     await expect(decrypt(encrypted, wrongKey)).rejects.toThrow();
   });
-});
 
-describe('decryptOrPassthrough', () => {
-  it('decrypts encrypted values', async () => {
-    const encrypted = await encrypt('token-data', TEST_KEY);
-    const result = await decryptOrPassthrough(encrypted, TEST_KEY);
-    expect(result).toBe('token-data');
-  });
-
-  it('rejects plain: marker (security: no plaintext bypass)', async () => {
-    const plainJson = `plain:{"accessToken":"ya29.abc","refreshToken":"1//xyz"}`;
-    await expect(decryptOrPassthrough(plainJson, TEST_KEY)).rejects.toThrow();
-  });
-
-  it('rejects bare plaintext without marker (M6 security fix)', async () => {
+  it('rejects bare plaintext without marker (no plaintext bypass)', async () => {
     const bareJson = '{"accessToken":"ya29.abc","refreshToken":"1//xyz"}';
-    await expect(decryptOrPassthrough(bareJson, TEST_KEY)).rejects.toThrow();
+    await expect(decrypt(bareJson, TEST_KEY)).rejects.toThrow();
   });
 });

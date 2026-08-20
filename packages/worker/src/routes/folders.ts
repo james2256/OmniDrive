@@ -5,6 +5,7 @@ import { authGuard } from '../middleware/auth-guard';
 import { AppError } from '../lib/errors';
 import { mapDriveRow } from '../types/db';
 import { syncDriveFolder } from '../services/sync';
+import { FolderService } from '../services/folder.service';
 import { decodeCursor } from '../lib/cursor';
 import { zValidator } from '@hono/zod-validator';
 import {
@@ -29,7 +30,7 @@ async function performBackgroundSync(
   driveId: string | null,
   userId: string,
 ) {
-  const folderService = new (await import('../services/folder.service')).FolderService(env.DB);
+  const folderService = new FolderService(env.DB);
   try {
     await folderService.markSyncing(folderId);
     if (!driveId) {

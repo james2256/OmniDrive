@@ -92,8 +92,6 @@ export function mapFileRow(row: Record<string, unknown>): FileEntry {
     googleCreatedAt: (row.google_created_at as string) ?? null,
     googleModifiedAt: (row.google_modified_at as string) ?? null,
     syncedAt: row.synced_at as string,
-    lastSyncedAt: (row.last_synced_at as string) ?? null,
-    syncStatus: (row.sync_status as SyncStatus) ?? 'idle',
     createdAt: row.created_at as string,
   };
 }
@@ -296,8 +294,6 @@ export interface FileRow {
   google_created_at: string | null;
   google_modified_at: string | null;
   synced_at: string;
-  last_synced_at: string | null;
-  sync_status: SyncStatus;
   updated_at: string;
   s3_key?: string;
 }

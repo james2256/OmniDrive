@@ -118,7 +118,7 @@ CREATE TABLE IF NOT EXISTS files (
     user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     drive_account_id TEXT NOT NULL REFERENCES drive_accounts(id) ON DELETE CASCADE,
     google_file_id  TEXT NOT NULL,
-    workspace_id    TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
+    workspace_id    TEXT REFERENCES workspaces(id) ON DELETE SET NULL,
     workspace_folder_id TEXT REFERENCES workspace_folders(id) ON DELETE SET NULL,
     google_parent_id TEXT,
     name            TEXT NOT NULL,
@@ -132,8 +132,6 @@ CREATE TABLE IF NOT EXISTS files (
     metadata        TEXT DEFAULT '{}',
     google_created_at  TEXT,
     google_modified_at TEXT,
-    last_synced_at  TEXT,
-    sync_status     TEXT NOT NULL DEFAULT 'idle',
     synced_at       TEXT NOT NULL DEFAULT (datetime('now')),
     created_at      TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
@@ -156,7 +154,6 @@ CREATE TABLE IF NOT EXISTS sync_state (
 -- Performance indexes
 CREATE INDEX IF NOT EXISTS idx_files_user_workspace ON files(user_id, workspace_id);
 CREATE INDEX IF NOT EXISTS idx_files_workspace_folder ON files(workspace_folder_id);
-CREATE INDEX IF NOT EXISTS idx_files_drive ON files(drive_account_id);
 CREATE INDEX IF NOT EXISTS idx_files_name ON files(user_id, name);
 CREATE INDEX IF NOT EXISTS idx_files_user_trashed_name_id ON files(user_id, is_trashed, name, id);
 CREATE INDEX IF NOT EXISTS idx_files_google_parent ON files(drive_account_id, google_parent_id);
@@ -221,6 +218,7 @@ CREATE TABLE IF NOT EXISTS shared_link_logs (
     created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_shared_link_logs_link ON shared_link_logs(shared_link_id);
+CREATE INDEX IF NOT EXISTS idx_shared_link_logs_created_at ON shared_link_logs(created_at);
 
 -- S3 bucket lifecycle rules. "expire" = move object to Google Drive trash
 -- (recoverable ~30 days), NOT a permanent delete (see s3-lifecycle service).
@@ -265,6 +263,7 @@ CREATE TABLE IF NOT EXISTS automation_logs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_automation_logs_rule ON automation_logs(rule_id);
+CREATE INDEX IF NOT EXISTS idx_automation_logs_executed_at ON automation_logs(executed_at);
 
 -- Audit Logs
 CREATE TABLE IF NOT EXISTS audit_logs (

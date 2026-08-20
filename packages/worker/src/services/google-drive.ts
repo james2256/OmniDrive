@@ -9,6 +9,8 @@ import { withBackoff } from '../lib/backoff';
 import { safeJsonParse } from '../lib/safe-json-parse';
 import { DriveRepository } from '../repositories/drive.repository';
 import { logNoCtx } from '../lib/logger';
+import { encrypt, decrypt } from '../lib/crypto';
+import { fetchServiceAccountAccessToken } from '../lib/google-service-account';
 import {
   FIVE_MINUTES_MS,
   TOKEN_REFRESH_MARGIN_MS,
@@ -103,8 +105,7 @@ export class GoogleDriveService implements DriveProvider {
       throw new NotFoundError(`No tokens found for drive ${driveAccountId}`);
     }
 
-    const { decryptOrPassthrough } = await import('../lib/crypto');
-    const tokensJson = await decryptOrPassthrough(row.encrypted_tokens, this.encryptionKey);
+    const tokensJson = await decrypt(row.encrypted_tokens, this.encryptionKey);
     const tokens = safeJsonParse<OAuthTokens | null>(tokensJson, null);
     if (!tokens) {
       throw new AuthError(
@@ -158,9 +159,7 @@ export class GoogleDriveService implements DriveProvider {
 
   private async persistTokens(driveAccountId: string, tokens: OAuthTokens): Promise<void> {
     const serialized = JSON.stringify(tokens);
-    const encryptedTokens = await (
-      await import('../lib/crypto')
-    ).encrypt(serialized, this.encryptionKey);
+    const encryptedTokens = await encrypt(serialized, this.encryptionKey);
     await this.driveRepo.upsertTokens(driveAccountId, encryptedTokens, Date.now());
   }
 
@@ -176,7 +175,6 @@ export class GoogleDriveService implements DriveProvider {
     // refresh race. If duplicates appear in production logs, the ponytail
     // marker in refreshToken becomes actionable.
     logNoCtx('info', 'SA token refresh started', { driveAccountId });
-    const { fetchServiceAccountAccessToken } = await import('../lib/google-service-account');
     const refreshed = await fetchServiceAccountAccessToken(tokens.serviceAccount);
     const nextTokens = {
       ...tokens,

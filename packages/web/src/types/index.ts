@@ -109,8 +109,6 @@ export interface FileEntry {
   googleCreatedAt: string | null;
   googleModifiedAt: string | null;
   syncedAt: string;
-  lastSyncedAt: string | null;
-  syncStatus: SyncStatus;
   createdAt: string;
   driveEmail?: string; // optional — not present in folder-browse responses
   isStarred?: boolean;

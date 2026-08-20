@@ -167,6 +167,19 @@ export class SharedRepository {
     ]);
   }
 
+  /**
+   * Delete all shared links pointing to a specific target (file or folder).
+   * Called from permanentDelete (file) and trashDriveFolder/permanentDeleteDriveFolder
+   * (folder) to prevent orphaned links that would 404 when accessed.
+   * Best-effort — caller wraps in .catch(() => {}).
+   */
+  deleteByTarget(targetId: string, targetType: 'file' | 'folder') {
+    return this.db
+      .prepare('DELETE FROM shared_links WHERE target_id = ? AND target_type = ?')
+      .bind(targetId, targetType)
+      .run();
+  }
+
   // ─── Counters ───
 
   /** Increment view count. Non-blocking — caller wraps in waitUntil. */
