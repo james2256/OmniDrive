@@ -52,25 +52,7 @@ describe('ErrorBoundary', () => {
     });
   });
 
-  // Helper: stub window.location.href with a setter that records assignments.
-  // (jsdom does not implement navigation; without this, clicking "Go Home"
-  // would throw "Not implemented: navigation".)
-  const stubLocationHref = () => {
-    const hrefSetter = vi.fn();
-    Object.defineProperty(window, 'location', {
-      writable: true,
-      value: {
-        ...originalLocation,
-        set href(url: string) {
-          hrefSetter(url);
-        },
-        get href() {
-          return '';
-        },
-      },
-    });
-    return hrefSetter;
-  };
+  // (stubLocationHref helper removed — "Try Again" uses setState, not navigation)
 
   it('renders children when no error is thrown', () => {
     render(
@@ -94,7 +76,7 @@ describe('ErrorBoundary', () => {
     expect(screen.getByText('Something went wrong')).toBeTruthy();
     // The fallback renders the captured error.message.
     expect(screen.getByText('boom from render')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Go Home' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Try Again' })).toBeTruthy();
     // The throwing child is no longer rendered (boundary replaced it).
     expect(screen.queryByText('Hello world')).toBeNull();
     // componentDidCatch logs the error to console.error.
@@ -137,15 +119,66 @@ describe('ErrorBoundary', () => {
     }
   });
 
-  it('clicking "Go Home" sets window.location.href to "/"', () => {
-    const hrefSetter = stubLocationHref();
+  it('clicking "Try Again" clears the error state and re-renders children', () => {
+    // After an error, clicking "Try Again" clears hasError so the subtree
+    // re-renders. If the error was transient (e.g. a stale prop that's since
+    // been fixed), the page recovers without a hard refresh.
+    let shouldThrow = true;
+
+    function ConditionalChild() {
+      if (shouldThrow) throw new Error('boom from render');
+      return <div data-testid="recovered">Recovered</div>;
+    }
+
     render(
       <ErrorBoundary>
-        <ThrowingChild />
+        <ConditionalChild />
       </ErrorBoundary>,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Go Home' }));
-    expect(hrefSetter).toHaveBeenCalledWith('/');
+    // Error state — "Try Again" button is visible.
+    expect(screen.getByText('Something went wrong')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Try Again' })).toBeTruthy();
+
+    // Fix the underlying issue, then click "Try Again".
+    shouldThrow = false;
+    fireEvent.click(screen.getByRole('button', { name: 'Try Again' }));
+
+    // Error state cleared — child renders normally.
+    expect(screen.queryByText('Something went wrong')).toBeNull();
+    expect(screen.getByTestId('recovered')).toBeTruthy();
+  });
+
+  it('resets error state when key prop changes (route-change reset)', () => {
+    // App.tsx passes key={location.pathname} so the ErrorBoundary unmounts +
+    // remounts on navigation, resetting hasError. This test verifies that
+    // changing the key prop resets the error state.
+    let shouldThrow = true;
+
+    function ConditionalChild() {
+      if (shouldThrow) throw new Error('boom from render');
+      return <div data-testid="recovered">Recovered</div>;
+    }
+
+    const { rerender } = render(
+      <ErrorBoundary key="page-1">
+        <ConditionalChild />
+      </ErrorBoundary>,
+    );
+
+    // Error state on first render.
+    expect(screen.getByText('Something went wrong')).toBeTruthy();
+
+    // Fix the underlying issue, then change the key (simulating navigation).
+    shouldThrow = false;
+    rerender(
+      <ErrorBoundary key="page-2">
+        <ConditionalChild />
+      </ErrorBoundary>,
+    );
+
+    // Error state cleared by remount — child renders normally.
+    expect(screen.queryByText('Something went wrong')).toBeNull();
+    expect(screen.getByTestId('recovered')).toBeTruthy();
   });
 });

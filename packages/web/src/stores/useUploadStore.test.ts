@@ -85,11 +85,11 @@ describe('useUploadStore', () => {
     expect(useUploadStore.getState().showModal).toBe(false);
   });
 
-  it('startUpload processes the queue: pending → uploading → confirming → done', async () => {
+  it('startUpload processes the queue: pending → uploading → confirming → done, then drains', async () => {
     useUploadStore.getState().addFiles([makeFile('a.txt', 100)]);
     const id = useUploadStore.getState().queue[0].id;
 
-    await useUploadStore.getState().startUpload('d1', 'g1');
+    const { succeeded, failed } = await useUploadStore.getState().startUpload('d1', 'g1');
 
     expect(filesApi.initiateUpload).toHaveBeenCalledWith(
       {
@@ -116,9 +116,12 @@ describe('useUploadStore', () => {
       expect.any(AbortSignal),
     );
 
-    const item = useUploadStore.getState().queue.find((q) => q.id === id);
-    expect(item?.status).toBe('done');
-    expect(item?.progress).toBe(100);
+    // startUpload returns counts for the toast — 1 succeeded, 0 failed.
+    expect(succeeded).toBe(1);
+    expect(failed).toBe(0);
+
+    // Done items are drained from the queue — only errored/cancelled remain.
+    expect(useUploadStore.getState().queue.find((q) => q.id === id)).toBeUndefined();
     expect(useUploadStore.getState().isUploading).toBe(false);
   });
 
@@ -251,7 +254,8 @@ describe('useUploadStore', () => {
     expect(filesApi.initiateUpload).toHaveBeenCalledTimes(2);
     expect(filesApi.uploadViaProxy).toHaveBeenCalledTimes(2);
     expect(filesApi.confirmUpload).toHaveBeenCalledTimes(2);
-    expect(useUploadStore.getState().queue.every((q) => q.status === 'done')).toBe(true);
+    // All items succeeded → queue is drained (done items removed).
+    expect(useUploadStore.getState().queue).toHaveLength(0);
   });
 
   it('startUpload continues processing remaining items after one fails', async () => {
@@ -260,12 +264,15 @@ describe('useUploadStore', () => {
       .mockResolvedValueOnce({ id: 'g-file-2' });
 
     useUploadStore.getState().addFiles([makeFile('a.txt'), makeFile('b.txt')]);
-    await useUploadStore.getState().startUpload('d1', 'g1');
+    const { succeeded, failed } = await useUploadStore.getState().startUpload('d1', 'g1');
 
+    // Errored items stay in the queue (for retry); done items are drained.
     const items = useUploadStore.getState().queue;
+    expect(items).toHaveLength(1);
     expect(items[0].status).toBe('error');
     expect(items[0].error).toBe('first fails');
-    expect(items[1].status).toBe('done');
+    expect(succeeded).toBe(1);
+    expect(failed).toBe(1);
   });
 
   it('startUpload with no args passes undefined through to the API', async () => {

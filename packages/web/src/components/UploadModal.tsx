@@ -81,10 +81,10 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
     }
 
     try {
-      await startUpload(resolvedDriveId, folderId);
-      const { queue: finalQueue } = useUploadStore.getState();
-      const failedCount = finalQueue.filter((q) => q.status === 'error').length;
-      const succeededCount = finalQueue.filter((q) => q.status === 'done').length;
+      const { succeeded: succeededCount, failed: failedCount } = await startUpload(
+        resolvedDriveId,
+        folderId,
+      );
 
       if (succeededCount === 0 && failedCount > 0) {
         addToast('error', `Upload failed — ${failedCount} file(s) could not be uploaded`);

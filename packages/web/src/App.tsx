@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthGuard } from './components/AuthGuard';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppLayout } from './components/layout/AppLayout';
@@ -123,44 +123,57 @@ export const App = () => {
 
   return (
     <BrowserRouter>
-      <ErrorBoundary>
-        <Suspense fallback={<PageFallback />}>
-          <Routes>
-            <Route path="/home" element={<LandingPage />} />
-            <Route path="/privacy" element={<PrivacyPolicyPage />} />
-            <Route path="/terms" element={<TermsOfServicePage />} />
-            <Route path="/setup" element={isSetup ? <Navigate to="/login" /> : <SetupPage />} />
-            <Route path="/login" element={!isSetup ? <Navigate to="/setup" /> : <LoginPage />} />
-            <Route path="/shared/:id" element={<PublicSharedPage />} />
-            <Route
-              element={
-                <SetupGuard isSetup={isSetup}>
-                  <AuthGuard>
-                    <AppLayout />
-                    <ToastContainer />
-                  </AuthGuard>
-                </SetupGuard>
-              }
-            >
-              <Route path="/" element={<DashboardPage />} />
-              <Route path="/search" element={<SearchPage />} />
-              <Route path="/files" element={<FilesPage />} />
-              <Route path="/files/:folderId" element={<FilesPage />} />
-              <Route path="/workspaces" element={<WorkspacesPage />} />
-              <Route path="/automations" element={<AutomationsPage />} />
-              <Route path="/settings/drives" element={<SettingsPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/shared" element={<SharedLinksPage />} />
-              <Route path="/external" element={<ExternalPage />} />
-              <Route path="/external/:folderId" element={<ExternalPage />} />
-              <Route path="/trash" element={<TrashPage />} />
-              <Route path="/starred" element={<StarredPage />} />
-              <Route path="/admin/users" element={<AdminUsersPage />} />
-            </Route>
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Suspense>
-      </ErrorBoundary>
+      <AppRoutes isSetup={isSetup} />
     </BrowserRouter>
+  );
+};
+
+/**
+ * Inner component rendered inside <BrowserRouter> so it can call useLocation.
+ * The `key={location.pathname}` on ErrorBoundary causes React to unmount +
+ * remount the boundary on route change, resetting hasError to false. This
+ * lets users navigate away from a crashed page without a hard refresh.
+ */
+const AppRoutes = ({ isSetup }: { isSetup: boolean }) => {
+  const location = useLocation();
+  return (
+    <ErrorBoundary key={location.pathname}>
+      <Suspense fallback={<PageFallback />}>
+        <Routes>
+          <Route path="/home" element={<LandingPage />} />
+          <Route path="/privacy" element={<PrivacyPolicyPage />} />
+          <Route path="/terms" element={<TermsOfServicePage />} />
+          <Route path="/setup" element={isSetup ? <Navigate to="/login" /> : <SetupPage />} />
+          <Route path="/login" element={!isSetup ? <Navigate to="/setup" /> : <LoginPage />} />
+          <Route path="/shared/:id" element={<PublicSharedPage />} />
+          <Route
+            element={
+              <SetupGuard isSetup={isSetup}>
+                <AuthGuard>
+                  <AppLayout />
+                  <ToastContainer />
+                </AuthGuard>
+              </SetupGuard>
+            }
+          >
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/search" element={<SearchPage />} />
+            <Route path="/files" element={<FilesPage />} />
+            <Route path="/files/:folderId" element={<FilesPage />} />
+            <Route path="/workspaces" element={<WorkspacesPage />} />
+            <Route path="/automations" element={<AutomationsPage />} />
+            <Route path="/settings/drives" element={<SettingsPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/shared" element={<SharedLinksPage />} />
+            <Route path="/external" element={<ExternalPage />} />
+            <Route path="/external/:folderId" element={<ExternalPage />} />
+            <Route path="/trash" element={<TrashPage />} />
+            <Route path="/starred" element={<StarredPage />} />
+            <Route path="/admin/users" element={<AdminUsersPage />} />
+          </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
+    </ErrorBoundary>
   );
 };

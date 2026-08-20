@@ -123,7 +123,7 @@ function resetStoreState() {
   uploadStoreState.queue = [];
   uploadStoreState.isUploading = false;
   uploadStoreState.removeFile = vi.fn();
-  uploadStoreState.startUpload = vi.fn().mockResolvedValue(undefined);
+  uploadStoreState.startUpload = vi.fn().mockResolvedValue({ succeeded: 0, failed: 0 });
   uploadStoreState.clearQueue = vi.fn();
   uploadStoreState.addFiles = vi.fn();
 }
@@ -303,6 +303,7 @@ describe('UploadModal', () => {
       uploadStoreState.queue = [
         { id: 'u1', file: makeUploadFile('a.txt', 10), progress: 100, status: 'done' },
       ];
+      return { succeeded: 1, failed: 0 };
     });
     const onSuccess = vi.fn();
     render(<UploadModal open onClose={vi.fn()} onSuccess={onSuccess} />);
@@ -328,6 +329,7 @@ describe('UploadModal', () => {
       uploadStoreState.queue = [
         { id: 'u1', file: makeUploadFile('a.txt', 10), progress: 0, status: 'error', error: 'x' },
       ];
+      return { succeeded: 0, failed: 1 };
     });
     render(<UploadModal open onClose={vi.fn()} onSuccess={vi.fn()} />);
 
@@ -367,6 +369,7 @@ describe('UploadModal', () => {
           error: 'x',
         },
       ];
+      return { succeeded: 1, failed: 1 };
     });
     render(<UploadModal open onClose={vi.fn()} onSuccess={vi.fn()} />);
 

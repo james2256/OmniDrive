@@ -103,4 +103,17 @@ describe('lazyWithRetry', () => {
     await expect(factory()).rejects.toThrow('still broken');
     expect(reloadSpy).toHaveBeenCalledTimes(1);
   });
+
+  it('clears the chunk-retry flag on successful import (so the next deploy can retry)', async () => {
+    // Simulate a previous chunk failure that set the flag, followed by a
+    // successful import (e.g. after the reload fetched fresh chunks).
+    // The flag must be cleared so a future deploy's chunk failure can retry.
+    sessionStorage.setItem('chunk-retry', '1');
+    const importFn = vi.fn(() => Promise.resolve({ default: () => null }));
+    const Lazy = lazyWithRetry(importFn);
+    const factory = (Lazy as any)._payload._result;
+    await factory();
+    expect(sessionStorage.getItem('chunk-retry')).toBeNull();
+    expect(reloadSpy).not.toHaveBeenCalled();
+  });
 });

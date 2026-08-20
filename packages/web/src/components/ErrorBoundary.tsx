@@ -9,7 +9,17 @@ interface State {
 /**
  * Catches render errors in the subtree so a single page crash doesn't
  * blank the entire app. Placed inside <BrowserRouter> so navigation
- * still works after an error — user can click "Go Home" to recover.
+ * still works after an error.
+ *
+ * Route-change reset: App.tsx passes `key={location.pathname}` so React
+ * unmounts + remounts this component on navigation, resetting `hasError`
+ * to false. This lets the user navigate away from a crashed page without
+ * a hard refresh.
+ *
+ * In-place recovery: the "Try Again" button clears the error state so the
+ * subtree re-renders. If the underlying data is still bad, the error
+ * boundary catches again — but if it was a transient render issue, the
+ * page recovers immediately.
  */
 export class ErrorBoundary extends React.Component<{ children: React.ReactNode }, State> {
   state: State = { hasError: false, message: '' };
@@ -35,9 +45,9 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
             variant="secondary"
             size="md"
             className="rounded-lg text-slate-800 hover:bg-slate-50"
-            onClick={() => (window.location.href = '/')}
+            onClick={() => this.setState({ hasError: false, message: '' })}
           >
-            Go Home
+            Try Again
           </Button>
         </main>
       );

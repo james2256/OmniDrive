@@ -21,7 +21,13 @@ interface UploadState {
   setEmptyFolders: (paths: string[]) => void;
   removeFile: (id: string) => void;
   clearQueue: () => void;
-  startUpload: (driveAccountId?: string, parentFolderId?: string) => Promise<void>;
+  startUpload: (
+    driveAccountId?: string,
+    parentFolderId?: string,
+  ) => Promise<{
+    succeeded: number;
+    failed: number;
+  }>;
   setShowModal: (show: boolean) => void;
   cancelUpload: (id: string) => void;
 }
@@ -85,7 +91,7 @@ export const useUploadStore = create<UploadState>((set, get) => ({
   },
 
   startUpload: async (driveAccountId?: string, parentFolderId?: string) => {
-    if (get().isUploading) return; // Prevent double-entry on rapid clicks
+    if (get().isUploading) return { succeeded: 0, failed: 0 }; // Prevent double-entry on rapid clicks
     set({ isUploading: true });
     const { queue, emptyFolders } = get();
 
@@ -232,7 +238,21 @@ export const useUploadStore = create<UploadState>((set, get) => ({
 
     await runWithConcurrency(tasks, UPLOAD_CONCURRENCY);
 
-    set({ isUploading: false, emptyFolders: [] });
+    // Count successes/failures BEFORE draining — UploadModal uses these for
+    // the toast message. Draining removes done + cancelled items so the queue
+    // stays clean for the next batch; errored items are kept so the user can
+    // see what failed and retry.
+    const finalQueue = get().queue;
+    const succeeded = finalQueue.filter((q) => q.status === 'done').length;
+    const failed = finalQueue.filter((q) => q.status === 'error').length;
+
+    set((state) => ({
+      isUploading: false,
+      emptyFolders: [],
+      queue: state.queue.filter((q) => q.status !== 'done' && q.status !== 'cancelled'),
+    }));
+
+    return { succeeded, failed };
   },
 
   setShowModal: (show: boolean) => set({ showModal: show }),
