@@ -103,8 +103,26 @@ app.use(
   }),
 );
 app.use('/api/auth/register', rateLimiter({ windowMs: 600_000, maxRequests: 10, useKV: true }));
+// Rate limit password change — prevents brute-force with stolen session cookie
+app.use(
+  '/api/auth/change-password',
+  rateLimiter({ windowMs: 60_000, maxRequests: 5, useKV: true }),
+);
 app.use(
   '/api/shared/:id/verify',
+  rateLimiter({
+    windowMs: 60_000,
+    maxRequests: 5,
+    keyFn: (c: Context) => {
+      const ip = c.req.header('CF-Connecting-IP') ?? c.req.header('X-Real-IP') ?? 'unknown';
+      const id = c.req.param('id') ?? 'unknown';
+      return `${ip}:${id}`;
+    },
+  }),
+);
+// Rate limit email gate — prevents JWT minting spam on shared links
+app.use(
+  '/api/shared/:id/email',
   rateLimiter({
     windowMs: 60_000,
     maxRequests: 5,

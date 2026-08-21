@@ -225,7 +225,18 @@ export class GoogleDriveService implements DriveProvider {
       { driveAccountId, context: `Token refresh failed for ${driveAccountId}` },
     );
 
-    const data: { access_token: string; expires_in: number } = await response.json();
+    // Defense-in-depth: withBackoff already throws UpstreamError on non-200
+    // responses (e.g. 400 invalid_grant). This validation guards against the
+    // edge case of a 200 response with a malformed body (missing access_token
+    // or expires_in) — prevents persisting undefined/NaN tokens that would
+    // silently break the drive with no "reconnect" prompt.
+    const data: { access_token?: string; expires_in?: number } = await response.json();
+
+    if (!data.access_token || typeof data.expires_in !== 'number') {
+      throw new AuthError(
+        `Token refresh failed: Google returned a malformed response. Reconnect required.`,
+      );
+    }
 
     // Persist new access token (keep existing refresh token) with the real expiry.
     const existing = await this.loadTokens(driveAccountId);
