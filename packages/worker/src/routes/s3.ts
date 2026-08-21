@@ -1028,6 +1028,18 @@ async function handleUploadPart(
     }
   }
 
+  // Delete old part file from Google Drive if this part number already exists
+  // (client re-upload after network error). INSERT OR REPLACE would orphan the
+  // old GDrive file — this prevents the permanent quota leak.
+  const existingPart = await multipartRepo.findPartByNumber(upload.upload_id, partNumber);
+  if (existingPart) {
+    try {
+      await driveService.deleteFile(upload.drive_account_id, existingPart.google_file_id);
+    } catch {
+      /* best-effort — old part orphaned, not data loss */
+    }
+  }
+
   // Store part state in DB (replace if already exists)
   await multipartRepo.upsertPart({
     uploadId: upload.upload_id,

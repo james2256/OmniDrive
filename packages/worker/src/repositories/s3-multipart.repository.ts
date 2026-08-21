@@ -66,6 +66,16 @@ export class S3MultipartRepository {
       .run();
   }
 
+  /** Find an existing part by upload_id + part_number (for cleanup before REPLACE). */
+  findPartByNumber(uploadId: string, partNumber: number) {
+    return this.db
+      .prepare(
+        'SELECT google_file_id FROM s3_multipart_parts WHERE upload_id = ? AND part_number = ?',
+      )
+      .bind(uploadId, partNumber)
+      .first<{ google_file_id: string }>();
+  }
+
   /** Insert or replace a part for a multipart upload. */
   upsertPart(params: {
     uploadId: string;

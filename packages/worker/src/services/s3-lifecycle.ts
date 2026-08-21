@@ -129,9 +129,16 @@ export async function cleanupOrphanMultipartUploads(env: Env): Promise<void> {
   let orphanCount = 0;
   for (const upload of orphans) {
     if (orphanCount >= MAX_ORPHAN_CLEANUPS_PER_CYCLE) break;
-    await deleteMultipartUploadParts(env, upload);
-    await s3LifecycleRepo.deleteUpload(upload.upload_id);
-    orphanCount++;
+    const allDeleted = await deleteMultipartUploadParts(env, upload);
+    if (allDeleted) {
+      await s3LifecycleRepo.deleteUpload(upload.upload_id);
+      orphanCount++;
+    } else {
+      // Keep D1 row — next cleanup cycle will retry the failed parts.
+      logErrorNoCtx('Multipart cleanup: keeping D1 row (some parts failed to delete)', undefined, {
+        uploadId: upload.upload_id,
+      });
+    }
   }
 }
 
@@ -141,33 +148,48 @@ export async function cleanupOrphanMultipartUploads(env: Env): Promise<void> {
  * its children — so we must iterate s3_multipart_parts and delete each
  * part's google_file_id individually before deleting the temp folder.
  *
+ * Returns true if ALL parts + temp folder were deleted successfully.
+ * Returns false if any deletion failed — the caller should keep the D1 row
+ * so the next cleanup cycle can retry.
+ *
  * Used by CompleteMultipartUpload, AbortMultipartUpload, and orphan cleanup.
+ * AbortMultipartUpload and CompleteMultipartUpload ignore the return value
+ * (they unconditionally delete the D1 row — the upload is over regardless).
  */
 export async function deleteMultipartUploadParts(
   env: Env,
   upload: { drive_account_id: string; temp_folder_id: string; upload_id: string },
-): Promise<void> {
+): Promise<boolean> {
   const driveService = createDriveService(env);
   const multipartRepo = new S3MultipartRepository(env.DB);
 
   // Delete each part file individually
   const { results: parts } = await multipartRepo.findPartsByUpload(upload.upload_id);
+  let allDeleted = true;
+
   for (const part of parts) {
     try {
       await driveService.deleteFile(upload.drive_account_id, part.google_file_id);
     } catch (err) {
-      logErrorNoCtx('Failed to delete multipart part file (orphaned — not data loss)', err, {
+      logErrorNoCtx('Failed to delete multipart part file', err, {
         googleFileId: part.google_file_id,
       });
+      allDeleted = false;
     }
   }
 
-  // Now delete the temp folder
-  try {
-    await driveService.deleteFile(upload.drive_account_id, upload.temp_folder_id);
-  } catch (err) {
-    logErrorNoCtx('Failed to delete multipart temp folder', err, {
-      tempFolderId: upload.temp_folder_id,
-    });
+  // Only delete the temp folder if all parts were deleted — otherwise keep
+  // the D1 row so the next cleanup cycle can retry.
+  if (allDeleted) {
+    try {
+      await driveService.deleteFile(upload.drive_account_id, upload.temp_folder_id);
+    } catch (err) {
+      logErrorNoCtx('Failed to delete multipart temp folder', err, {
+        tempFolderId: upload.temp_folder_id,
+      });
+      allDeleted = false;
+    }
   }
+
+  return allDeleted;
 }

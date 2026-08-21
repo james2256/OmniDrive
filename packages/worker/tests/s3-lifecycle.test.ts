@@ -142,7 +142,7 @@ describe('cleanupOrphanMultipartUploads', () => {
     expect(deletes).toEqual([]);
   });
 
-  it('still drops the DB row when Drive folder delete fails (best-effort)', async () => {
+  it('keeps the DB row when Drive part delete fails (retry next cycle)', async () => {
     vi.spyOn(GoogleDriveService.prototype, 'deleteFile').mockRejectedValue(
       new Error('folder gone'),
     );
@@ -151,7 +151,8 @@ describe('cleanupOrphanMultipartUploads', () => {
 
     await cleanupOrphanMultipartUploads(env);
 
-    expect(deletes).toEqual([OLD.upload_id]);
+    // D1 row is NOT deleted — next cleanup cycle will retry the failed parts.
+    expect(deletes).toEqual([]);
     errSpy.mockRestore();
   });
 
