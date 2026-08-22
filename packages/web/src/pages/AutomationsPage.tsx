@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Plus, Zap, Pencil, Trash2, ScrollText } from 'lucide-react';
 import { useAutomations, useToggleAutomation, useDeleteAutomation } from '../hooks/useAutomations';
 import { Button } from '../components/ui/Button';
@@ -8,6 +9,8 @@ import { PageHeader } from '../components/layout/PageHeader';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { CreateAutomationModal } from '../components/automation/CreateAutomationModal';
 import { AutomationLogsModal } from '../components/automation/AutomationLogsModal';
+import { foldersApi } from '../lib/api/folders';
+import { qk } from '../lib/queryKeys';
 import type { AutomationRule } from '../types';
 
 export function AutomationsPage() {
@@ -19,6 +22,19 @@ export function AutomationsPage() {
   const [editingRule, setEditingRule] = useState<AutomationRule | null>(null);
   const [logsRuleId, setLogsRuleId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AutomationRule | null>(null);
+
+  const { data: folderTree } = useQuery({
+    queryKey: qk.workspaceTree,
+    queryFn: () => foldersApi.getWorkspaceTree(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const folderNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    if (folderTree?.folders) {
+      for (const f of folderTree.folders) map.set(f.id, f.name);
+    }
+    return map;
+  }, [folderTree]);
 
   return (
     <div className="p-4 sm:p-6 space-y-2">
@@ -67,7 +83,9 @@ export function AutomationsPage() {
                   {' · '}
                   {rule.actions
                     .map((a) =>
-                      a.type === 'move' ? `Move to ${a.targetFolderId ?? '?'}` : 'Delete',
+                      a.type === 'move'
+                        ? `Move to ${folderNameMap.get(a.targetFolderId ?? '') ?? a.targetFolderId ?? '?'}`
+                        : 'Delete',
                     )
                     .join(', ')}
                 </p>

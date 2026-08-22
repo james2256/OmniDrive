@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { AutomationsPage } from './AutomationsPage';
 
@@ -13,6 +13,10 @@ vi.mock('../hooks/useAutomations', () => ({
   useAutomations: useAutomationsMock,
   useToggleAutomation: useToggleAutomationMock,
   useDeleteAutomation: useDeleteAutomationMock,
+}));
+
+vi.mock('@tanstack/react-query', () => ({
+  useQuery: vi.fn(() => ({ data: undefined })),
 }));
 
 // Modals are tested independently — stub them so page tests focus on the list.
@@ -401,5 +405,32 @@ describe('AutomationsPage', () => {
     fireEvent.click(screen.getByLabelText('Delete Deletable'));
     fireEvent.click(screen.getByTestId('confirm-btn'));
     await waitFor(() => expect(deleteMutateAsync).toHaveBeenCalledWith('r1'));
+  });
+
+  it('resolves targetFolderId to folder name when workspace tree is loaded', async () => {
+    const { useQuery } = await import('@tanstack/react-query');
+    (useQuery as Mock).mockReturnValue({
+      data: { folders: [{ id: 'wf-1', name: 'Invoices' }] },
+    });
+    useAutomationsMock.mockReturnValue(
+      mockHookReturn({
+        data: [
+          {
+            id: 'r1',
+            userId: 'u',
+            name: 'Auto-archive',
+            triggerType: 'event',
+            triggerConfig: {},
+            conditions: [],
+            actions: [{ type: 'move', targetFolderId: 'wf-1' }],
+            isActive: true,
+            createdAt: '',
+            updatedAt: '',
+          },
+        ],
+      }),
+    );
+    render(<AutomationsPage />);
+    expect(screen.getByText(/Move to Invoices/)).toBeTruthy();
   });
 });

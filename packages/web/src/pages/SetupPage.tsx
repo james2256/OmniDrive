@@ -6,6 +6,7 @@ import { Button } from '../components/ui/Button';
 export function SetupPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [invitationCode, setInvitationCode] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -13,7 +14,11 @@ export function SetupPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      await authApi.register({ username, password });
+      await authApi.register({
+        username,
+        password,
+        invitation_code: invitationCode || undefined,
+      });
       window.location.href = '/';
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : 'Setup failed');
@@ -69,6 +74,23 @@ export function SetupPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-2 border border-slate-400 rounded-lg bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="setup-invitation-code"
+                className="block text-sm font-medium text-slate-700 mb-1"
+              >
+                Invitation Code / Bootstrap Token (if required)
+              </label>
+              <input
+                id="setup-invitation-code"
+                name="invitation_code"
+                type="text"
+                autoComplete="off"
+                value={invitationCode}
+                onChange={(e) => setInvitationCode(e.target.value)}
                 className="w-full px-4 py-2 border border-slate-400 rounded-lg bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               />
             </div>

@@ -10,6 +10,7 @@ import { useSearchParams } from 'react-router-dom';
 // Stable mock refs.
 const refetchMock = vi.hoisted(() => vi.fn());
 const toggleStarMock = vi.hoisted(() => vi.fn());
+const setSearchParamsMock = vi.hoisted(() => vi.fn());
 const itemModalsMock = vi.hoisted(() => ({
   setShareTarget: vi.fn(),
   setMoveDriveFiles: vi.fn(),
@@ -114,7 +115,10 @@ vi.mock('lucide-react', () => ({
 describe('SearchPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (useSearchParams as Mock).mockReturnValue([new URLSearchParams('?q=test')]);
+    (useSearchParams as Mock).mockReturnValue([
+      new URLSearchParams('?q=test'),
+      setSearchParamsMock,
+    ]);
     (useDrives as Mock).mockReturnValue({
       data: { drives: [{ id: 'd1', email: 'u@gmail.com' }] },
     });
@@ -137,13 +141,13 @@ describe('SearchPage', () => {
   });
 
   it('renders prompt to enter a search term when no query is present', () => {
-    (useSearchParams as Mock).mockReturnValue([new URLSearchParams()]);
+    (useSearchParams as Mock).mockReturnValue([new URLSearchParams(), setSearchParamsMock]);
     render(<SearchPage />);
     expect(screen.getByText('Please enter a search term.')).toBeTruthy();
   });
 
   it('renders "Search" heading when query is empty', () => {
-    (useSearchParams as Mock).mockReturnValue([new URLSearchParams()]);
+    (useSearchParams as Mock).mockReturnValue([new URLSearchParams(), setSearchParamsMock]);
     render(<SearchPage />);
     expect(screen.getByText('Search')).toBeTruthy();
   });
@@ -277,7 +281,7 @@ describe('SearchPage', () => {
   });
 
   it('does not fetch when query is empty (useQuery disabled)', () => {
-    (useSearchParams as Mock).mockReturnValue([new URLSearchParams()]);
+    (useSearchParams as Mock).mockReturnValue([new URLSearchParams(), setSearchParamsMock]);
     (useQuery as Mock).mockReturnValue({
       data: null,
       isLoading: false,
@@ -288,5 +292,24 @@ describe('SearchPage', () => {
     // Use the call args to verify enabled: false was passed.
     const callArgs = (useQuery as Mock).mock.calls.at(-1)?.[0] as { enabled?: boolean };
     expect(callArgs.enabled).toBe(false);
+  });
+
+  it('renders a search input that updates URL params on Enter', () => {
+    (useSearchParams as Mock).mockReturnValue([new URLSearchParams(), setSearchParamsMock]);
+    render(<SearchPage />);
+    const input = screen.getByPlaceholderText('Search files and folders…');
+    expect(input).toBeTruthy();
+    fireEvent.change(input, { target: { value: 'invoice' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(setSearchParamsMock).toHaveBeenCalledWith({ q: 'invoice' });
+  });
+
+  it('clears the search when input is empty and Enter is pressed', () => {
+    (useSearchParams as Mock).mockReturnValue([new URLSearchParams('?q=old'), setSearchParamsMock]);
+    render(<SearchPage />);
+    const input = screen.getByPlaceholderText('Search files and folders…') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(setSearchParamsMock).toHaveBeenCalledWith({});
   });
 });

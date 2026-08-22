@@ -15,7 +15,7 @@ import { ListSkeleton } from '../components/EmptyState';
 import { ErrorState } from '../components/ErrorState';
 
 export function SearchPage() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const query = searchParams.get('q') || '';
   const metadataKey = searchParams.get('metadataKey') || null;
   const metadataValue = searchParams.get('metadataValue') || null;
@@ -56,6 +56,19 @@ export function SearchPage() {
   return (
     <div className="p-4 sm:p-6 space-y-2">
       <PageHeader title={query ? `Search results for "${query}"` : 'Search'} icon={Search} />
+
+      <input
+        type="text"
+        placeholder="Search files and folders…"
+        defaultValue={query}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            const value = (e.target as HTMLInputElement).value.trim();
+            setSearchParams(value ? { q: value } : {});
+          }
+        }}
+        className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      />
 
       {!query ? (
         <div className="flex flex-col items-center justify-center py-20 text-slate-500">

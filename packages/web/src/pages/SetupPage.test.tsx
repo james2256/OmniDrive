@@ -62,6 +62,42 @@ describe('SetupPage', () => {
     expect(screen.getByRole('button', { name: /complete setup/i })).toBeTruthy();
   });
 
+  it('renders an optional invitation-code field for bootstrap token', () => {
+    render(<SetupPage />);
+    expect(screen.getByLabelText(/Invitation Code.*Bootstrap Token/i)).toBeTruthy();
+  });
+
+  it('passes invitation_code to register when provided', async () => {
+    (authApi.register as Mock).mockResolvedValue({
+      user: { id: 'u1', username: 'admin' },
+    });
+    stubLocationHref();
+
+    render(<SetupPage />);
+
+    fireEvent.change(screen.getByLabelText('Admin Username'), {
+      target: { value: 'admin' },
+    });
+    fireEvent.change(screen.getByLabelText('Admin Password'), {
+      target: { value: 'password123' },
+    });
+    fireEvent.change(screen.getByLabelText(/Invitation Code.*Bootstrap Token/i), {
+      target: { value: 'my-token' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /complete setup/i }));
+
+    await waitFor(() => {
+      expect(authApi.register).toHaveBeenCalledWith(
+        expect.objectContaining({
+          username: 'admin',
+          password: 'password123',
+          invitation_code: 'my-token',
+        }),
+      );
+    });
+  });
+
   it('submits form with username and password, calling authApi.register', async () => {
     (authApi.register as Mock).mockResolvedValue({
       user: { id: 'u1', username: 'admin' },

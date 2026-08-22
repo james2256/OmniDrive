@@ -163,7 +163,6 @@ const AppRoutes = ({ isSetup }: { isSetup: boolean }) => {
             <Route path="/files/:folderId" element={<FilesPage />} />
             <Route path="/workspaces" element={<WorkspacesPage />} />
             <Route path="/automations" element={<AutomationsPage />} />
-            <Route path="/settings/drives" element={<SettingsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/shared" element={<SharedLinksPage />} />
             <Route path="/external" element={<ExternalPage />} />

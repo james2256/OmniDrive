@@ -128,7 +128,12 @@ sharedRouter.put(
 
 sharedRouter.delete('/:id', authGuard, async (c) => {
   const sharedService = c.get('sharedService');
-  await sharedService.deleteLink(c.get('userId'), c.req.param('id'));
+  const linkId = c.req.param('id');
+  await sharedService.deleteLink(c.get('userId'), linkId);
+  // Clean up brute-force lockout KV entries (self-expire in 15min, but
+  // deleting now avoids dead keys if the link ID is ever reused).
+  await c.env.KV.delete(`shared_verify_lock:${linkId}`);
+  await c.env.KV.delete(`shared_verify_fail:${linkId}`);
   return c.body(null, 204);
 });
 

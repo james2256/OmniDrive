@@ -207,7 +207,7 @@ export function DashboardPage() {
             variant="primary"
             size="md"
             className="mt-5 rounded-lg"
-            onClick={() => navigate('/settings/drives')}
+            onClick={() => navigate('/settings')}
           >
             <Plus size={16} />
             Connect a drive
