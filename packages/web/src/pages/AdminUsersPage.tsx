@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useToastStore } from '../stores/useToastStore';
-import { ShieldAlert, Plus, EllipsisVertical, UserPlus, UserCog } from 'lucide-react';
+import { Plus, EllipsisVertical, UserPlus, UserCog } from 'lucide-react';
 import { adminApi } from '../lib/api/admin';
 import type { Invitation } from '../types';
 import { qk } from '../lib/queryKeys';
@@ -124,7 +124,7 @@ const AddUserModal: React.FC<{ open: boolean; onClose: () => void; onSuccess: ()
 };
 
 export const AdminUsersPage: React.FC = () => {
-  const { user } = useAuthStore();
+  const user = useAuthStore((s) => s.user);
   const { addToast } = useToastStore();
   const [activeTab, setActiveTab] = useState<'users' | 'invitations'>('users');
 
@@ -175,16 +175,6 @@ export const AdminUsersPage: React.FC = () => {
     queryFn: () => adminApi.getInvitations(),
   });
   const invitations = useMemo(() => invitationsData?.invitations ?? [], [invitationsData]);
-
-  if (user?.role !== 'super_admin') {
-    return (
-      <div className="flex flex-col items-center justify-center h-full text-slate-500">
-        <ShieldAlert size={48} className="text-red-400 mb-4" />
-        <h2 className="text-xl font-medium text-slate-800">Access Denied</h2>
-        <p className="mt-2">You do not have permission to view this page.</p>
-      </div>
-    );
-  }
 
   // Invitations Actions
   const handleCreateInvitation = async (e: React.FormEvent) => {

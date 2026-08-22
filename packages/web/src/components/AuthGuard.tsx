@@ -46,3 +46,11 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   return <>{children}</>;
 }
+
+export function AdminRoute({ children }: { children: React.ReactNode }) {
+  const user = useAuthStore((s) => s.user);
+  if (user?.role !== 'super_admin') {
+    return <Navigate to="/" replace />;
+  }
+  return <>{children}</>;
+}

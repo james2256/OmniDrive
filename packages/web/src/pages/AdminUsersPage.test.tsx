@@ -103,17 +103,6 @@ describe('AdminUsersPage', () => {
     cleanup();
   });
 
-  it('renders access denied for non-admin users', () => {
-    (useAuthStore as unknown as Mock).mockReturnValue({
-      user: { id: 'user1', role: 'member' },
-    });
-
-    render(<AdminUsersPage />);
-
-    expect(screen.getByText('Access Denied')).toBeTruthy();
-    expect(screen.getByText('You do not have permission to view this page.')).toBeTruthy();
-  });
-
   it('renders the user management page for admin users', async () => {
     (useAuthStore as unknown as Mock).mockReturnValue({
       user: { id: 'admin1', role: 'super_admin' },

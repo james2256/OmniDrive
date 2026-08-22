@@ -46,7 +46,27 @@ vi.mock('../lib/api/drives', () => ({
 }));
 
 vi.mock('../lib/queryKeys', () => ({
-  qk: { drives: ['drives'] },
+  qk: {
+    drives: ['drives'],
+    driveFolder: ['driveFolder'],
+    starred: ['starred'],
+    trash: ['trash'],
+    recent: ['recent'],
+    sharedLinks: ['sharedLinks'],
+    external: ['external'],
+    category: ['category'],
+    workspaceTree: ['workspaceTree'],
+  },
+}));
+
+vi.mock('../lib/invalidate', () => ({
+  invalidateAfterFileMutation: vi.fn((qc: unknown) => {
+    // Delegate to the mocked invalidateQueries so test assertions on
+    // invalidateQueries calls still work.
+    (qc as { invalidateQueries: typeof invalidateQueries }).invalidateQueries({
+      queryKey: ['drives'],
+    });
+  }),
 }));
 
 vi.mock('../stores/useToastStore', () => ({

@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { AuthGuard } from './components/AuthGuard';
+import { AuthGuard, AdminRoute } from './components/AuthGuard';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppLayout } from './components/layout/AppLayout';
 import { ToastContainer } from './components/ui/Toast';
@@ -157,19 +157,63 @@ const AppRoutes = ({ isSetup }: { isSetup: boolean }) => {
               </SetupGuard>
             }
           >
-            <Route path="/" element={<DashboardPage />} />
+            <Route
+              path="/"
+              element={
+                <ErrorBoundary resetKey={location.pathname}>
+                  <DashboardPage />
+                </ErrorBoundary>
+              }
+            />
             <Route path="/search" element={<SearchPage />} />
-            <Route path="/files" element={<FilesPage />} />
-            <Route path="/files/:folderId" element={<FilesPage />} />
-            <Route path="/workspaces" element={<WorkspacesPage />} />
+            <Route
+              path="/files"
+              element={
+                <ErrorBoundary resetKey={location.pathname}>
+                  <FilesPage />
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/files/:folderId"
+              element={
+                <ErrorBoundary resetKey={location.pathname}>
+                  <FilesPage />
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/workspaces"
+              element={
+                <ErrorBoundary resetKey={location.pathname}>
+                  <WorkspacesPage />
+                </ErrorBoundary>
+              }
+            />
             <Route path="/automations" element={<AutomationsPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
+            <Route
+              path="/settings"
+              element={
+                <ErrorBoundary resetKey={location.pathname}>
+                  <SettingsPage />
+                </ErrorBoundary>
+              }
+            />
             <Route path="/shared" element={<SharedLinksPage />} />
             <Route path="/external" element={<ExternalPage />} />
             <Route path="/external/:folderId" element={<ExternalPage />} />
             <Route path="/trash" element={<TrashPage />} />
             <Route path="/starred" element={<StarredPage />} />
-            <Route path="/admin/users" element={<AdminUsersPage />} />
+            <Route
+              path="/admin/users"
+              element={
+                <ErrorBoundary resetKey={location.pathname}>
+                  <AdminRoute>
+                    <AdminUsersPage />
+                  </AdminRoute>
+                </ErrorBoundary>
+              }
+            />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

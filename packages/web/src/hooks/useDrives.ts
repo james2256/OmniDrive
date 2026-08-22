@@ -3,6 +3,7 @@ import { useCallback } from 'react';
 import { drivesApi } from '../lib/api/drives';
 import { useToastStore } from '../stores/useToastStore';
 import { qk } from '../lib/queryKeys';
+import { invalidateAfterFileMutation } from '../lib/invalidate';
 import type { DriveAccount, AggregateQuota } from '../types';
 
 interface DrivesResponse {
@@ -38,7 +39,7 @@ export function useRemoveDrive() {
     mutationFn: (driveId: string) => drivesApi.disconnectDrive(driveId),
     onSuccess: () => {
       addToast('success', 'Drive disconnected');
-      queryClient.invalidateQueries({ queryKey: qk.drives });
+      invalidateAfterFileMutation(queryClient);
     },
     onError: () => addToast('error', 'Failed to disconnect drive'),
   });

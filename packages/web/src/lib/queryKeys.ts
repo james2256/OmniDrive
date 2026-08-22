@@ -1,4 +1,8 @@
 /** Central query key registry. Single source of truth for all TanStack Query keys. */
+type QueryKey = readonly string[];
+type QueryKeyFactory = (...args: string[]) => QueryKey;
+type QueryKeyRegistry = Record<string, QueryKey | QueryKeyFactory>;
+
 export const qk = {
   drives: ['drives'] as const,
   driveFolder: ['driveFolder'] as const,
@@ -18,4 +22,4 @@ export const qk = {
   adminInvitations: ['adminInvitations'] as const,
   automations: ['automations'] as const,
   automationLogs: (ruleId: string) => ['automationLogs', ruleId] as const,
-};
+} satisfies QueryKeyRegistry;
