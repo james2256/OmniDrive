@@ -77,7 +77,6 @@ describe('ShareModal', () => {
       password: 'secret123',
       allowDownloads: true,
       maxDownloads: null,
-      requireEmail: false,
     });
 
     // URL input appears after success
@@ -130,9 +129,6 @@ describe('ShareModal', () => {
     // Expand advanced
     fireEvent.click(screen.getByText('Advanced'));
 
-    // Toggle "Require Email"
-    fireEvent.click(screen.getByText('Require email to view'));
-
     // Set max downloads
     fireEvent.change(screen.getByPlaceholderText('Max downloads (blank = unlimited)'), {
       target: { value: '5' },
@@ -150,7 +146,6 @@ describe('ShareModal', () => {
     const callArg = (sharedApi.createSharedLink as Mock).mock.calls[0][0];
     expect(callArg).toMatchObject({
       allowDownloads: false,
-      requireEmail: true,
       maxDownloads: 5,
     });
   });

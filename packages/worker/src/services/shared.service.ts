@@ -54,9 +54,7 @@ export class SharedService {
       password?: string;
       expiresAt?: string | null;
       allowDownloads: boolean;
-      allowUploads: boolean;
       maxDownloads?: number | null;
-      requireEmail: boolean;
       webhookUrl?: string | null;
     },
   ): Promise<string> {
@@ -84,9 +82,7 @@ export class SharedService {
       passwordHash,
       expiresAt: params.expiresAt ?? null,
       allowDownloads: params.allowDownloads,
-      allowUploads: params.allowUploads,
       maxDownloads: params.maxDownloads ?? null,
-      requireEmail: params.requireEmail,
       webhookUrl: params.webhookUrl ?? null,
     });
   }
@@ -108,9 +104,7 @@ export class SharedService {
       password?: string | null;
       expiresAt?: string | null;
       allowDownloads?: boolean;
-      allowUploads?: boolean;
       maxDownloads?: number | null;
-      requireEmail?: boolean;
       webhookUrl?: string | null;
     },
   ): Promise<void> {
@@ -120,15 +114,9 @@ export class SharedService {
     // Distinguish undefined (keep existing) from null (clear) from value (set new)
     const expiresAt = body.expiresAt === undefined ? existing.expires_at : body.expiresAt;
     const allowDownloads = body.allowDownloads ?? existing.allow_downloads === 1;
-    const allowUploads = body.allowUploads ?? existing.allow_uploads === 1;
     const maxDownloads =
       body.maxDownloads === undefined ? existing.max_downloads : body.maxDownloads;
-    const requireEmail = body.requireEmail ?? existing.require_email === 1;
     const webhookUrl = body.webhookUrl === undefined ? existing.webhook_url : body.webhookUrl;
-
-    if (allowUploads) {
-      throw new AppError(400, 'Uploads via shared links are not yet supported');
-    }
 
     if (webhookUrl && webhookUrl !== existing.webhook_url) {
       const err = await validateWebhookUrlAsync(webhookUrl);
@@ -146,9 +134,7 @@ export class SharedService {
     const changes = await this.sharedRepo.update(id, userId, {
       expiresAt: expiresAt || null,
       allowDownloads,
-      allowUploads,
       maxDownloads,
-      requireEmail,
       webhookUrl,
       passwordHash,
     });

@@ -26,7 +26,7 @@ async function ensureSchema() {
     `CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, google_id TEXT UNIQUE, email TEXT UNIQUE, name TEXT, avatar_url TEXT, is_super_admin INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')))`,
   ).run();
   await env.DB.prepare(
-    `CREATE TABLE IF NOT EXISTS shared_links (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, target_type TEXT NOT NULL CHECK (target_type IN ('file', 'folder')), target_id TEXT NOT NULL, password_hash TEXT, expires_at TEXT, allow_downloads INTEGER NOT NULL DEFAULT 1, allow_uploads INTEGER NOT NULL DEFAULT 0, max_downloads INTEGER, require_email INTEGER NOT NULL DEFAULT 0, webhook_url TEXT, view_count INTEGER NOT NULL DEFAULT 0, download_count INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')))`,
+    `CREATE TABLE IF NOT EXISTS shared_links (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, target_type TEXT NOT NULL CHECK (target_type IN ('file', 'folder')), target_id TEXT NOT NULL, password_hash TEXT, expires_at TEXT, allow_downloads INTEGER NOT NULL DEFAULT 1, max_downloads INTEGER, webhook_url TEXT, view_count INTEGER NOT NULL DEFAULT 0, download_count INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')))`,
   ).run();
 }
 

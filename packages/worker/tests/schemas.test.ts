@@ -7,7 +7,6 @@ import {
   expiresAtSchema,
   createSharedLinkSchema,
   sharedLinkVerifySchema,
-  sharedLinkEmailSchema,
   renameFileSchema,
   moveWithinDriveSchema,
   uploadInitSchema,
@@ -96,8 +95,6 @@ describe('createSharedLinkSchema', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.allowDownloads).toBe(true);
-      expect(result.data.allowUploads).toBe(false);
-      expect(result.data.requireEmail).toBe(false);
     }
   });
   it('rejects private-IP webhookUrl', () => {
@@ -116,15 +113,6 @@ describe('sharedLinkVerifySchema', () => {
   });
   it('accepts non-empty password', () => {
     expect(sharedLinkVerifySchema.safeParse({ password: 'secret' }).success).toBe(true);
-  });
-});
-
-describe('sharedLinkEmailSchema', () => {
-  it('requires valid email', () => {
-    expect(sharedLinkEmailSchema.safeParse({ email: 'not-an-email' }).success).toBe(false);
-  });
-  it('accepts valid email', () => {
-    expect(sharedLinkEmailSchema.safeParse({ email: 'bob@example.com' }).success).toBe(true);
   });
 });
 

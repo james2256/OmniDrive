@@ -99,9 +99,7 @@ export interface SharedLink {
   passwordHash?: string | null;
   expiresAt?: string | null;
   allowDownloads: boolean;
-  allowUploads: boolean;
   maxDownloads?: number | null;
-  requireEmail: boolean;
   webhookUrl?: string | null;
   viewCount: number;
   downloadCount: number;

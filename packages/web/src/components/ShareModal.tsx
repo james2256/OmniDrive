@@ -41,7 +41,6 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
   const [showPassword, setShowPassword] = useState(false);
   const [allowDownloads, setAllowDownloads] = useState(true);
   const [maxDownloads, setMaxDownloads] = useState('');
-  const [requireEmail, setRequireEmail] = useState(false);
   const [webhookUrl, setWebhookUrl] = useState('');
 
   const [loading, setLoading] = useState(false);
@@ -58,7 +57,6 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
       setShowPassword(false);
       setAllowDownloads(true);
       setMaxDownloads('');
-      setRequireEmail(false);
       setWebhookUrl('');
       setSharedUrl('');
       setError('');
@@ -84,7 +82,6 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
         expiresAt: isoExpiresAt,
         allowDownloads,
         maxDownloads: maxDownloads ? parseInt(maxDownloads, 10) : null,
-        requireEmail,
         webhookUrl: webhookUrl || undefined,
       });
       setSharedUrl(resp.url);
@@ -176,15 +173,6 @@ export function ShareModal({ open, targetType, targetId, onClose }: ShareModalPr
                         className="w-3.5 h-3.5 rounded border-slate-400 text-primary focus-visible:ring-primary cursor-pointer"
                       />
                       <span className="select-none">Allow downloads</span>
-                    </label>
-                    <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={requireEmail}
-                        onChange={(e) => setRequireEmail(e.target.checked)}
-                        className="w-3.5 h-3.5 rounded border-slate-400 text-primary focus-visible:ring-primary cursor-pointer"
-                      />
-                      <span className="select-none">Require email to view</span>
                     </label>
                     <Input
                       type="number"

@@ -31,11 +31,9 @@ export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [allowDownloads, setAllowDownloads] = useState(link?.allowDownloads ?? true);
-  const [allowUploads, setAllowUploads] = useState(link?.allowUploads ?? false);
   const [maxDownloads, setMaxDownloads] = useState(
     link?.maxDownloads ? String(link.maxDownloads) : '',
   );
-  const [requireEmail, setRequireEmail] = useState(link?.requireEmail ?? false);
   const [webhookUrl, setWebhookUrl] = useState(link?.webhookUrl || '');
 
   const [loading, setLoading] = useState(false);
@@ -50,9 +48,7 @@ export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
       setShowAdvanced(false);
       setShowPassword(false);
       setAllowDownloads(link.allowDownloads ?? true);
-      setAllowUploads(link.allowUploads ?? false);
       setMaxDownloads(link.maxDownloads ? String(link.maxDownloads) : '');
-      setRequireEmail(link.requireEmail ?? false);
       setWebhookUrl(link.webhookUrl || '');
       setError('');
     }
@@ -76,9 +72,7 @@ export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
         password: password === '' ? null : password,
         expiresAt: expiresAt ? isoExpiresAt : null,
         allowDownloads,
-        allowUploads: link.targetType === 'folder' ? allowUploads : false,
         maxDownloads: maxDownloads ? parseInt(maxDownloads, 10) : null,
-        requireEmail,
         webhookUrl: webhookUrl || undefined,
       });
 
@@ -169,26 +163,6 @@ export function EditShareModal({ open, link, onClose }: EditShareModalProps) {
                       className="w-3.5 h-3.5 rounded border-slate-400 text-primary focus-visible:ring-primary cursor-pointer"
                     />
                     <span className="select-none">Allow downloads</span>
-                  </label>
-                  {link?.targetType === 'folder' && (
-                    <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={allowUploads}
-                        onChange={(e) => setAllowUploads(e.target.checked)}
-                        className="w-3.5 h-3.5 rounded border-slate-400 text-primary focus-visible:ring-primary cursor-pointer"
-                      />
-                      <span className="select-none">Allow uploads (public drop folder)</span>
-                    </label>
-                  )}
-                  <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={requireEmail}
-                      onChange={(e) => setRequireEmail(e.target.checked)}
-                      className="w-3.5 h-3.5 rounded border-slate-400 text-primary focus-visible:ring-primary cursor-pointer"
-                    />
-                    <span className="select-none">Require email to view</span>
                   </label>
                   <Input
                     type="number"

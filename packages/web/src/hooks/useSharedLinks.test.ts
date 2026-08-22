@@ -66,9 +66,7 @@ const mockLink = (overrides: Partial<SharedLink>): SharedLink => ({
   downloadCount: 0,
   createdAt: '2024-01-01',
   allowDownloads: true,
-  allowUploads: false,
   maxDownloads: null,
-  requireEmail: false,
   webhookUrl: null,
   ...overrides,
 });

@@ -18,7 +18,6 @@ import {
   createSharedLinkSchema,
   updateSharedLinkSchema,
   sharedLinkVerifySchema,
-  sharedLinkEmailSchema,
   zodErrorHook,
 } from '../lib/schemas';
 
@@ -34,26 +33,9 @@ async function validateSharedLink(
   status?: number;
   error?: string;
   requiresPassword?: boolean;
-  requiresEmail?: boolean;
 }> {
   if (link.expiresAt && new Date(link.expiresAt) < new Date()) {
     return { ok: false, status: 410, error: 'Link expired' };
-  }
-
-  // requireEmail gate: visitor must have submitted an email (signed JWT cookie)
-  if (link.requireEmail) {
-    const emailCookie = getCookie(c, `shared_email_${link.id}`);
-    if (!emailCookie) {
-      return { ok: false, status: 403, error: 'Email required', requiresEmail: true };
-    }
-    try {
-      const payload = await verify(emailCookie, c.env.JWT_SECRET, 'HS256');
-      if (payload.id !== link.id || typeof payload.email !== 'string' || !payload.email) {
-        return { ok: false, status: 403, error: 'Email required', requiresEmail: true };
-      }
-    } catch {
-      return { ok: false, status: 403, error: 'Email required', requiresEmail: true };
-    }
   }
 
   const requiresPassword = !!link.passwordHash;
@@ -86,11 +68,6 @@ sharedRouter.post(
     const userId = c.get('userId');
     const body = c.req.valid('json');
 
-    // ponytail: allowUploads not yet implemented — refuse to store a false promise
-    if (body.allowUploads) {
-      throw new ValidationError('Uploads via shared links are not yet supported');
-    }
-
     const sharedService = c.get('sharedService');
     const id = await sharedService.createLink(userId, {
       targetType: body.targetType,
@@ -98,9 +75,7 @@ sharedRouter.post(
       password: body.password,
       expiresAt: body.expiresAt,
       allowDownloads: body.allowDownloads,
-      allowUploads: body.allowUploads,
       maxDownloads: body.maxDownloads,
-      requireEmail: body.requireEmail,
       webhookUrl: body.webhookUrl,
     });
 
@@ -156,7 +131,6 @@ sharedRouter.get('/:id/meta', async (c) => {
       {
         error: validation.error,
         requiresPassword: validation.requiresPassword,
-        requiresEmail: validation.requiresEmail,
       },
       validation.status as 400 | 401 | 403 | 410 | 500,
     );
@@ -220,35 +194,6 @@ sharedRouter.post(
       'HS256',
     );
     setCookie(c, `shared_session_${link.id}`, token, sharedLinkCookieOptions(c.env));
-    return c.body(null, 204);
-  },
-);
-
-// Email gate for requireEmail links — ponytail: no password needed, just record the email
-sharedRouter.post(
-  '/:id/email',
-  zValidator('json', sharedLinkEmailSchema, zodErrorHook),
-  async (c) => {
-    const sharedService = c.get('sharedService');
-    const link = await sharedService.getLinkForValidation(c.req.param('id'));
-    if (!link) throw new NotFoundError('Link not found');
-
-    if (!link.requireEmail) throw new ValidationError('This link does not require email');
-    if (link.expiresAt && new Date(link.expiresAt) < new Date()) {
-      throw new AppError(410, 'Link expired');
-    }
-
-    const { email } = c.req.valid('json');
-
-    // JWT signing + cookie logic stays in route (needs c.env.JWT_SECRET)
-    const emailToken = await sign(
-      { id: link.id, email, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 },
-      c.env.JWT_SECRET,
-      'HS256',
-    );
-    setCookie(c, `shared_email_${link.id}`, emailToken, sharedLinkCookieOptions(c.env));
-
-    c.executionCtx.waitUntil(sharedService.logAction(link.id, 'email_access', email));
     return c.body(null, 204);
   },
 );
@@ -418,7 +363,6 @@ sharedRouter.get('/:id/folder-contents', async (c) => {
       {
         error: validation.error,
         requiresPassword: validation.requiresPassword,
-        requiresEmail: validation.requiresEmail,
       },
       validation.status as 400 | 401 | 403 | 410 | 500,
     );
@@ -467,7 +411,6 @@ sharedRouter.get('/:id/download-tree', async (c) => {
       {
         error: validation.error,
         requiresPassword: validation.requiresPassword,
-        requiresEmail: validation.requiresEmail,
       },
       validation.status as 400 | 401 | 403 | 410 | 500,
     );

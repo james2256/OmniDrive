@@ -96,9 +96,7 @@ const baseLink: SharedLink = {
   downloadCount: 1,
   createdAt: '2024-01-01T00:00:00.000Z',
   allowDownloads: true,
-  allowUploads: false,
   maxDownloads: null,
-  requireEmail: false,
   webhookUrl: null,
 };
 
@@ -316,21 +314,6 @@ describe('EditShareModal', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Hide password' }));
     expect(passwordInput.getAttribute('type')).toBe('password');
-  });
-
-  it('renders the "Allow uploads" checkbox only when targetType is folder', () => {
-    const folderLink: SharedLink = { ...baseLink, id: 'link-2', targetType: 'folder' };
-    render(<EditShareModal open link={folderLink} onClose={vi.fn()} />);
-
-    fireEvent.click(screen.getByText('Advanced'));
-    expect(screen.getByLabelText('Allow uploads (public drop folder)')).toBeTruthy();
-  });
-
-  it('does NOT render the "Allow uploads" checkbox when targetType is file', () => {
-    render(<EditShareModal open link={baseLink} onClose={vi.fn()} />);
-
-    fireEvent.click(screen.getByText('Advanced'));
-    expect(screen.queryByText('Allow uploads (public drop folder)')).toBeNull();
   });
 
   it('clearing the expiration datetime submits expiresAt: null', async () => {

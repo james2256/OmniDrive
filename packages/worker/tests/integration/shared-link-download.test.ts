@@ -79,8 +79,6 @@ describe('Shared link create + meta (integration)', () => {
           targetType: 'file',
           targetId: 'sl-file-1',
           allowDownloads: true,
-          allowUploads: false,
-          requireEmail: false,
         }),
       },
       env,
@@ -104,8 +102,8 @@ describe('Shared link create + meta (integration)', () => {
     expect(res.status).toBe(404);
   });
 
-  // ─── A-01: Shared-link password bypass via cookie swap ───
-  it('email JWT cannot be used as session JWT to bypass password', async () => {
+  // ─── A-01: Shared-link password bypass protection ───
+  it('forged JWT without kind:session cannot bypass password', async () => {
     // Clean and re-seed for this test
     await clearAllTables(env.DB);
 
@@ -147,57 +145,38 @@ describe('Shared link create + meta (integration)', () => {
       .bind('sl-file-2', 'sl-user-2', 'sl-drive-2', 'gfile-2', 'protected-doc.txt')
       .run();
 
-    // Create a shared link with BOTH requireEmail=true AND passwordHash
+    // Create a shared link with a password
     const sharedPasswordHash = await hashSharedPassword('s3cret-link-pass');
     await env.DB.prepare(
-      `INSERT INTO shared_links (id, user_id, target_type, target_id, password_hash, allow_downloads, require_email)
-       VALUES (?, ?, 'file', ?, ?, 1, 1)`,
+      `INSERT INTO shared_links (id, user_id, target_type, target_id, password_hash, allow_downloads)
+       VALUES (?, ?, 'file', ?, ?, 1)`,
     )
       .bind('link-bypass-test', 'sl-user-2', 'sl-file-2', sharedPasswordHash)
       .run();
 
-    // Step 1: POST any email to /:id/email → get shared_email cookie (signed JWT)
-    const emailRes = await app.request(
-      '/api/shared/link-bypass-test/email',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
-        body: JSON.stringify({ email: 'attacker@evil.com' }),
-      },
-      env,
-      executionCtx,
-    );
-    expect(emailRes.status).toBe(204);
-
-    // Extract the shared_email cookie from the Set-Cookie header
-    const setCookieHeader = emailRes.headers.get('set-cookie') || '';
-    const emailCookieMatch = setCookieHeader.match(/shared_email_link-bypass-test=([^;]+)/);
-    expect(emailCookieMatch).toBeTruthy();
-    const emailCookieValue = emailCookieMatch![1];
-
-    // Step 2: Use the email JWT as the session cookie (the attack)
+    // Try accessing the protected link with a forged/invalid session cookie.
+    // A JWT without kind: 'session' (or a garbage token) must NOT bypass the
+    // password check → should return 401 Password required, NOT 200.
     const metaRes = await app.request(
       '/api/shared/link-bypass-test/meta',
       {
         headers: {
           Origin: ORIGIN,
-          Cookie: `shared_email_link-bypass-test=${emailCookieValue}; shared_session_link-bypass-test=${emailCookieValue}`,
+          Cookie: 'shared_session_link-bypass-test=forged.invalid.token',
         },
       },
       env,
       executionCtx,
     );
 
-    // The email JWT should NOT pass the session check (no kind: 'session')
-    // → should return 401 Password required, NOT 200
     expect(metaRes.status).toBe(401);
     const body = await metaRes.text();
     expect(body).toContain('Password required');
   });
 
-  it('legitimate session JWT with kind:session grants access after password verify', async () => {
-    // The link from the previous test still exists (requireEmail + passwordHash)
-    // Step 1: Submit the correct password to get a real session JWT
+  it('legitimate session JWT grants access after password verify', async () => {
+    // The link from the previous test still exists (passwordHash set).
+    // Step 1: Submit the correct password to get a real session JWT.
     const verifyRes = await app.request(
       '/api/shared/link-bypass-test/verify',
       {
@@ -210,42 +189,26 @@ describe('Shared link create + meta (integration)', () => {
     );
     expect(verifyRes.status).toBe(204);
 
-    // Extract the shared_session cookie
+    // Extract the shared_session cookie.
     const setCookieHeader = verifyRes.headers.get('set-cookie') || '';
     const sessionCookieMatch = setCookieHeader.match(/shared_session_link-bypass-test=([^;]+)/);
     expect(sessionCookieMatch).toBeTruthy();
     const sessionCookieValue = sessionCookieMatch![1];
 
-    // Step 2: Also submit an email to get the email cookie (required by requireEmail gate)
-    const emailRes = await app.request(
-      '/api/shared/link-bypass-test/email',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
-        body: JSON.stringify({ email: 'user@example.com' }),
-      },
-      env,
-      executionCtx,
-    );
-    expect(emailRes.status).toBe(204);
-    const emailSetCookie = emailRes.headers.get('set-cookie') || '';
-    const emailCookieMatch = emailSetCookie.match(/shared_email_link-bypass-test=([^;]+)/);
-    const emailCookieValue = emailCookieMatch![1];
-
-    // Step 3: Use both cookies — email gate + session (with kind: 'session')
+    // Step 2: Use the legitimate session JWT (with kind: 'session').
     const metaRes = await app.request(
       '/api/shared/link-bypass-test/meta',
       {
         headers: {
           Origin: ORIGIN,
-          Cookie: `shared_email_link-bypass-test=${emailCookieValue}; shared_session_link-bypass-test=${sessionCookieValue}`,
+          Cookie: `shared_session_link-bypass-test=${sessionCookieValue}`,
         },
       },
       env,
       executionCtx,
     );
 
-    // Legitimate session JWT (with kind: 'session') should pass
+    // Legitimate session JWT (with kind: 'session') should pass.
     expect(metaRes.status).toBe(200);
   });
 });

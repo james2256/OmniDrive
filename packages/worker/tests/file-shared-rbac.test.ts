@@ -146,8 +146,6 @@ describe('SharedService RBAC (unit)', () => {
       targetType: 'file',
       targetId: 'file-1',
       allowDownloads: true,
-      allowUploads: false,
-      requireEmail: false,
     });
 
     expect(id).toBe('link-1');
@@ -176,9 +174,7 @@ describe('SharedService RBAC (unit)', () => {
       passwordHash: null,
       expiresAt: null,
       allowDownloads: true,
-      allowUploads: false,
       maxDownloads: null,
-      requireEmail: false,
       webhookUrl: null,
       viewCount: 0,
       downloadCount: 0,
@@ -200,9 +196,7 @@ describe('SharedService RBAC (unit)', () => {
       password_hash: 'old-hash',
       expires_at: '2025-12-31',
       allow_downloads: 1,
-      allow_uploads: 0,
       max_downloads: 5,
-      require_email: 1,
       webhook_url: 'https://old.webhook',
       view_count: 0,
       download_count: 0,

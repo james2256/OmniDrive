@@ -101,9 +101,7 @@ const sampleLink = {
   downloadCount: 3,
   createdAt: '2024-01-01T00:00:00Z',
   allowDownloads: true,
-  allowUploads: false,
   maxDownloads: null,
-  requireEmail: false,
   webhookUrl: null,
 };
 

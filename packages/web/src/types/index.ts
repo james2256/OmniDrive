@@ -287,9 +287,7 @@ export interface SharedLink {
   downloadCount: number;
   createdAt: string;
   allowDownloads: boolean;
-  allowUploads: boolean;
   maxDownloads: number | null;
-  requireEmail: boolean;
   webhookUrl: string | null;
 }
 
@@ -307,8 +305,6 @@ export interface CreateSharedLinkPayload {
   password?: string | null;
   expiresAt?: string | null;
   allowDownloads?: boolean;
-  allowUploads?: boolean;
   maxDownloads?: number | null;
-  requireEmail?: boolean;
   webhookUrl?: string;
 }

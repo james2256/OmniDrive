@@ -74,9 +74,7 @@ export class SharedRepository {
     passwordHash: string | null;
     expiresAt: string | null;
     allowDownloads: boolean;
-    allowUploads: boolean;
     maxDownloads: number | null;
-    requireEmail: boolean;
     webhookUrl: string | null;
   }): Promise<string> {
     const maxAttempts = 3;
@@ -85,7 +83,7 @@ export class SharedRepository {
       try {
         await this.db
           .prepare(
-            'INSERT INTO shared_links (id, user_id, target_type, target_id, target_name, target_mime_type, password_hash, expires_at, allow_downloads, allow_uploads, max_downloads, require_email, webhook_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO shared_links (id, user_id, target_type, target_id, target_name, target_mime_type, password_hash, expires_at, allow_downloads, max_downloads, webhook_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
           )
           .bind(
             id,
@@ -97,9 +95,7 @@ export class SharedRepository {
             params.passwordHash,
             params.expiresAt,
             params.allowDownloads ? 1 : 0,
-            params.allowUploads ? 1 : 0,
             params.maxDownloads,
-            params.requireEmail ? 1 : 0,
             params.webhookUrl,
           )
           .run();
@@ -120,23 +116,19 @@ export class SharedRepository {
     fields: {
       expiresAt: string | null;
       allowDownloads: boolean;
-      allowUploads: boolean;
       maxDownloads: number | null;
-      requireEmail: boolean;
       webhookUrl: string | null;
       passwordHash: string | null;
     },
   ): Promise<number> {
     const r = await this.db
       .prepare(
-        'UPDATE shared_links SET expires_at = ?, allow_downloads = ?, allow_uploads = ?, max_downloads = ?, require_email = ?, webhook_url = ?, password_hash = ? WHERE id = ? AND user_id = ?',
+        'UPDATE shared_links SET expires_at = ?, allow_downloads = ?, max_downloads = ?, webhook_url = ?, password_hash = ? WHERE id = ? AND user_id = ?',
       )
       .bind(
         fields.expiresAt,
         fields.allowDownloads ? 1 : 0,
-        fields.allowUploads ? 1 : 0,
         fields.maxDownloads,
-        fields.requireEmail ? 1 : 0,
         fields.webhookUrl,
         fields.passwordHash,
         id,

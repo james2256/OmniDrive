@@ -113,7 +113,7 @@ describe('SharedRepository', () => {
   // ─── mutations ───
 
   describe('insertWithUniqueSlug', () => {
-    it('INSERTs a shared link with all 13 fields in order, returns the id', async () => {
+    it('INSERTs a shared link with all 11 fields in order, returns the id', async () => {
       const id = await repo.insertWithUniqueSlug({
         userId: 'u-1',
         targetType: 'file',
@@ -123,18 +123,16 @@ describe('SharedRepository', () => {
         passwordHash: null,
         expiresAt: null,
         allowDownloads: true,
-        allowUploads: false,
         maxDownloads: null,
-        requireEmail: false,
         webhookUrl: null,
       });
 
       const sql = mockPrepare.mock.calls[0][0] as string;
       expect(sql).toContain('INSERT INTO shared_links');
       expect(sql).toContain(
-        'id, user_id, target_type, target_id, target_name, target_mime_type, password_hash, expires_at, allow_downloads, allow_uploads, max_downloads, require_email, webhook_url',
+        'id, user_id, target_type, target_id, target_name, target_mime_type, password_hash, expires_at, allow_downloads, max_downloads, webhook_url',
       );
-      // 13 binds — booleans converted to 0/1.
+      // 11 binds — booleans converted to 0/1.
       expect(mockBind).toHaveBeenCalledWith(
         expect.any(String),
         'u-1',
@@ -145,9 +143,7 @@ describe('SharedRepository', () => {
         null,
         null,
         1, // allowDownloads
-        0, // allowUploads
         null, // maxDownloads
-        0, // requireEmail
         null, // webhookUrl
       );
       // Returned id is the 16-char hex slug.
@@ -171,9 +167,7 @@ describe('SharedRepository', () => {
         passwordHash: null,
         expiresAt: null,
         allowDownloads: true,
-        allowUploads: true,
         maxDownloads: null,
-        requireEmail: false,
         webhookUrl: null,
       });
 
@@ -195,9 +189,7 @@ describe('SharedRepository', () => {
           passwordHash: null,
           expiresAt: null,
           allowDownloads: true,
-          allowUploads: false,
           maxDownloads: null,
-          requireEmail: false,
           webhookUrl: null,
         }),
       ).rejects.toThrow('Could not generate unique shared link ID after 3 attempts');
@@ -215,9 +207,7 @@ describe('SharedRepository', () => {
           passwordHash: null,
           expiresAt: null,
           allowDownloads: true,
-          allowUploads: false,
           maxDownloads: null,
-          requireEmail: false,
           webhookUrl: null,
         }),
       ).rejects.toThrow('FOREIGN KEY constraint failed');
@@ -227,31 +217,27 @@ describe('SharedRepository', () => {
   });
 
   describe('update', () => {
-    it('UPDATEs 7 fields scoped to id + user, returns rows changed', async () => {
+    it('UPDATEs 5 fields scoped to id + user, returns rows changed', async () => {
       mockRun.mockResolvedValueOnce({ success: true, meta: { changes: 1 } });
 
       const changes = await repo.update('sl-1', 'u-1', {
         expiresAt: '2026-12-31',
         allowDownloads: true,
-        allowUploads: false,
         maxDownloads: 100,
-        requireEmail: true,
         webhookUrl: 'https://example.com/webhook',
         passwordHash: '$2a$hash',
       });
 
       const sql = mockPrepare.mock.calls[0][0] as string;
       expect(sql).toContain(
-        'UPDATE shared_links SET expires_at = ?, allow_downloads = ?, allow_uploads = ?, max_downloads = ?, require_email = ?, webhook_url = ?, password_hash = ?',
+        'UPDATE shared_links SET expires_at = ?, allow_downloads = ?, max_downloads = ?, webhook_url = ?, password_hash = ?',
       );
       expect(sql).toContain('WHERE id = ? AND user_id = ?');
-      // Binds: 7 fields (booleans → 0/1) + id + userId = 9 total.
+      // Binds: 5 fields (booleans → 0/1) + id + userId = 7 total.
       expect(mockBind).toHaveBeenCalledWith(
         '2026-12-31',
         1,
-        0,
         100,
-        1,
         'https://example.com/webhook',
         '$2a$hash',
         'sl-1',
@@ -266,9 +252,7 @@ describe('SharedRepository', () => {
       const changes = await repo.update('sl-1', 'wrong-user', {
         expiresAt: null,
         allowDownloads: false,
-        allowUploads: false,
         maxDownloads: null,
-        requireEmail: false,
         webhookUrl: null,
         passwordHash: null,
       });

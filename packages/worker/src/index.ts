@@ -120,19 +120,6 @@ app.use(
     },
   }),
 );
-// Rate limit email gate — prevents JWT minting spam on shared links
-app.use(
-  '/api/shared/:id/email',
-  rateLimiter({
-    windowMs: 60_000,
-    maxRequests: 5,
-    keyFn: (c: Context) => {
-      const ip = c.req.header('CF-Connecting-IP') ?? c.req.header('X-Real-IP') ?? 'unknown';
-      const id = c.req.param('id') ?? 'unknown';
-      return `${ip}:${id}`;
-    },
-  }),
-);
 app.use(
   '/api/shared/:id/download',
   rateLimiter({

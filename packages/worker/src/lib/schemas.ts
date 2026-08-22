@@ -78,9 +78,7 @@ export const createSharedLinkSchema = z.object({
   password: z.string().optional(),
   expiresAt: expiresAtSchema,
   allowDownloads: z.boolean().default(true),
-  allowUploads: z.boolean().default(false),
   maxDownloads: z.number().int().positive().nullable().optional(),
-  requireEmail: z.boolean().default(false),
   webhookUrl: webhookUrlSchema,
 });
 
@@ -88,18 +86,12 @@ export const updateSharedLinkSchema = z.object({
   password: z.string().nullable().optional(),
   expiresAt: z.string().datetime().nullable().optional(),
   allowDownloads: z.boolean().optional(),
-  allowUploads: z.boolean().optional(),
   maxDownloads: z.number().int().positive().nullable().optional(),
-  requireEmail: z.boolean().optional(),
   webhookUrl: webhookUrlSchema,
 });
 
 export const sharedLinkVerifySchema = z.object({
   password: z.string().min(1, 'Password is required'),
-});
-
-export const sharedLinkEmailSchema = z.object({
-  email: z.string().email('Valid email is required'),
 });
 
 // ─── File schemas (files.ts: 6 routes) ───
