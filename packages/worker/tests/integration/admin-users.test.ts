@@ -288,6 +288,26 @@ describe('Admin users CRUD (integration)', () => {
     expect(res.status).toBe(409);
   });
 
+  it('POST /api/admin/users returns a specific message for duplicate username', async () => {
+    const admin = await insertUserAndSession('admin10', true);
+    await insertUserOnly('dupuser', false);
+    const res = await app.request(
+      '/api/admin/users',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Cookie: admin.cookie, Origin: ORIGIN },
+        body: JSON.stringify({
+          username: 'dupuser',
+          password: 'NewPass123!',
+        }),
+      },
+      env,
+    );
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain('already exists');
+  });
+
   it('POST /api/admin/users returns 403 for a non-super-admin', async () => {
     const member = await insertUserAndSession('member2', false);
     const res = await app.request(

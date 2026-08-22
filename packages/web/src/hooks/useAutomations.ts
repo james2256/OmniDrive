@@ -18,10 +18,12 @@ export function useAutomations() {
 /** Toggle a rule's active state (pessimistic — invalidates after server confirms). */
 export function useToggleAutomation() {
   const qc = useQueryClient();
+  const { addToast } = useToastStore();
   return useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
       automationsApi.toggleAutomation(id, isActive),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.automations }),
+    onError: () => addToast('error', 'Failed to toggle rule'),
   });
 }
 

@@ -104,14 +104,22 @@ adminRouter.post('/users', zValidator('json', adminCreateUserSchema, zodErrorHoo
   const id = generateId();
   const passwordHash = await hashPassword(password);
   const isSuperAdmin = role === 'super_admin' ? 1 : 0;
-  await adminRepo.insertUser({
-    id,
-    username,
-    passwordHash,
-    email: email || null,
-    name: name || username,
-    isSuperAdmin,
-  });
+  try {
+    await adminRepo.insertUser({
+      id,
+      username,
+      passwordHash,
+      email: email || null,
+      name: name || username,
+      isSuperAdmin,
+    });
+  } catch (err) {
+    const msg = (err as Error).message || '';
+    if (msg.includes('UNIQUE constraint')) {
+      throw new ConflictError('Username or email already exists');
+    }
+    throw err;
+  }
 
   return c.json({
     user: {

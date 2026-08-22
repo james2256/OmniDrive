@@ -76,7 +76,7 @@ export function evaluateCondition(file: AutomationFile, conditions: RuleConditio
   });
 }
 
-function parseRule(row: Record<string, unknown>): ParsedRule | null {
+export function parseRule(row: Record<string, unknown>): ParsedRule | null {
   try {
     const conditions = JSON.parse((row.conditions as string) || '[]') as RuleCondition[];
     const actions = JSON.parse((row.actions as string) || '[]') as RuleAction[];
@@ -86,8 +86,12 @@ function parseRule(row: Record<string, unknown>): ParsedRule | null {
       conditions,
       actions,
     };
-  } catch {
-    return null; // Skip malformed rules
+  } catch (err) {
+    logErrorNoCtx('Automation rule skipped — malformed JSON in conditions/actions', err, {
+      ruleId: row.id,
+      userId: row.user_id,
+    });
+    return null;
   }
 }
 

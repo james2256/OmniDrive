@@ -66,11 +66,7 @@ export function TrashPage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-2">
-      <PageHeader
-        title="Trash"
-        icon={Trash2}
-        description="Deleted files and folders — permanently removed after 30 days"
-      />
+      <PageHeader title="Trash" icon={Trash2} description="Deleted files and folders" />
 
       <FilesToolbar
         searchQuery={searchQuery}

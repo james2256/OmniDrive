@@ -176,6 +176,15 @@ describe('TrashPage', () => {
     expect(screen.getByText('Deleted files and folders will appear here.')).toBeTruthy();
   });
 
+  it('renders the trash subtitle without a false 30-day removal claim', () => {
+    render(<TrashPage />);
+    // The subtitle must NOT promise auto-removal after 30 days — OmniDrive
+    // has no trash-empty cron. Only Google Drive's own auto-purge removes
+    // trashed items, and only on the next sync after that purge.
+    expect(screen.getByText('Deleted files and folders')).toBeTruthy();
+    expect(screen.queryByText(/permanently removed after 30 days/)).toBeNull();
+  });
+
   it('renders files and folders in the file grid', () => {
     (useQuery as Mock).mockReturnValue({
       data: {
