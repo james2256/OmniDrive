@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -10,6 +10,9 @@ import {
 import { Button } from './ui/Button';
 import { LoaderCircle, CheckCircle2, AlertCircle, Download } from 'lucide-react';
 import { downloadZip } from 'client-zip';
+import { asyncPool } from '../lib/asyncPool';
+import { fetchDownloadWithRetry } from '../lib/fetchDownloadWithRetry';
+import { getStreamMethod, openDownloadStream } from '../lib/streamDownload';
 
 interface FolderDownloadModalProps {
   open: boolean;
@@ -31,6 +34,36 @@ interface TreeFile {
   size: number;
 }
 
+type Status =
+  | 'listing'
+  | 'downloading'
+  | 'done'
+  | 'partial' // download completed but some files failed (skipped)
+  | 'cancelled' // user clicked Cancel
+  | 'mobile-warning' // mobile + folder >500MB — needs user confirmation
+  | 'error';
+
+interface FailedFile {
+  name: string;
+  error: string;
+}
+
+interface DownloadTreeData {
+  files: TreeFile[];
+  rootName: string;
+  truncated?: boolean;
+}
+
+/** Mobile Blob path memory ceiling (~500MB on iOS Safari). */
+const MOBILE_BLOB_LIMIT = 500 * 1024 * 1024;
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
+}
+
 export function FolderDownloadModal({
   open,
   onClose,
@@ -39,14 +72,120 @@ export function FolderDownloadModal({
   sharedLinkId,
   folderName,
 }: FolderDownloadModalProps) {
-  const [status, setStatus] = useState<'listing' | 'downloading' | 'done' | 'error'>('listing');
+  const [status, setStatus] = useState<Status>('listing');
   const [progress, setProgress] = useState({ current: 0, total: 0, currentName: '' });
   const [errorMsg, setErrorMsg] = useState('');
   const [truncated, setTruncated] = useState(false);
+  const [failedFiles, setFailedFiles] = useState<FailedFile[]>([]);
+  const [totalSize, setTotalSize] = useState(0);
+  // True when the streaming write path (native/streamsaver) was used — the
+  // cancel warning differs: streaming leaves a partial file on disk; the
+  // legacy Blob path discards everything in RAM.
+  const [streamingUsed, setStreamingUsed] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
+
+  // runDownload runs the full pipeline: asyncPool → downloadZip → write.
+  // Extracted so the mobile-warning "Try anyway" button can invoke it after
+  // user confirmation. The tree data and totalSize are passed as parameters
+  // (not read from state) because React state updates are async — reading
+  // totalSize from state inside this closure would return the stale value
+  // from the render when the effect was created (always 0 on first run).
+  const runDownload = async (data: DownloadTreeData, size: number, signal: AbortSignal) => {
+    const apiUrl = import.meta.env.VITE_API_URL || '';
+    const failedFilesRef: FailedFile[] = [];
+    let downloaded = 0;
+
+    setProgress({
+      current: 0,
+      total: data.files.length,
+      currentName: data.files[0]?.name ?? '',
+    });
+
+    const responses = (async function* () {
+      for await (const { result, index } of asyncPool(
+        data.files,
+        3,
+        (file) => {
+          const downloadUrl = sharedLinkId
+            ? `${apiUrl}/api/shared/${sharedLinkId}/download?fileId=${file.googleFileId}`
+            : `${apiUrl}/api/files/${file.id}/download`;
+          return fetchDownloadWithRetry(downloadUrl, { credentials: 'include', signal });
+        },
+        signal,
+      )) {
+        if (signal.aborted) return;
+        const file = data.files[index];
+        if (result) {
+          yield { name: file.path, input: result, lastModified: new Date() };
+        } else {
+          failedFilesRef.push({ name: file.name, error: 'Download failed after retries' });
+        }
+        downloaded++;
+        setProgress({
+          current: downloaded,
+          total: data.files.length,
+          currentName: file.name,
+        });
+      }
+    })();
+
+    // Open write stream (3-tier: native → StreamSaver → Blob).
+    // For native (Chrome/Edge), this MUST happen within 5s of the click —
+    // handled by the caller calling this immediately on click.
+    const method = getStreamMethod();
+    let writable: WritableStream<Uint8Array> | null = null;
+    let usedStreaming = false;
+    if (method !== 'blob') {
+      try {
+        const handle = await openDownloadStream(`${data.rootName}.zip`, size);
+        writable = handle.writable;
+        usedStreaming = true;
+      } catch (err) {
+        // User cancelled the native Save As dialog (AbortError) → abort everything.
+        if (err instanceof Error && err.name === 'AbortError') {
+          throw err;
+        }
+        // StreamSaver failed (e.g., SW blocked by corporate firewall) —
+        // fall through to legacy Blob path.
+      }
+    }
+    setStreamingUsed(usedStreaming);
+
+    const zipResponse = downloadZip(responses);
+    if (writable) {
+      // Streaming path — chunks flow to disk via SW or FileSystemWritableFileStream.
+      // No Blob, no memory cap. The Response from downloadZip always has a body
+      // (ReadableStream) — guard for type safety, but it's never null in practice.
+      const zipStream = zipResponse.body;
+      if (!zipStream) {
+        throw new Error('client-zip did not produce a ReadableStream body');
+      }
+      await zipStream.pipeTo(writable);
+    } else {
+      // Legacy Blob path (mobile / streaming unsupported) — entire ZIP in RAM.
+      const zipBlob = await zipResponse.blob();
+      const blobUrl = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `${data.rootName}.zip`;
+      a.click();
+      URL.revokeObjectURL(blobUrl);
+    }
+
+    // Sync failedFiles ref → state, then set final status.
+    setFailedFiles(failedFilesRef);
+    if (failedFilesRef.length > 0) {
+      setStatus('partial');
+    } else {
+      setStatus('done');
+    }
+  };
 
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
+    abortRef.current = new AbortController();
+    const { signal } = abortRef.current;
 
     (async () => {
       try {
@@ -57,11 +196,7 @@ export function FolderDownloadModal({
 
         const res = await fetch(url, { credentials: 'include' });
         if (!res.ok) throw new Error(await res.text());
-        const data = (await res.json()) as {
-          files: TreeFile[];
-          rootName: string;
-          truncated?: boolean;
-        };
+        const data = (await res.json()) as DownloadTreeData;
 
         if (cancelled) return;
         if (data.files.length === 0) {
@@ -71,51 +206,26 @@ export function FolderDownloadModal({
         }
         setTruncated(data.truncated === true);
 
-        // 2. Download each file and stream into ZIP
+        const size = data.files.reduce((sum, f) => sum + f.size, 0);
+        setTotalSize(size);
+
+        // 2. Mobile large-folder guard — mobile can't stream, so >500MB would
+        // crash the tab silently. Show an upfront warning instead.
+        const method = getStreamMethod();
+        if (method === 'blob' && size > MOBILE_BLOB_LIMIT) {
+          setStatus('mobile-warning');
+          return; // Wait for user to click "Try anyway" or "Use desktop".
+        }
+
+        // 3. Run the download pipeline (streaming or blob).
         setStatus('downloading');
-        setProgress({
-          current: 0,
-          total: data.files.length,
-          currentName: data.files[0]?.name ?? '',
-        });
-
-        const apiUrl = import.meta.env.VITE_API_URL || '';
-        let downloaded = 0;
-
-        const responses = (async function* () {
-          for (const file of data.files) {
-            if (cancelled) return;
-            const downloadUrl = sharedLinkId
-              ? `${apiUrl}/api/shared/${sharedLinkId}/download?fileId=${file.googleFileId}`
-              : `${apiUrl}/api/files/${file.id}/download`;
-            const response = await fetch(downloadUrl, { credentials: 'include' });
-            if (!response.ok) throw new Error(`Failed to download ${file.name}`);
-            yield { name: file.path, input: response, lastModified: new Date() };
-            downloaded++;
-            if (!cancelled) {
-              setProgress({
-                current: downloaded,
-                total: data.files.length,
-                currentName: file.name,
-              });
-            }
-          }
-        })();
-
-        const zipBlob = await downloadZip(responses).blob();
-        if (cancelled) return;
-
-        // 3. Trigger browser download
-        const blobUrl = URL.createObjectURL(zipBlob);
-        const a = document.createElement('a');
-        a.href = blobUrl;
-        a.download = `${data.rootName}.zip`;
-        a.click();
-        URL.revokeObjectURL(blobUrl);
-
-        setStatus('done');
+        await runDownload(data, size, signal);
       } catch (err) {
         if (cancelled) return;
+        if (err instanceof Error && (err.name === 'AbortError' || /aborted/i.test(err.message))) {
+          setStatus('cancelled');
+          return;
+        }
         setStatus('error');
         setErrorMsg(err instanceof Error ? err.message : 'Download failed');
       }
@@ -123,8 +233,44 @@ export function FolderDownloadModal({
 
     return () => {
       cancelled = true;
+      // Abort all in-flight fetches on unmount/close — prevents orphaned
+      // network requests from completing after the modal is gone.
+      abortRef.current?.abort();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, driveId, folderId, sharedLinkId]);
+
+  const handleCancel = () => {
+    abortRef.current?.abort();
+  };
+
+  // "Try anyway" — invoked from the mobile-warning footer. Re-runs the
+  // download with the legacy Blob path (getStreamMethod already returned
+  // 'blob', so runDownload will skip the streaming branch).
+  const handleTryAnyway = async () => {
+    if (!abortRef.current) return;
+    const { signal } = abortRef.current;
+    try {
+      // Re-fetch the tree (the original closure's data is stale by now if
+      // the user waited — but in practice the warning appears instantly).
+      const url = sharedLinkId
+        ? `/api/shared/${sharedLinkId}/download-tree`
+        : `/api/drives/${driveId}/folders/${folderId}/download-tree`;
+      const res = await fetch(url, { credentials: 'include' });
+      if (!res.ok) throw new Error(await res.text());
+      const data = (await res.json()) as DownloadTreeData;
+      const retrySize = data.files.reduce((sum, f) => sum + f.size, 0);
+      setStatus('downloading');
+      await runDownload(data, retrySize, signal);
+    } catch (err) {
+      if (err instanceof Error && (err.name === 'AbortError' || /aborted/i.test(err.message))) {
+        setStatus('cancelled');
+        return;
+      }
+      setStatus('error');
+      setErrorMsg(err instanceof Error ? err.message : 'Download failed');
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && status !== 'downloading' && onClose()}>
@@ -178,6 +324,70 @@ export function FolderDownloadModal({
             </div>
           )}
 
+          {status === 'partial' && (
+            <div className="py-4 space-y-2">
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="w-5 h-5 text-green-500" />
+                <p className="text-sm text-slate-600">
+                  Download complete! {progress.total - failedFiles.length} of {progress.total} files
+                </p>
+              </div>
+              <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div className="text-xs text-amber-800">
+                  <p className="font-medium mb-1">
+                    {failedFiles.length} file(s) failed to download:
+                  </p>
+                  <ul className="list-disc list-inside space-y-0.5">
+                    {failedFiles.map((f) => (
+                      <li key={f.name}>
+                        {f.name} ({f.error})
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-2">You can download them individually from the file list.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {status === 'cancelled' && (
+            <div className="py-4 space-y-2">
+              <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-amber-800">
+                  <p className="font-medium">Download cancelled</p>
+                  {streamingUsed ? (
+                    <p className="mt-1">
+                      The partial ZIP file on disk may be corrupt (missing central directory).
+                      Delete it and restart the download for a valid archive.
+                    </p>
+                  ) : (
+                    <p className="mt-1">
+                      No file was saved. You can restart the download from the file list.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {status === 'mobile-warning' && (
+            <div className="py-4 space-y-3">
+              <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-amber-800">
+                  <p className="font-medium mb-1">Mobile browser limitation</p>
+                  <p>
+                    Your browser doesn&apos;t support streaming downloads. Folders larger than 500MB
+                    may fail.
+                  </p>
+                  <p className="mt-2 font-medium">Total size: {formatBytes(totalSize)}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {status === 'error' && (
             <div className="flex items-center gap-3 py-4">
               <AlertCircle className="w-5 h-5 text-red-500" />
@@ -185,7 +395,22 @@ export function FolderDownloadModal({
             </div>
           )}
         </DialogBody>
-        {status !== 'downloading' && (
+        {status === 'downloading' ? (
+          <DialogFooter>
+            <Button variant="secondary" onClick={handleCancel}>
+              Cancel download
+            </Button>
+          </DialogFooter>
+        ) : status === 'mobile-warning' ? (
+          <DialogFooter>
+            <Button variant="secondary" onClick={onClose}>
+              Use desktop
+            </Button>
+            <Button variant="primary" onClick={handleTryAnyway}>
+              Try anyway
+            </Button>
+          </DialogFooter>
+        ) : (
           <DialogFooter>
             <Button variant="secondary" onClick={onClose}>
               Close

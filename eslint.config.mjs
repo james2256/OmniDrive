@@ -24,6 +24,9 @@ export default tseslint.config(
       'examples/**',
       'skills/**',
       '**/*.mjs',
+      // Vendored third-party static assets (StreamSaver.js mitm.html + sw.js)
+      // — copied verbatim from node_modules/streamsaver/, not our source code.
+      'packages/web/public/**',
     ],
   },
 

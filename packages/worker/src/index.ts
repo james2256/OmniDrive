@@ -124,7 +124,15 @@ app.use(
   '/api/shared/:id/download',
   rateLimiter({
     windowMs: 60_000,
-    maxRequests: 20,
+    // 3.3/sec — allows a 500-file folder download in ~2.5 min with 3-concurrent
+    // parallel fetches. Was 20/min, which killed any folder >20 files at file 21.
+    maxRequests: 200,
+    // Globally consistent across Workers isolates. Without useKV, the limit is
+    // per-isolate (in-memory Map) and Cloudflare spins up N isolates → effective
+    // limit becomes N×200/min (inconsistent). KV is eventually consistent but
+    // acceptable for rate limiting (not a security boundary; the per-link
+    // maxDownloads cap in D1 is the real quota).
+    useKV: true,
     keyFn: (c: Context) => {
       const ip = c.req.header('CF-Connecting-IP') ?? c.req.header('X-Real-IP') ?? 'unknown';
       const id = c.req.param('id') ?? 'unknown';

@@ -34,6 +34,7 @@
     "react-router-dom": "^7.18.1",
     "read-excel-file": "^9.3.5",
     "recharts": "^3.10.0",
+    "streamsaver": "^2.0.6",
     "tailwind-merge": "^3.6.0",
     "zustand": "^5.0.14"
   },
