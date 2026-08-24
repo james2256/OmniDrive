@@ -290,6 +290,23 @@ export const workspacePolicySchema = z
         (data.config.max_bytes < 0 || Number.isNaN(data.config.max_bytes))
       ),
     'config.max_bytes must be non-negative',
+  )
+  .refine(
+    (data) => !(data.policyType === 'data_retention' && data.config.action !== 'auto_delete'),
+    'config.action must be "auto_delete" for data_retention',
+  )
+  .refine(
+    (data) => !(data.policyType === 'data_retention' && typeof data.config.days !== 'number'),
+    'config.days must be a number for data_retention',
+  )
+  .refine(
+    (data) =>
+      !(
+        data.policyType === 'data_retention' &&
+        typeof data.config.days === 'number' &&
+        (data.config.days < 1 || !Number.isInteger(data.config.days))
+      ),
+    'config.days must be a positive integer for data_retention',
   );
 
 export const updateWorkspaceMetadataSchema = z.object({

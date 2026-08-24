@@ -218,6 +218,79 @@ describe('workspacePolicySchema', () => {
       }).success,
     ).toBe(true);
   });
+
+  // ─── data_retention validation (mirrors storage_quota pattern) ───
+
+  it('rejects data_retention without action', () => {
+    expect(
+      workspacePolicySchema.safeParse({
+        targetType: 'workspace',
+        policyType: 'data_retention',
+        config: { days: 30 },
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects data_retention with wrong action', () => {
+    expect(
+      workspacePolicySchema.safeParse({
+        targetType: 'workspace',
+        policyType: 'data_retention',
+        config: { action: 'archive', days: 30 },
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects data_retention without days', () => {
+    expect(
+      workspacePolicySchema.safeParse({
+        targetType: 'workspace',
+        policyType: 'data_retention',
+        config: { action: 'auto_delete' },
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects data_retention with non-integer days', () => {
+    expect(
+      workspacePolicySchema.safeParse({
+        targetType: 'workspace',
+        policyType: 'data_retention',
+        config: { action: 'auto_delete', days: 3.5 },
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects data_retention with days < 1', () => {
+    expect(
+      workspacePolicySchema.safeParse({
+        targetType: 'workspace',
+        policyType: 'data_retention',
+        config: { action: 'auto_delete', days: 0 },
+      }).success,
+    ).toBe(false);
+  });
+
+  it('accepts valid data_retention', () => {
+    expect(
+      workspacePolicySchema.safeParse({
+        targetType: 'workspace',
+        policyType: 'data_retention',
+        config: { action: 'auto_delete', days: 30 },
+      }).success,
+    ).toBe(true);
+  });
+
+  it('accepts data_retention targeting folder', () => {
+    expect(
+      workspacePolicySchema.safeParse({
+        targetType: 'folder',
+        targetId: 'folder-1',
+        policyType: 'data_retention',
+        config: { action: 'auto_delete', days: 7 },
+      }).success,
+    ).toBe(true);
+  });
 });
 
 describe('createAutomationSchema', () => {

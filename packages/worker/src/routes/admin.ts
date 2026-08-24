@@ -149,11 +149,18 @@ adminRouter.patch(
 
     if (role === 'super_admin') {
       await c.get('adminRepo').promoteToAdmin(targetUserId);
+      // Invalidate sessions so the promoted user gets a fresh session with
+      // role='super_admin' on next login (mirrors demote + blockUser pattern).
+      await c.get('authRepo').deleteAllSessions(targetUserId);
     } else {
       const result = await c.get('adminRepo').demoteFromAdmin(targetUserId);
       if (!result.meta.changes) {
         throw new AppError(400, 'Cannot demote the last super admin');
       }
+      // Invalidate sessions so the demoted user gets a fresh session with
+      // role='member' on next login — prevents stale admin UI links (mirrors
+      // the blockUser pattern at admin.repository.ts:109-116).
+      await c.get('authRepo').deleteAllSessions(targetUserId);
     }
 
     return c.body(null, 204);

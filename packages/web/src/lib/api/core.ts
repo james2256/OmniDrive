@@ -23,6 +23,21 @@ export function setUnauthorizedHandler(fn: () => void): void {
   unauthorizedHandler = fn;
 }
 
+/**
+ * Invoke the registered 401 handler (if any). Used by both `request()` (for
+ * fetch-based calls) and `uploadChunk` (for XHR-based calls) to ensure
+ * consistent session-expiry handling across all API paths.
+ *
+ * Returns true if a handler was registered and called, false otherwise.
+ */
+export function handleUnauthorized(): boolean {
+  if (unauthorizedHandler) {
+    unauthorizedHandler();
+    return true;
+  }
+  return false;
+}
+
 export async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
@@ -43,7 +58,7 @@ export async function request<T>(path: string, options?: RequestInit): Promise<T
       !path.startsWith('/api/auth/login') &&
       !path.startsWith('/api/auth/register')
     ) {
-      unauthorizedHandler?.();
+      handleUnauthorized();
       throw new ApiError(401, 'Session expired');
     }
     const body = await response.json().catch(() => ({ error: 'Unknown error' }));
@@ -124,6 +139,12 @@ export function uploadChunk(
         const match = range.match(/bytes=0-(\d+)/);
         const nextStart = match ? parseInt(match[1], 10) + 1 : start + CHUNK_SIZE;
         resolve({ done: false, nextStart });
+      } else if (xhr.status === 401) {
+        // Session expired mid-upload — redirect to login (mirrors request() 401 handler).
+        // Upload proxy is never used from shared links, so 401 here is always
+        // session expiry, not a shared-link password flow.
+        handleUnauthorized();
+        reject(new Error('Session expired'));
       } else {
         reject(
           new Error(`Upload proxy failed: ${xhr.status} - ${xhr.responseText.substring(0, 100)}`),

@@ -871,4 +871,135 @@ describe('FolderDownloadModal', () => {
     expect(await screen.findByText('Download complete!')).toBeTruthy();
     expect(screen.queryByText('Mobile browser limitation')).toBeNull();
   });
+
+  // ─── Item B: Mobile "Try anyway" truncation tests ───
+
+  it('"Try anyway" truncates file list to 500MB and shows mobile-partial status', async () => {
+    // Mobile + folder >500MB → warning → click "Try anyway" → truncated download.
+    getStreamMethodMock.mockReturnValue('blob');
+
+    // 3 files: 200MB + 200MB + 200MB = 600MB total. Only first 2 fit under 500MB.
+    const file200MB = 200 * 1024 * 1024;
+    fetchMock.mockResolvedValue(
+      makeTreeResponse({
+        files: [
+          { id: 'f1', path: 'a.mp4', name: 'a.mp4', size: file200MB },
+          { id: 'f2', path: 'b.mp4', name: 'b.mp4', size: file200MB },
+          { id: 'f3', path: 'c.mp4', name: 'c.mp4', size: file200MB },
+        ],
+        rootName: 'LargeFolder',
+      }),
+    );
+
+    render(
+      <FolderDownloadModal
+        open
+        onClose={vi.fn()}
+        driveId="d-1"
+        folderId="f-1"
+        folderName="LargeFolder"
+      />,
+    );
+
+    // Wait for mobile warning, then click "Try anyway".
+    expect(await screen.findByText('Mobile browser limitation')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Try anyway' }));
+
+    // Should show mobile-partial: 2 of 3 files downloaded (400MB fits under 500MB).
+    expect(await screen.findByText(/Download complete! 2 of 3 files/)).toBeTruthy();
+    expect(screen.getByText(/Mobile 500MB limit reached/)).toBeTruthy();
+    expect(screen.getByText(/Download remaining 1 files on a desktop browser/)).toBeTruthy();
+  });
+
+  it('shows mobile-too-large when first file exceeds 500MB', async () => {
+    getStreamMethodMock.mockReturnValue('blob');
+
+    const file600MB = 600 * 1024 * 1024;
+    fetchMock.mockResolvedValue(
+      makeTreeResponse({
+        files: [{ id: 'f1', path: 'huge.mp4', name: 'huge.mp4', size: file600MB }],
+        rootName: 'HugeVideo',
+      }),
+    );
+
+    render(
+      <FolderDownloadModal
+        open
+        onClose={vi.fn()}
+        driveId="d-1"
+        folderId="f-1"
+        folderName="HugeVideo"
+      />,
+    );
+
+    // Wait for mobile warning, then click "Try anyway".
+    expect(await screen.findByText('Mobile browser limitation')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Try anyway' }));
+
+    // Should show mobile-too-large: single file can't be downloaded on mobile.
+    expect(await screen.findByText('Cannot download on mobile')).toBeTruthy();
+    expect(screen.getByText(/file larger than 500MB/)).toBeTruthy();
+  });
+
+  // ─── Item A: Byte-level progress tests ───
+
+  it('shows byte progress when streaming (desktop)', async () => {
+    // Native streaming path — byte progress should appear.
+    const realWritable = new WritableStream<Uint8Array>({ write: () => {} });
+    getStreamMethodMock.mockReturnValue('native');
+    openDownloadStreamMock.mockResolvedValue({
+      writable: realWritable,
+      method: 'native',
+    });
+
+    fetchMock.mockResolvedValue(
+      makeTreeResponse({
+        files: [{ id: 'file-1', path: 'a.txt', name: 'a.txt', size: 10 }],
+        rootName: 'MyFolder',
+      }),
+    );
+
+    render(
+      <FolderDownloadModal
+        open
+        onClose={vi.fn()}
+        driveId="d-1"
+        folderId="f-1"
+        folderName="MyFolder"
+      />,
+    );
+
+    expect(await screen.findByText('Download complete!')).toBeTruthy();
+    // Byte progress should have appeared during downloading (streamingUsed=true).
+    // After completion, the downloading UI is gone — but we can verify the
+    // streaming path was used (not the Blob fallback).
+    expect(openDownloadStreamMock).toHaveBeenCalledWith('MyFolder.zip', 10);
+  });
+
+  it('does NOT show byte progress on legacy Blob path (mobile)', async () => {
+    // Blob path — no byte progress.
+    getStreamMethodMock.mockReturnValue('blob');
+
+    fetchMock.mockResolvedValue(
+      makeTreeResponse({
+        files: [{ id: 'f1', path: 'small.txt', name: 'small.txt', size: 1024 }],
+        rootName: 'SmallFolder',
+      }),
+    );
+
+    render(
+      <FolderDownloadModal
+        open
+        onClose={vi.fn()}
+        driveId="d-1"
+        folderId="f-1"
+        folderName="SmallFolder"
+      />,
+    );
+
+    // Download completes via Blob path — no streaming, no byte progress.
+    expect(await screen.findByText('Download complete!')).toBeTruthy();
+    // openDownloadStream should NOT have been called (Blob path skips it).
+    expect(openDownloadStreamMock).not.toHaveBeenCalled();
+  });
 });

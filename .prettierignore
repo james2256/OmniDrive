@@ -7,6 +7,10 @@
 **/package-lock.json
 **/bun.lock
 
+# Vendored third-party static assets (StreamSaver.js mitm.html + sw.js)
+# — copied verbatim from node_modules/streamsaver/, not our source code.
+packages/web/public/
+
 # Don't format markdown docs — formatting churn isn't worth the noise
 docs/
 *.md

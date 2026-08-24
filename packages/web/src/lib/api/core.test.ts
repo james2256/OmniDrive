@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { request, ApiError, setUnauthorizedHandler } from './core';
+import { request, ApiError, setUnauthorizedHandler, handleUnauthorized } from './core';
 
 // Mock window.location.href (jsdom doesn't allow setting it directly).
 const mockLocation = { href: '' };
@@ -108,5 +108,36 @@ describe('request — 401 interceptor', () => {
       expect((err as ApiError).status).toBe(401);
       expect((err as ApiError).message).toBe('Session expired');
     }
+  });
+});
+
+describe('handleUnauthorized', () => {
+  beforeEach(() => {
+    mockLocation.href = '';
+    vi.clearAllMocks();
+  });
+
+  it('calls the registered handler and returns true', () => {
+    setUnauthorizedHandler(() => {
+      mockLocation.href = '/login';
+    });
+
+    const result = handleUnauthorized();
+
+    expect(result).toBe(true);
+    expect(mockLocation.href).toBe('/login');
+  });
+
+  it('is safe to call multiple times (idempotent redirect)', () => {
+    setUnauthorizedHandler(() => {
+      mockLocation.href = '/login';
+    });
+
+    handleUnauthorized();
+    handleUnauthorized();
+    handleUnauthorized();
+
+    // Handler called 3 times — redirect is idempotent (always sets /login).
+    expect(mockLocation.href).toBe('/login');
   });
 });

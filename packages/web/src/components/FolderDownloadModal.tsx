@@ -13,6 +13,7 @@ import { downloadZip } from 'client-zip';
 import { asyncPool } from '../lib/asyncPool';
 import { fetchDownloadWithRetry } from '../lib/fetchDownloadWithRetry';
 import { getStreamMethod, openDownloadStream } from '../lib/streamDownload';
+import { createProgressStream } from '../lib/progressStream';
 
 interface FolderDownloadModalProps {
   open: boolean;
@@ -41,6 +42,8 @@ type Status =
   | 'partial' // download completed but some files failed (skipped)
   | 'cancelled' // user clicked Cancel
   | 'mobile-warning' // mobile + folder >500MB — needs user confirmation
+  | 'mobile-partial' // mobile "Try anyway" completed but truncated to 500MB limit
+  | 'mobile-too-large' // mobile + first file exceeds 500MB — cannot download at all
   | 'error';
 
 interface FailedFile {
@@ -64,6 +67,25 @@ function formatBytes(bytes: number): string {
   return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
 }
 
+/**
+ * Truncate the file list to fit within the mobile Blob memory limit.
+ * Returns the subset of files whose cumulative size stays under the cap,
+ * preserving input order (alphabetical from download-tree).
+ *
+ * Returns an empty array if even the first file exceeds the limit — the
+ * caller shows the 'mobile-too-large' status in that case.
+ */
+function truncateForMobile(files: TreeFile[], limit: number): TreeFile[] {
+  const result: TreeFile[] = [];
+  let cumulative = 0;
+  for (const file of files) {
+    if (cumulative + file.size > limit) break;
+    cumulative += file.size;
+    result.push(file);
+  }
+  return result;
+}
+
 export function FolderDownloadModal({
   open,
   onClose,
@@ -82,6 +104,12 @@ export function FolderDownloadModal({
   // cancel warning differs: streaming leaves a partial file on disk; the
   // legacy Blob path discards everything in RAM.
   const [streamingUsed, setStreamingUsed] = useState(false);
+  // Original file count before mobile truncation — used in 'mobile-partial'
+  // status to show "X of Y files" (progress.total is the truncated count).
+  const [originalFileCount, setOriginalFileCount] = useState(0);
+  // Bytes written to disk so far (streaming path only). Updated via
+  // createProgressStream TransformStream, throttled to 250ms.
+  const [bytesWritten, setBytesWritten] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
 
   // runDownload runs the full pipeline: asyncPool → downloadZip → write.
@@ -100,6 +128,7 @@ export function FolderDownloadModal({
       total: data.files.length,
       currentName: data.files[0]?.name ?? '',
     });
+    setBytesWritten(0);
 
     const responses = (async function* () {
       for await (const { result, index } of asyncPool(
@@ -160,7 +189,10 @@ export function FolderDownloadModal({
       if (!zipStream) {
         throw new Error('client-zip did not produce a ReadableStream body');
       }
-      await zipStream.pipeTo(writable);
+      // Insert a TransformStream to count bytes for progress UI (desktop only).
+      // Mobile Blob path has no stream to insert into — keeps file-count progress.
+      const progressStream = createProgressStream(size, (written) => setBytesWritten(written));
+      await zipStream.pipeThrough(progressStream).pipeTo(writable);
     } else {
       // Legacy Blob path (mobile / streaming unsupported) — entire ZIP in RAM.
       const zipBlob = await zipResponse.blob();
@@ -244,9 +276,10 @@ export function FolderDownloadModal({
     abortRef.current?.abort();
   };
 
-  // "Try anyway" — invoked from the mobile-warning footer. Re-runs the
-  // download with the legacy Blob path (getStreamMethod already returned
-  // 'blob', so runDownload will skip the streaming branch).
+  // "Try anyway" — invoked from the mobile-warning footer. Truncates the file
+  // list to fit MOBILE_BLOB_LIMIT, then runs the legacy Blob path (getStreamMethod
+  // already returned 'blob', so runDownload will skip the streaming branch).
+  // Without truncation, a >500MB folder would crash iOS Safari silently.
   const handleTryAnyway = async () => {
     if (!abortRef.current) return;
     const { signal } = abortRef.current;
@@ -259,9 +292,25 @@ export function FolderDownloadModal({
       const res = await fetch(url, { credentials: 'include' });
       if (!res.ok) throw new Error(await res.text());
       const data = (await res.json()) as DownloadTreeData;
-      const retrySize = data.files.reduce((sum, f) => sum + f.size, 0);
+      setOriginalFileCount(data.files.length);
+
+      // Edge case: single file exceeds mobile limit — can't download at all.
+      if (data.files.length > 0 && data.files[0].size > MOBILE_BLOB_LIMIT) {
+        setStatus('mobile-too-large');
+        return;
+      }
+
+      // Truncate to mobile limit — prevents iOS Safari OOM crash.
+      const truncatedFiles = truncateForMobile(data.files, MOBILE_BLOB_LIMIT);
+      const mobileData: DownloadTreeData = { ...data, files: truncatedFiles };
+      const retrySize = truncatedFiles.reduce((sum, f) => sum + f.size, 0);
       setStatus('downloading');
-      await runDownload(data, retrySize, signal);
+      await runDownload(mobileData, retrySize, signal);
+
+      // If truncated, show mobile-partial status instead of done.
+      if (truncatedFiles.length < data.files.length) {
+        setStatus('mobile-partial');
+      }
     } catch (err) {
       if (err instanceof Error && (err.name === 'AbortError' || /aborted/i.test(err.message))) {
         setStatus('cancelled');
@@ -303,6 +352,11 @@ export function FolderDownloadModal({
                 />
               </div>
               <p className="text-xs text-slate-500 truncate">{progress.currentName}</p>
+              {streamingUsed && totalSize > 0 && (
+                <p className="text-xs text-slate-500 mt-1">
+                  {formatBytes(bytesWritten)} / {formatBytes(totalSize)}
+                </p>
+              )}
             </div>
           )}
 
@@ -383,6 +437,39 @@ export function FolderDownloadModal({
                     may fail.
                   </p>
                   <p className="mt-2 font-medium">Total size: {formatBytes(totalSize)}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {status === 'mobile-partial' && (
+            <div className="py-4 space-y-2">
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="w-5 h-5 text-green-500" />
+                <p className="text-sm text-slate-600">
+                  Download complete! {progress.total} of {originalFileCount} files
+                </p>
+              </div>
+              <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-800">
+                  Mobile 500MB limit reached. Downloaded the first {progress.total} files. Download
+                  remaining {originalFileCount - progress.total} files on a desktop browser.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {status === 'mobile-too-large' && (
+            <div className="py-4 space-y-2">
+              <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-amber-800">
+                  <p className="font-medium">Cannot download on mobile</p>
+                  <p className="mt-1">
+                    This folder contains a file larger than 500MB. It cannot be downloaded on mobile
+                    — please use a desktop browser.
+                  </p>
                 </div>
               </div>
             </div>
