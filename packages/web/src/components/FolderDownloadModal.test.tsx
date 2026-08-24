@@ -1002,4 +1002,57 @@ describe('FolderDownloadModal', () => {
     // openDownloadStream should NOT have been called (Blob path skips it).
     expect(openDownloadStreamMock).not.toHaveBeenCalled();
   });
+
+  // ─── Completeness check: detect silent data loss ───
+
+  it('shows error when download is incomplete (downloaded < total)', async () => {
+    // Simulate the generator exhausting early: asyncPool mock yields only 1
+    // of 3 files (the other 2 are silently dropped — mimics idle connection
+    // timeout where fetches "succeed" but bodies return 0 bytes).
+    // The asyncPool mock at the top of this file iterates all items, so we
+    // override it to yield only the first item, then return early.
+    const { asyncPool } = await import('../lib/asyncPool');
+    (asyncPool as Mock).mockImplementation(
+      <T, R>(
+        items: T[],
+        _concurrency: number,
+        fn: (item: T, index: number) => Promise<R | null>,
+        signal?: AbortSignal,
+      ) => ({
+        async *[Symbol.asyncIterator]() {
+          // Only yield the first item — simulates generator exhausting early
+          if (signal?.aborted) return;
+          const result = await fn(items[0], 0);
+          yield { result, index: 0 };
+          // Return without yielding items[1] and items[2]
+        },
+      }),
+    );
+
+    fetchMock.mockResolvedValue(
+      makeTreeResponse({
+        files: [
+          { id: 'f1', path: 'a.txt', name: 'a.txt', size: 10 },
+          { id: 'f2', path: 'b.txt', name: 'b.txt', size: 20 },
+          { id: 'f3', path: 'c.txt', name: 'c.txt', size: 30 },
+        ],
+        rootName: 'MyFolder',
+      }),
+    );
+
+    render(
+      <FolderDownloadModal
+        open
+        onClose={vi.fn()}
+        driveId="d-1"
+        folderId="f-1"
+        folderName="MyFolder"
+      />,
+    );
+
+    // Should show error, NOT "Download complete!"
+    expect(await screen.findByText(/Download incomplete/)).toBeTruthy();
+    expect(screen.getByText(/only 1 of 3 files/)).toBeTruthy();
+    expect(screen.queryByText('Download complete!')).toBeNull();
+  });
 });

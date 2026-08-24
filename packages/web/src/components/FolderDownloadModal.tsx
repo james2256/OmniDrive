@@ -130,10 +130,18 @@ export function FolderDownloadModal({
     });
     setBytesWritten(0);
 
+    // Determine write method BEFORE the generator so we can set concurrency.
+    // Streaming path uses concurrency=1: client-zip reads Response.body
+    // sequentially, so parallel fetches create idle connections that Google
+    // Drive/Cloudflare closes after ~30-60s → 0-byte files → silent data loss.
+    // Blob path uses concurrency=3: all bodies buffered in RAM, no backpressure.
+    const method = getStreamMethod();
+    const concurrency = method === 'blob' ? 3 : 1;
+
     const responses = (async function* () {
       for await (const { result, index } of asyncPool(
         data.files,
-        3,
+        concurrency,
         (file) => {
           const downloadUrl = sharedLinkId
             ? `${apiUrl}/api/shared/${sharedLinkId}/download?fileId=${file.googleFileId}`
@@ -159,9 +167,9 @@ export function FolderDownloadModal({
     })();
 
     // Open write stream (3-tier: native → StreamSaver → Blob).
-    // For native (Chrome/Edge), this MUST happen within 5s of the click —
-    // handled by the caller calling this immediately on click.
-    const method = getStreamMethod();
+    // `method` was determined above (before the generator) to set concurrency.
+    // For native (Chrome/Edge), openDownloadStream MUST be called within 5s
+    // of the click — handled by the caller calling this immediately on click.
     let writable: WritableStream<Uint8Array> | null = null;
     let usedStreaming = false;
     if (method !== 'blob') {
@@ -205,8 +213,16 @@ export function FolderDownloadModal({
     }
 
     // Sync failedFiles ref → state, then set final status.
+    // Safety net: if the generator exhausted early (e.g., idle connection timeout
+    // caused silent body truncation), downloaded < total even though failedFilesRef
+    // is empty. Never report "done" when files are missing.
     setFailedFiles(failedFilesRef);
-    if (failedFilesRef.length > 0) {
+    if (downloaded < data.files.length) {
+      setStatus('error');
+      setErrorMsg(
+        `Download incomplete: only ${downloaded} of ${data.files.length} files were downloaded. Please try again.`,
+      );
+    } else if (failedFilesRef.length > 0) {
       setStatus('partial');
     } else {
       setStatus('done');
