@@ -17,6 +17,7 @@ import { runLifecycleExpiration, cleanupOrphanMultipartUploads } from './service
 import { AuditRepository } from './repositories/audit.repository';
 import { AuthRepository } from './repositories/auth.repository';
 import { DriveRepository } from './repositories/drive.repository';
+import { WorkspaceRepository } from './repositories/workspace.repository';
 import { PolicyService } from './services/policy.service';
 import { createDriveService } from './lib/drive-factory';
 import { mapDriveRow } from './types/db';
@@ -235,6 +236,10 @@ export default {
           await engine.processCronTrigger(ctx);
           const policyService = new PolicyService(env.DB, driveService);
           await policyService.processAutoDeleteRetentionPolicies();
+          // Self-heal workspace quota — recompute used_bytes from actual file sizes.
+          // Catches drift from missed deltas (Worker killed mid-batch, cross-workspace
+          // MOVE before the workspace_id fix, silent failures in retention sweep).
+          await new WorkspaceRepository(env.DB).recomputeAllUsedBytes();
         }
         message.ack();
       } catch (err) {

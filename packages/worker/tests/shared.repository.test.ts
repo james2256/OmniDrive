@@ -217,7 +217,7 @@ describe('SharedRepository', () => {
   });
 
   describe('update', () => {
-    it('UPDATEs 5 fields scoped to id + user, returns rows changed', async () => {
+    it('UPDATEs 6 fields scoped to id + user, returns rows changed', async () => {
       mockRun.mockResolvedValueOnce({ success: true, meta: { changes: 1 } });
 
       const changes = await repo.update('sl-1', 'u-1', {
@@ -226,20 +226,22 @@ describe('SharedRepository', () => {
         maxDownloads: 100,
         webhookUrl: 'https://example.com/webhook',
         passwordHash: '$2a$hash',
+        passwordVersion: 1,
       });
 
       const sql = mockPrepare.mock.calls[0][0] as string;
       expect(sql).toContain(
-        'UPDATE shared_links SET expires_at = ?, allow_downloads = ?, max_downloads = ?, webhook_url = ?, password_hash = ?',
+        'UPDATE shared_links SET expires_at = ?, allow_downloads = ?, max_downloads = ?, webhook_url = ?, password_hash = ?, password_version = ?',
       );
       expect(sql).toContain('WHERE id = ? AND user_id = ?');
-      // Binds: 5 fields (booleans → 0/1) + id + userId = 7 total.
+      // Binds: 6 fields (booleans → 0/1) + id + userId = 8 total.
       expect(mockBind).toHaveBeenCalledWith(
         '2026-12-31',
         1,
         100,
         'https://example.com/webhook',
         '$2a$hash',
+        1,
         'sl-1',
         'u-1',
       );

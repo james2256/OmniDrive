@@ -127,6 +127,7 @@ export function mapSharedLinkRow(row: Record<string, unknown>): SharedLink {
     targetName: (row.target_name as string) ?? undefined,
     targetMimeType: (row.target_mime_type as string | null) ?? null,
     passwordHash: (row.password_hash as string | null | undefined) ?? null,
+    passwordVersion: (row.password_version as number | undefined) ?? 0,
     expiresAt: (row.expires_at as string | null | undefined) ?? null,
     allowDownloads: Boolean(row.allow_downloads ?? 1),
     maxDownloads: (row.max_downloads as number | null | undefined) ?? null,
@@ -352,6 +353,7 @@ export interface SharedLinkRow {
   target_name: string | null;
   target_mime_type: string | null;
   password_hash: string | null;
+  password_version: number;
   expires_at: string | null;
   allow_downloads: number;
   max_downloads: number | null;

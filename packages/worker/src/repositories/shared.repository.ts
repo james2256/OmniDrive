@@ -119,11 +119,12 @@ export class SharedRepository {
       maxDownloads: number | null;
       webhookUrl: string | null;
       passwordHash: string | null;
+      passwordVersion: number;
     },
   ): Promise<number> {
     const r = await this.db
       .prepare(
-        'UPDATE shared_links SET expires_at = ?, allow_downloads = ?, max_downloads = ?, webhook_url = ?, password_hash = ? WHERE id = ? AND user_id = ?',
+        'UPDATE shared_links SET expires_at = ?, allow_downloads = ?, max_downloads = ?, webhook_url = ?, password_hash = ?, password_version = ? WHERE id = ? AND user_id = ?',
       )
       .bind(
         fields.expiresAt,
@@ -131,6 +132,7 @@ export class SharedRepository {
         fields.maxDownloads,
         fields.webhookUrl,
         fields.passwordHash,
+        fields.passwordVersion,
         id,
         userId,
       )

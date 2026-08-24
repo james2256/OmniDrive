@@ -47,7 +47,14 @@ async function validateSharedLink(
   if (sessionCookie) {
     try {
       const payload = await verify(sessionCookie, c.env.JWT_SECRET, 'HS256');
-      if (payload.id === link.id && payload.kind === 'session') {
+      // Type guard: existing JWTs (pre-migration) don't have pw_ver — treat
+      // undefined as 0 so they continue working until the password is changed.
+      const pwVer = typeof payload.pw_ver === 'number' ? payload.pw_ver : 0;
+      if (
+        payload.id === link.id &&
+        payload.kind === 'session' &&
+        pwVer === (link.passwordVersion ?? 0)
+      ) {
         return { ok: true };
       }
     } catch {
@@ -189,7 +196,12 @@ sharedRouter.post(
 
     await c.env.KV.delete(failKey);
     const token = await sign(
-      { id: link.id, kind: 'session', exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 },
+      {
+        id: link.id,
+        kind: 'session',
+        pw_ver: link.passwordVersion ?? 0,
+        exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24,
+      },
       c.env.JWT_SECRET,
       'HS256',
     );

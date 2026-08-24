@@ -21,6 +21,17 @@ database_id = "<your-d1-database-id>"
 binding = "KV"
 id = "<your-kv-namespace-id>"
 
+# Cloudflare Queue — create with: npx wrangler queues create sync-jobs
+[[queues.producers]]
+queue = "sync-jobs"
+binding = "SYNC_QUEUE"
+
+[[queues.consumers]]
+queue = "sync-jobs"
+max_batch_size = 1
+max_concurrency = 1
+max_retries = 3
+
 [vars]
 
 # Security secrets — set via:

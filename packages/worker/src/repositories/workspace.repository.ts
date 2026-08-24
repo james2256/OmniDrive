@@ -436,4 +436,21 @@ export class WorkspaceRepository {
         config: string;
       }>();
   }
+
+  /**
+   * Recompute used_bytes for ALL workspaces in a single query. Called by the
+   * maintenance cron to self-heal quota drift from missed deltas (Worker killed
+   * mid-batch, cross-workspace MOVE before Item 1 fix, silent failures).
+   * Uses a correlated subquery (same pattern as admin.repository.ts:196-198).
+   */
+  recomputeAllUsedBytes() {
+    return this.db
+      .prepare(
+        `UPDATE workspaces SET used_bytes = (
+          SELECT COALESCE(SUM(size), 0) FROM files
+          WHERE workspace_id = workspaces.id AND is_trashed = 0 AND owned_by_me = 1
+        )`,
+      )
+      .run();
+  }
 }

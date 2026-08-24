@@ -492,12 +492,16 @@ export class FileRepository {
    * Return a prepared workspace_folder_id UPDATE statement (not run) for batch
    * operations. Used by AutomationEngine to batch move actions.
    */
-  updateWorkspaceFolderStmt(fileId: string, folderId: string): D1PreparedStatement {
+  updateWorkspaceFolderStmt(
+    fileId: string,
+    folderId: string,
+    workspaceId: string,
+  ): D1PreparedStatement {
     return this.db
       .prepare(
-        'UPDATE files SET workspace_folder_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        'UPDATE files SET workspace_folder_id = ?, workspace_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
       )
-      .bind(folderId, fileId);
+      .bind(folderId, workspaceId, fileId);
   }
 
   /**

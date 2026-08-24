@@ -97,6 +97,7 @@ export interface SharedLink {
   targetName?: string;
   targetMimeType?: string | null;
   passwordHash?: string | null;
+  passwordVersion: number;
   expiresAt?: string | null;
   allowDownloads: boolean;
   maxDownloads?: number | null;

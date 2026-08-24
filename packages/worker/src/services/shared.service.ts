@@ -124,11 +124,13 @@ export class SharedService {
     }
 
     let passwordHash = existing.password_hash;
+    let passwordVersion = existing.password_version ?? 0;
     if (body.password !== undefined) {
       passwordHash =
         body.password === null || body.password === ''
           ? null
           : await hashSharedPassword(body.password);
+      passwordVersion++; // Invalidate all existing JWTs
     }
 
     const changes = await this.sharedRepo.update(id, userId, {
@@ -137,6 +139,7 @@ export class SharedService {
       maxDownloads,
       webhookUrl,
       passwordHash,
+      passwordVersion,
     });
 
     if (changes === 0) throw new NotFoundError('Link not found or no changes made');

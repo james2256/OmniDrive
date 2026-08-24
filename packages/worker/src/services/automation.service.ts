@@ -6,6 +6,7 @@ import { logErrorNoCtx } from '../lib/logger';
 import { FileRepository } from '../repositories/file.repository';
 import { FolderRepository } from '../repositories/folder.repository';
 import { AutomationRepository } from '../repositories/automation.repository';
+import { WorkspaceRepository } from '../repositories/workspace.repository';
 
 export const ACTION_MOVE: RuleAction['type'] = 'move';
 export const ACTION_DELETE: RuleAction['type'] = 'delete';
@@ -174,6 +175,7 @@ export class AutomationEngine {
     const fileRepo = new FileRepository(this.env.DB);
     const folderRepo = new FolderRepository(this.env.DB);
     const automationRepo = new AutomationRepository(this.env.DB);
+    const workspaceRepo = new WorkspaceRepository(this.env.DB);
     try {
       const stmts: D1PreparedStatement[] = [];
 
@@ -198,7 +200,27 @@ export class AutomationEngine {
             });
             continue;
           }
-          stmts.push(fileRepo.updateWorkspaceFolderStmt(file.id, targetFolderId as string));
+          stmts.push(
+            fileRepo.updateWorkspaceFolderStmt(
+              file.id,
+              targetFolderId as string,
+              membership.workspace_id,
+            ),
+          );
+          // Transfer quota: decrement old workspace, increment new workspace.
+          // Only if the file is actually moving to a different workspace.
+          const oldWorkspaceId = file.workspace_id as string | null;
+          const fileSize = file.size as number;
+          const ownedByMe = file.owned_by_me as number;
+          if (
+            oldWorkspaceId &&
+            oldWorkspaceId !== membership.workspace_id &&
+            ownedByMe === 1 &&
+            fileSize > 0
+          ) {
+            stmts.push(workspaceRepo.updateUsedBytesStmt(oldWorkspaceId, -fileSize));
+            stmts.push(workspaceRepo.updateUsedBytesStmt(membership.workspace_id, fileSize));
+          }
         } else if (action.type === ACTION_DELETE) {
           // Skip non-owned files — automation rules shouldn't trash teammate files.
           if (file.owned_by_me !== 1) continue;
