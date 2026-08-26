@@ -1,7 +1,8 @@
-import type { D1Database } from '@cloudflare/workers-types';
+import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types';
 import { FileRepository } from '../repositories/file.repository';
 import { FolderRepository } from '../repositories/folder.repository';
 import { DriveRepository } from '../repositories/drive.repository';
+import { WorkspaceRepository } from '../repositories/workspace.repository';
 import { SharedRepository } from '../repositories/shared.repository';
 import type { DriveProvider } from '../types/drive-provider';
 import { PolicyService } from './policy.service';
@@ -29,6 +30,7 @@ export class FileService {
   private fileRepo: FileRepository;
   private folderRepo: FolderRepository;
   private driveRepo: DriveRepository;
+  private workspaceRepo: WorkspaceRepository;
   private driveProvider: DriveProvider;
   private policyService: PolicyService;
 
@@ -39,56 +41,132 @@ export class FileService {
     this.fileRepo = new FileRepository(db);
     this.folderRepo = new FolderRepository(db);
     this.driveRepo = new DriveRepository(db);
+    this.workspaceRepo = new WorkspaceRepository(db);
     this.driveProvider = driveProvider;
     this.policyService = new PolicyService(db, this.driveProvider);
   }
 
   /**
-   * Trash a file. Calls Google Drive API first, then updates D1.
+   * Trash a file. Calls Google Drive API first, then mutates D1.
    * RBAC: if file has workspace_id, caller must be 'editor'.
+   *
+   * The D1 mutation is ONE atomic batch: gated storage delta + gated
+   * workspace release, then the conditional is_trashed flip. The deltas'
+   * EXISTS gates observe the pre-transition (is_trashed = 0) state because
+   * they run before the flip — a duplicate invocation (a retry after the
+   * first batch committed, or a concurrent sync cycle that trashed the same
+   * file) finds is_trashed = 1 and every statement no-ops. Exactly-once
+   * accounting for file_storage_stats and workspaces.used_bytes.
    */
   async trashFile(userId: string, fileId: string): Promise<void> {
     const file = await this.getFileOrThrow(fileId, userId, 'editor');
-    if (file.is_trashed === 1) return; // Idempotent — sync may have already trashed + applied stats delta
 
+    // Fast-path: already trashed — nothing left to do. Every trash path
+    // (this service, the sync engine, automation) now applies its own gated
+    // deltas exactly once at flip time, so an early return cannot skip a
+    // pending delta, and it keeps the Drive API uncalled for duplicate
+    // trashes (idempotent on Google's side, but an external subrequest).
+    if (file.is_trashed === 1) return;
+
+    // Drive API first — the external side-effect we cannot roll back. If the
+    // batch below fails, it rolls back entirely and a retry re-runs it whole.
     await this.driveProvider.trashFile(file.drive_account_id, file.google_file_id);
-    await this.fileRepo.markTrashed(fileId, file.user_id);
-    if (file.owned_by_me === 1) {
-      await this.fileRepo.pushDelta(file.user_id, file.mime_type ?? '', -file.size);
-      // Release workspace quota — trashing a file frees its workspace storage.
-      // Matches permanentDelete (L96) which also calls updateWorkspaceStorage.
-      if (file.workspace_id && file.size) {
-        try {
-          await this.policyService.updateWorkspaceStorage(file.workspace_id, -file.size);
-        } catch (err) {
-          logErrorNoCtx('trashFile: workspace quota release failed (non-fatal)', err, { fileId });
-        }
-      }
+
+    if (file.owned_by_me !== 1) {
+      // Not owned — no storage delta, no workspace release; flip only.
+      await this.db.batch([this.fileRepo.markTrashedByIdAndUserIfActiveStmt(fileId, file.user_id)]);
+      return;
     }
+
+    const stmts: D1PreparedStatement[] = [];
+    if (file.size) {
+      stmts.push(
+        this.fileRepo.applyStorageDeltaIfFileInStateStmt(
+          file.user_id,
+          file.mime_type ?? '',
+          -file.size,
+          fileId,
+          0,
+        ),
+      );
+    }
+    // Release workspace quota — trashing a file frees its workspace storage.
+    // Same EXISTS gate as the stats delta: an ungated release drives
+    // used_bytes negative on duplicate invocations.
+    if (file.workspace_id && file.size) {
+      stmts.push(
+        this.workspaceRepo.updateUsedBytesIfFileInStateStmt(
+          file.workspace_id,
+          -file.size,
+          fileId,
+          0,
+        ),
+      );
+    }
+    stmts.push(this.fileRepo.markTrashedByIdAndUserIfActiveStmt(fileId, file.user_id));
+    await this.db.batch(stmts);
   }
 
-  /** Restore a trashed file. RBAC: editor. */
+  /**
+   * Restore a trashed file. RBAC: editor.
+   *
+   * Mirror of trashFile: one atomic batch with gated deltas observing the
+   * pre-transition (is_trashed = 1) state, emitted before the conditional
+   * un-flip. Duplicates no-op.
+   */
   async restoreFile(userId: string, fileId: string): Promise<void> {
     const file = await this.getFileOrThrow(fileId, userId, 'editor');
     if (file.is_trashed !== 1) throw new NotFoundError('File not found in trash');
 
     await this.driveProvider.untrashFile(file.drive_account_id, file.google_file_id);
-    await this.fileRepo.markUntrashed(fileId, file.user_id);
-    if (file.owned_by_me === 1) {
-      await this.fileRepo.pushDelta(file.user_id, file.mime_type ?? '', file.size);
-      // Reserve workspace quota — restoring a file re-adds it to workspace storage.
-      // Matches the inverse of trashFile + permanentDelete.
-      if (file.workspace_id && file.size) {
-        try {
-          await this.policyService.updateWorkspaceStorage(file.workspace_id, file.size);
-        } catch (err) {
-          logErrorNoCtx('restoreFile: workspace quota reserve failed (non-fatal)', err, { fileId });
-        }
-      }
+
+    if (file.owned_by_me !== 1) {
+      await this.db.batch([
+        this.fileRepo.markUntrashedByIdAndUserIfTrashedStmt(fileId, file.user_id),
+      ]);
+      return;
     }
+
+    const stmts: D1PreparedStatement[] = [];
+    if (file.size) {
+      stmts.push(
+        this.fileRepo.applyStorageDeltaIfFileInStateStmt(
+          file.user_id,
+          file.mime_type ?? '',
+          file.size,
+          fileId,
+          1,
+        ),
+      );
+    }
+    // Reserve workspace quota — restoring a file re-adds its workspace storage.
+    if (file.workspace_id && file.size) {
+      stmts.push(
+        this.workspaceRepo.updateUsedBytesIfFileInStateStmt(
+          file.workspace_id,
+          file.size,
+          fileId,
+          1,
+        ),
+      );
+    }
+    stmts.push(this.fileRepo.markUntrashedByIdAndUserIfTrashedStmt(fileId, file.user_id));
+    await this.db.batch(stmts);
   }
 
-  /** Permanently delete a trashed file. RBAC: editor + retention-policy check. */
+  /**
+   * Permanently delete a trashed file. RBAC: editor + retention-policy check.
+   *
+   * One atomic batch: the conditional user-scoped DELETE. A duplicate
+   * invocation finds no row and no-ops (the getFileOrThrow read after a
+   * committed delete returns 404 before any mutation).
+   *
+   * NO storage or workspace deltas here — they were applied at trash time by
+   * whichever path flipped the row (computeStorageDelta: "delete trashed
+   * (owned) → none" for stats; the workspace release fired with the gated
+   * trash batch). Releasing again here would double-release and dip
+   * used_bytes negative.
+   */
   async permanentDelete(userId: string, fileId: string): Promise<void> {
     const file = await this.getFileOrThrow(fileId, userId, 'editor');
     if (file.is_trashed !== 1) throw new NotFoundError('File not found in trash');
@@ -109,15 +187,13 @@ export class FileService {
       throw new AppError(500, 'Failed to delete file from Google Drive');
     }
 
-    await this.fileRepo.delete(fileId, file.user_id);
+    await this.db.batch([this.fileRepo.deleteByIdAndUserIfTrashedStmt(fileId, file.user_id)]);
 
-    // Clean up shared links pointing to this file — prevents orphaned links
-    // that would 404 when accessed. Best-effort (non-blocking on failure).
+    // Clean up shared links pointing to this file — AFTER the deletion batch,
+    // so a failed batch leaves both the file and its links intact (retryable).
+    // A failure here leaves orphaned links that 404 on access (the target's
+    // read-gate is gone) — harmless, and best-effort by design.
     await new SharedRepository(this.db).deleteByTarget(fileId, 'file').catch(() => {});
-
-    if (file.workspace_id && file.size && file.owned_by_me === 1) {
-      await this.policyService.updateWorkspaceStorage(file.workspace_id, -file.size);
-    }
   }
 
   /**

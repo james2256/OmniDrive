@@ -640,23 +640,33 @@ s3Router.delete('/:bucket/:key{.+}', async (c) => {
   // Trash file in Google Drive (recoverable ~30 days) and mark as trashed in D1.
   // Matches s3-lifecycle.ts pattern — S3 DELETE trashes, not hard-deletes.
   await driveService.trashFile(file.drive_account_id, file.google_file_id);
-  // Atomic: mark trashed + apply storage delta in a single D1 batch.
-  // Gate delta on ownership — non-owned files don't count against quota.
-  // Matches s3-lifecycle.ts:84-90 pattern.
-  const stmts: D1PreparedStatement[] = [fileRepo.markTrashedSystemStmt(file.id)];
-  if (file.owned_by_me === 1) {
-    stmts.push(fileRepo.applyStorageDeltaStmt(file.user_id, file.mime_type ?? '', -file.size));
-  }
-  await db.batch(stmts);
 
-  // Release workspace quota — S3 DELETE trashes the file, freeing its reserved
-  // workspace storage. Without this, workspaces.used_bytes stays inflated.
-  try {
-    const policyService = new PolicyService(db, driveService);
-    await policyService.updateWorkspaceStorage(workspace.id, -(file.size as number));
-  } catch (e) {
-    logError(c, 'S3 DELETE: workspace quota release failed (non-fatal)', e);
-  }
+  // One atomic exactly-once batch (the lifecycle cron's gated flip, extended
+  // so the deltas are gated too): the stats delta and the workspace release
+  // are emitted BEFORE the conditional flip so their EXISTS gates observe
+  // the pre-transition (is_trashed = 0) state. A duplicate DELETE — a retry,
+  // or a concurrent request that passed the is_trashed = 0 read-gate above
+  // before the first batch committed — finds is_trashed = 1 and every
+  // statement no-ops. The workspace release MUST sit inside the same gate:
+  // an ungated release drives used_bytes negative on duplicates (verified in
+  // review). Ownership was already enforced above (403 for owned_by_me !== 1),
+  // so the delta here is unconditional.
+  await db.batch([
+    fileRepo.applyStorageDeltaIfFileInStateStmt(
+      file.user_id,
+      file.mime_type ?? '',
+      -file.size,
+      file.id,
+      0,
+    ),
+    new WorkspaceRepository(db).updateUsedBytesIfFileInStateStmt(
+      workspace.id,
+      -file.size,
+      file.id,
+      0,
+    ),
+    fileRepo.markTrashedSystemIfActiveStmt(file.id),
+  ]);
 
   return c.body(null, 204);
 });
@@ -800,8 +810,13 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
 
     md5Hex = getMd5Hash();
 
-    // Verify body integrity (SHA-256)
-    const expectedSha256 = c.req.header('x-amz-content-sha256');
+    // Verify body integrity (SHA-256). The hash may arrive as a header
+    // (header-auth clients) or pinned in the query as X-Amz-Content-Sha256
+    // (presigned clients — JS SDK v3 shape). The middleware resolved the same
+    // two shapes at signature time; the route verifies the body against
+    // whichever value the signature actually covered.
+    const expectedSha256 =
+      c.req.header('x-amz-content-sha256') ?? c.req.query('X-Amz-Content-Sha256');
     if (
       expectedSha256 &&
       expectedSha256 !== 'UNSIGNED-PAYLOAD' &&
@@ -1005,8 +1020,10 @@ async function handleUploadPart(
     return xmlError(c, 'InternalError', 'Google Drive did not return a file ID', 502);
   }
 
-  // Verify body integrity (same as PutObject)
-  const expectedSha256 = c.req.header('x-amz-content-sha256');
+  // Verify body integrity (same resolution as PutObject: header for
+  // header-auth clients, X-Amz-Content-Sha256 query param for presigned)
+  const expectedSha256 =
+    c.req.header('x-amz-content-sha256') ?? c.req.query('X-Amz-Content-Sha256');
   if (
     expectedSha256 &&
     expectedSha256 !== 'UNSIGNED-PAYLOAD' &&

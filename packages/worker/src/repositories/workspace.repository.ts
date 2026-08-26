@@ -102,11 +102,71 @@ export class WorkspaceRepository {
    * Return a prepared used_bytes UPDATE statement (not run) for batch operations.
    * Used by PolicyService retention auto-delete to batch DELETE file + UPDATE
    * used_bytes atomically. `sizeDelta` may be negative (deletion).
+   *
+   * The MAX(0, ...) clamp is the quota-bypass backstop: used_bytes must never
+   * be negative, because a negative value inflates the effective headroom of
+   * the conditional quota gates (updateUsedBytesAtomic's
+   * `used_bytes + ? <= maxBytes` check) until the next recompute. Any path
+   * that would dip below zero is either a double-release bug (fixed at the
+   * call site) or stale data — both clamp to 0 and self-heal on the next
+   * recomputeAllUsedBytes run.
    */
   updateUsedBytesStmt(workspaceId: string, sizeDelta: number): D1PreparedStatement {
     return this.db
-      .prepare('UPDATE workspaces SET used_bytes = COALESCE(used_bytes, 0) + ? WHERE id = ?')
+      .prepare(
+        'UPDATE workspaces SET used_bytes = MAX(0, COALESCE(used_bytes, 0) + ?) WHERE id = ?',
+      )
       .bind(sizeDelta, workspaceId);
+  }
+
+  /**
+   * EXISTS-gated used_bytes UPDATE (not run) for exactly-once batch
+   * composition. The delta only applies while the referenced file row is
+   * still in `expectedTrashed` state — emit it BEFORE the matching
+   * conditional flip in the same db.batch() so the gate observes the
+   * pre-transition state. A duplicate batch finds the row already
+   * transitioned (or deleted) and the UPDATE no-ops. The workspace release
+   * MUST sit inside the same gate as the stats delta: an ungated release
+   * drives used_bytes negative on duplicate invocations.
+   */
+  updateUsedBytesIfFileInStateStmt(
+    workspaceId: string,
+    sizeDelta: number,
+    fileId: string,
+    expectedTrashed: 0 | 1,
+  ): D1PreparedStatement {
+    return this.db
+      .prepare(
+        `UPDATE workspaces SET used_bytes = MAX(0, COALESCE(used_bytes, 0) + ?)
+         WHERE id = ? AND EXISTS (SELECT 1 FROM files WHERE id = ? AND is_trashed = ?)`,
+      )
+      .bind(sizeDelta, workspaceId, fileId, expectedTrashed);
+  }
+
+  /**
+   * Drive+google-id-keyed variant of `updateUsedBytesIfFileInStateStmt` for
+   * the sync engine, which only knows (drive_account_id, google_file_id) —
+   * `files` is UNIQUE on that pair, so the EXISTS gate identifies exactly one
+   * row. Same exactly-once contract: emit BEFORE the matching flip/delete so
+   * the gate observes the pre-transition state; duplicates no-op. Used when a
+   * sync change feed reports a trash/removal for a file another path (UI
+   * trash, automation) may have already transitioned.
+   */
+  updateUsedBytesIfFileInStateByGoogleIdStmt(
+    workspaceId: string,
+    sizeDelta: number,
+    driveAccountId: string,
+    googleFileId: string,
+    expectedTrashed: 0 | 1,
+  ): D1PreparedStatement {
+    return this.db
+      .prepare(
+        `UPDATE workspaces SET used_bytes = MAX(0, COALESCE(used_bytes, 0) + ?)
+         WHERE id = ? AND EXISTS (
+           SELECT 1 FROM files WHERE drive_account_id = ? AND google_file_id = ? AND is_trashed = ?
+         )`,
+      )
+      .bind(sizeDelta, workspaceId, driveAccountId, googleFileId, expectedTrashed);
   }
 
   /**

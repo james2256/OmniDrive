@@ -335,7 +335,7 @@ Critical reasons OmniDrive cannot distinguish:
 
 ### 2.9 🟡 NO token-refresh single-flight
 
-> **🔴 STILL OPEN (2026 re-audit).** `google-drive.ts:183` still carries the `ponytail` marker: `// ponytail: last-write-wins refresh — sync is mostly serial (activeSyncs guard); add single-flight lock if races become a problem`. The in-Map `tokenCache` (line 116) prevents races within one isolate but not cross-isolate. `activeSyncs` Set serializes per-drive sync, which mitigates the common case, but a user request hitting a different isolate during a cron refresh could still trigger a wasted refresh.
+> **🔴 STILL OPEN (2026 re-audit, references refreshed).** `google-drive.ts:203` still carries the `ponytail` marker: `// ponytail: last-write-wins refresh — sync is mostly serial (D1 sync_state lock); add single-flight lock if races become a real problem`. The in-Map `tokenCache` prevents races within one isolate but not cross-isolate. Per-drive sync is now serialized by the D1-backed `sync_state` row + `acquireLock` UPSERT (`services/sync.ts`; `repositories/sync-state.repository.ts` — the 5-minute stale-lock timeout is the cross-isolate fallback), which mitigates the sync-driven case, but a user request hitting a different isolate during a refresh could still trigger a wasted refresh.
 
 **`google-drive.ts:82-113` (`getValidToken` — original audit line range; current line is 112):** In-memory `tokenCache` (Map) prevents races **within one sync invocation**, but two concurrent cron cycles (or a cron + user request) for the same account could race on refresh.
 

@@ -1,7 +1,10 @@
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 import { env } from 'cloudflare:workers';
 import { ensureSchema, clearAllTables } from './helpers';
 import { FileRepository } from '../../src/repositories/file.repository';
+import { FileService } from '../../src/services/file.service';
+import { AutomationEngine } from '../../src/services/automation.service';
+import type { DriveProvider } from '../../src/types/drive-provider';
 
 declare module 'cloudflare:workers' {
   interface ProvidedEnv {
@@ -158,8 +161,10 @@ describe('Storage Stats (integration)', () => {
     await repo.applyStorageDeltas([{ userId: 'u1', mimeType: 'image/jpeg', delta: 5000 }]);
     await repo.applyStorageDeltas([{ userId: 'u1', mimeType: 'image/jpeg', delta: -5000 }]);
 
-    // Permanent delete (file already trashed — no delta needed)
-    await repo.delete('f1', 'u1');
+    // Permanent delete (file already trashed — no delta needed). Uses the
+    // same conditional user-scoped DELETE statement FileService.permanentDelete
+    // composes into its atomic batch.
+    await env.DB.batch([repo.deleteByIdAndUserIfTrashedStmt('f1', 'u1')]);
 
     const { results } = await repo.getStorageStats('u1');
     expect(results[0].total_size).toBe(0); // unchanged
@@ -268,5 +273,342 @@ describe('Storage Stats (integration)', () => {
     expect(states.size).toBe(150);
     expect(states.get('g-file-0')?.size).toBe(100);
     expect(states.get('g-file-149')?.size).toBe(100);
+  });
+
+  it('applyStorageDeltaIfFileInStateStmt no-ops once the file leaves the expected state', async () => {
+    await insertUser('u1', 'alice');
+    await insertDrive('d1', 'u1', 'alice@gmail.com');
+    const repo = new FileRepository(env.DB);
+
+    await insertFile({
+      id: 'f1',
+      userId: 'u1',
+      driveId: 'd1',
+      googleFileId: 'g1',
+      name: 'doc.txt',
+      mimeType: 'text/plain',
+      size: 5000,
+    });
+    await repo.applyStorageDeltas([{ userId: 'u1', mimeType: 'text/plain', delta: 5000 }]);
+
+    // Trash the file (state leaves is_trashed = 0)
+    await env.DB.prepare('UPDATE files SET is_trashed = 1 WHERE id = ?').bind('f1').run();
+
+    // The gated delta conditioned on is_trashed = 0 must NOT fire now —
+    // replaying a committed batch's statement is a no-op.
+    await env.DB.batch([
+      repo.applyStorageDeltaIfFileInStateStmt('u1', 'text/plain', -5000, 'f1', 0),
+    ]);
+
+    const { results } = await repo.getStorageStats('u1');
+    expect(results[0].total_size).toBe(5000); // unchanged — gate blocked the stale delta
+
+    // The same delta conditioned on is_trashed = 1 (the restore direction) fires.
+    await env.DB.batch([
+      repo.applyStorageDeltaIfFileInStateStmt('u1', 'text/plain', 5000, 'f1', 1),
+    ]);
+    const { results: after } = await repo.getStorageStats('u1');
+    expect(after[0].total_size).toBe(10000);
+  });
+});
+
+describe('FileService trash/restore/permanentDelete exactly-once (integration)', () => {
+  // Real D1 + the real FileService; only the Google Drive provider is mocked.
+  const mockDrive = {
+    trashFile: vi.fn(async () => {}),
+    untrashFile: vi.fn(async () => {}),
+    deleteFile: vi.fn(async () => {}),
+  } as unknown as DriveProvider;
+
+  beforeAll(async () => {
+    await ensureSchema(env.DB);
+  });
+
+  beforeEach(async () => {
+    await clearAllTables(env.DB);
+    vi.clearAllMocks();
+  });
+
+  /** Seed an owned, workspace-scoped 100-byte text file + its stats row. */
+  async function seedWorkspaceFile(
+    opts: { isTrashed?: number; stats?: number; usedBytes?: number } = {},
+  ) {
+    await env.DB.prepare('INSERT INTO users (id, username, password_hash) VALUES (?, ?, ?)')
+      .bind('u1', 'alice', '$2a$10$dummy')
+      .run();
+    await env.DB.prepare(
+      'INSERT INTO workspaces (id, name, owner_id, used_bytes) VALUES (?, ?, ?, ?)',
+    )
+      .bind('ws1', 'WS', 'u1', opts.usedBytes ?? 100)
+      .run();
+    await env.DB.prepare(
+      'INSERT INTO workspace_members (id, workspace_id, user_id, role) VALUES (?, ?, ?, ?)',
+    )
+      .bind('wm1', 'ws1', 'u1', 'owner')
+      .run();
+    await env.DB.prepare(
+      'INSERT INTO drive_accounts (id, user_id, email, type) VALUES (?, ?, ?, ?)',
+    )
+      .bind('d1', 'u1', 'alice@gmail.com', 'oauth')
+      .run();
+    await env.DB.prepare(
+      `INSERT INTO files (id, user_id, drive_account_id, workspace_id, google_file_id, name, mime_type, size, is_trashed, owned_by_me)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+      .bind('f1', 'u1', 'd1', 'ws1', 'g1', 'doc.txt', 'text/plain', 100, opts.isTrashed ?? 0, 1)
+      .run();
+    await env.DB.prepare(
+      'INSERT INTO file_storage_stats (user_id, mime_type, total_size) VALUES (?, ?, ?)',
+    )
+      .bind('u1', 'text/plain', opts.stats ?? 100)
+      .run();
+  }
+
+  async function readState() {
+    const file = await env.DB.prepare('SELECT is_trashed FROM files WHERE id = ?')
+      .bind('f1')
+      .first<{ is_trashed: number }>();
+    const stats = await env.DB.prepare(
+      'SELECT total_size FROM file_storage_stats WHERE user_id = ? AND mime_type = ?',
+    )
+      .bind('u1', 'text/plain')
+      .first<{ total_size: number }>();
+    const ws = await env.DB.prepare('SELECT used_bytes FROM workspaces WHERE id = ?')
+      .bind('ws1')
+      .first<{ used_bytes: number }>();
+    return {
+      isTrashed: file?.is_trashed ?? null,
+      stats: stats?.total_size ?? null,
+      used: ws?.used_bytes ?? null,
+    };
+  }
+
+  it('trashFile applies stats + workspace deltas exactly once across duplicate invocations', async () => {
+    // Active file: stats=100 (counted), used_bytes=100 (reserved).
+    await seedWorkspaceFile();
+    const service = new FileService(env.DB, mockDrive);
+
+    await service.trashFile('u1', 'f1'); // first invocation
+    await service.trashFile('u1', 'f1'); // duplicate (retry / concurrent sync)
+
+    // Every delta fired exactly once — never twice, never negative.
+    expect(await readState()).toEqual({ isTrashed: 1, stats: 0, used: 0 });
+    // The duplicate hits the fast-path (already trashed) — no second external
+    // Drive subrequest, no second batch.
+    expect(mockDrive.trashFile).toHaveBeenCalledTimes(1);
+  });
+
+  it('workspace release clamps at zero — a release larger than used_bytes never goes negative', async () => {
+    // Stale state: used_bytes=30 but the file is 100 bytes (e.g. a historical
+    // double-release drove it down, or the seed drifted). Trashing releases
+    // 100 — the MAX(0, ...) clamp must floor used_bytes at 0, not -70.
+    await seedWorkspaceFile({ usedBytes: 30 });
+    const service = new FileService(env.DB, mockDrive);
+
+    await service.trashFile('u1', 'f1');
+
+    const state = await readState();
+    expect(state.used).toBe(0);
+    // The clamped value does not inflate quota headroom: a reservation that
+    // would exceed the workspace max is still rejected by the atomic gate.
+    const wsRepo = new (
+      await import('../../src/repositories/workspace.repository')
+    ).WorkspaceRepository(env.DB);
+    const reserved = await wsRepo.updateUsedBytesAtomic('ws1', 5000, 1000);
+    expect(reserved).toBe(false);
+  });
+
+  it('restoreFile applies deltas exactly once; a duplicate restore is a 404 that mutates nothing', async () => {
+    // Trashed file: stats=0 (excluded at trash), used_bytes=0 (released at trash).
+    await seedWorkspaceFile({ isTrashed: 1, stats: 0, usedBytes: 0 });
+    const service = new FileService(env.DB, mockDrive);
+
+    await service.restoreFile('u1', 'f1');
+
+    // The duplicate hits the is_trashed !== 1 precondition — the row is
+    // already restored, so the request is rejected before any mutation.
+    await expect(service.restoreFile('u1', 'f1')).rejects.toMatchObject({ status: 404 });
+
+    // Deltas fired exactly once — never twice.
+    expect(await readState()).toEqual({ isTrashed: 0, stats: 100, used: 100 });
+    expect(mockDrive.untrashFile).toHaveBeenCalledTimes(1);
+  });
+
+  it('restoreFile on a non-trashed file throws NotFoundError and mutates nothing', async () => {
+    await seedWorkspaceFile();
+    const service = new FileService(env.DB, mockDrive);
+
+    await expect(service.restoreFile('u1', 'f1')).rejects.toMatchObject({ status: 404 });
+    expect(mockDrive.untrashFile).not.toHaveBeenCalled();
+    expect(await readState()).toEqual({ isTrashed: 0, stats: 100, used: 100 });
+  });
+
+  it('permanentDelete removes the row, never double-decrements stats, and is a 404 on repeat', async () => {
+    // True post-trash state: stats=0 (excluded at trash), used_bytes=0
+    // (released at trash).
+    await seedWorkspaceFile({ isTrashed: 1, stats: 0, usedBytes: 0 });
+    const service = new FileService(env.DB, mockDrive);
+
+    await service.permanentDelete('u1', 'f1');
+
+    // Stats untouched — the file was already excluded when it was trashed
+    // (computeStorageDelta: "delete trashed (owned) → none"). A stats delta
+    // here would be a double-decrement.
+    const state = await readState();
+    expect(state.isTrashed).toBe(null); // row gone
+    expect(state.stats).toBe(0); // unchanged
+    // Workspace quota untouched — the release fired at trash time. The old
+    // behavior (release again here) double-released and dipped used_bytes to
+    // -100 until the maintenance cron self-healed; removed per the plan
+    // ("no deltas at permanent-delete time — applied at trash time").
+    expect(state.used).toBe(0);
+
+    // Repeat invocation: the row is gone → 404, no further mutation, no Drive call.
+    await expect(service.permanentDelete('u1', 'f1')).rejects.toMatchObject({ status: 404 });
+    expect(mockDrive.deleteFile).toHaveBeenCalledTimes(1);
+    expect((await readState()).used).toBe(0);
+  });
+
+  it('trash → restore → trash cycle keeps stats and used_bytes in lockstep', async () => {
+    await seedWorkspaceFile();
+    const service = new FileService(env.DB, mockDrive);
+
+    await service.trashFile('u1', 'f1');
+    expect(await readState()).toEqual({ isTrashed: 1, stats: 0, used: 0 });
+    await service.restoreFile('u1', 'f1');
+    expect(await readState()).toEqual({ isTrashed: 0, stats: 100, used: 100 });
+    await service.trashFile('u1', 'f1');
+    expect(await readState()).toEqual({ isTrashed: 1, stats: 0, used: 0 });
+  });
+});
+
+describe('AutomationEngine DELETE accounting (integration)', () => {
+  // Real D1 + the real AutomationEngine.processEventTrigger → executeActions
+  // path; only the Google Drive provider is mocked.
+  const mockDrive = {
+    trashFile: vi.fn(async () => {}),
+  } as unknown as DriveProvider;
+
+  beforeAll(async () => {
+    await ensureSchema(env.DB);
+  });
+
+  beforeEach(async () => {
+    await clearAllTables(env.DB);
+    vi.clearAllMocks();
+  });
+
+  /** Seed the same owned, workspace-scoped 100-byte file + an event rule with a delete action. */
+  async function seedRuleAndWorkspaceFile() {
+    await env.DB.prepare('INSERT INTO users (id, username, password_hash) VALUES (?, ?, ?)')
+      .bind('u1', 'alice', '$2a$10$dummy')
+      .run();
+    await env.DB.prepare(
+      'INSERT INTO workspaces (id, name, owner_id, used_bytes) VALUES (?, ?, ?, ?)',
+    )
+      .bind('ws1', 'WS', 'u1', 100)
+      .run();
+    await env.DB.prepare(
+      'INSERT INTO workspace_members (id, workspace_id, user_id, role) VALUES (?, ?, ?, ?)',
+    )
+      .bind('wm1', 'ws1', 'u1', 'owner')
+      .run();
+    await env.DB.prepare(
+      'INSERT INTO drive_accounts (id, user_id, email, type) VALUES (?, ?, ?, ?)',
+    )
+      .bind('d1', 'u1', 'alice@gmail.com', 'oauth')
+      .run();
+    await env.DB.prepare(
+      `INSERT INTO files (id, user_id, drive_account_id, workspace_id, google_file_id, name, mime_type, size, is_trashed, owned_by_me)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+      .bind('f1', 'u1', 'd1', 'ws1', 'g1', 'doc.txt', 'text/plain', 100, 0, 1)
+      .run();
+    await env.DB.prepare(
+      'INSERT INTO file_storage_stats (user_id, mime_type, total_size) VALUES (?, ?, ?)',
+    )
+      .bind('u1', 'text/plain', 100)
+      .run();
+    await env.DB.prepare(
+      `INSERT INTO automation_rules (id, user_id, name, trigger_type, conditions, actions, is_active)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    )
+      .bind('rule-1', 'u1', 'cleanup', 'event', '[]', JSON.stringify([{ type: 'delete' }]), 1)
+      .run();
+  }
+
+  async function readState() {
+    const file = await env.DB.prepare('SELECT is_trashed FROM files WHERE id = ?')
+      .bind('f1')
+      .first<{ is_trashed: number }>();
+    const stats = await env.DB.prepare(
+      'SELECT total_size FROM file_storage_stats WHERE user_id = ? AND mime_type = ?',
+    )
+      .bind('u1', 'text/plain')
+      .first<{ total_size: number }>();
+    const ws = await env.DB.prepare('SELECT used_bytes FROM workspaces WHERE id = ?')
+      .bind('ws1')
+      .first<{ used_bytes: number }>();
+    return {
+      isTrashed: file?.is_trashed ?? null,
+      stats: stats?.total_size ?? null,
+      used: ws?.used_bytes ?? null,
+    };
+  }
+
+  async function triggerRule(engine: AutomationEngine) {
+    const { toDbFile } = await import('../../src/services/automation.service');
+    const row = await env.DB.prepare('SELECT * FROM files WHERE id = ?')
+      .bind('f1')
+      .first<Record<string, unknown>>();
+    const pending: Promise<unknown>[] = [];
+    const ctx = {
+      waitUntil: (p: Promise<unknown>) => {
+        pending.push(p);
+        return p;
+      },
+    } as unknown as ExecutionContext;
+    await engine.processEventTrigger(toDbFile(row as never), ctx);
+    await Promise.all(pending);
+  }
+
+  it('ACTION_DELETE applies gated stats + workspace deltas exactly once (duplicate run no-ops)', async () => {
+    await seedRuleAndWorkspaceFile();
+    const engine = new AutomationEngine(env, mockDrive);
+
+    await triggerRule(engine);
+
+    // The delete action trashed the row and fired both deltas exactly once:
+    // stats 100→0, used_bytes 100→0 — automation no longer trashes with
+    // zero accounting.
+    expect(await readState()).toEqual({ isTrashed: 1, stats: 0, used: 0 });
+
+    // Duplicate trigger (rule re-fires on the same file): every gated
+    // statement no-ops — no second stats decrement, no second release.
+    await triggerRule(engine);
+    expect(await readState()).toEqual({ isTrashed: 1, stats: 0, used: 0 });
+    // The Drive call repeats (idempotent on Google's side) but D1 does not.
+    expect(mockDrive.trashFile).toHaveBeenCalledTimes(2);
+
+    // A success log row was written for each run.
+    const logs = await env.DB.prepare(
+      'SELECT COUNT(*) as n FROM automation_logs WHERE rule_id = ? AND status = ?',
+    )
+      .bind('rule-1', 'success')
+      .first<{ n: number }>();
+    expect(logs?.n).toBe(2);
+  });
+
+  it('ACTION_DELETE skips non-owned files entirely (no Drive call, no mutation)', async () => {
+    await seedRuleAndWorkspaceFile();
+    await env.DB.prepare('UPDATE files SET owned_by_me = 0, user_id = ? WHERE id = ?')
+      .bind('u1', 'f1')
+      .run();
+    const engine = new AutomationEngine(env, mockDrive);
+
+    await triggerRule(engine);
+
+    expect(mockDrive.trashFile).not.toHaveBeenCalled();
+    expect(await readState()).toEqual({ isTrashed: 0, stats: 100, used: 100 });
   });
 });

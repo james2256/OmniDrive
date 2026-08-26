@@ -108,7 +108,7 @@ All SQL lives in `repositories/`. The pattern is:
 - **Services** (`services/*.ts`): Business logic + RBAC + Google API calls. **No SQL strings.**
 - **Repositories** (`repositories/*.ts`): All SQL. Named by intent (`findById`, `findAllByUser`, `insertWithUniqueSlug`).
 
-8 of 10 routes have zero inline SQL. The remaining 2 (`s3.ts` with 31, `auth.ts` with 7) still call `env.DB.prepare(...)` directly and are tracked with `ponytail:` comments — grep for `ponytail:` to find intentional deferrals.
+9 of 10 routes have zero inline SQL. Only `auth.ts` (7 calls in `/callback`) still calls `env.DB.prepare(...)` directly and is tracked with a `ponytail:` comment — grep for `ponytail:` to find intentional deferrals.
 
 ### Error handling
 
@@ -206,7 +206,7 @@ do the refactor. These are grep-able:
 | **RBAC denied (403)** | Search for `assertCanMutate` or `assertCanShare` in `services/` — check the role + permission |
 | **Rate limited (429)** | `packages/worker/src/middleware/rate-limiter.ts` — in-memory sliding window |
 | **Quota/cost concerns** | `docs/AGENTS.md` → "Cost Principle" section |
-| **S3 API errors** | `packages/worker/src/routes/s3.ts` — 1,076 lines, uses `ponytail:` deferral |
+| **S3 API errors** | `packages/worker/src/routes/s3.ts` — 1,454 lines, uses `ponytail:` deferral |
 | **Session expired** | `packages/worker/src/middleware/auth-guard.ts` — 7-day sliding TTL, refreshed if untouched >1hr |
 | **Google Drive sync** | `packages/worker/src/services/sync.ts` — cron every 30 min, resume via `next_page_token` |
 

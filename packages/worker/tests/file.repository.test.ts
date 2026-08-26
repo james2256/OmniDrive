@@ -238,24 +238,33 @@ describe('FileRepository', () => {
     });
   });
 
-  describe('markTrashed', () => {
-    it('UPDATEs is_trashed=1 scoped to user (two binds)', async () => {
-      await repo.markTrashed('f-1', 'u-1');
+  describe('markTrashedByIdAndUserIfActiveStmt', () => {
+    it('returns a conditional user-scoped is_trashed=1 UPDATE with updated_at (not run)', () => {
+      const stmt = repo.markTrashedByIdAndUserIfActiveStmt('f-1', 'u-1');
 
       const sql = mockPrepare.mock.calls[0][0] as string;
-      expect(sql).toBe('UPDATE files SET is_trashed = 1 WHERE id = ? AND user_id = ?');
+      expect(sql).toBe(
+        'UPDATE files SET is_trashed = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ? AND is_trashed = 0',
+      );
       expect(mockBind).toHaveBeenCalledWith('f-1', 'u-1');
+      // Stmt-returning methods MUST NOT call .run() — the statement is handed
+      // to db.batch() for atomic composition by FileService.trashFile.
+      expect(mockRun).not.toHaveBeenCalled();
+      expect(stmt).toEqual({ all: mockAll, first: mockFirst, run: mockRun });
     });
   });
 
-  describe('markUntrashed', () => {
-    it('UPDATEs is_trashed=0 with updated_at=CURRENT_TIMESTAMP (two binds)', async () => {
-      await repo.markUntrashed('f-1', 'u-1');
+  describe('markUntrashedByIdAndUserIfTrashedStmt', () => {
+    it('returns a conditional user-scoped is_trashed=0 UPDATE with updated_at (not run)', () => {
+      const stmt = repo.markUntrashedByIdAndUserIfTrashedStmt('f-1', 'u-1');
 
       const sql = mockPrepare.mock.calls[0][0] as string;
-      expect(sql).toContain('UPDATE files SET is_trashed = 0, updated_at = CURRENT_TIMESTAMP');
-      expect(sql).toContain('WHERE id = ? AND user_id = ?');
+      expect(sql).toBe(
+        'UPDATE files SET is_trashed = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ? AND is_trashed = 1',
+      );
       expect(mockBind).toHaveBeenCalledWith('f-1', 'u-1');
+      expect(mockRun).not.toHaveBeenCalled();
+      expect(stmt).toEqual({ all: mockAll, first: mockFirst, run: mockRun });
     });
   });
 
@@ -305,13 +314,17 @@ describe('FileRepository', () => {
     });
   });
 
-  describe('delete', () => {
-    it('DELETEs a file scoped to user (two binds)', async () => {
-      await repo.delete('f-1', 'u-1');
+  describe('deleteByIdAndUserIfTrashedStmt', () => {
+    it('returns a conditional user-scoped DELETE (not run), gated on is_trashed = 1', () => {
+      const stmt = repo.deleteByIdAndUserIfTrashedStmt('f-1', 'u-1');
 
       const sql = mockPrepare.mock.calls[0][0] as string;
-      expect(sql).toBe('DELETE FROM files WHERE id = ? AND user_id = ?');
+      expect(sql).toBe('DELETE FROM files WHERE id = ? AND user_id = ? AND is_trashed = 1');
       expect(mockBind).toHaveBeenCalledWith('f-1', 'u-1');
+      // Stmt-returning methods MUST NOT call .run() — the statement is handed
+      // to db.batch() for atomic composition by FileService.permanentDelete.
+      expect(mockRun).not.toHaveBeenCalled();
+      expect(stmt).toEqual({ all: mockAll, first: mockFirst, run: mockRun });
     });
   });
 
@@ -331,6 +344,26 @@ describe('FileRepository', () => {
     });
   });
 
+  describe('applyStorageDeltaIfFileInStateStmt', () => {
+    it('returns an EXISTS-gated stats upsert (not run) with the expected-state bind', () => {
+      const stmt = repo.applyStorageDeltaIfFileInStateStmt('u-1', 'text/plain', -100, 'f-1', 0);
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain('INSERT INTO file_storage_stats (user_id, mime_type, total_size)');
+      expect(sql).toContain('SELECT ?, ?, ?');
+      // The gate: the delta only applies while the file row is still in the
+      // expected pre-transition state.
+      expect(sql).toContain('WHERE EXISTS (SELECT 1 FROM files WHERE id = ? AND is_trashed = ?)');
+      expect(sql).toContain('ON CONFLICT(user_id, mime_type) DO UPDATE SET');
+      expect(sql).toContain(
+        'CASE WHEN total_size + excluded.total_size < 0 THEN 0 ELSE total_size + excluded.total_size END',
+      );
+      expect(mockBind).toHaveBeenCalledWith('u-1', 'text/plain', -100, 'f-1', 0);
+      expect(mockRun).not.toHaveBeenCalled();
+      expect(stmt).toEqual({ all: mockAll, first: mockFirst, run: mockRun });
+    });
+  });
+
   describe('markTrashedByDriveAndGoogleIdStmt', () => {
     it('returns a prepared is_trashed=1 UPDATE (not run) scoped by drive + google_file_id', () => {
       const stmt = repo.markTrashedByDriveAndGoogleIdStmt('d-1', 'gfile-1');
@@ -340,22 +373,6 @@ describe('FileRepository', () => {
         'UPDATE files SET is_trashed = 1 WHERE drive_account_id = ? AND google_file_id = ?',
       );
       expect(mockBind).toHaveBeenCalledWith('d-1', 'gfile-1');
-      expect(mockRun).not.toHaveBeenCalled();
-      expect(stmt).toEqual({ all: mockAll, first: mockFirst, run: mockRun });
-    });
-  });
-
-  describe('markTrashedSystemStmt', () => {
-    it('returns a prepared is_trashed=1 UPDATE with updated_at (not run), scoped by id only', () => {
-      const stmt = repo.markTrashedSystemStmt('f-1');
-
-      const sql = mockPrepare.mock.calls[0][0] as string;
-      expect(sql).toBe(
-        'UPDATE files SET is_trashed = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-      );
-      expect(mockBind).toHaveBeenCalledWith('f-1');
-      // Stmt-returning methods MUST NOT call .run() — the statement is handed
-      // to db.batch() for atomic composition by the lifecycle cron.
       expect(mockRun).not.toHaveBeenCalled();
       expect(stmt).toEqual({ all: mockAll, first: mockFirst, run: mockRun });
     });

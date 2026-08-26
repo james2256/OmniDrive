@@ -126,6 +126,35 @@ export class FileRepository {
   }
 
   /**
+   * EXISTS-gated stats delta UPSERT (not run) for exactly-once batch
+   * composition. The delta only applies while the referenced file row is
+   * still in `expectedTrashed` state — emit it BEFORE the matching
+   * conditional flip in the same db.batch() so the gate observes the
+   * pre-transition state. A duplicate batch (a concurrent sync cycle, or a
+   * retry after the first one committed) finds the row already transitioned
+   * and the statement no-ops. Same zero-clamp CASE as applyStorageDeltaStmt.
+   *
+   * (The SELECT's WHERE clause is also what keeps SQLite's UPSERT parsing
+   * unambiguous — INSERT ... SELECT ... ON CONFLICT requires it.)
+   */
+  applyStorageDeltaIfFileInStateStmt(
+    userId: string,
+    mimeType: string,
+    delta: number,
+    fileId: string,
+    expectedTrashed: 0 | 1,
+  ): D1PreparedStatement {
+    return this.db
+      .prepare(
+        `INSERT INTO file_storage_stats (user_id, mime_type, total_size)
+         SELECT ?, ?, ?
+         WHERE EXISTS (SELECT 1 FROM files WHERE id = ? AND is_trashed = ?)
+         ON CONFLICT(user_id, mime_type) DO UPDATE SET total_size = CASE WHEN total_size + excluded.total_size < 0 THEN 0 ELSE total_size + excluded.total_size END`,
+      )
+      .bind(userId, mimeType, delta, fileId, expectedTrashed);
+  }
+
+  /**
    * Batch-apply multiple deltas (used by sync + service mutations).
    * Filters out zero deltas (e.g. rename-only changes produce no stats delta).
    */
@@ -387,39 +416,11 @@ export class FileRepository {
 
   // ─── Mutations ───
 
-  markTrashed(fileId: string, userId: string) {
-    return this.db
-      .prepare('UPDATE files SET is_trashed = 1 WHERE id = ? AND user_id = ?')
-      .bind(fileId, userId)
-      .run();
-  }
-
-  /**
-   * Mark a file trashed without user scoping — for system operations (lifecycle
-   * cron, automation engine) that don't have a userId. Updates updated_at.
-   */
-  markTrashedSystem(fileId: string) {
-    return this.db
-      .prepare('UPDATE files SET is_trashed = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-      .bind(fileId)
-      .run();
-  }
-
-  /**
-   * Return a prepared mark-trashed statement (not run) for batch composition.
-   * Mirrors `markTrashedSystem` SQL (including `updated_at`) so lifecycle-trashed
-   * files sort correctly in the Trash page (which orders by `updated_at DESC`).
-   */
-  markTrashedSystemStmt(fileId: string): D1PreparedStatement {
-    return this.db
-      .prepare('UPDATE files SET is_trashed = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-      .bind(fileId);
-  }
-
   /**
    * Conditional mark-trashed — only fires if the file is still non-trashed.
-   * Used by lifecycle retention cron to prevent concurrent cycles from
-   * double-applying deltas. Check meta.changes > 0 after batch.
+   * Used by the S3 DELETE route and the lifecycle retention cron to prevent
+   * concurrent cycles from double-applying deltas. Check meta.changes > 0
+   * after batch.
    */
   markTrashedSystemIfActiveStmt(fileId: string): D1PreparedStatement {
     return this.db
@@ -429,13 +430,34 @@ export class FileRepository {
       .bind(fileId);
   }
 
-  markUntrashed(fileId: string, userId: string) {
+  /**
+   * Idempotent, user-scoped mark-trashed statement (not run) for batch
+   * composition. Used by FileService.trashFile. The `WHERE is_trashed = 0`
+   * guard makes a duplicate invocation (a concurrent sync cycle or a retry
+   * after commit) a no-op — emit it AFTER the gated deltas in the same
+   * db.batch() so the whole mutation is exactly-once. Sets updated_at so
+   * user-trashed files sort correctly in the Trash page (updated_at DESC).
+   */
+  markTrashedByIdAndUserIfActiveStmt(fileId: string, userId: string): D1PreparedStatement {
     return this.db
       .prepare(
-        'UPDATE files SET is_trashed = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?',
+        'UPDATE files SET is_trashed = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ? AND is_trashed = 0',
       )
-      .bind(fileId, userId)
-      .run();
+      .bind(fileId, userId);
+  }
+
+  /**
+   * Idempotent, user-scoped mark-untrashed statement (not run) for batch
+   * composition. Used by FileService.restoreFile. The `WHERE is_trashed = 1`
+   * guard makes a duplicate restore a no-op — emit it AFTER the gated deltas
+   * in the same db.batch().
+   */
+  markUntrashedByIdAndUserIfTrashedStmt(fileId: string, userId: string): D1PreparedStatement {
+    return this.db
+      .prepare(
+        'UPDATE files SET is_trashed = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ? AND is_trashed = 1',
+      )
+      .bind(fileId, userId);
   }
 
   rename(fileId: string, userId: string, name: string) {
@@ -463,11 +485,17 @@ export class FileRepository {
     return meta.changes > 0;
   }
 
-  delete(fileId: string, userId: string) {
+  /**
+   * Conditional user-scoped DELETE (not run) for batch composition. Used by
+   * FileService.permanentDelete — only fires on a row still in the trash,
+   * preserving the "permanent delete only from trash" invariant even if a
+   * concurrent restore raced the read. Emit it AFTER the gated deltas in the
+   * same db.batch().
+   */
+  deleteByIdAndUserIfTrashedStmt(fileId: string, userId: string): D1PreparedStatement {
     return this.db
-      .prepare('DELETE FROM files WHERE id = ? AND user_id = ?')
-      .bind(fileId, userId)
-      .run();
+      .prepare('DELETE FROM files WHERE id = ? AND user_id = ? AND is_trashed = 1')
+      .bind(fileId, userId);
   }
 
   /**
@@ -505,21 +533,14 @@ export class FileRepository {
   }
 
   /**
-   * Return a prepared is_trashed UPDATE statement (not run) for batch operations.
-   * Used by AutomationEngine to batch delete (trash) actions. No userId scoping.
-   */
-  markTrashedStmt(fileId: string, isTrashed: number): D1PreparedStatement {
-    return this.db.prepare('UPDATE files SET is_trashed = ? WHERE id = ?').bind(isTrashed, fileId);
-  }
-
-  /**
    * Return a prepared DELETE statement scoped by drive_account_id + google_file_id
    * (not run), for batch composition. Used by the sync engine to batch
    * incremental-sync deletions — both "removed from Google" and "no longer
    * owned" cleanup — with drive-folder deletions via `batchUpsertUnitsWithCheckpoint`
    * (per-file atomic grouping). Distinct from `deleteByIdStmt` (scoped by
-   * file `id`) and `delete` (scoped by id + user_id): the sync engine only
-   * knows the Google file id, not the D1 row id. No userId scoping — system op.
+   * file `id`) and `deleteByIdAndUserIfTrashedStmt` (scoped by id + user_id):
+   * the sync engine only knows the Google file id, not the D1 row id.
+   * No userId scoping — system op.
    */
   deleteByDriveAndGoogleIdStmt(driveAccountId: string, googleFileId: string): D1PreparedStatement {
     return this.db
@@ -532,9 +553,10 @@ export class FileRepository {
    * google_file_id (not run), for batch composition. Used by the sync engine
    * to batch incremental-sync trash updates (owned + trashed on Google) with
    * drive-folder trash updates via `batchUpsertUnitsWithCheckpoint` (per-file
-   * atomic grouping). Distinct from `markTrashedStmt` (scoped by file `id`,
-   * takes a trashed flag): the sync engine only knows the Google file id and
-   * always sets is_trashed = 1. No userId scoping — system op.
+   * atomic grouping). Distinct from `markTrashedByIdAndUserIfActiveStmt`
+   * (scoped by file `id` + user_id, gated on is_trashed = 0): the sync engine
+   * only knows the Google file id and always sets is_trashed = 1.
+   * No userId scoping — system op.
    */
   markTrashedByDriveAndGoogleIdStmt(
     driveAccountId: string,

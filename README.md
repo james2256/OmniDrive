@@ -66,6 +66,7 @@ force_path_style = true
 | **Backend** | [Hono](https://hono.dev/) on [Cloudflare Workers](https://workers.cloudflare.com/) |
 | **Database** | [Cloudflare D1](https://developers.cloudflare.com/d1/) (SQLite) — sessions, OAuth state, drive tokens, quota/category cache |
 | **Rate-limit Counters** | [Cloudflare KV](https://developers.cloudflare.com/kv/) — shared-link password lockout only |
+| **Sync Job Dispatch** | [Cloudflare Queues](https://developers.cloudflare.com/queues/) — async drive sync after OAuth, file moves, and folder trash |
 | **Frontend** | [React 19](https://react.dev/) + [Vite 8](https://vite.dev/) |
 | **Styling** | [Tailwind CSS 4](https://tailwindcss.com/) (CSS-first `@theme` config) |
 | **State Management** | [Zustand](https://zustand.docs.pmnd.rs/) + [TanStack Query](https://tanstack.com/query) |
@@ -82,20 +83,20 @@ omnidrive/
 │   ├── worker/              # Cloudflare Worker (API backend)
 │   │   ├── src/
 │   │   │   ├── routes/          # 10 route files (thin orchestrators)
-│   │   │   ├── services/        # 15 service files (business logic + RBAC)
-│   │   │   ├── repositories/    # 10 repository files (all SQL)
+│   │   │   ├── services/        # 14 service files (business logic + RBAC)
+│   │   │   ├── repositories/    # 13 repository files (all SQL)
 │   │   │   ├── middleware/      # 8 middleware (auth, CORS, CSRF, rate limit, request ID, S3 auth, security headers, shared services)
-│   │   │   ├── lib/             # 21 utility files (crypto, validation, env, logger, schemas, password, PKCE, cursor, RBAC, S3 XML, backoff, etc.)
+│   │   │   ├── lib/             # 27 utility files (crypto, validation, env, logger, schemas, password, PKCE, cursor, RBAC, S3 XML, backoff, etc.)
 │   │   │   ├── db/              # D1 schema
 │   │   │   └── types/           # TypeScript types
-│   │   ├── migrations/          # 9 D1 migrations (0001–0009)
-│   │   └── tests/               # 43 unit test files + 9 integration test files
+│   │   ├── migrations/          # 28 D1 migrations (0001–0028)
+│   │   └── tests/               # 75 unit test files + 17 integration test files
 │   └── web/                 # React SPA (frontend)
 │       └── src/
-│           ├── components/      # 6 dirs: files, layout, legal, settings, ui, workspaces
+│           ├── components/      # 7 dirs: automation, files, layout, legal, settings, ui, workspaces
 │           ├── pages/           # 17 pages (Dashboard, Files, Settings, Admin, Search, External, Landing, Login, Privacy, Terms, PublicShared, SharedLinks, Starred, Trash, Workspaces, Automations, Setup)
-│           ├── stores/          # 6 Zustand stores (auth, UI, upload, toast, selection, automation)
-│           ├── hooks/           # 5 TanStack Query hooks (drives, file mutations, folder mutations, shared links, merged drive)
+│           ├── stores/          # 5 Zustand stores (auth, UI, upload, toast, selection) — automation state is TanStack Query via the useAutomations hook
+│           ├── hooks/           # 8 hooks (drives, file/folder mutations, item modals, clipboard, automations, shared links, merged drive)
 │           ├── lib/             # API client, query keys, invalidation helpers, utilities
 │           └── types/           # TypeScript types
 ├── docs/                    # Project documentation
@@ -113,9 +114,9 @@ omnidrive/
 └── package.json             # Monorepo root (npm workspaces)
 ```
 
-**Repository Pattern:** All SQL lives in `repositories/`. Services own business logic + RBAC. Routes are thin orchestrators (parse → validate → call service → return JSON). 6 of 10 routes have zero inline SQL; `s3.ts` (37 calls) and `auth.ts` (9 calls in `/callback`) are deferred via `ponytail:` comments; `admin.ts` and `drives.ts` have 1 one-off query each.
+**Repository Pattern:** All SQL lives in `repositories/`. Services own business logic + RBAC. Routes are thin orchestrators (parse → validate → call service → return JSON). 9 of 10 routes have zero inline SQL; only `auth.ts` (7 calls in `/callback`) still calls `env.DB.prepare(...)` directly, tracked with a `ponytail:` comment.
 
-**Testing:** 68 test files (43 worker unit + 9 worker integration + 16 web component) run against real D1 via Miniflare. Run with `npm test`.
+**Testing:** 163 test files (75 worker unit + 17 worker integration + 71 web) run against real D1 via Miniflare. Run with `npm test`.
 
 **Structured Logging:** Every request gets a UUID (`x-request-id` header). All error logs are JSON with `requestId`, `path`, `errorClass`, and `stack` — filterable in `wrangler tail`.
 
@@ -252,7 +253,7 @@ Copy `/.env.example` to `/.env` and fill in your values. This file is automatica
 | `VITE_PUBLIC_URL` | Canonical public URL of the deployed site (robots.txt, sitemap, legal pages) | `http://localhost:8999` |
 | `GOOGLE_CLIENT_ID` | Google OAuth 2.0 Client ID | |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth 2.0 Client Secret | |
-| `JWT_SECRET` | Session JWT signing key (min 32 chars) | |
+| `JWT_SECRET` | Shared-link password-verification token signing key (HS256, min 32 chars); user sessions are D1-backed, not JWT | |
 | `TOKEN_ENCRYPTION_KEY` | AES-256-GCM key for encrypting OAuth tokens + S3 secrets | |
 
 *Note: For production on Cloudflare, backend secrets should be set via `wrangler secret put`, and non-secrets in `wrangler.toml` under `[vars]`. The frontend uses `packages/web/.env.production`.*

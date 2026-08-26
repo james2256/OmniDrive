@@ -19,6 +19,8 @@ export interface SigV4Params {
   service?: string;
   dateStr?: string;
   amzDate?: string;
+  /** Explicit payload-hash line for the canonical request (e.g. 'UNSIGNED-PAYLOAD' for presigned shapes, or a query-pinned real hash). */
+  payloadHashOverride?: string;
 }
 
 export function calculateSigV4({
@@ -33,6 +35,7 @@ export function calculateSigV4({
   service = 's3',
   dateStr = '20260621',
   amzDate = '20260621T120000Z',
+  payloadHashOverride,
 }: SigV4Params) {
   function awsEncode(str: string): string {
     return encodeURIComponent(str).replace(
@@ -70,7 +73,7 @@ export function calculateSigV4({
     .join('');
 
   const signedHeaders = canonicalHeadersList.map(([k]) => k).join(';');
-  const payloadHash = headers['x-amz-content-sha256'] || sha256(payload);
+  const payloadHash = payloadHashOverride || headers['x-amz-content-sha256'] || sha256(payload);
 
   const canonicalRequest = [
     method,

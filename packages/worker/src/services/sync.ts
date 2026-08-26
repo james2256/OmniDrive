@@ -462,17 +462,34 @@ export function applyChange(
     const deltaStmts = computeStorageDelta(oldState, null)
       .filter((d) => d.delta !== 0)
       .map((d) => fileRepo.applyStorageDeltaStmt(drive.userId, d.mimeType, d.delta));
-    // Release workspace quota — permanent delete/unshare frees workspace storage.
-    const workspaceDeltaStmts =
-      oldState?.workspaceId && oldState?.ownedByMe && oldState.size > 0
-        ? [workspaceRepo.updateUsedBytesStmt(oldState.workspaceId, -oldState.size)]
+    // Release workspace quota — permanent delete/unshare frees workspace
+    // storage. The isTrashed guard + EXISTS gate make this exactly-once:
+    // a file that was trashed first already released at trash time (UI
+    // trashFile / automation / a prior sync cycle), and a duplicate removal
+    // finds the row gone. The gated statement MUST precede the deletes so
+    // its gate observes the pre-delete row state.
+    const workspaceReleaseUnits =
+      oldState?.workspaceId && oldState?.ownedByMe && oldState.size > 0 && !oldState.isTrashed
+        ? [
+            {
+              stmt: workspaceRepo.updateUsedBytesIfFileInStateByGoogleIdStmt(
+                oldState.workspaceId,
+                -oldState.size,
+                drive.id,
+                change.fileId,
+                0,
+              ),
+              deltas: [],
+            },
+          ]
         : [];
     return {
       units: [
+        ...workspaceReleaseUnits,
         { stmt: driveRepo.deleteDriveFolderStmt(drive.id, change.fileId), deltas: [] },
         {
           stmt: fileRepo.deleteByDriveAndGoogleIdStmt(drive.id, change.fileId),
-          deltas: [...deltaStmts, ...workspaceDeltaStmts],
+          deltas: [...deltaStmts],
         },
       ],
       newState: null,
@@ -508,15 +525,32 @@ export function applyChange(
       .filter((d) => d.delta !== 0)
       .map((d) => fileRepo.applyStorageDeltaStmt(drive.userId, d.mimeType, d.delta));
     // Release workspace quota — trashing a file frees its workspace storage.
-    const workspaceDeltaStmts =
-      oldState?.workspaceId && oldState?.ownedByMe && oldState.size > 0
-        ? [workspaceRepo.updateUsedBytesStmt(oldState.workspaceId, -oldState.size)]
+    // Exactly-once: the isTrashed guard skips re-reports of an already-trashed
+    // row (UI trash / automation / a prior cycle released it then), and the
+    // EXISTS gate closes the race where this batch interleaves with another
+    // path's committed flip. The gated statement MUST precede the flip so its
+    // gate observes the pre-transition (is_trashed = 0) state.
+    const workspaceReleaseUnits =
+      oldState?.workspaceId && oldState?.ownedByMe && oldState.size > 0 && !oldState.isTrashed
+        ? [
+            {
+              stmt: workspaceRepo.updateUsedBytesIfFileInStateByGoogleIdStmt(
+                oldState.workspaceId,
+                -oldState.size,
+                drive.id,
+                change.fileId,
+                0,
+              ),
+              deltas: [],
+            },
+          ]
         : [];
     return {
       units: [
+        ...workspaceReleaseUnits,
         {
           stmt: fileRepo.markTrashedByDriveAndGoogleIdStmt(drive.id, change.fileId),
-          deltas: [...deltaStmts, ...workspaceDeltaStmts],
+          deltas: [...deltaStmts],
         },
       ],
       newState,

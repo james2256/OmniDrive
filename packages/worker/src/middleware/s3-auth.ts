@@ -243,12 +243,32 @@ export const s3AuthMiddleware: MiddlewareHandler<AppContext> = async (c, next) =
       return canonicalHeaders;
     };
 
-    let payloadHash = c.req.header('x-amz-content-sha256');
+    // Payload-hash resolution differs by auth shape:
+    //  - Presigned URLs: X-Amz-Content-Sha256 rides in the query string (it
+    //    is a query param, never in SignedHeaders). AWS SDKs either pin it
+    //    there (JS v3 sends UNSIGNED-PAYLOAD) or sign UNSIGNED-PAYLOAD into
+    //    the canonical request without emitting the param at all (botocore) —
+    //    so the presigned default must be UNSIGNED-PAYLOAD, the exact value
+    //    those clients signed.
+    //  - Header auth: x-amz-content-sha256 header only.
+    let payloadHash: string | undefined;
+    if (isPresigned) {
+      payloadHash =
+        c.req.query('X-Amz-Content-Sha256') ||
+        c.req.header('x-amz-content-sha256') ||
+        'UNSIGNED-PAYLOAD';
+    } else {
+      payloadHash = c.req.header('x-amz-content-sha256');
+    }
     if (!payloadHash) {
       if (c.req.method === 'GET' || c.req.method === 'HEAD' || c.req.method === 'DELETE') {
         payloadHash = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
       } else {
-        // ponytail: require x-amz-content-sha256 on PUT/POST — prevents body substitution
+        // ponytail: header-auth PUT/POST require the signed body hash — deliberately
+        // stricter than upstream S3/MinIO (which default to the empty-body hash) to
+        // keep this body-substitution control; presigned URLs resolve above (their
+        // body is covered only when the presigner computed the real sha256).
+        // Rejection status is 403 — returnXmlError's default.
         return returnXmlError(
           c,
           'InvalidRequest',

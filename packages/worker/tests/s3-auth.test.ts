@@ -22,6 +22,7 @@ function calculateSigV4({
   service = 's3',
   dateStr = '20260621',
   amzDate = '20260621T120000Z',
+  payloadHashOverride,
 }: {
   method: string;
   path: string;
@@ -34,6 +35,8 @@ function calculateSigV4({
   service?: string;
   dateStr?: string;
   amzDate?: string;
+  /** Explicit payload-hash line for the canonical request (e.g. 'UNSIGNED-PAYLOAD' for presigned shapes). */
+  payloadHashOverride?: string;
 }) {
   function awsEncode(str: string): string {
     return encodeURIComponent(str).replace(
@@ -71,7 +74,7 @@ function calculateSigV4({
     .join('');
 
   const signedHeaders = canonicalHeadersList.map(([k]) => k).join(';');
-  const payloadHash = headers['x-amz-content-sha256'] || sha256(payload);
+  const payloadHash = payloadHashOverride || headers['x-amz-content-sha256'] || sha256(payload);
 
   const canonicalRequest = [
     method,
@@ -339,6 +342,9 @@ describe('S3 Auth Middleware', () => {
       'X-Amz-SignedHeaders': 'host',
     };
 
+    // Real SDKs (botocore, AWS SDK JS v3) presign GETs with UNSIGNED-PAYLOAD
+    // as the canonical payload-hash line and no X-Amz-Content-Sha256 query
+    // param — the server must default presigned requests to exactly that.
     const { signature } = calculateSigV4({
       method: 'GET',
       path,
@@ -346,6 +352,7 @@ describe('S3 Auth Middleware', () => {
       headers,
       dateStr,
       amzDate,
+      payloadHashOverride: 'UNSIGNED-PAYLOAD',
     });
 
     const queryString =
@@ -630,5 +637,177 @@ describe('S3 Auth Middleware', () => {
     const body = (await res.json()) as any;
     expect(body.userId).toBe(USER_ID);
     expect(body.s3WorkspaceId).toBe(null);
+  });
+
+  // ─── Presigned payload-hash resolution (real AWS SDK client shapes) ───
+  // Verified against actual SDK behavior: botocore presigns WITHOUT a
+  // X-Amz-Content-Sha256 query param (6 params only) and signs
+  // UNSIGNED-PAYLOAD; AWS SDK JS v3 pins X-Amz-Content-Sha256=UNSIGNED-PAYLOAD
+  // in the query string. Both shapes — plus a query-pinned real body hash —
+  // must authenticate, and must keep authenticating when the body differs
+  // (UNSIGNED-PAYLOAD does not cover the body, by AWS design).
+  const requestPresigned = async (
+    method: 'PUT' | 'GET',
+    extraQuery: Record<string, string>,
+    signedPayloadHash: string,
+    body?: string,
+  ) => {
+    const app = createTestApp();
+    const env = await getMockEnv();
+    const amzDate = '20260621T120000Z';
+    const dateStr = '20260621';
+    const path = '/test-bucket/upload.bin';
+    const headers = { host: 'localhost:8787' };
+    const queryParams = {
+      'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
+      'X-Amz-Credential': `${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request`,
+      'X-Amz-Date': amzDate,
+      'X-Amz-Expires': '86400',
+      'X-Amz-SignedHeaders': 'host',
+      ...extraQuery,
+    };
+    const { signature } = calculateSigV4({
+      method,
+      path,
+      queryParams,
+      headers,
+      dateStr,
+      amzDate,
+      payloadHashOverride: signedPayloadHash,
+    });
+    const queryString =
+      Object.entries(queryParams)
+        .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+        .join('&') + `&X-Amz-Signature=${signature}`;
+    return app.request(`${path}?${queryString}`, { method, headers, body }, env);
+  };
+
+  it('accepts presigned PUT with a real body hash pinned in the query string', async () => {
+    const body = 'file-content';
+    const res = await requestPresigned(
+      'PUT',
+      { 'X-Amz-Content-Sha256': sha256(body) },
+      sha256(body),
+      body,
+    );
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as any;
+    expect(json.userId).toBe(USER_ID);
+  });
+
+  it('accepts presigned PUT with UNSIGNED-PAYLOAD pinned in the query string (AWS SDK JS v3 shape)', async () => {
+    // The signature does not cover the body — a swapped body still
+    // authenticates (by-design AWS behavior; body integrity rests on TLS,
+    // or on the presigner computing the real sha256 at signing time).
+    const res = await requestPresigned(
+      'PUT',
+      { 'X-Amz-Content-Sha256': 'UNSIGNED-PAYLOAD' },
+      'UNSIGNED-PAYLOAD',
+      'body-does-not-match-anything-signed',
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it('accepts presigned PUT with no X-Amz-Content-Sha256 anywhere (botocore shape: 6 query params, UNSIGNED-PAYLOAD signed)', async () => {
+    const res = await requestPresigned('PUT', {}, 'UNSIGNED-PAYLOAD', 'file-content');
+    expect(res.status).toBe(200);
+  });
+
+  it('accepts presigned GET with no X-Amz-Content-Sha256 anywhere (botocore shape)', async () => {
+    const res = await requestPresigned('GET', {}, 'UNSIGNED-PAYLOAD');
+    expect(res.status).toBe(200);
+  });
+
+  it('rejects presigned PUT whose X-Amz-Content-Sha256 query value was tampered (403 SignatureDoesNotMatch)', async () => {
+    // Signed with the real body hash, but the request carries a different
+    // value — the query string is part of the signed canonical request, so
+    // the tamper breaks the signature.
+    const body = 'file-content';
+    const res = await requestPresigned(
+      'PUT',
+      { 'X-Amz-Content-Sha256': sha256('tampered-body') },
+      sha256(body),
+      body,
+    );
+    expect(res.status).toBe(403);
+    const text = await res.text();
+    expect(text).toContain('<Code>SignatureDoesNotMatch</Code>');
+  });
+
+  it('rejects header-auth PUT without x-amz-content-sha256 (403 InvalidRequest — preserved strictness)', async () => {
+    const app = createTestApp();
+    const env = await getMockEnv();
+    const amzDate = '20260621T120000Z';
+    const dateStr = '20260621';
+    const path = '/test-bucket/upload.bin';
+    const headers = {
+      host: 'localhost:8787',
+      'x-amz-date': amzDate,
+    };
+
+    // Sign with UNSIGNED-PAYLOAD as the payload-hash line but do NOT send
+    // the x-amz-content-sha256 header — header-auth PUT requires the header
+    // itself (the body-substitution control). returnXmlError defaults to 403.
+    const { signature, signedHeaders } = calculateSigV4({
+      method: 'PUT',
+      path,
+      headers,
+      dateStr,
+      amzDate,
+      payloadHashOverride: 'UNSIGNED-PAYLOAD',
+    });
+    const authHeader = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+
+    const res = await app.request(
+      path,
+      {
+        method: 'PUT',
+        headers: { ...headers, Authorization: authHeader },
+        body: 'x',
+      },
+      env,
+    );
+
+    expect(res.status).toBe(403);
+    const text = await res.text();
+    expect(text).toContain('<Code>InvalidRequest</Code>');
+    expect(text).toContain('x-amz-content-sha256 header is required for PUT/POST requests');
+  });
+
+  it('accepts header-auth PUT with the x-amz-content-sha256 header (positive control)', async () => {
+    const app = createTestApp();
+    const env = await getMockEnv();
+    const amzDate = '20260621T120000Z';
+    const dateStr = '20260621';
+    const path = '/test-bucket/upload.bin';
+    const body = 'file-content';
+    const headers = {
+      host: 'localhost:8787',
+      'x-amz-date': amzDate,
+      'x-amz-content-sha256': sha256(body),
+    };
+
+    const { signature, signedHeaders } = calculateSigV4({
+      method: 'PUT',
+      path,
+      headers,
+      dateStr,
+      amzDate,
+    });
+    const authHeader = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/${dateStr}/us-east-1/s3/aws4_request, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+
+    const res = await app.request(
+      path,
+      {
+        method: 'PUT',
+        headers: { ...headers, Authorization: authHeader },
+        body,
+      },
+      env,
+    );
+
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as any;
+    expect(json.userId).toBe(USER_ID);
   });
 });

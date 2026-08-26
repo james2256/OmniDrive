@@ -31,6 +31,7 @@ function makeCtx(overrides: Partial<ApplyChangeContext> = {}): ApplyChangeContex
     },
     workspaceRepo: {
       updateUsedBytesStmt: vi.fn(() => makeStmt()),
+      updateUsedBytesIfFileInStateByGoogleIdStmt: vi.fn(() => makeStmt()),
     },
     ...overrides,
   } as unknown as ApplyChangeContext;
@@ -83,7 +84,7 @@ describe('applyChange', () => {
 
   // ─── 1. Removed ───
 
-  it('returns 2 units (folder delete + file delete) with negative delta when removed=true and oldState exists', () => {
+  it('returns 3 units (gated ws release, folder delete, file delete) when removed=true and oldState is an active workspace file', () => {
     const ctx = makeCtx();
     const oldState: FileStateForStats = {
       size: 1000,
@@ -95,23 +96,53 @@ describe('applyChange', () => {
     const result = applyChange({ fileId: 'file-1', removed: true }, oldState, ctx);
 
     expect(result).not.toBeNull();
-    expect(result!.units).toHaveLength(2);
+    expect(result!.units).toHaveLength(3);
     expect(result!.newState).toBeNull();
-    // First unit: folder delete (no deltas)
+    // First unit: the EXISTS-gated workspace release — keyed on the
+    // pre-transition (is_trashed = 0) state so a duplicate removal (row
+    // already gone) or a removal of an already-trashed file no-ops in SQL.
+    expect(ctx.workspaceRepo.updateUsedBytesIfFileInStateByGoogleIdStmt).toHaveBeenCalledWith(
+      'ws-1',
+      -1000,
+      'drive-1',
+      'file-1',
+      0,
+    );
     expect(result!.units[0]!.deltas).toHaveLength(0);
-    // Second unit: file delete (with negative delta for the old owned size + workspace delta)
-    expect(result!.units[1]!.deltas.length).toBeGreaterThan(0);
+    // Second unit: folder delete (no deltas)
+    expect(result!.units[1]!.deltas).toHaveLength(0);
+    // Third unit: file delete (with negative delta for the old owned size)
+    expect(result!.units[2]!.deltas.length).toBeGreaterThan(0);
   });
 
-  it('returns 2 units with no delta when removed=true and oldState is null (new file removed)', () => {
+  it('returns 2 units with no release and no delta when removed=true and oldState is null (new file removed)', () => {
     const ctx = makeCtx();
     const result = applyChange({ fileId: 'file-1', removed: true }, null, ctx);
 
     expect(result).not.toBeNull();
     expect(result!.units).toHaveLength(2);
+    expect(ctx.workspaceRepo.updateUsedBytesIfFileInStateByGoogleIdStmt).not.toHaveBeenCalled();
     expect(result!.units[0]!.deltas).toHaveLength(0);
     expect(result!.units[1]!.deltas).toHaveLength(0); // No delta — file didn't exist
     expect(result!.newState).toBeNull();
+  });
+
+  it('emits no workspace release when removed=true and oldState was already trashed (trash released it)', () => {
+    const ctx = makeCtx();
+    const oldState: FileStateForStats = {
+      size: 1000,
+      mimeType: 'application/pdf',
+      isTrashed: true,
+      ownedByMe: true,
+      workspaceId: 'ws-1',
+    };
+    const result = applyChange({ fileId: 'file-1', removed: true }, oldState, ctx);
+
+    // The trash transition already released the workspace quota — a removal
+    // (permanent delete / unshare) of a trashed file must not release again.
+    expect(result).not.toBeNull();
+    expect(result!.units).toHaveLength(2);
+    expect(ctx.workspaceRepo.updateUsedBytesIfFileInStateByGoogleIdStmt).not.toHaveBeenCalled();
   });
 
   // ─── 2. Skip cases ───
@@ -131,7 +162,7 @@ describe('applyChange', () => {
 
   // ─── 3. Trashed ───
 
-  it('returns 1 unit with markTrashed stmt + negative delta for trashed file', () => {
+  it('returns 2 units (gated ws release + markTrashed stmt) with negative delta for trashed file', () => {
     const ctx = makeCtx();
     const file = makeFile({ trashed: true });
     const oldState: FileStateForStats = {
@@ -144,8 +175,18 @@ describe('applyChange', () => {
     const result = applyChange({ fileId: 'file-1', removed: false, file }, oldState, ctx);
 
     expect(result).not.toBeNull();
-    expect(result!.units).toHaveLength(1);
-    expect(result!.units[0]!.deltas.length).toBeGreaterThan(0);
+    expect(result!.units).toHaveLength(2);
+    // The gated release precedes the flip so its EXISTS (is_trashed = 0) gate
+    // observes the pre-transition state — the composer emits stmt-then-deltas,
+    // so the release must be a leading unit, not a trailing delta.
+    expect(ctx.workspaceRepo.updateUsedBytesIfFileInStateByGoogleIdStmt).toHaveBeenCalledWith(
+      'ws-1',
+      -1000,
+      'drive-1',
+      'file-1',
+      0,
+    );
+    expect(result!.units[1]!.deltas.length).toBeGreaterThan(0);
     expect(result!.newState).toEqual({
       size: 1000,
       mimeType: 'application/pdf',
@@ -153,6 +194,25 @@ describe('applyChange', () => {
       ownedByMe: true,
       workspaceId: 'ws-1',
     });
+  });
+
+  it('emits no workspace release for a trash re-report (oldState already trashed)', () => {
+    const ctx = makeCtx();
+    const file = makeFile({ trashed: true });
+    const oldState: FileStateForStats = {
+      size: 1000,
+      mimeType: 'application/pdf',
+      isTrashed: true,
+      ownedByMe: true,
+      workspaceId: 'ws-1',
+    };
+    const result = applyChange({ fileId: 'file-1', removed: false, file }, oldState, ctx);
+
+    // UI trash / automation / a prior sync cycle already flipped the row and
+    // released the quota — this re-report must not release a second time.
+    expect(result).not.toBeNull();
+    expect(result!.units).toHaveLength(1);
+    expect(ctx.workspaceRepo.updateUsedBytesIfFileInStateByGoogleIdStmt).not.toHaveBeenCalled();
   });
 
   it('returns 1 unit with no delta for trashed folder', () => {

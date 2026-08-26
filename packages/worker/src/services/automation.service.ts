@@ -14,7 +14,6 @@ export const ACTION_DELETE: RuleAction['type'] = 'delete';
 export const IS_ACTIVE = 1;
 export const IS_INACTIVE = 0;
 export const IS_NOT_TRASHED = 0;
-export const IS_TRASHED = 1;
 
 export const BATCH_SIZE = 100;
 
@@ -236,7 +235,28 @@ export class AutomationEngine {
             logErrorNoCtx('Automation DELETE: Google API call failed', err, { fileId: file.id });
             continue;
           }
-          stmts.push(fileRepo.markTrashedStmt(file.id, IS_TRASHED));
+          // Exactly-once accounting: gated storage delta + gated workspace
+          // release, each keyed on the pre-transition (is_trashed = 0) state
+          // and emitted BEFORE the gated flip in the same batch. A duplicate
+          // run (or a concurrent UI trash / sync cycle that flipped first)
+          // finds is_trashed = 1 and every statement no-ops.
+          const fileSize = file.size as number;
+          if (fileSize > 0) {
+            stmts.push(
+              fileRepo.applyStorageDeltaIfFileInStateStmt(
+                file.user_id,
+                (file.mime_type as string | null) ?? '',
+                -fileSize,
+                file.id,
+                0,
+              ),
+            );
+          }
+          const wsId = file.workspace_id as string | null;
+          if (wsId && fileSize > 0) {
+            stmts.push(workspaceRepo.updateUsedBytesIfFileInStateStmt(wsId, -fileSize, file.id, 0));
+          }
+          stmts.push(fileRepo.markTrashedByIdAndUserIfActiveStmt(file.id, file.user_id));
         }
       }
 

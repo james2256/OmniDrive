@@ -418,6 +418,70 @@ describe('WorkspaceRepository', () => {
     });
   });
 
+  describe('updateUsedBytesStmt', () => {
+    it('returns a clamped used_bytes UPDATE (not run) — MAX(0, ...) quota-bypass backstop', () => {
+      const stmt = repo.updateUsedBytesStmt('ws-1', -100);
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toBe(
+        'UPDATE workspaces SET used_bytes = MAX(0, COALESCE(used_bytes, 0) + ?) WHERE id = ?',
+      );
+      expect(mockBind).toHaveBeenCalledWith(-100, 'ws-1');
+      // Stmt-returning methods MUST NOT call .run() — batch owns execution.
+      expect(mockRun).not.toHaveBeenCalled();
+      expect(stmt).toEqual({ all: mockAll, first: mockFirst, run: mockRun });
+    });
+  });
+
+  describe('updateUsedBytesIfFileInStateStmt', () => {
+    it('returns an EXISTS-gated, clamped used_bytes UPDATE (not run) with the expected-state bind', () => {
+      const stmt = repo.updateUsedBytesIfFileInStateStmt('ws-1', -100, 'f-1', 0);
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      // The clamp: used_bytes must never go negative — a negative value
+      // inflates the quota gates' effective headroom until the next recompute.
+      expect(sql).toContain(
+        'UPDATE workspaces SET used_bytes = MAX(0, COALESCE(used_bytes, 0) + ?)',
+      );
+      // The gate: the release only applies while the file row is still in the
+      // expected pre-transition state — an ungated release drives used_bytes
+      // negative on duplicate invocations.
+      expect(sql).toContain(
+        'WHERE id = ? AND EXISTS (SELECT 1 FROM files WHERE id = ? AND is_trashed = ?)',
+      );
+      expect(mockBind).toHaveBeenCalledWith(-100, 'ws-1', 'f-1', 0);
+      // Stmt-returning methods MUST NOT call .run() — the statement is handed
+      // to db.batch() for atomic exactly-once composition.
+      expect(mockRun).not.toHaveBeenCalled();
+      expect(stmt).toEqual({ all: mockAll, first: mockFirst, run: mockRun });
+    });
+  });
+
+  describe('updateUsedBytesIfFileInStateByGoogleIdStmt', () => {
+    it('returns a drive+google-id-gated, clamped used_bytes UPDATE (not run) for the sync engine', () => {
+      const stmt = repo.updateUsedBytesIfFileInStateByGoogleIdStmt(
+        'ws-1',
+        -100,
+        'drive-1',
+        'g-1',
+        0,
+      );
+
+      const sql = mockPrepare.mock.calls[0][0] as string;
+      expect(sql).toContain(
+        'UPDATE workspaces SET used_bytes = MAX(0, COALESCE(used_bytes, 0) + ?)',
+      );
+      // Gate keyed on the UNIQUE (drive_account_id, google_file_id) pair —
+      // the sync engine only knows the Google file id, not the D1 row id.
+      expect(sql).toContain(
+        'WHERE id = ? AND EXISTS (\n           SELECT 1 FROM files WHERE drive_account_id = ? AND google_file_id = ? AND is_trashed = ?\n         )',
+      );
+      expect(mockBind).toHaveBeenCalledWith(-100, 'ws-1', 'drive-1', 'g-1', 0);
+      expect(mockRun).not.toHaveBeenCalled();
+      expect(stmt).toEqual({ all: mockAll, first: mockFirst, run: mockRun });
+    });
+  });
+
   describe('findRetentionPolicyForFolder', () => {
     it('SELECTs retention policy via folder JOIN, binds folderId twice (anchor + target_id)', async () => {
       mockFirst.mockResolvedValueOnce({ config: '{"action":"prevent_deletion"}' });

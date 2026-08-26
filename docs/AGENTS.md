@@ -210,7 +210,7 @@ node scripts/onboard-deploy.mjs   # initial setup/deploy wizard
 
 - Routing: `App.tsx` (React Router v7)
 - State: **Zustand** in `src/stores/` — avoid prop drilling for global state
-- API client: `src/lib/api.ts` — all fetches to backend go through here
+- API client: `src/lib/api/` directory — per-domain modules (`auth`, `files`, `drives`, `folders`, `automations`, `shared`, `admin`, `workspaces`, `s3`) plus `core.ts` (the 401-intercepting fetch wrapper)
 - UI components: Radix primitives in `src/components/ui/`
 - Layout: `AppLayout` → `Sidebar` + `Header` + `MainContent`
 - Styling: Tailwind CSS 4 — follow tokens in `src/index.css` `@theme` block (see `DESIGN.md`)
@@ -280,7 +280,7 @@ Copy `.env.example` → `.env` at the root. Required variables:
 |----------|---------|---------|
 | `GOOGLE_CLIENT_ID` | worker | Google Drive OAuth |
 | `GOOGLE_CLIENT_SECRET` | worker | Google Drive OAuth |
-| `JWT_SECRET` | worker | Signing session token |
+| `JWT_SECRET` | worker | Shared-link password-verification token (HS256); user sessions are D1-backed |
 | `TOKEN_ENCRYPTION_KEY` | worker | Encrypt OAuth token in D1 (`drive_tokens` table) |
 | `FRONTEND_URL` | worker | CORS origin |
 | `WORKER_URL` | worker | OAuth callback redirect |

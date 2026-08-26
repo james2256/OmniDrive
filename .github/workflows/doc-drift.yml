@@ -1,0 +1,19 @@
+name: Doc Drift Check
+
+on:
+  pull_request:
+    paths:
+      - 'README.md'
+      - 'docs/**'
+      - '.env.example'
+      - 'packages/worker/migrations/**'
+      - 'packages/web/src/stores/**'
+      - 'packages/worker/src/routes/s3.ts'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # bash invocation — the script is mode 100644 upstream, not executable
+      - run: bash scripts/check-doc-drift.sh
