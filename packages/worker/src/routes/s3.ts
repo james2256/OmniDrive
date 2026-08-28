@@ -7,7 +7,6 @@ import { generateId } from '../lib/id';
 import { getMD5HashingStream, getSha256HashingStream } from '../lib/crypto-s3';
 import { UploadRouter } from '../services/upload-router';
 import {
-  mapDriveRow,
   type WorkspaceRow,
   type FileRow,
   type DriveAccountRow,
@@ -27,6 +26,7 @@ import {
   deleteMultipartUploadParts,
 } from '../services/s3-lifecycle';
 import { PolicyService } from '../services/policy.service';
+import { resolveDrivesWithQuota } from '../services/drive-quota';
 import { escapeXml, parseCompleteMultipartBody, xmlError } from '../lib/s3-xml';
 import { ValidationError } from '../lib/errors';
 import { logError } from '../lib/logger';
@@ -74,8 +74,14 @@ function getFileETag(file: { id: string; metadata?: string | null }): string {
   if (file.metadata) {
     try {
       const meta = JSON.parse(file.metadata);
-      if (meta && typeof meta === 'object' && meta.md5) {
-        return meta.md5;
+      if (meta && typeof meta === 'object') {
+        // Prefer the dedicated s3Etag key (post-migration shape). Fall back to
+        // md5 — pre-migration multipart rows stored the composite there, and
+        // single-PUT rows always stored the true 32-hex MD5 there. This
+        // precedence makes a code-first deploy safe: both pre- and
+        // post-migration rows serve the same ETag bytes.
+        if (meta.s3Etag) return meta.s3Etag;
+        if (meta.md5) return meta.md5;
       }
     } catch {
       // ignore
@@ -131,26 +137,44 @@ function parseContentLength(c: Context): number {
   return len;
 }
 
+/** Max live quota fetches per S3 upload routing call (mirrors drives.ts MAX_QUOTA_FETCHES). */
+const MAX_QUOTA_FETCHES = 10;
+
 /**
- * Select the best drive for an S3 upload using UploadRouter (most free space).
+ * Select the best drive for an S3 upload using UploadRouter. Fetches live
+ * quota (cache-first via getQuota — 0 external on a D1 cache hit within the
+ * 5-min TTL) for up to MAX_QUOTA_FETCHES drives, so isUnlimited (the routing
+ * provenance flag) is accurate. Drives beyond the cap use stored-only quota
+ * (isUnlimited=false → excluded from auto-selection until live data is
+ * available on a subsequent request).
  * Shared by PutObject (known size) and InitiateMultipartUpload (size unknown → 0).
  * Throws ValidationError if no drives connected or insufficient quota.
  */
 async function selectDriveForS3Upload(
-  db: D1Database,
-  userId: string,
+  c: Context<AppContext>,
   fileSize: number,
 ): Promise<DriveAccount> {
-  const driveRepo = new DriveRepository(db);
-  const { results: driveRows } = await driveRepo.findAllByUser(userId);
-  if (driveRows.length === 0) throw new ValidationError('No connected drives');
-  const drives = driveRows
-    .map((r) => mapDriveRow(r))
-    .map((d: DriveAccount) => ({
-      ...d,
-      freeSpace: Math.max(0, d.totalQuota - d.usedQuota),
-      usagePercent: d.totalQuota > 0 ? (d.usedQuota / d.totalQuota) * 100 : 0,
-    }));
+  const db = c.env.DB;
+  const userId = c.get('userId') as string;
+  const drives = await resolveDrivesWithQuota(
+    c.env,
+    db,
+    userId,
+    (driveId, total, used, hasLimit) => {
+      const driveRepo = new DriveRepository(db);
+      // Gated persist: when Google reported a limit, write total+used
+      // (updateQuota). When it didn't (pooled/unlimited), write used-only
+      // (updateUsedQuota) — never clobber a user-set override with the
+      // 1 TiB unlimited ceiling. Mirrors drives.ts:157-168.
+      if (hasLimit) {
+        c.executionCtx.waitUntil(driveRepo.updateQuota(driveId, total, used));
+      } else {
+        c.executionCtx.waitUntil(driveRepo.updateUsedQuota(driveId, used));
+      }
+    },
+    MAX_QUOTA_FETCHES,
+  );
+  if (drives.length === 0) throw new ValidationError('No connected drives');
   return new UploadRouter(drives).selectDriveForUpload(fileSize);
 }
 
@@ -728,7 +752,7 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
   // 1. Select target Drive using UploadRouter (shared helper)
   let targetDrive: DriveAccount;
   try {
-    targetDrive = await selectDriveForS3Upload(db, userId, contentLength);
+    targetDrive = await selectDriveForS3Upload(c, contentLength);
   } catch (err) {
     return xmlError(c, 'InvalidRequest', (err as Error).message, 400);
   }
@@ -984,7 +1008,13 @@ async function handleUploadPart(
 
   const driveService = createDriveService(c.env);
 
-  // Upload part as a separate temporary file inside temp_folder_id in Google Drive
+  // Upload part as a separate temporary file inside temp_folder_id in Google Drive.
+  // temp_folder_id is the part's SOLE parent — the cascade cleanup in
+  // deleteMultipartUploadParts relies on this (deleting the folder cascades to
+  // all parts). Never re-parent parts out of the temp folder before cleanup.
+  if (!upload.temp_folder_id) {
+    return xmlError(c, 'InternalError', 'Multipart upload missing temp folder', 500);
+  }
   const partFileName = `part_${partNumber}`;
   const uploadUrl = await driveService.initiateResumableUpload(
     upload.drive_account_id,
@@ -1093,7 +1123,7 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
     // Choose target drive using UploadRouter (same as PutObject — picks drive with most free space)
     let targetDrive: DriveAccount;
     try {
-      targetDrive = await selectDriveForS3Upload(db, userId, 0); // size unknown at Initiate
+      targetDrive = await selectDriveForS3Upload(c, 0); // size unknown at Initiate
     } catch (err) {
       return xmlError(c, 'InvalidRequest', (err as Error).message, 400);
     }
@@ -1189,7 +1219,9 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
     }
 
     // Cap parts count to stay within Cloudflare Workers' 50-subrequest budget.
-    // Each part requires 1 downloadFile call; 40 parts + 1 upload + D1 + token = ~47.
+    // Each part requires 1 downloadFile call; 1 initiate + ≤40 downloads + 1
+    // final PUT + 1 getFile = ~43 external subrequests. D1 draws from the
+    // separate internal 1,000-pool, not the external 50.
     const MAX_PARTS_FOR_COMPLETE = 40;
     if (parts.length > MAX_PARTS_FOR_COMPLETE) {
       return xmlError(
@@ -1344,7 +1376,7 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
       name: fileName,
       mimeType: upload.content_type ?? 'application/octet-stream',
       size: totalSize,
-      metadata: JSON.stringify({ md5: s3Etag }),
+      metadata: JSON.stringify({ s3Etag: s3Etag }),
       thumbnailUrl: fileMeta?.thumbnailLink ?? null,
       webViewLink: fileMeta?.webViewLink ?? null,
       webContentLink: fileMeta?.webContentLink ?? null,
@@ -1423,11 +1455,13 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
       logError(c, 'S3 CompleteMultipart: storage stats update failed (non-fatal)', err);
     }
 
-    // Cleanup: Delete individual part files + temp folder from Google Drive.
+    // Cleanup: delete the temp folder from Google Drive. Per the Google Drive
+    // API, deleting a folder cascades to all descendant files owned by the
+    // user, so a single deleteFile call removes every part in one external
+    // subrequest (was ≤40 per-part deletes + 1 folder = 41).
     // Moved to waitUntil so the response returns immediately with the ETag —
-    // the ~43 cleanup subrequests (40 part deletes + 1 folder delete + D1
-    // batch) would otherwise push the total past the Free-tier 50-subrequest
-    // budget (upload phase alone is ~49). The 24h orphan cron
+    // the ~43 upload subrequests + 1 cleanup = ~44 total, under the Free-tier
+    // 50-subrequest budget (margin ~6). The 24h orphan cron
     // (cleanupOrphanMultipartUploads in s3-lifecycle.ts) is the safety net if
     // the Worker is killed before waitUntil completes.
     c.executionCtx.waitUntil(

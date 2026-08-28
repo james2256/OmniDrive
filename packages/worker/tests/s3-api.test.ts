@@ -1461,7 +1461,7 @@ describe('S3 API compatibility endpoints', () => {
         expect(insertFileQuery.args[6]).toBe('large-file.bin');
         expect(insertFileQuery.args[7]).toBe('application/octet-stream');
         expect(insertFileQuery.args[8]).toBe(12); // size from part 1
-        expect(insertFileQuery.args[9]).toBe('{"md5":"5957f540217942ac31a98596f9b61399-1"}');
+        expect(insertFileQuery.args[9]).toBe('{"s3Etag":"5957f540217942ac31a98596f9b61399-1"}');
 
         initiateSpy.mockRestore();
         downloadSpy.mockRestore();

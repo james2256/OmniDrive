@@ -44,6 +44,7 @@ describe('computeDriveQuota', () => {
       freeSpace: 800,
       usagePercent: 20,
       hasLimit: true,
+      isUnlimited: false,
     });
   });
 
@@ -54,6 +55,7 @@ describe('computeDriveQuota', () => {
       freeSpace: 0,
       usagePercent: 0,
       hasLimit: false,
+      isUnlimited: false,
     });
   });
 
@@ -71,6 +73,7 @@ describe('computeDriveQuota', () => {
       freeSpace: fiveTib - 200,
       usagePercent: (200 / fiveTib) * 100,
       hasLimit: true,
+      isUnlimited: false,
     });
   });
 
@@ -86,6 +89,7 @@ describe('computeDriveQuota', () => {
       freeSpace: 4000,
       usagePercent: 20,
       hasLimit: false,
+      isUnlimited: false,
     });
   });
 });

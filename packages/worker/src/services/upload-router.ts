@@ -22,20 +22,40 @@ export class UploadRouter {
       if (!drive) {
         throw new NotFoundError('Preferred drive account not found');
       }
-      if (drive.freeSpace >= fileSize) {
+      if (this.fits(drive, fileSize)) {
         return drive;
       }
       // Preferred drive is full: fall through to spillover instead of failing.
     }
 
-    // Auto-select / spillover: pick the drive with the most free space.
-    const sorted = [...this.drives].sort((a, b) => b.freeSpace - a.freeSpace);
+    // Auto-select / spillover: sort unlimited drives first (they always fit),
+    // then by freeSpace desc. The operand order is critical —
+    // `(b.isUnlimited ? 1 : 0) - (a.isUnlimited ? 1 : 0)` sorts unlimited to
+    // the front. The inverted form `(a... - b...)` would sort unlimited LAST,
+    // and since only sorted[0] is fit-checked, an unlimited drive would never
+    // be selected (A-1, probe-proven S1/S3).
+    const sorted = [...this.drives].sort(
+      (a, b) => (b.isUnlimited ? 1 : 0) - (a.isUnlimited ? 1 : 0) || b.freeSpace - a.freeSpace,
+    );
     const bestDrive = sorted[0];
 
-    if (bestDrive.freeSpace < fileSize) {
+    if (!this.fits(bestDrive, fileSize)) {
       throw new ValidationError('Insufficient overall quota for this file');
     }
 
     return bestDrive;
+  }
+
+  /**
+   * A drive fits an upload if it's confirmed-unlimited (isUnlimited) OR has
+   * enough free space. isUnlimited is only true when live Google data
+   * confirmed the absence of a limit — a stored-only fallback has
+   * isUnlimited=false and is excluded from auto-selection until live quota is
+   * re-fetched (A-6b provenance: prevents routing oversized uploads onto
+   * unconfirmed finite drives). Stale clients (isUnlimited undefined) fall
+   * through to the freeSpace check.
+   */
+  private fits(drive: DriveWithQuota, fileSize: number): boolean {
+    return drive.isUnlimited || drive.freeSpace >= fileSize;
   }
 }

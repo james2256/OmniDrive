@@ -378,12 +378,17 @@ describe('FileRepository', () => {
     });
   });
 
-  describe('updateMetadata', () => {
-    it('UPDATEs metadata, two binds (metadata, fileId), no user scope', async () => {
-      await repo.updateMetadata('f-1', '{"author":"alice"}');
+  describe('patchMetadata', () => {
+    it('MERGES metadata via json_patch overlay (2 binds: patch, fileId)', async () => {
+      await repo.patchMetadata('f-1', '{"author":"alice"}');
 
       const sql = mockPrepare.mock.calls[0][0] as string;
-      expect(sql).toBe('UPDATE files SET metadata = ? WHERE id = ?');
+      // Merge-overlay SQL: json_patch with json_valid CASE guard (heals
+      // malformed/NULL/array rows) + reserved-key re-assertion (md5, s3Etag).
+      expect(sql).toContain('json_patch');
+      expect(sql).toContain('json_valid');
+      expect(sql).toContain("'$.md5'");
+      expect(sql).toContain("'$.s3Etag'");
       expect(mockBind).toHaveBeenCalledWith('{"author":"alice"}', 'f-1');
     });
   });

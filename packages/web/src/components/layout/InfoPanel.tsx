@@ -15,6 +15,11 @@ import { useToastStore } from '../../stores/useToastStore';
 import { useDrives } from '../../hooks/useDrives';
 import { Button } from '../ui/Button';
 
+/** Metadata keys owned by the system (ETag fields). Filtered from the
+ * user-editable chip display and never sent in PATCH payloads. Mirrors the
+ * worker's RESERVED_METADATA_KEYS (files.ts) — the server also strips + re-asserts. */
+const RESERVED_METADATA_KEYS = new Set(['md5', 's3Etag']);
+
 /** Parse metadata (string or object) into a Record, returning {} on malformed JSON. */
 function parseMetadata(raw: string | Record<string, string> | undefined): Record<string, string> {
   if (!raw) return {};
@@ -235,14 +240,16 @@ export const InfoPanel: React.FC = () => {
                     (item as unknown as FileEntry & { workspaceId?: string; lastSyncedAt?: string })
                       .metadata,
                   ),
-                ).map(([k, v]) => (
-                  <div
-                    key={k}
-                    className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full flex items-center"
-                  >
-                    <span className="font-semibold mr-1">{k}:</span> {v as string}
-                  </div>
-                ))}
+                )
+                  .filter(([k]) => !RESERVED_METADATA_KEYS.has(k))
+                  .map(([k, v]) => (
+                    <div
+                      key={k}
+                      className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full flex items-center"
+                    >
+                      <span className="font-semibold mr-1">{k}:</span> {v as string}
+                    </div>
+                  ))}
               </div>
             ) : (
               <p className="text-xs text-slate-500 mb-3">No tags applied.</p>
@@ -255,11 +262,11 @@ export const InfoPanel: React.FC = () => {
                 const value = (form.elements.namedItem('metaValue') as HTMLInputElement).value;
                 if (!key || !value || !item) return;
 
-                const currentMeta = parseMetadata(
-                  (item as unknown as FileEntry & { workspaceId?: string; lastSyncedAt?: string })
-                    .metadata,
-                );
-                const newMeta = { ...currentMeta, [key]: value };
+                // Send only the new key-value pair — the server's merge
+                // overlay (patchMetadata) preserves existing keys. Reserved
+                // keys (md5, s3Etag) are stripped server-side; the client
+                // never sends them.
+                const newMeta = { [key]: value };
 
                 try {
                   if (type === 'file') {

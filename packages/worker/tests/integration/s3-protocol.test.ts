@@ -1262,11 +1262,12 @@ describe('S3 Protocol (integration)', () => {
     ).first();
     expect(file).toBeTruthy();
 
-    // Cleanup eventually runs in waitUntil — wait for deleteFile calls.
-    // The cleanup deletes: 1 part file + 1 temp folder = 2 delete calls.
+    // Cleanup eventually runs in waitUntil — wait for the deleteFile call.
+    // The cleanup deletes the temp folder only; Google Drive cascades the
+    // deletion to the part files inside it = 1 delete call.
     await vi.waitFor(
       () => {
-        expect(deleteCalls.length).toBeGreaterThanOrEqual(2);
+        expect(deleteCalls.length).toBeGreaterThanOrEqual(1);
       },
       { timeout: 3000 },
     );

@@ -75,6 +75,7 @@ describe('computeDriveQuota', () => {
       freeSpace: 800,
       usagePercent: 20,
       hasLimit: true,
+      isUnlimited: false,
     });
   });
 
@@ -85,6 +86,7 @@ describe('computeDriveQuota', () => {
       freeSpace: 0,
       usagePercent: 0,
       hasLimit: false,
+      isUnlimited: false,
     });
   });
 
@@ -101,6 +103,7 @@ describe('computeDriveQuota', () => {
       freeSpace: fiveTib - 200,
       usagePercent: (200 / fiveTib) * 100,
       hasLimit: true,
+      isUnlimited: false,
     });
   });
 
@@ -117,6 +120,7 @@ describe('computeDriveQuota', () => {
       freeSpace: 4900,
       usagePercent: 2,
       hasLimit: true,
+      isUnlimited: false,
     });
   });
 
@@ -132,6 +136,7 @@ describe('computeDriveQuota', () => {
       freeSpace: 4900,
       usagePercent: 2,
       hasLimit: true,
+      isUnlimited: false,
     });
   });
 
@@ -146,6 +151,7 @@ describe('computeDriveQuota', () => {
       freeSpace: 4000,
       usagePercent: 20,
       hasLimit: false,
+      isUnlimited: false,
     });
   });
 
@@ -162,6 +168,7 @@ describe('computeDriveQuota', () => {
       freeSpace: 0, // effectiveTotal 0 → freeSpace 0
       usagePercent: 0,
       hasLimit: true,
+      isUnlimited: false,
     });
   });
 
@@ -179,6 +186,7 @@ describe('computeDriveQuota', () => {
       freeSpace: 0,
       usagePercent: 0,
       hasLimit: false,
+      isUnlimited: true, // live.hasLimit=false → confirmed unlimited
     });
   });
 
@@ -189,6 +197,7 @@ describe('computeDriveQuota', () => {
       freeSpace: 4750,
       usagePercent: 5,
       hasLimit: true,
+      isUnlimited: false,
     });
   });
 
@@ -200,6 +209,7 @@ describe('computeDriveQuota', () => {
         freeSpace: 0,
         usagePercent: 200,
         hasLimit: true,
+        isUnlimited: false,
       },
     );
   });
@@ -211,6 +221,7 @@ describe('computeDriveQuota', () => {
       freeSpace: 1500,
       usagePercent: 50,
       hasLimit: false, // stored total alone does NOT make hasLimit true
+      isUnlimited: false,
     });
   });
 });

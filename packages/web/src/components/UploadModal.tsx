@@ -66,11 +66,19 @@ export function UploadModal({ open, folderId, driveId, onClose, onSuccess }: Upl
       const totalSize = useUploadStore
         .getState()
         .queue.reduce((sum, item) => sum + item.file.size, 0);
-      // Same logic as server: sort by freeSpace desc, pick [0].
-      const sorted = [...drives].sort((a, b) => b.freeSpace - a.freeSpace);
+      // Same logic as server (upload-router.ts): sort unlimited drives
+      // first (they always fit), then by freeSpace desc. Operand order is
+      // critical — (b.isUnlimited - a.isUnlimited) sorts unlimited to the
+      // front; the inverted form would sort them last and never pick one.
+      const sorted = [...drives].sort(
+        (a, b) => (b.isUnlimited ? 1 : 0) - (a.isUnlimited ? 1 : 0) || b.freeSpace - a.freeSpace,
+      );
       const bestDrive = sorted[0];
 
-      if (bestDrive.freeSpace < totalSize) {
+      // Wall check mirrors the server's fits(): unlimited drives always pass;
+      // limited drives need enough freeSpace. Stale clients (isUnlimited
+      // undefined) fall through to the freeSpace check.
+      if (!bestDrive.isUnlimited && bestDrive.freeSpace < totalSize) {
         addToast(
           'error',
           `Folder is ${formatFileSize(totalSize)} but largest drive has only ${formatFileSize(bestDrive.freeSpace)} free. Select a drive manually or split the folder.`,

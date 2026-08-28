@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { env } from 'cloudflare:workers';
 import { app } from '../../src/index';
-import { _resetStoreForTesting } from '../../src/middleware/rate-limiter';
 import { ensureSchema, clearAllTables } from './helpers';
 import { hashPassword } from '../../src/lib/password';
 import type { SessionData } from '../../src/types/env';
@@ -66,10 +65,6 @@ describe('Auth flow (integration)', () => {
 
   beforeEach(async () => {
     await clearAllTables(env.DB);
-    _resetStoreForTesting();
-    // Clear KV rate limit entries that persist across tests (useKV: true limiters)
-    const kvList = await env.KV.list({ prefix: 'ratelimit:' });
-    await Promise.all(kvList.keys.map((k) => env.KV.delete(k.name)));
   });
 
   it('registers a new user and returns SessionData', async () => {
@@ -198,10 +193,6 @@ describe('Auth session security (integration)', () => {
 
   beforeEach(async () => {
     await clearAllTables(env.DB);
-    _resetStoreForTesting();
-    // Clear KV rate limit entries that persist across tests (useKV: true limiters)
-    const kvList = await env.KV.list({ prefix: 'ratelimit:' });
-    await Promise.all(kvList.keys.map((k) => env.KV.delete(k.name)));
   });
 
   // 2.1 — change password → other sessions revoked, current kept
@@ -437,10 +428,6 @@ describe('Admin delete user — last-super-admin protection (integration)', () =
 
   beforeEach(async () => {
     await clearAllTables(env.DB);
-    _resetStoreForTesting();
-    // Clear KV rate limit entries that persist across tests (useKV: true limiters)
-    const kvList = await env.KV.list({ prefix: 'ratelimit:' });
-    await Promise.all(kvList.keys.map((k) => env.KV.delete(k.name)));
   });
 
   /** Insert a super admin + session, returning the cookie for auth. */

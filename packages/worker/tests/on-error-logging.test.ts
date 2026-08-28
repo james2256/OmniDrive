@@ -7,10 +7,10 @@ import { app } from '../src/index';
 // decision logic — the logger itself is tested in logger.test.ts.
 //
 // The test route `/api/auth/callback` (no ?code) throws AppError(400,
-// 'Authorization code missing') before touching D1/KV — no mock bindings
-// required. GET is a CSRF-safe method, so csrfGuard passes without checking
-// env. The catch-all /api/* rate limiter uses in-memory fallback (no useKV),
-// so KV is not accessed.
+// 'Authorization code missing') before touching D1/KV — no DB data needed.
+// GET is a CSRF-safe method, so csrfGuard passes without checking
+// env. The catch-all /api/* rate limiter uses D1; mockEnv provides a DB
+// that always allows so the limiter passes silently.
 
 describe('app.onError — 4xx logging', () => {
   let errorSpy: ReturnType<typeof vi.spyOn>;
@@ -26,6 +26,13 @@ describe('app.onError — 4xx logging', () => {
   const mockEnv = {
     FRONTEND_URL: 'http://localhost:5173',
     WORKER_URL: 'http://localhost:8888',
+    DB: {
+      prepare: () => ({
+        bind: () => ({
+          run: async () => ({ meta: { changes: 1 } }),
+        }),
+      }),
+    },
   };
 
   it('logs 4xx AppError at warn level with message, stack, status, errorClass', async () => {
@@ -91,7 +98,13 @@ describe('app.onError — 5xx logging', () => {
     FRONTEND_URL: 'http://localhost:5173',
     WORKER_URL: 'http://localhost:8888',
     DB: {
-      prepare: vi.fn(() => {
+      // The /api/* rate limiter runs first — let its UPSERT pass so the
+      // fail-open log doesn't pollute the 5xx assertion. The route
+      // handler's DB prepare (sessions query) throws to simulate the 500.
+      prepare: vi.fn((sql: string) => {
+        if (sql.includes('rate_limits')) {
+          return { bind: () => ({ run: async () => ({ meta: { changes: 1 } }) }) };
+        }
         throw new TypeError('D1 prepare is not a function');
       }),
     },

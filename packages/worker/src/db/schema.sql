@@ -376,6 +376,17 @@ CREATE TABLE IF NOT EXISTS file_storage_stats (
 );
 CREATE INDEX IF NOT EXISTS idx_file_storage_stats_user ON file_storage_stats(user_id);
 
+-- D1-backed rate limiter. (name, key) is the conflict key for the hybrid
+-- UPSERT (zero writes on blocked requests). Replaces the KV-based limiter
+-- (KV's 1,000 writes/day hard cap turned budget exhaustion into an outage).
+CREATE TABLE IF NOT EXISTS rate_limits (
+    name         TEXT NOT NULL,
+    key          TEXT NOT NULL,
+    window_start INTEGER NOT NULL,
+    hits         INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (name, key)
+);
+
 -- Missing FK indexes — used in deleteUser cascade (admin.repository.ts) and
 -- multipart cleanup cron (s3-lifecycle.ts). Without these, cascade deletes
 -- do full table scans.

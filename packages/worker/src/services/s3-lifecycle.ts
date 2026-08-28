@@ -2,7 +2,6 @@ import type { Env } from '../types/env';
 import { createDriveService } from '../lib/drive-factory';
 import { logErrorNoCtx } from '../lib/logger';
 import { S3LifecycleRepository } from '../repositories/s3-lifecycle.repository';
-import { S3MultipartRepository } from '../repositories/s3-multipart.repository';
 import { FileRepository } from '../repositories/file.repository';
 import { WorkspaceRepository } from '../repositories/workspace.repository';
 import { escapeXml } from '../lib/s3-xml';
@@ -143,17 +142,19 @@ export async function cleanupOrphanMultipartUploads(env: Env): Promise<void> {
 }
 
 /**
- * Delete all individual multipart part files from Google Drive, then delete
- * the temp folder. Per Google Drive API, deleting a folder does NOT delete
- * its children — so we must iterate s3_multipart_parts and delete each
- * part's google_file_id individually before deleting the temp folder.
+ * Delete the multipart upload's temp folder from Google Drive. Per the Google
+ * Drive API reference: "If the target is a folder, all descendants owned by
+ * the user are also deleted." Part files are created with `temp_folder_id` as
+ * their sole parent (see s3.ts initiateResumableUpload for part uploads), so
+ * a single folder delete cascades to every part — replacing the previous
+ * per-part delete loop (≤40 deletes → 1).
  *
- * Returns true if ALL parts + temp folder were deleted successfully.
- * Returns false if any deletion failed — the caller should keep the D1 row
- * so the next cleanup cycle can retry.
+ * Returns true if the folder was deleted (or already gone — deleteFile is
+ * 404-idempotent). Returns false if the deletion failed — the orphan-cleanup
+ * caller keeps the D1 row so the next cycle can retry.
  *
  * Used by CompleteMultipartUpload, AbortMultipartUpload, and orphan cleanup.
- * AbortMultipartUpload and CompleteMultipartUpload ignore the return value
+ * CompleteMultipartUpload and AbortMultipartUpload ignore the return value
  * (they unconditionally delete the D1 row — the upload is over regardless).
  */
 export async function deleteMultipartUploadParts(
@@ -161,35 +162,14 @@ export async function deleteMultipartUploadParts(
   upload: { drive_account_id: string; temp_folder_id: string; upload_id: string },
 ): Promise<boolean> {
   const driveService = createDriveService(env);
-  const multipartRepo = new S3MultipartRepository(env.DB);
-
-  // Delete each part file individually
-  const { results: parts } = await multipartRepo.findPartsByUpload(upload.upload_id);
-  let allDeleted = true;
-
-  for (const part of parts) {
-    try {
-      await driveService.deleteFile(upload.drive_account_id, part.google_file_id);
-    } catch (err) {
-      logErrorNoCtx('Failed to delete multipart part file', err, {
-        googleFileId: part.google_file_id,
-      });
-      allDeleted = false;
-    }
+  try {
+    await driveService.deleteFile(upload.drive_account_id, upload.temp_folder_id);
+  } catch (err) {
+    logErrorNoCtx('Failed to delete multipart temp folder', err, {
+      tempFolderId: upload.temp_folder_id,
+      uploadId: upload.upload_id,
+    });
+    return false;
   }
-
-  // Only delete the temp folder if all parts were deleted — otherwise keep
-  // the D1 row so the next cleanup cycle can retry.
-  if (allDeleted) {
-    try {
-      await driveService.deleteFile(upload.drive_account_id, upload.temp_folder_id);
-    } catch (err) {
-      logErrorNoCtx('Failed to delete multipart temp folder', err, {
-        tempFolderId: upload.temp_folder_id,
-      });
-      allDeleted = false;
-    }
-  }
-
-  return allDeleted;
+  return true;
 }

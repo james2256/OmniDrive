@@ -25,6 +25,7 @@ export function computeDriveQuota(
   freeSpace: number;
   usagePercent: number;
   hasLimit: boolean;
+  isUnlimited: boolean;
 } {
   // User-set override wins for the total capacity, because Google's API
   // omits storageQuota.limit for Google Workspace pooled storage and service
@@ -33,12 +34,22 @@ export function computeDriveQuota(
   const liveTotal = live?.total ?? 0;
   const hasLiveLimit = live?.hasLimit ?? liveTotal > 0;
   const hasOverride = stored.quotaOverride != null && stored.quotaOverride > 0;
+  const hasLiveData = live != null;
 
   // hasLimit signals the UI whether to show a progress bar (real limit known)
   // or "Pooled storage" (Google omitted the limit). It must NOT be true when
   // the total is just a stale stored.totalQuota fallback — only override or
   // a live Google-reported limit qualify.
   const hasLimit = hasOverride || hasLiveLimit;
+
+  // isUnlimited is the ROUTING provenance signal (distinct from hasLimit):
+  // true ONLY when live Google data confirmed the absence of a limit AND no
+  // user override is set. A stored-only fallback (no live data) must NOT be
+  // treated as unlimited — it means "we don't know," and routing an oversized
+  // upload onto an unconfirmed drive risks a silent quota violation (A-6b).
+  // An override-backed drive is NOT unlimited (the override is a finite
+  // limit the user set).
+  const isUnlimited = hasLiveData && live?.hasLimit === false && !hasOverride;
 
   const overrideValue = stored.quotaOverride ?? 0;
   const total = hasOverride
@@ -53,5 +64,12 @@ export function computeDriveQuota(
   const effectiveTotal = total > 0 ? total : 0;
   const freeSpace = effectiveTotal > 0 ? Math.max(0, effectiveTotal - used) : 0;
   const usagePercent = effectiveTotal > 0 ? (used / effectiveTotal) * 100 : 0;
-  return { totalQuota: effectiveTotal, usedQuota: used, freeSpace, usagePercent, hasLimit };
+  return {
+    totalQuota: effectiveTotal,
+    usedQuota: used,
+    freeSpace,
+    usagePercent,
+    hasLimit,
+    isUnlimited,
+  };
 }

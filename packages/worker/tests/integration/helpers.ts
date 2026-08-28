@@ -29,6 +29,7 @@ export const TABLES = [
   `CREATE TABLE IF NOT EXISTS sync_state (drive_account_id TEXT PRIMARY KEY REFERENCES drive_accounts(id) ON DELETE CASCADE, change_token TEXT, next_page_token TEXT, last_synced_at TEXT, status TEXT DEFAULT 'idle', error_message TEXT, locked_at TEXT)`,
   `CREATE TABLE IF NOT EXISTS quota_cache (drive_account_id TEXT PRIMARY KEY REFERENCES drive_accounts(id) ON DELETE CASCADE, payload TEXT NOT NULL, updated_at INTEGER NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS s3_lifecycle_rules (id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE, prefix TEXT NOT NULL DEFAULT '', expiration_days INTEGER NOT NULL, enabled INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE(workspace_id, prefix))`,
+  `CREATE TABLE IF NOT EXISTS rate_limits (name TEXT NOT NULL, key TEXT NOT NULL, window_start INTEGER NOT NULL, hits INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (name, key))`,
 
   // Missing FK indexes — used in deleteUser cascade and multipart cleanup.
   `CREATE INDEX IF NOT EXISTS idx_s3_credentials_user ON s3_credentials(user_id)`,
@@ -49,6 +50,7 @@ export async function ensureSchema(db: D1Database): Promise<void> {
 /** Clear all rows from all tables (for test isolation between files). */
 export async function clearAllTables(db: D1Database): Promise<void> {
   const tables = [
+    'rate_limits',
     's3_lifecycle_rules',
     'quota_cache',
     'sync_state',

@@ -10,7 +10,7 @@ import { resolveDrivesWithQuota } from '../services/drive-quota';
 import { UploadRouter } from '../services/upload-router';
 import { AutomationEngine, toDbFile } from '../services/automation.service';
 import { PolicyService } from '../services/policy.service';
-import { logError } from '../lib/logger';
+import { logError, log } from '../lib/logger';
 import { mapFileRow, type FileRow } from '../types/db';
 import { zValidator } from '@hono/zod-validator';
 import {
@@ -207,10 +207,23 @@ filesRouter.post('/upload/init', zValidator('json', uploadInitSchema, zodErrorHo
     }
   }
 
-  const drives = await resolveDrivesWithQuota(c.env, db, userId, (driveId, total, used) => {
-    const driveRepo = new DriveRepository(db);
-    c.executionCtx.waitUntil(driveRepo.updateQuota(driveId, total, used));
-  });
+  const drives = await resolveDrivesWithQuota(
+    c.env,
+    db,
+    userId,
+    (driveId, total, used, hasLimit) => {
+      const driveRepo = new DriveRepository(db);
+      // Gated persist: when Google reported a limit, write total+used
+      // (updateQuota). When it didn't (pooled/unlimited), write used-only
+      // (updateUsedQuota) — never clobber a user-set override with the
+      // 1 TiB unlimited ceiling. Mirrors drives.ts:157-168.
+      if (hasLimit) {
+        c.executionCtx.waitUntil(driveRepo.updateQuota(driveId, total, used));
+      } else {
+        c.executionCtx.waitUntil(driveRepo.updateUsedQuota(driveId, used));
+      }
+    },
+  );
   if (drives.length === 0) throw new AppError(400, 'No connected drives');
 
   const driveIds = drives.map((d) => d.id);
@@ -406,13 +419,36 @@ filesRouter.delete('/:id/permanent', async (c) => {
   return c.body(null, 204);
 });
 
+/** Metadata keys owned by the system (ETag fields). Never user-editable;
+ * stripped from PATCH payloads and re-asserted by the repository's merge
+ * overlay as defense-in-depth. Mirrored in the web client (InfoPanel.tsx). */
+const RESERVED_METADATA_KEYS = new Set(['md5', 's3Etag']);
+
 filesRouter.patch(
   '/:id/metadata',
   zValidator('json', fileMetadataSchema, zodErrorHook),
   async (c) => {
     const fileService = c.get('fileService');
     const { metadata } = c.req.valid('json');
-    await fileService.updateMetadata(c.get('userId'), c.req.param('id'), metadata);
+    // Strip reserved keys (system-managed ETag fields) — they are never
+    // user-editable. The merge overlay in the repository re-asserts them
+    // from the stored row as defense-in-depth.
+    const clean: Record<string, string> = {};
+    const stripped: string[] = [];
+    for (const [k, v] of Object.entries(metadata)) {
+      if (RESERVED_METADATA_KEYS.has(k)) {
+        stripped.push(k);
+      } else {
+        clean[k] = v;
+      }
+    }
+    if (stripped.length > 0) {
+      log(c, 'warn', 'Metadata PATCH stripped reserved keys', {
+        fileId: c.req.param('id'),
+        stripped,
+      });
+    }
+    await fileService.updateMetadata(c.get('userId'), c.req.param('id'), clean);
     return c.body(null, 204);
   },
 );

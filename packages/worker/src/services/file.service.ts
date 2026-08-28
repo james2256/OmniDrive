@@ -381,14 +381,16 @@ export class FileService {
     await this.fileRepo.moveToWorkspaceFolder(fileId, file.user_id, workspaceFolderId, workspaceId);
   }
 
-  /** Update file metadata. RBAC: editor. */
+  /** Patch file metadata (merge overlay). RBAC: editor. Reserved keys
+   * (md5, s3Etag) should be stripped by the caller before this call; the
+   * repository re-asserts them from the stored row as defense-in-depth. */
   async updateMetadata(
     userId: string,
     fileId: string,
     metadata: Record<string, string>,
   ): Promise<void> {
     await this.getFileOrThrow(fileId, userId, 'editor');
-    await this.fileRepo.updateMetadata(fileId, JSON.stringify(metadata));
+    await this.fileRepo.patchMetadata(fileId, JSON.stringify(metadata));
   }
 
   /** Get file for preview/download — includes RBAC check. Returns the file row or throws. */

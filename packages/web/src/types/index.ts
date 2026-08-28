@@ -38,6 +38,10 @@ export interface DriveAccount {
   freeSpace: number;
   usagePercent: number;
   hasLimit?: boolean;
+  /** Routing provenance: true only when live Google data confirmed no limit
+   * AND no user override. Drives with isUnlimited=true always fit any upload.
+   * Mirrors the worker's DriveWithQuota.isUnlimited. */
+  isUnlimited?: boolean;
   syncStatus?: SyncStatus;
   syncErrorMessage?: string | null;
   syncPaused?: boolean;

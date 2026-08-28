@@ -752,10 +752,32 @@ export class FileRepository {
       .bind(driveAccountId, driveAccountId, googleFolderId, driveAccountId);
   }
 
-  updateMetadata(fileId: string, metadata: string) {
+  /**
+   * Merge-overlay PATCH of file metadata. The user's patch is merged onto the
+   * stored metadata via json_patch (RFC 7396 — user keys add/replace, user
+   * null deletes). Reserved keys (md5, s3Etag) are re-asserted from the
+   * stored pre-update row as defense-in-depth: a spoofed md5 in the user patch
+   * is overwritten by the stored value; if the stored row has no md5, the
+   * re-assertion produces json_object('md5', NULL) which json_patch treats as
+   * a delete (RFC 7396), neutralizing the spoof. Malformed/NULL/array stored
+   * rows self-heal to '{}' via the json_valid CASE guard (probe-validated
+   * D1–D10, RG1–RG5).
+   */
+  patchMetadata(fileId: string, patchJson: string) {
     return this.db
-      .prepare('UPDATE files SET metadata = ? WHERE id = ?')
-      .bind(metadata, fileId)
+      .prepare(
+        `UPDATE files SET metadata = json_patch(
+          json_patch(
+            CASE WHEN metadata IS NULL OR json_valid(metadata) = 0 THEN '{}' ELSE metadata END,
+            ?
+          ),
+          json_object(
+            'md5',    json_extract(CASE WHEN metadata IS NULL OR json_valid(metadata) = 0 THEN '{}' ELSE metadata END, '$.md5'),
+            's3Etag', json_extract(CASE WHEN metadata IS NULL OR json_valid(metadata) = 0 THEN '{}' ELSE metadata END, '$.s3Etag')
+          )
+        ) WHERE id = ?`,
+      )
+      .bind(patchJson, fileId)
       .run();
   }
 

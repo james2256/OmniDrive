@@ -83,9 +83,9 @@ app.onError((err, c) => {
 app.use(
   '/api/auth/login',
   rateLimiter({
+    name: 'login',
     windowMs: 60_000,
     maxRequests: 10,
-    useKV: true,
     // Per-(IP, email) key — a botnet from N IPs gets N×10 attempts/min total,
     // but each IP is limited to 10 attempts per email. Without the email
     // component, N IPs could each hammer a single account with 10 attempts.
@@ -103,15 +103,19 @@ app.use(
     },
   }),
 );
-app.use('/api/auth/register', rateLimiter({ windowMs: 600_000, maxRequests: 10, useKV: true }));
+app.use(
+  '/api/auth/register',
+  rateLimiter({ name: 'register', windowMs: 600_000, maxRequests: 10 }),
+);
 // Rate limit password change — prevents brute-force with stolen session cookie
 app.use(
   '/api/auth/change-password',
-  rateLimiter({ windowMs: 60_000, maxRequests: 5, useKV: true }),
+  rateLimiter({ name: 'change-password', windowMs: 60_000, maxRequests: 5 }),
 );
 app.use(
   '/api/shared/:id/verify',
   rateLimiter({
+    name: 'shared-verify',
     windowMs: 60_000,
     maxRequests: 5,
     keyFn: (c: Context) => {
@@ -124,16 +128,15 @@ app.use(
 app.use(
   '/api/shared/:id/download',
   rateLimiter({
+    name: 'shared-download',
     windowMs: 60_000,
     // 3.3/sec — allows a 500-file folder download in ~2.5 min with 3-concurrent
     // parallel fetches. Was 20/min, which killed any folder >20 files at file 21.
     maxRequests: 200,
-    // Globally consistent across Workers isolates. Without useKV, the limit is
-    // per-isolate (in-memory Map) and Cloudflare spins up N isolates → effective
-    // limit becomes N×200/min (inconsistent). KV is eventually consistent but
-    // acceptable for rate limiting (not a security boundary; the per-link
-    // maxDownloads cap in D1 is the real quota).
-    useKV: true,
+    // D1-backed: globally consistent across Workers isolates (every isolate
+    // shares the same rate_limits table). Not a security boundary — the
+    // per-link maxDownloads cap in D1 is the real quota; this just smooths
+    // burst traffic.
     keyFn: (c: Context) => {
       const ip = c.req.header('CF-Connecting-IP') ?? c.req.header('X-Real-IP') ?? 'unknown';
       const id = c.req.param('id') ?? 'unknown';
@@ -141,9 +144,9 @@ app.use(
     },
   }),
 );
-app.use('/api/*', rateLimiter({ windowMs: 60_000, maxRequests: 100 }));
+app.use('/api/*', rateLimiter({ name: 'api', windowMs: 60_000, maxRequests: 100 }));
 // ponytail: S3 rate limit — /s3 bypasses /api/* catch-all, needs its own limiter
-app.use('/s3/*', rateLimiter({ windowMs: 60_000, maxRequests: 100 }));
+app.use('/s3/*', rateLimiter({ name: 's3', windowMs: 60_000, maxRequests: 100 }));
 
 app.route('/api/auth', authRouter);
 app.route('/api/drives', drivesRouter);

@@ -120,6 +120,18 @@ export interface QuotaCache {
 export interface DriveWithQuota extends DriveAccount {
   freeSpace: number;
   usagePercent: number;
+  // Display-honesty signal: true only when a real limit is known (override or
+  // live Google-reported). False for stored-only fallback or live-confirmed
+  // unlimited. Derived by computeDriveQuota.
+  hasLimit: boolean;
+  // Routing provenance: true ONLY when live Google data confirmed no limit
+  // AND no user override. Drives with isUnlimited=true always fit any upload
+  // size. A stored-only fallback is isUnlimited=false (excluded from
+  // auto-selection — prevents routing oversized uploads onto unconfirmed
+  // finite drives). Distinct from hasLimit: a live-confirmed-unlimited drive
+  // has hasLimit=false AND isUnlimited=true; a stored-only drive has
+  // hasLimit=false AND isUnlimited=false.
+  isUnlimited: boolean;
   // ponytail: derived from the branches /drives GET already runs; no stored column.
   health?: 'connected' | 'auth_expired' | 'error';
 }

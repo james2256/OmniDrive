@@ -51,8 +51,11 @@ export class UpstreamError extends AppError {
   }
 }
 
-/** For rate limit hits — 429 Too Many Requests. */
+/** For rate limit hits — 429 Too Many Requests. Carries the S3 XML error
+ * code 'SlowDown' so the /s3 error mapper (index.ts) emits the correct
+ * <Code>SlowDown</Code> instead of the default InternalError. */
 export class RateLimitError extends AppError {
+  readonly code = 'SlowDown';
   constructor(message: string) {
     super(429, message);
     this.name = 'RateLimitError';
